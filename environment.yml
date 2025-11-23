@@ -1,0 +1,21 @@
+name: vcc
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.11
+  - anndata>=0.10
+  - numpy>=1.24
+  - pandas>=2.0
+  - rich>=13.7
+  - scanpy>=1.9
+  - muon>=0.1
+  - scvi-tools>=1.1
+  - pertpy>=0.7
+  - decoupler>=1.7
+  - pytorch::pytorch>=2.2
+  - pytorch::cpuonly
+  - wandb>=0.16
+  - pip
+  - pip:
+      - cell-eval @ git+https://github.com/ArcInstitute/cell-eval

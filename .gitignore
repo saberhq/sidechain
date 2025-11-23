@@ -78,6 +78,11 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Project-specific ignores
+tutorials/
+.DS_Store
+.env.example
+
 # IPython
 profile_default/
 ipython_config.py
