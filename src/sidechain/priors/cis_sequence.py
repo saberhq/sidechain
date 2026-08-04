@@ -6,7 +6,8 @@ Embeds each gene's 3'UTR (fallback: full cDNA) with a nucleotide language model
 everything downstream runs on the Mac against the cache.
 """
 from __future__ import annotations
-from sidechain.priors.base import PriorSource, PriorArtifact
+
+from sidechain.priors.base import PriorArtifact, PriorSource
 
 
 class CisSequenceSource(PriorSource):

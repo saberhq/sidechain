@@ -5,7 +5,8 @@ ATtRACT/oRNAment motif predictions as a fallback where CLIP is unavailable.
 Directed edges onto the bound target gene.
 """
 from __future__ import annotations
-from sidechain.priors.base import PriorSource, PriorArtifact
+
+from sidechain.priors.base import PriorArtifact, PriorSource
 
 
 class RBPBindingSource(PriorSource):

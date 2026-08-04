@@ -1,11 +1,28 @@
-# Local mirror of the official scorer. Nothing is trusted until it clears this.
-cell_eval:
-  metrics: [des, pds, mae]          # the 3 challenge metrics
-  extra_state_metrics: true         # + STATE's 4 -> 7 total (the Generalist-prize set)
-  baseline_agg_results: null        # path to baseline agg_results.csv for `cell-eval score`
+# Year-agnostic half of the eval harness. Nothing is trusted until it clears this.
+#
+# Metric SELECTION is deliberately not here: which metrics count is a per-year
+# challenge fact and lives in challenges/<year>/config.yaml. This file holds the
+# policy that does not change year to year -- holdout discipline, guardrails,
+# where output lands.
+#
+# Merge order (also in ARCHITECTURE.md):
+#   challenge config (metrics, control label, pert column)  OVERRIDES  this file.
+
 holdout:
   scheme: context_transfer          # mimic the challenge's generalize-to-new-context split
   never_tune_on: private_local
+
 guardrails:
   variance_inflation_check: true    # catch PDS leaderboard-hacking before submitting
+  variance_inflation_tolerance: 1.5 # pred/real per-gene variance ratio above which we flag
   block_if_only_public_split_gain: true
+
+output:
+  outdir: runs/cell-eval
+  write_csv: true
+
+# Fallbacks used only when no challenge config is passed. The challenge config is
+# the authority whenever one is supplied.
+cell_eval:
+  metrics: [des, pds, mae]
+  extra_state_metrics: true

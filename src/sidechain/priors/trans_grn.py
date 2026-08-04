@@ -5,7 +5,8 @@ OmniPath), STRING (undirected functional/PPI), and — reused for now — ENCODE
 chromatin tracks. Emits directed/undirected COO edges aligned to gene_index.
 """
 from __future__ import annotations
-from sidechain.priors.base import PriorSource, PriorArtifact
+
+from sidechain.priors.base import PriorArtifact, PriorSource
 
 
 class TransGRNSource(PriorSource):

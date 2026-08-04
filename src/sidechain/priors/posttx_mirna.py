@@ -6,7 +6,8 @@ repression strength — refines the *magnitude* of downstream deltas the trans g
 predicts (mRNA stability via 3'UTR).
 """
 from __future__ import annotations
-from sidechain.priors.base import PriorSource, PriorArtifact
+
+from sidechain.priors.base import PriorArtifact, PriorSource
 
 
 class MiRNATargetSource(PriorSource):

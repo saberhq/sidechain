@@ -30,6 +30,12 @@ dist/
 .coverage
 htmlcov/
 
+# ---- run output ----
+# cell-eval writes results.csv / agg_results.csv / *_de.csv per run. Headline
+# numbers are curated into RESULTS.md; the raw output is regenerable.
+runs/
+cell-eval-outdir/
+
 # ---- single-cell / ML data ----
 # The formats that actually bit us: an 18 GB h5ad and a 4 GB zip sat in this
 # directory before the reorg.

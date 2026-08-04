@@ -3,7 +3,17 @@
 #
 # This is the flexible core: add a source by appending a block; shelve one with
 # `enabled: false` (no deletion). Each block maps to a loader class in
-# src/sidechain/priors/ via `loader`. All sources are aligned to `master_gene_space`.
+# src/sidechain/priors/ via `loader`. All sources align to `master_gene_space`.
+#
+# Every block MUST declare `kind:` -- either `edge` or `node_feature`. It is
+# declared rather than inferred so the registry can validate and report the graph
+# shape without building anything: inferring it would mean running build(), which
+# for nt_utr_embed is a GPU pass over 18k 3'UTRs.
+#
+# `relation:` is the biological relation name and is NOT required to be unique --
+# mirbind2 and targetscan both declare `mirna_target` on purpose, so they can be
+# ensembled. The graph builder keys edge types on `layer:relation:name`, which is
+# unique, so enabling both keeps both.
 # ============================================================================
 
 master_gene_space:
@@ -15,6 +25,7 @@ sources:
 
   # ---------------- TRANS layer: transcriptional regulation ----------------
   - name: dorothea
+    kind: edge
     layer: trans
     relation: tf_target
     entity: gene
@@ -28,6 +39,7 @@ sources:
     notes: "Directed, signed TF->target. Signs let the cascade propagate up/down."
 
   - name: string
+    kind: edge
     layer: trans
     relation: functional_ppi
     entity: gene
@@ -41,8 +53,9 @@ sources:
 
   # ---------------- CIS layer: sequence-derived node features ----------------
   - name: nt_utr_embed
+    kind: node_feature
     layer: cis
-    relation: node_feature
+    relation: utr_embedding      # a semantic name; `kind` carries node-vs-edge
     entity: transcript_3utr
     loader: CisSequenceSource
     model: "InstaDeepAI/nucleotide-transformer-v2-500m-multi-species"
@@ -57,18 +70,26 @@ sources:
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
   - name: mirbind2
+    kind: edge
     layer: posttx
     relation: mirna_target
     entity: gene
     loader: MiRNATargetSource
-    provider: "miRBind2 (BioGeMT, 2026)"
+    provider: "miRBind2 (BioGeMT, bioRxiv 2026.03.19.712027)"
     url: "https://github.com/BioGeMT/miRBind_2.0"
     directed: true
     edge_attr: [repression_score]
+    # miRBind2 is an INFERENCE MODEL, not a downloadable edge list: there is no
+    # file to fetch. Either run the model over 3'UTR x miRNA pairs on a GPU
+    # (precompute: true, which is what ops budgets for) or point
+    # precomputed_predictions_url at a cached prediction table.
+    precompute: true
+    precomputed_predictions_url: null
     enabled: true
     notes: "Sequence-only miRNA binding + functional repression. miRNA->target edges."
 
   - name: targetscan
+    kind: edge
     layer: posttx
     relation: mirna_target
     entity: gene
@@ -81,6 +102,7 @@ sources:
     notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2."
 
   - name: postar3
+    kind: edge
     layer: posttx
     relation: rbp_binding
     entity: gene
@@ -94,6 +116,7 @@ sources:
     notes: "CLIP-seq RBP binding sites, 3'UTR-filtered. RBP->target edges."
 
   - name: encode_eclip
+    kind: edge
     layer: posttx
     relation: rbp_binding
     entity: gene
@@ -102,10 +125,11 @@ sources:
     url: "https://www.encodeproject.org"
     directed: true
     region_filter: "3utr"
-    enabled: false               # K562/HepG2 lines — check context transfer first
+    enabled: false               # K562/HepG2 lines - check context transfer first
     notes: "Experimental RBP footprints. Watch cell-context mismatch vs the challenge line."
 
   - name: attract
+    kind: edge
     layer: posttx
     relation: rbp_motif
     entity: gene
@@ -119,6 +143,7 @@ sources:
 
   # ---------------- EPIGENOMIC layer: add later ----------------
   - name: encode_hesc_atac
+    kind: edge
     layer: epigenomic
     relation: chromatin_access
     entity: gene
