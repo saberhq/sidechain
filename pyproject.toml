@@ -1,0 +1,46 @@
+[project]
+name = "sidechain"
+version = "0.0.1"
+description = "Solo entry for the Arc Virtual Cell Challenge 2026 (cis/trans prior model)."
+# Upper bound is deliberate: without it uv forks the resolution at 3.12 and the
+# Mac and the rented GPU box end up on different major versions of anndata.
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  # single-cell core
+  "scanpy",
+  "anndata",
+  "pertpy",            # perturbation analysis, Mixscape, E-distance (scverse)
+  "decoupler",         # DoRothEA/TRRUST access via OmniPath
+  # arc challenge plumbing -- all four publish to PyPI
+  "arc-state",         # STATE baseline + `state tx`
+  "cell-load",         # Arc dataloaders
+  "cell-eval",         # Arc official scorer -- the local mirror wraps this
+  "pdex",              # Arc differential expression
+  # modeling
+  "torch",
+  "torch-geometric",   # sparse multi-relational GNN (edge_index / COO)
+  "numpy",
+  "scipy",
+  "pandas",
+  # sequence priors
+  "transformers",      # Nucleotide Transformer inference
+  # infra
+  "lamindb",           # dataset + run/artifact versioning
+  "pyyaml",
+  "typer",             # small CLIs
+]
+
+[dependency-groups]
+# uv installs this on a plain `uv sync`.
+dev = ["pytest>=8", "pytest-cov", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+# Commit uv.lock so the Mac and the GPU box resolve identically. Re-pin after
+# the Aug-20 spec drop confirms the Arc API surface.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

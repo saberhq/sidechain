@@ -1,0 +1,41 @@
+# Points the year-agnostic core at the 2025 challenge.
+#
+# IMPORTANT: this describes the data we ACTUALLY hold, not the official 2025
+# challenge split. Arc's public_test / private_test AnnData were never released to
+# entrants, so the backtest carves its own holdout out of the training set.
+# Frozen spec — don't edit to chase 2026 changes; branch an experiment instead.
+year: 2025
+data_dir: "~/data/sidechain/vcc2025"
+
+cell_type: "H1_hESC"
+control_types: [ntc, safe_targeting]
+metrics: [des, pds, mae]
+extra_state_metrics: true      # + STATE's extras -> 7 total (Generalist-prize set)
+
+# What is on disk (verified 2026-08-04):
+#   adata_Training.h5ad          15.5 GB  full training set
+#   adata_Training_subset.h5ad    3.4 GB  locally derived subset — NOT in the zip
+#                                         and backed up nowhere. Use for dev loops.
+#   gene_names.csv              18,080 rows, HGNC SYMBOLS (not Ensembl IDs)
+#   pert_counts_Validation.csv      50 validation perturbations: target_gene,
+#                                         n_cells, median_umi_per_cell
+#                                         (counts only — no expression matrix)
+source_file: adata_Training.h5ad
+dev_file: adata_Training_subset.h5ad
+
+splits:
+  scheme: carve_from_training  # no official test AnnData exists for entrants
+  holdout_perturbations: 50    # mirrors the size of pert_counts_Validation.csv
+  stratify_by: target_gene
+  seed: 20250101
+
+# The 2025 feature space is HGNC symbols; the prior registry keys on Ensembl IDs.
+# A backtest MUST map between them and report the mapping loss.
+gene_id_space: hgnc_symbol
+requires_id_mapping_to: ensembl_gene_id
+
+baseline_agg_results: null     # path to a baseline for `cell-eval score`
+notes: >
+  Retrospective only. No leaderboard submission. Any score here is an estimate
+  against a self-made holdout, NOT a real 2025 leaderboard position — don't quote
+  it as "what we would have placed".

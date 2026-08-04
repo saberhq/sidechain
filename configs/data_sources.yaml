@@ -1,0 +1,129 @@
+# ============================================================================
+# Sidechain prior-source registry.
+#
+# This is the flexible core: add a source by appending a block; shelve one with
+# `enabled: false` (no deletion). Each block maps to a loader class in
+# src/sidechain/priors/ via `loader`. All sources are aligned to `master_gene_space`.
+# ============================================================================
+
+master_gene_space:
+  reference: gencode
+  version: "v47"                 # <-- align to the challenge feature space at Aug-20 kickoff
+  id_type: ensembl_gene_id       # canonical key every PriorSource maps onto
+
+sources:
+
+  # ---------------- TRANS layer: transcriptional regulation ----------------
+  - name: dorothea
+    layer: trans
+    relation: tf_target
+    entity: gene
+    loader: TransGRNSource
+    provider: "DoRothEA via decoupler/OmniPath"
+    url: "https://omnipathdb.org"
+    directed: true
+    signed: true                 # +1 activation / -1 repression
+    confidence_levels: [A, B, C] # drop D/E (low-confidence) by default
+    enabled: true
+    notes: "Directed, signed TF->target. Signs let the cascade propagate up/down."
+
+  - name: string
+    layer: trans
+    relation: functional_ppi
+    entity: gene
+    loader: TransGRNSource
+    provider: "STRING v12"
+    url: "https://string-db.org"
+    directed: false
+    score_threshold: 700         # high-confidence edges only
+    enabled: true
+    notes: "Undirected functional/PPI edges; clusters co-regulated nodes."
+
+  # ---------------- CIS layer: sequence-derived node features ----------------
+  - name: nt_utr_embed
+    layer: cis
+    relation: node_feature
+    entity: transcript_3utr
+    loader: CisSequenceSource
+    model: "InstaDeepAI/nucleotide-transformer-v2-500m-multi-species"
+    sequence_region: "3utr"      # one of {3utr, full_cdna, 5utr}
+    fallback_region: "full_cdna" # if no annotated 3'UTR
+    pooling: "mean_over_chunks"  # chunk long UTRs, then pool
+    embed_dim: 1024
+    precompute: true             # compute once on a rented GPU, cache in lamindb
+    enabled: true
+    notes: "Per-gene 3'UTR embedding as a frozen node feature. The modern ntEmbd."
+
+  # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
+  # Saber's differentiated edge. All directed onto the target gene.
+  - name: mirbind2
+    layer: posttx
+    relation: mirna_target
+    entity: gene
+    loader: MiRNATargetSource
+    provider: "miRBind2 (BioGeMT, 2026)"
+    url: "https://github.com/BioGeMT/miRBind_2.0"
+    directed: true
+    edge_attr: [repression_score]
+    enabled: true
+    notes: "Sequence-only miRNA binding + functional repression. miRNA->target edges."
+
+  - name: targetscan
+    layer: posttx
+    relation: mirna_target
+    entity: gene
+    loader: MiRNATargetSource
+    provider: "TargetScan Human 8.0"
+    url: "https://www.targetscan.org"
+    directed: true
+    edge_attr: [context_pp_score, conservation]
+    enabled: false               # alternate/complement to miRBind2
+    notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2."
+
+  - name: postar3
+    layer: posttx
+    relation: rbp_binding
+    entity: gene
+    loader: RBPBindingSource
+    provider: "POSTAR3"
+    url: "http://postar.ncrnalab.org"
+    directed: true
+    region_filter: "3utr"
+    edge_attr: [n_sites, clip_score]
+    enabled: true
+    notes: "CLIP-seq RBP binding sites, 3'UTR-filtered. RBP->target edges."
+
+  - name: encode_eclip
+    layer: posttx
+    relation: rbp_binding
+    entity: gene
+    loader: RBPBindingSource
+    provider: "ENCODE eCLIP"
+    url: "https://www.encodeproject.org"
+    directed: true
+    region_filter: "3utr"
+    enabled: false               # K562/HepG2 lines — check context transfer first
+    notes: "Experimental RBP footprints. Watch cell-context mismatch vs the challenge line."
+
+  - name: attract
+    layer: posttx
+    relation: rbp_motif
+    entity: gene
+    loader: RBPBindingSource
+    provider: "ATtRACT / oRNAment"
+    url: "https://attract.cnic.es"
+    directed: true
+    region_filter: "3utr"
+    enabled: false               # motif fallback where CLIP is unavailable for an RBP
+    notes: "Sequence-motif RBP site predictions. Lower confidence than CLIP."
+
+  # ---------------- EPIGENOMIC layer: add later ----------------
+  - name: encode_hesc_atac
+    layer: epigenomic
+    relation: chromatin_access
+    entity: gene
+    loader: TransGRNSource        # reuse; refine when needed
+    provider: "ENCODE hESC ATAC/ChIP"
+    url: "https://www.encodeproject.org"
+    enabled: false
+    notes: "Promoter reachability / open chromatin. Add only if it earns its keep."

@@ -1,0 +1,9 @@
+# Placeholder until the Aug-20 spec drop. Fill from the official 2026 rules at kickoff.
+year: 2026
+data_dir: "~/data/sidechain/vcc2026"
+cell_type: null          # TBD at kickoff
+control_types: null      # TBD
+metrics: null            # TBD (2025 was des/pds/mae; 2026 "wider" — confirm)
+splits: null             # TBD
+baseline_agg_results: null
+notes: "Keep problem-agnostic until 2026-08-20."

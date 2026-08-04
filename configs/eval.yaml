@@ -1,0 +1,11 @@
+# Local mirror of the official scorer. Nothing is trusted until it clears this.
+cell_eval:
+  metrics: [des, pds, mae]          # the 3 challenge metrics
+  extra_state_metrics: true         # + STATE's 4 -> 7 total (the Generalist-prize set)
+  baseline_agg_results: null        # path to baseline agg_results.csv for `cell-eval score`
+holdout:
+  scheme: context_transfer          # mimic the challenge's generalize-to-new-context split
+  never_tune_on: private_local
+guardrails:
+  variance_inflation_check: true    # catch PDS leaderboard-hacking before submitting
+  block_if_only_public_split_gain: true

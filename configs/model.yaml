@@ -1,0 +1,21 @@
+# Which rung(s) are active, and head hyperparameters. Climb the ladder; keep the winner.
+active_rungs: [0, 1]          # start with naive + statistical backbone; add 2/3/4 later
+
+rung1_statistical:
+  pseudobulk: {aggregate: sum, group_by: [perturbation, replicate], min_cells: 25}
+  features: [deg_frequency, mean_expression, gene_variance, effect_size_prior]
+
+rung2_state:
+  checkpoint: null            # path to STATE ST checkpoint; fill after `state tx` fine-tune
+  finetune: true
+
+rung3_residual_gnn:
+  enabled: false              # residual-gated: turn on only if it beats Rung 1 locally
+  layers: 2                   # 2-3 message-passing layers
+  hidden_dim: 256
+  edge_types: from_registry   # auto-populated from enabled data_sources.yaml entries
+  node_features: [expr_embed, cis_seq_embed]
+
+rung4_fusion:
+  loss_weights: {pds: 1.0, des: 1.0, mae: 0.2}   # BioMap-style fused, metric-aware
+  n_replicate_outputs: 20     # emit a distribution so DES has dispersion
