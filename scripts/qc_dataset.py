@@ -1,4 +1,5 @@
-"""Lightweight QC script using scanpy/scverse conventions."""
+#!/usr/bin/env python
+"""QC script following scverse best practices with minimal arguments."""
 
 from __future__ import annotations
 
@@ -7,9 +8,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
-import scanpy as sc
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
@@ -17,11 +15,20 @@ if str(SRC_DIR) not in sys.path:
 
 from vcc.config import ConfigurationError
 from vcc.data import DatasetNotFoundError, load_anndata, load_dataset
+from vcc.qc import (
+    QCThresholds,
+    annotate_qc_metrics,
+    cell_filter_mask,
+    filter_genes,
+    plot_basic_qc,
+    summarize_qc,
+    write_markdown_report,
+)
 
 
-def _mito_mask(var_names) -> list[bool]:
-    """Detect mitochondrial genes (assumes var_names are gene symbols)."""
-    return [str(g).upper().startswith("MT-") for g in var_names]
+def _default_output_dir(source_path: Path) -> Path:
+    """Place QC outputs under the repo-level results directory."""
+    return REPO_ROOT / "results" / f"{source_path.stem}_qc"
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -44,34 +51,46 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Directory containing challenge data files. Overrides VCC_DATA_DIR if provided.",
     )
     parser.add_argument(
+        "--outdir",
+        "-o",
+        type=Path,
+        help="Directory to store QC outputs (defaults to results/<stem>_qc in the repo).",
+    )
+    parser.add_argument(
         "--min-genes",
         type=int,
-        default=200,
-        help="Minimum genes per cell to keep (0 to disable).",
+        default=None,
+        help="Minimum genes per cell to keep (defaults to best practices).",
     )
     parser.add_argument(
         "--max-genes",
         type=int,
-        default=6000,
-        help="Maximum genes per cell to keep (0 to disable).",
-    )
-    parser.add_argument(
-        "--max-mt",
-        type=float,
-        default=20.0,
-        help="Maximum mitochondrial percent (pct_counts_mt) to keep (0 to disable).",
+        default=None,
+        help="Maximum genes per cell to keep (defaults to best practices).",
     )
     parser.add_argument(
         "--min-counts",
         type=int,
-        default=0,
-        help="Minimum total counts per cell to keep (0 to disable).",
+        default=None,
+        help="Minimum total counts per cell (defaults to best practices).",
     )
     parser.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="Output .h5ad path. Defaults to <data_dir>/<stem>_filtered.h5ad.",
+        "--max-counts",
+        type=int,
+        default=None,
+        help="Maximum total counts per cell (optional, defaults to disabled).",
+    )
+    parser.add_argument(
+        "--max-mt",
+        type=float,
+        default=None,
+        help="Maximum mitochondrial percent to keep (defaults to best practices).",
+    )
+    parser.add_argument(
+        "--min-cells-per-gene",
+        type=int,
+        default=None,
+        help="Drop genes detected in fewer than this many cells (defaults to best practices).",
     )
     parser.add_argument(
         "--backed",
@@ -83,6 +102,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv or sys.argv[1:])
+
+    thresholds = QCThresholds(
+        min_genes=args.min_genes if args.min_genes is not None else QCThresholds.min_genes,
+        max_genes=args.max_genes if args.max_genes is not None else QCThresholds.max_genes,
+        min_counts=args.min_counts if args.min_counts is not None else QCThresholds.min_counts,
+        max_counts=args.max_counts if args.max_counts is not None else QCThresholds.max_counts,
+        max_mt_percent=args.max_mt if args.max_mt is not None else QCThresholds.max_mt_percent,
+        min_cells_per_gene=(
+            args.min_cells_per_gene if args.min_cells_per_gene is not None else QCThresholds.min_cells_per_gene
+        ),
+    )
 
     try:
         if args.path is not None:
@@ -98,44 +128,48 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.backed:
         print("Loaded in backed mode; materializing into memory for QC/filtering.")
         adata = adata.to_memory()
-    else:
-        print("Loaded in-memory; computing QC metrics and applying basic filters.")
 
-    adata.var["mt"] = _mito_mask(adata.var_names)
-    sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True)
+    outdir = args.outdir or _default_output_dir(source_path)
+    outdir.mkdir(parents=True, exist_ok=True)
 
-    print(
-        f"Cells: {adata.n_obs:,}, Genes: {adata.n_vars:,}, "
-        f"median genes/cell: {adata.obs['n_genes_by_counts'].median():.0f}, "
-        f"median counts/cell: {adata.obs['total_counts'].median():.0f}"
+    print(f"Computing QC metrics for {adata.n_obs:,} cells × {adata.n_vars:,} genes.")
+    annotate_qc_metrics(adata)
+
+    # Capture raw snapshot for summary before mutating.
+    adata_raw = adata.copy()
+
+    genes_dropped = filter_genes(adata, min_cells=thresholds.min_cells_per_gene)
+    print(f"Dropped {genes_dropped} genes detected in fewer than {thresholds.min_cells_per_gene} cells.")
+
+    # Recompute QC metrics after gene filtering for accurate per-cell stats.
+    annotate_qc_metrics(adata)
+
+    mask = cell_filter_mask(adata, thresholds)
+    kept = int(mask.sum())
+    print(f"Filtering cells: keeping {kept:,} of {adata.n_obs:,}.")
+    adata_filtered = adata[mask].copy()
+
+    # Save filtered AnnData
+    filtered_path = outdir / f"{source_path.stem}_qc_filtered.h5ad"
+    adata_filtered.write(filtered_path)
+    print(f"Filtered AnnData written to: {filtered_path}")
+
+    summary = summarize_qc(
+        adata_raw,
+        adata_filtered,
+        thresholds=thresholds,
+        genes_dropped=genes_dropped,
     )
-    if "pct_counts_mt" in adata.obs:
-        print(f"pct_counts_mt median: {adata.obs['pct_counts_mt'].median():.2f}")
-    else:
-        print("pct_counts_mt median: n/a")
+    summary_path = outdir / "qc_summary.csv"
+    summary.to_csv(summary_path, index=False)
+    print(f"QC summary saved to: {summary_path}")
 
-    to_keep: pd.Series = pd.Series(True, index=adata.obs_names)
-    if args.min_genes > 0:
-        to_keep &= adata.obs["n_genes_by_counts"] >= args.min_genes
-    if args.max_genes > 0:
-        to_keep &= adata.obs["n_genes_by_counts"] <= args.max_genes
-    if args.min_counts > 0:
-        to_keep &= adata.obs["total_counts"] >= args.min_counts
-    if args.max_mt > 0 and "pct_counts_mt" in adata.obs:
-        to_keep &= adata.obs["pct_counts_mt"] <= args.max_mt
+    figures = plot_basic_qc(adata_raw, outdir=outdir)
+    if figures:
+        print(f"QC figures saved: {', '.join(p.name for p in figures)}")
 
-    kept = int(to_keep.sum())
-    print(f"Filtering: keeping {kept:,} of {adata.n_obs:,} cells.")
-    adata = adata[to_keep].copy()
-
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        stem = source_path.stem.replace(".h5ad", "")
-        out_path = source_path.with_name(f"{stem}_filtered.h5ad")
-
-    adata.write(out_path)
-    print(f"Filtered AnnData written to: {out_path}")
+    report_path = write_markdown_report(outdir=outdir, summary=summary, figure_paths=figures, source=source_path)
+    print(f"Markdown report written to: {report_path}")
     return 0
 
 
