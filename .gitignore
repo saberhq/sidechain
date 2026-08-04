@@ -73,3 +73,13 @@ vcc_data/
 # stays on this machine only. Deliberately NOT tracked -- do not `git add -f` it.
 # Public-facing design lives in ARCHITECTURE.md; the "why" stays here, local.
 plan.md
+
+# ---- reports ----
+# Long-form explanatory write-ups: how the model works, what the data looks like,
+# what we tried. Feedstock for the Sidechain blog, so they stay local until Saber
+# chooses to publish a polished version.
+#
+# CAVEAT: untracked means NO HISTORY. A report edited three weeks from now loses
+# today's version with no way back. If a report starts mattering, either move it
+# into git or keep reports/ as its own repo with a private remote.
+reports/
