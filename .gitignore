@@ -68,11 +68,46 @@ vcc_data/
 .env.*
 !.env.example
 
-# ---- private strategy notes ----
-# plan.md holds the competition strategy and unpublished model-design ideas. It
-# stays on this machine only. Deliberately NOT tracked -- do not `git add -f` it.
-# Public-facing design lives in ARCHITECTURE.md; the "why" stays here, local.
+# ---- internal working docs (private until first release) ----
+# The repo is public and stays public -- building in the open is the point. But
+# the working docs are not the product. They stay local until there is a model
+# worth talking about, at which point any of them can be made public simply by
+# deleting its line here and committing.
+#
+# Asymmetry worth remembering: publishing later is one commit; un-publishing
+# later is a history rewrite plus a force-push. So the default is private.
+#
+# All of these were purged from git history on 2026-08-04, not merely untracked.
+#
+# NOTE: .gitignore has no trailing comments -- `#` only starts a comment at the
+# start of a line. `plan.md  # strategy` is a pattern matching a file literally
+# named "plan.md  # strategy", i.e. nothing. Keep every annotation on its own line.
+
+# strategy, budget, timeline
 plan.md
+# house rules + reading budget for agent sessions
+CLAUDE.md
+challenges/*/CLAUDE.md
+# rung ladder, prior module, eval loop
+ARCHITECTURE.md
+# open engineering debt
+TODO.md
+# completed work, moved out of TODO.md
+CHANGELOG.md
+# annotated paper log
+literature.md
+# scored runs
+RESULTS.md
+# subagent briefs
+agents/
+# term reference. Private only because its worked examples are our own results --
+# strip those and it is the most publishable thing here. Good early blog post.
+GLOSSARY.md
+
+# ---- research notes ----
+# Saber's hypotheses, analysis, and the future Researcher agent's findings.
+# See research/README.md for the structure and how entries are added.
+research/
 
 # ---- reports ----
 # Long-form explanatory write-ups: how the model works, what the data looks like,

@@ -1,7 +1,7 @@
 [project]
 name = "sidechain"
 version = "0.0.1"
-description = "Solo entry for the Arc Virtual Cell Challenge 2026 (cis/trans prior model)."
+description = "Predicting transcriptional response to genetic perturbation."
 # Upper bound is deliberate: without it uv forks the resolution at 3.12 and the
 # Mac and the rented GPU box end up on different major versions of anndata.
 requires-python = ">=3.11,<3.13"
