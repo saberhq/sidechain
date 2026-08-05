@@ -162,3 +162,19 @@ def test_is_discrete_and_normalize_counts():
     n = loaders.normalize_counts(a)
     assert not loaders.is_discrete(n)
     assert n.X.max() < a.X.max()
+
+
+def test_normalize_counts_default_leaves_the_original_untouched():
+    a = _adata()
+    before = a.X.max()
+    loaders.normalize_counts(a)
+    assert a.X.max() == before, "default must copy, not mutate the caller's AnnData"
+
+
+def test_normalize_counts_inplace_mutates_and_returns_the_same_object():
+    """The full 2025 file is ~3 GB; the defensive copy doubles peak memory and is
+    the slowest step in the pipeline. inplace is how the dry run avoids it."""
+    a = _adata()
+    out = loaders.normalize_counts(a, inplace=True)
+    assert out is a
+    assert not loaders.is_discrete(a)

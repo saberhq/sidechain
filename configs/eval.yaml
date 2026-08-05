@@ -5,7 +5,7 @@
 # policy that does not change year to year -- holdout discipline, guardrails,
 # where output lands.
 #
-# Merge order (also in ARCHITECTURE.md):
+# Merge order:
 #   challenge config (metrics, control label, pert column)  OVERRIDES  this file.
 
 holdout:

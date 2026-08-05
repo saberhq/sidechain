@@ -14,7 +14,7 @@ cell-eval's own `vcc` profile is exactly those three; its `minimal` profile is
 those three plus pearson_delta, mse, precision_at_N and de_nsig_counts -- seven,
 the set the 2025 Generalist prize averaged ranks over.
 
-Config merge order (also stated in ARCHITECTURE.md):
+Config merge order:
     challenge config (year-specific: metrics, control label, pert column)
         overrides
     eval config (year-agnostic: holdout policy, guardrails, output)
@@ -145,11 +145,18 @@ def score(
     baseline_agg_results: str | Path | None = None,
     allow_discrete: bool = False,
     skip_guardrails: bool = False,
+    de_real: str | Path | None = None,
 ) -> dict[str, Any]:
     """Run cell-eval on a prediction. Returns metrics, guardrails and raw frames.
 
     `pred` and `real` are AnnData (or paths). They must share gene order and the
     same set of perturbation labels, including the control.
+
+    `de_real` is a path to a previously computed `real_de.csv`. Differential
+    expression on the truth depends only on `real`, so when scoring several models
+    against the same holdout it is the same computation every time -- and on the
+    full 2025 file it dominates the run. Pass it to skip the recompute. The result
+    dict always carries `de_real_path` so the next call can reuse it.
     """
     from cell_eval import MetricsEvaluator
 
@@ -174,6 +181,12 @@ def score(
         control_pert,
     )
 
+    if de_real is not None:
+        de_real = Path(de_real).expanduser()
+        if not de_real.exists():
+            raise FileNotFoundError(f"de_real not found: {de_real}")
+        logger.info("Reusing precomputed real-data DE: %s", de_real)
+
     evaluator = MetricsEvaluator(
         adata_pred=pred_ad,
         adata_real=real_ad,
@@ -181,6 +194,7 @@ def score(
         pert_col=pert_col,
         outdir=str(outdir),
         allow_discrete=allow_discrete,
+        de_real=str(de_real) if de_real is not None else None,
     )
     results, agg = evaluator.compute(profile=profile, write_csv=True)
 
@@ -198,6 +212,9 @@ def score(
         "outdir": str(outdir),
         "results": results,
         "agg_results": agg,
+        # Present whether we computed it or reused it, so a caller scoring several
+        # models against one holdout can thread it through without special-casing.
+        "de_real_path": str(de_real) if de_real is not None else str(outdir / "real_de.csv"),
     }
 
     if not skip_guardrails and cfg.get("guardrails", {}).get("variance_inflation_check", True):

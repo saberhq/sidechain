@@ -38,6 +38,48 @@ def _dense(x) -> np.ndarray:
     return np.asarray(x.todense()) if sp.issparse(x) else np.asarray(x)
 
 
+def _col_moments(x, chunk: int = 5000) -> tuple[np.ndarray, np.ndarray]:
+    """Per-gene (mean, variance) without densifying the whole matrix.
+
+    Two precision traps, both of which showed up as real disagreement against a
+    dense float64 recompute:
+
+      * scipy's sparse reductions accumulate in the matrix dtype, so summing 38k
+        float32 values drifts by ~1e-6 relative.
+      * variance via E[X^2] - E[X]^2 loses further precision to catastrophic
+        cancellation, which in float32 reached ~1e-3 relative.
+
+    Accumulating both moments in float64 over row chunks fixes both while never
+    holding more than `chunk` rows densely.
+    """
+    if not sp.issparse(x):
+        arr = np.asarray(x, dtype=np.float64)
+        return arr.mean(axis=0), arr.var(axis=0)
+
+    n = x.shape[0]
+    total = np.zeros(x.shape[1], dtype=np.float64)
+    total_sq = np.zeros(x.shape[1], dtype=np.float64)
+    for start in range(0, n, chunk):
+        blk = x[start : start + chunk].astype(np.float64)
+        total += np.asarray(blk.sum(axis=0)).ravel()
+        total_sq += np.asarray(blk.multiply(blk).sum(axis=0)).ravel()
+
+    mean = total / n
+    return mean, np.maximum(total_sq / n - mean**2, 0.0)
+
+
+def _col_mean(x) -> np.ndarray:
+    return _col_moments(x)[0]
+
+
+def _min_nonzero(x) -> float:
+    """Smallest stored nonzero value. For CSR this reads .data directly, so it
+    never materializes the matrix."""
+    data = x.data if sp.issparse(x) else np.asarray(x)
+    positive = data[data > 0]
+    return float(positive.min()) if positive.size else 0.0
+
+
 class PerturbationPredictor(ABC):
     """Common interface: fit on training cells, emit predicted cells."""
 
@@ -59,8 +101,16 @@ class PerturbationPredictor(ABC):
                 f"training data; the whole ladder is defined relative to controls."
             )
         self.var = adata.var.copy()
-        self.control_cells_ = _dense(adata.X[ctrl_mask])
-        self.control_mean_ = self.control_cells_.mean(axis=0)
+        # The control pool is kept in whatever layout the data arrived in. On the
+        # full 2025 file there are 38,176 control cells, so densifying it here
+        # would cost 2.8 GB held for the entire run; predict() densifies only the
+        # rows it draws instead.
+        self.control_cells_ = adata.X[ctrl_mask]
+        self.control_mean_, self.control_var_ = _col_moments(self.control_cells_)
+        # The smallest expression value the assay can actually represent. Adding a
+        # delta to a dropped-out (zero) gene produces values far below this, which
+        # are numerical artifacts rather than predictions -- see predict().
+        self.min_nonzero_ = _min_nonzero(self.control_cells_)
         logger.info("%s: fit on %d control cells", type(self).__name__, int(ctrl_mask.sum()))
         self._fit(adata, labels, ctrl_mask)
         return self
@@ -75,39 +125,68 @@ class PerturbationPredictor(ABC):
         """Per-gene shift to apply to the control profile for this perturbation."""
 
     def predict(
-        self, perturbations: dict[str, int], *, seed: int = 0, include_control: int | None = None
+        self,
+        perturbations: dict[str, int],
+        *,
+        seed: int = 0,
+        include_control: int | None = None,
+        sparse_output: bool = True,
     ) -> ad.AnnData:
         """Emit predicted cells. `perturbations` maps label -> number of cells.
 
         `include_control` adds that many control cells under the control label;
         cell-eval requires the control to be present in both pred and real.
+
+        `sparse_output` matters more than it looks. Real single-cell data is ~54%
+        zeros from dropout, and because the deltas are small our predictions are
+        ~50% zeros too -- but built naively they are stored DENSE. At the full
+        2025 scale that is 5.2 GB against 2.4 GB for the equivalent sparse
+        matrix, which was enough to drive a 17 GB machine into swap thrashing.
+        Values below the assay's smallest representable level are snapped to zero
+        first: adding a delta to a dropped-out gene yields ~1e-3 where the real
+        data's floor is ~6e-2, so those entries are artifacts of the arithmetic,
+        not predictions.
         """
         if self.control_cells_ is None:
             raise RuntimeError("predict() called before fit()")
         rng = np.random.default_rng(seed)
         pool = self.control_cells_
 
-        blocks: list[np.ndarray] = []
+        floor = getattr(self, "min_nonzero_", 0.0) if sparse_output else 0.0
+
+        def _emit(rows: np.ndarray, delta: np.ndarray | None):
+            """Densify ONE perturbation's draw, shift it, and re-sparsify.
+
+            The pool itself stays in its original (sparse) layout -- densifying it
+            whole would cost 2.8 GB on the full 2025 file, held for the entire run.
+            """
+            block = _dense(pool[rows]).astype(np.float32, copy=True)
+            if delta is not None:
+                block += delta
+            # Expression is log1p of a non-negative quantity; a shift can push a
+            # gene below zero, which is not a representable expression value.
+            np.clip(block, 0, None, out=block)
+            if floor > 0:
+                block[block < floor] = 0.0
+            return sp.csr_matrix(block) if sparse_output else block
+
+        blocks: list = []
         labels: list[str] = []
         for pert, n in perturbations.items():
             if n <= 0:
                 continue
-            draw = rng.integers(0, pool.shape[0], size=n)
-            blocks.append(pool[draw] + self.delta_for(pert))
+            blocks.append(_emit(rng.integers(0, pool.shape[0], size=n), self.delta_for(pert)))
             labels.extend([pert] * n)
 
         if include_control:
-            draw = rng.integers(0, pool.shape[0], size=include_control)
-            blocks.append(pool[draw].copy())
+            blocks.append(_emit(rng.integers(0, pool.shape[0], size=include_control), None))
             labels.extend([self.control_label] * include_control)
 
         if not blocks:
             raise ValueError("predict() got no perturbations with a positive cell count")
 
-        X = np.vstack(blocks).astype(np.float32)
-        # Expression is log1p of a non-negative quantity; a shift can push a gene
-        # below zero, which is not a representable expression value.
-        np.clip(X, 0, None, out=X)
+        X = sp.vstack(blocks, format="csr") if sparse_output else np.vstack(blocks)
+
         obs = pd.DataFrame({self.pert_col: labels})
         obs.index = [f"pred_{i}" for i in range(len(labels))]
         return ad.AnnData(X=X, obs=obs, var=self.var.copy())
@@ -172,7 +251,7 @@ class StatisticalBackbone(PerturbationPredictor):
         gene_names = np.asarray(adata.var_names.astype(str))
         gene_pos = {g: i for i, g in enumerate(gene_names)}
 
-        self.gene_variance_ = self.control_cells_.var(axis=0)
+        self.gene_variance_ = self.control_var_
         n_ctrl = self.control_cells_.shape[0]
 
         deltas: list[np.ndarray] = []

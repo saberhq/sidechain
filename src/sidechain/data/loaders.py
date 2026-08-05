@@ -280,15 +280,21 @@ def carve_holdout(
     return train, holdout
 
 
-def normalize_counts(adata: ad.AnnData, target_sum: float = 1e4) -> ad.AnnData:
+def normalize_counts(
+    adata: ad.AnnData, target_sum: float = 1e4, *, inplace: bool = False
+) -> ad.AnnData:
     """Counts -> library-size-normalized log1p, the space cell-eval expects.
 
     cell-eval refuses discrete (raw count) input unless allow_discrete=True,
     because MAE on raw counts is dominated by library-size differences.
+
+    `inplace=True` skips the defensive copy. On the full 2025 file that copy is
+    ~3 GB and was the slowest single step in the pipeline; pass it whenever the
+    caller discards the original immediately (as the dry run does).
     """
     import scanpy as sc
 
-    out = adata.copy()
+    out = adata if inplace else adata.copy()
     sc.pp.normalize_total(out, target_sum=target_sum)
     sc.pp.log1p(out)
     return out
