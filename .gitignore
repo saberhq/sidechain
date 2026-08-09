@@ -64,57 +64,29 @@ vcc_data/
 # ---- machine-local ----
 .DS_Store
 .claude/settings.local.json
+# Skills and slash commands describe the structure of the private docs they
+# operate on, so they cannot live in the tracked part of .claude/. Note that
+# .claude/settings.json is deliberately NOT ignored -- shared harness config is
+# fine to publish; the procedures that read research/ are not.
+.claude/skills/
+.claude/commands/
 .env
 .env.*
 !.env.example
 
-# ---- internal working docs (private until first release) ----
-# The repo is public and stays public -- building in the open is the point. But
-# the working docs are not the product. They stay local until there is a model
-# worth talking about, at which point any of them can be made public simply by
-# deleting its line here and committing.
+# ---- the private half of the project ----
+# This repo is public. The working docs -- strategy, measurements, half-formed
+# ideas, negative results -- are their own repo, checked out at private/ and
+# hidden by this single rule. See private/README.md and CLAUDE.md.
+#
+# This used to be twelve separate rules, one per file. One rule is much harder
+# to get wrong, and it fails safe: anything new dropped into private/ is hidden
+# automatically instead of needing its own entry.
 #
 # Asymmetry worth remembering: publishing later is one commit; un-publishing
 # later is a history rewrite plus a force-push. So the default is private.
 #
-# All of these were purged from git history on 2026-08-04, not merely untracked.
-#
 # NOTE: .gitignore has no trailing comments -- `#` only starts a comment at the
-# start of a line. `plan.md  # strategy` is a pattern matching a file literally
-# named "plan.md  # strategy", i.e. nothing. Keep every annotation on its own line.
-
-# strategy, budget, timeline
-plan.md
-# house rules + reading budget for agent sessions
-CLAUDE.md
-challenges/*/CLAUDE.md
-# rung ladder, prior module, eval loop
-ARCHITECTURE.md
-# open engineering debt
-TODO.md
-# completed work, moved out of TODO.md
-CHANGELOG.md
-# annotated paper log
-literature.md
-# scored runs
-RESULTS.md
-# subagent briefs
-agents/
-# term reference. Private only because its worked examples are our own results --
-# strip those and it is the most publishable thing here. Good early blog post.
-GLOSSARY.md
-
-# ---- research notes ----
-# Saber's hypotheses, analysis, and the future Researcher agent's findings.
-# See research/README.md for the structure and how entries are added.
-research/
-
-# ---- reports ----
-# Long-form explanatory write-ups: how the model works, what the data looks like,
-# what we tried. Feedstock for the Sidechain blog, so they stay local until Saber
-# chooses to publish a polished version.
-#
-# CAVEAT: untracked means NO HISTORY. A report edited three weeks from now loses
-# today's version with no way back. If a report starts mattering, either move it
-# into git or keep reports/ as its own repo with a private remote.
-reports/
+# start of a line. `private/  # notes` matches a file literally named
+# "private/  # notes", i.e. nothing. Keep every annotation on its own line.
+private/

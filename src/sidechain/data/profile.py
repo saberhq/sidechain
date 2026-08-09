@@ -1,7 +1,6 @@
 """Profile a challenge dataset: shape, labels, ID spaces, count statistics.
 
-Regenerates the facts in reports/01_dataset_2025.md. Reads in backed mode, so it
-touches metadata without pulling a 15 GB matrix into memory.
+Reads in backed mode, so it touches metadata without pulling a 15 GB matrix into memory.
 
     uv run python -m sidechain.data.profile
     uv run python -m sidechain.data.profile --challenge-config challenges/vcc2026/config.yaml
