@@ -40,15 +40,14 @@ everyone starts from the same public corpus and whatever else they can bring.
 
 ## Where things are
 
-- `src/sidechain/` — the **year-agnostic core**: `data/ priors/ models/ eval/ utils/`. Knows
-  nothing about a specific challenge year.
+- `src/sidechain/` — the **year-agnostic core**: `data/ ingest/ priors/ models/ eval/ utils/`.
+  Knows nothing about a specific challenge year.
 - `challenges/vcc2025/`, `challenges/vcc2026/` — thin per-year adapters: a `config.yaml` pointing
   the core at that year's data, splits and metrics. Same model, different config.
 - `configs/` — `data_sources.yaml` (the prior registry), `model.yaml`, `eval.yaml`.
 - `tests/` — contract tests. A prior isn't done until these pass.
 - `agents/` — the subagent briefs. One file per role, deliberately short.
 - `notebooks/00_dry_run_2025.ipynb` — the 2025 loop end to end, narrated.
-- `archive/moonshot-2025/` — last year's scripts. Reference only; don't build on it.
 
 ## Data lives OUTSIDE the repo
 
@@ -75,7 +74,9 @@ is simply: don't put data in the repo.
 - **Sparse only** — `edge_index` / COO. Never allocate a dense gene × gene matrix. At 18,080
   genes a dense one is ~1.3 GB per copy.
 - **Adding a new biological data source touches exactly two places:** a block in
-  `configs/data_sources.yaml` describing it, and a `PriorSource` subclass that fetches it. The
+  `configs/data_sources.yaml` describing it, and a `PriorSource` subclass that fetches it. (A
+  brand-new loader *class* is one line more — registering it in `registry.LOADERS`; reusing an
+  existing class keeps it at two.) The
   model never imports a specific source, so nothing else changes — which is what lets a source be
   swapped, ensembled, or shelved with `enabled: false` instead of deleted.
   - Every block declares `kind: edge | node_feature`. Declared, not inferred, so the registry can
