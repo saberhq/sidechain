@@ -16,6 +16,12 @@ sidechain/            ← this repo. Public. The *what*: code, configs, tests, f
 `private/` is gitignored here, so this repo cannot see it and cannot accidentally publish it.
 Both are checked out in the same directory, so a session reads across freely.
 
+**Always say which repo a file is in.** Two repos means "I changed `CLAUDE.md`" is ambiguous and
+"I removed the task queue" could mean it left the public repo or left the project entirely. When
+naming a file in writing, in a commit message, or in conversation, use the full path from this
+directory: `private/CLAUDE.md` is the private one, `CLAUDE.md` is this one. Anything starting with
+`private/` is private; everything else is public. When summarising a change, say which side moved.
+
 **Routing rule: if it is the *why*, it's private; if it is the *what*, it's public.** Code,
 configs, tests and published posts are public. Strategy, measurements, half-formed ideas,
 negative results and competitive reasoning are private. **When unsure, private** — promoting a
