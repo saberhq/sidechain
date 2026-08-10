@@ -1,62 +1,37 @@
-# Points the year-agnostic core at the 2025 challenge.
+# Points the year-agnostic core at the 2025 data.
 #
-# IMPORTANT: this describes the data we ACTUALLY hold, not the official 2025
-# challenge split. Arc's public_test / private_test AnnData were never released to
-# entrants, so the backtest carves its own holdout out of the training set.
-# Frozen spec — don't edit to chase 2026 changes; branch an experiment instead.
+# Read by `loaders.load_challenge_config`. Values only — the operating notes
+# (what will bite you, how to run it) live in CLAUDE.md beside this file.
+#
+# Frozen: this describes the 2025 spec. Don't edit it to chase 2026 changes.
+
 year: 2025
 data_dir: "~/data/sidechain/vcc2025"
-
 cell_type: "H1_hESC"
 
-# Verified against the real file on 2026-08-04: obs holds target_gene / guide_id /
-# batch, and the ONLY control label present is 'non-targeting'. There is no
-# safe-targeting arm in this dataset, so the plan's NTC + safe-targeting control
-# design cannot be exercised on 2025 data.
+source_file: adata_Training.h5ad
+dev_file: adata_Training_subset.h5ad     # smaller local subset, for smoke tests
+
 pert_col: target_gene
-control_label: "non-targeting"
+control_label: "non-targeting"           # the only control arm present in this data
 control_types: [ntc]
 
 metrics: [des, pds, mae]
-extra_state_metrics: true      # + STATE's extras -> 7 total (Generalist-prize set)
+extra_state_metrics: true                # adds STATE's four extras -> 7 total
 
-# How the three challenge metrics map onto cell-eval's registry:
-#   des -> overlap_at_N            pds -> discrimination_score_l1     mae -> mae
-# The 'vcc' profile is exactly those three; 'minimal' is those plus
-# pearson_delta, mse, precision_at_N, de_nsig_counts (7 = the Generalist set).
-
-# What is on disk (verified 2026-08-04):
-#   adata_Training.h5ad          15.5 GB  full training set
-#   adata_Training_subset.h5ad    3.4 GB  locally derived subset — NOT in the zip
-#                                         and backed up nowhere. Use for dev loops.
-#   gene_names.csv              18,080 rows, HGNC SYMBOLS (not Ensembl IDs)
-#   pert_counts_Validation.csv      50 validation perturbations: target_gene,
-#                                         n_cells, median_umi_per_cell
-#                                         (counts only — no expression matrix)
-source_file: adata_Training.h5ad
-dev_file: adata_Training_subset.h5ad
-
+# Arc never released test AnnData to entrants, so we carve a holdout from the
+# training set (`loaders.carve_holdout`). Whole perturbations, never individual
+# cells, because the task is generalizing to unseen genes.
 splits:
-  scheme: carve_from_training  # no official test AnnData exists for entrants
-  holdout_perturbations: 50    # mirrors the size of pert_counts_Validation.csv
+  scheme: carve_from_training
+  holdout_perturbations: 50              # matches the size of Arc's validation list
   stratify_by: target_gene
   seed: 20250101
 
-# CORRECTED 2026-08-04 by direct inspection of adata_Training_subset.h5ad.
-# The h5ad carries BOTH ID spaces: var_names are HGNC symbols (matching
-# gene_names.csv) and var['gene_id'] holds Ensembl gene IDs -- 18,080 of them,
-# all well-formed ENSG, all unique. So the symbol->Ensembl mapping the priors
-# need ships inside the data file; no external mapping table is required.
-#
-# Consequence: `loaders.gene_index(adata, 'ensembl_gene_id')` resolves against
-# var['gene_id'] and succeeds on 2025 data. It is strict by default and raises
-# rather than silently falling back to var_names.
-gene_id_space: hgnc_symbol          # what var_names holds
-ensembl_ids_in: "var['gene_id']"    # where the Ensembl IDs live
+# var_names are HGNC symbols; var['gene_id'] holds Ensembl IDs. Both ship inside
+# the h5ad, so no external mapping table is needed.
+gene_id_space: hgnc_symbol
+ensembl_ids_in: "var['gene_id']"
 requires_id_mapping_to: ensembl_gene_id
 
-baseline_agg_results: null     # path to a baseline for `cell-eval score`
-notes: >
-  Retrospective only. No leaderboard submission. Any score here is an estimate
-  against a self-made holdout, NOT a real 2025 leaderboard position — don't quote
-  it as "what we would have placed".
+baseline_agg_results: null               # path to a baseline for `cell-eval score`

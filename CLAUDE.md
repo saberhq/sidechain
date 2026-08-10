@@ -68,11 +68,17 @@ is simply: don't put data in the repo.
 - **Nothing is trusted until `sidechain.eval.local_mirror` scores it.**
 - **Sparse only** — `edge_index` / COO. Never allocate a dense gene × gene matrix. At 18,080
   genes a dense one is ~1.3 GB per copy.
-- **New biology = a `configs/data_sources.yaml` block + a `PriorSource` subclass**, and nothing
-  else changes. Every block must declare `kind: edge | node_feature`. Build edges with
-  `PriorSource.to_edge_index`, never two `to_positions` calls — filtering endpoints independently
-  drops unknown IDs *per list*, and the survivors get re-paired into edges that never existed.
-  Silently wrong edges are worse than a crash.
+- **Adding a new biological data source touches exactly two places:** a block in
+  `configs/data_sources.yaml` describing it, and a `PriorSource` subclass that fetches it. The
+  model never imports a specific source, so nothing else changes — which is what lets a source be
+  swapped, ensembled, or shelved with `enabled: false` instead of deleted.
+  - Every block declares `kind: edge | node_feature`. Declared, not inferred, so the registry can
+    report the graph's shape without building anything — inferring it would mean running a GPU
+    pass just to answer "what does this contain?".
+  - Build edges with `PriorSource.to_edge_index`, never two separate `to_positions` calls.
+    Filtering the two endpoint lists independently drops unknown IDs *per list*, so the survivors
+    get re-paired into edges that were never in the source data. Silently wrong edges are worse
+    than a crash.
 - **Gene IDs are Ensembl.** The 2025 h5ad carries both spaces: `var_names` holds HGNC symbols and
   `var['gene_id']` holds 18,080 well-formed Ensembl IDs, so no external mapping table is needed.
   `loaders.gene_index(adata, 'ensembl_gene_id')` is **strict** — it raises rather than falling
@@ -81,8 +87,11 @@ is simply: don't put data in the repo.
 - **`gene_names.csv` has no header row.** `pd.read_csv()` with defaults eats the first gene and
   returns 18,079 rows — an off-by-one that misaligns every gene. Use `header=None`, or better,
   read gene names from the h5ad and ignore the CSV.
-- **Cite the minimum, not the median.** Any "every X has Y" claim about the data must be checked
-  at the minimum. Two documented facts have already inverted on closer inspection this way.
+- **Check the minimum before writing "every".** This is about how we describe the *data*, not
+  about which metrics we report. If you are about to write "every perturbation appears in all 48
+  batches", compute the minimum first — the median and the max were both 48 and the minimum was
+  22, so the claim was false and an argument had already been built on it. Any "every X has Y"
+  statement needs the minimum, not a summary statistic that hides the tail.
 
 ## Env
 
@@ -100,8 +109,22 @@ Only this file loads automatically. Everything else is on demand — read it bec
 it, not to warm up. **`private/CLAUDE.md` carries the reading budget for the private docs**, and is
 the next thing to read for any research, strategy or planning task.
 
-| when the task is… | read |
+| when the task is… | read | where |
+|---|---|---|
+| touching the code | this file, plus the module you're in | public |
+| touching a specific challenge year | `challenges/<year>/CLAUDE.md` — the data traps live there | public |
+| understanding an agent's role | `agents/<role>.md` | public |
+| **anything research, strategy, or "what should I work on"** | **`private/CLAUDE.md` — start there** | private |
+
+Everything below is in the **private** repo, and `private/CLAUDE.md` is the index for it. Listed
+here so a session knows these exist rather than concluding they don't:
+
+| | |
 |---|---|
-| touching the code | this file, plus the module you're in |
-| touching a specific challenge year | `challenges/<year>/CLAUDE.md` — the data traps live there |
-| anything research, strategy, or "what should I work on" | `private/CLAUDE.md` |
+| `private/TODO.md` | open work, and the agent task queue |
+| `private/CHANGELOG.md` | completed work |
+| `private/ARCHITECTURE.md` | the model ladder, the prior module, the eval loop |
+| `private/RESULTS.md` | scored runs |
+| `private/GLOSSARY.md` | metrics and statistical terms, with our own numbers as examples |
+| `private/research/` | the research programme — ideas, decisions, reading notes |
+| `private/reports/` | long-form analyses |

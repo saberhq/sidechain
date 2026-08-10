@@ -141,7 +141,7 @@ def score(
     *,
     eval_config: str | Path = "configs/eval.yaml",
     challenge_config: str | Path | None = None,
-    outdir: str | Path = "runs/cell-eval",
+    outdir: str | Path = "~/data/sidechain/runs/cell-eval",
     baseline_agg_results: str | Path | None = None,
     allow_discrete: bool = False,
     skip_guardrails: bool = False,
@@ -280,7 +280,7 @@ def _cli(
     real: str,
     eval_config: str = "configs/eval.yaml",
     challenge_config: str = "challenges/vcc2025/config.yaml",
-    outdir: str = "runs/cell-eval",
+    outdir: str = "~/data/sidechain/runs/cell-eval",
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     res = score(

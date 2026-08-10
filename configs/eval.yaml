@@ -18,7 +18,7 @@ guardrails:
   block_if_only_public_split_gain: true
 
 output:
-  outdir: runs/cell-eval
+  outdir: ~/data/sidechain/runs/cell-eval
   write_csv: true
 
 # Fallbacks used only when no challenge config is passed. The challenge config is

@@ -59,7 +59,7 @@ def run(
     rungs: tuple[str, ...] = ("0", "0b", "1"),
     n_holdout: int = 25,
     max_cells: int | None = None,
-    outdir: str = "runs/dry_run_2025",
+    outdir: str = "~/data/sidechain/runs/dry_run_2025",
     seed: int = 0,
     dev: bool = False,
     max_control_cells: int | None = 8000,
@@ -70,7 +70,7 @@ def run(
     cfg = loaders.load_challenge_config(resolve_config(challenge_config))
     pert_col = cfg.get("pert_col", "target_gene")
     control = cfg.get("control_label", "non-targeting")
-    outdir_p = Path(outdir)
+    outdir_p = Path(outdir).expanduser()
     outdir_p.mkdir(parents=True, exist_ok=True)
 
     # -- load --
@@ -232,7 +232,7 @@ def main() -> None:
     ap.add_argument("--rungs", default="0,0b,1", help="comma-separated: 0,0b,1")
     ap.add_argument("--n-holdout", type=int, default=25)
     ap.add_argument("--max-cells", type=int, default=None)
-    ap.add_argument("--outdir", default="runs/dry_run_2025")
+    ap.add_argument("--outdir", default="~/data/sidechain/runs/dry_run_2025")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
         "--dev",
