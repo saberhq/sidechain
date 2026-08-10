@@ -220,7 +220,13 @@ def score(
     if not skip_guardrails and cfg.get("guardrails", {}).get("variance_inflation_check", True):
         out["guardrails"] = {
             "variance_inflation": variance_inflation_check(
-                pred_ad, real_ad, pert_col, control_pert
+                pred_ad,
+                real_ad,
+                pert_col,
+                control_pert,
+                tol=float(
+                    cfg.get("guardrails", {}).get("variance_inflation_tolerance", 1.5)
+                ),
             )
         }
 

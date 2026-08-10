@@ -8,15 +8,21 @@
 # Merge order:
 #   challenge config (metrics, control label, pert column)  OVERRIDES  this file.
 
+# Declared policy, NOT yet read by code: local_mirror ignores this block, and the
+# discipline is currently upheld by hand (and by dry_run's design). Wire or
+# delete when the split machinery lands.
 holdout:
   scheme: context_transfer          # mimic the challenge's generalize-to-new-context split
   never_tune_on: private_local
 
 guardrails:
-  variance_inflation_check: true    # catch PDS leaderboard-hacking before submitting
-  variance_inflation_tolerance: 1.5 # pred/real per-gene variance ratio above which we flag
-  block_if_only_public_split_gain: true
+  variance_inflation_check: true    # LIVE: score() runs it -- catches PDS leaderboard-hacking
+  variance_inflation_tolerance: 1.5 # LIVE: pred/real per-gene variance ratio above which we flag
+  block_if_only_public_split_gain: true   # NOT implemented in local_mirror yet -- intent only
 
+# NOT yet read by score(); callers pass outdir explicitly and this default is
+# duplicated in code (local_mirror.score, dry_run). Wire or delete when
+# log_run lands.
 output:
   outdir: ~/data/sidechain/runs/cell-eval
   write_csv: true

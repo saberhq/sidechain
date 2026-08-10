@@ -1,8 +1,18 @@
 # Which rung(s) are active, and head hyperparameters. Climb the ladder; keep the winner.
-active_rungs: [0, 1]          # start with naive + statistical backbone; add 2/3/4 later
+#
+# HONESTY NOTE: no code reads this file yet. dry_run selects rungs via --rungs and
+# the predictors take their knobs as constructor arguments; this file states the
+# intended defaults so the wiring, when it lands, has one authority to read.
+# Editing it changes nothing today. (Tracked in the TODO.)
+active_rungs: ["0", "0b", "1"]  # what dry_run runs by default today
 
 rung1_statistical:
-  pseudobulk: {aggregate: sum, group_by: [perturbation, replicate], min_cells: 25}
+  # Mirrors StatisticalBackbone's actual constructor knobs (baseline_stats.py).
+  deg_z: 2.0                  # |z| gate for the DEG-frequency feature
+  response_scale: 1.0         # scales the DEG-freq-weighted generic response
+  min_cells: 10               # training perturbations below this are skipped in fit
+  apply_knockdown: true       # replace the target gene's delta with the mean self-knockdown
+  pseudobulk: {aggregate: sum, group_by: [target_gene], min_cells: 25}
   features: [deg_frequency, mean_expression, gene_variance, effect_size_prior]
 
 rung2_state:
