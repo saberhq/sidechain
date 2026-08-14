@@ -3,10 +3,12 @@
     load split -> normalize -> fit rung -> predict held-out perturbations
     -> score on the local cell-eval mirror
 
-This is a PIPELINE CHECK, not a leaderboard estimate. Arc never released the 2025
-public/private test AnnData to entrants, so the holdout here is carved out of the
-training set by `loaders.carve_holdout`. Numbers from this script must never be
-described as "what we would have placed in 2025".
+This is a PIPELINE CHECK, not a leaderboard estimate. The holdout here is carved out
+of the training set by `loaders.carve_holdout`, mirroring challenge-time conditions
+(entrants only had names and cell counts for held-out perturbations). Numbers from
+this script must never be described as "what we would have placed in 2025". Arc
+published the real validation/test AnnData post-challenge (2025-12-16); scoring
+against those is a separate external holdout, not this script.
 
     uv run python -m sidechain.eval.dry_run --rungs 0,0b,1 --n-holdout 25
 """
@@ -162,9 +164,10 @@ def run(
     report: dict = {
         "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
         "caveat": (
-            "Self-carved holdout from the 2025 TRAINING set. Arc never released "
-            "public/private test AnnData to entrants. This is a pipeline check, "
-            "not a 2025 leaderboard estimate."
+            "Self-carved holdout from the 2025 TRAINING set, mirroring "
+            "challenge-time conditions. This is a pipeline check, not a 2025 "
+            "leaderboard estimate. (Arc released the real validation/test AnnData "
+            "on 2025-12-16; this run does not use them.)"
         ),
         "dev_file": dev,
         "n_train_cells": int(train.n_obs),

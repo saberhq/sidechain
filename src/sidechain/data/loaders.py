@@ -199,9 +199,11 @@ def load_challenge_split(
 ) -> ad.AnnData:
     """Load a challenge split: 'all' | 'train' | 'holdout'.
 
-    For 2025 the scheme is `carve_from_training`: Arc never released public or
-    private test AnnData to entrants, so 'train'/'holdout' are carved locally and
-    deterministically from the training file (see `carve_holdout`).
+    For 2025 the scheme is `carve_from_training`: 'train'/'holdout' are carved
+    locally and deterministically from the training file (see `carve_holdout`),
+    mirroring challenge-time conditions when only names/counts existed for
+    held-out perturbations. (Arc released the real validation/test AnnData on
+    2025-12-16; an external-holdout scheme against those is pending.)
 
     `dev=True` uses the smaller `dev_file` for iteration.
     """

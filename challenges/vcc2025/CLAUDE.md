@@ -3,9 +3,14 @@
 The 2025 data, used as an end-to-end check that the pipeline works. Same core
 (`src/sidechain/`), 2025 settings in `config.yaml` beside this file.
 
-**Not a competition submission.** Arc never released the 2025 test data to entrants, so the
-holdout here is one we carve ourselves out of the training set. A number from this track means
-"the pipeline runs and produces sane output" — never "what we would have placed in 2025".
+**Not a competition submission.** During the challenge Arc released only names and cell counts
+for its held-out perturbations, so the default holdout here is one we carve ourselves out of
+the training set. A number from that split means "the pipeline runs and produces sane output" —
+never "what we would have placed in 2025". Since 2025-12-16 Arc's public bucket
+(`gs://arc-institute-virtual-cell-atlas/virtual-cell-challenge/2025/`) also carries the real
+answers — `adata_Validation.h5ad` (50 perturbations, 6.9 GB) and `adata_Test.h5ad` (100,
+12 GB) — so a true backtest is possible once they are downloaded and wired in as an external
+holdout.
 
 ## Two things that will bite you
 
