@@ -22,14 +22,21 @@ extra_state_metrics: true                # adds STATE's four extras -> 7 total
 # Challenge-time conditions: entrants only had names/counts for held-out
 # perturbations, so we carve a holdout from the training set
 # (`loaders.carve_holdout`). Whole perturbations, never individual cells, because
-# the task is generalizing to unseen genes. Arc published the real
-# validation/test AnnData on 2025-12-16; an external-holdout scheme against those
-# is pending and would live here as a second `splits` option.
+# the task is generalizing to unseen genes.
 splits:
   scheme: carve_from_training
   holdout_perturbations: 50              # matches the size of Arc's validation list
   stratify_by: target_gene
   seed: 20250101
+
+# The real answers, published by Arc on 2025-12-16 (after the final ranking).
+# `sidechain.eval.backtest` trains on the full training file and scores against
+# one of these. Both carry the same 38,176 non-targeting cells as the training
+# file (verified by obs_names) and the identical var_names order, but no
+# var['gene_id'] column -- backtest adopts the training var wholesale.
+external_holdouts:
+  validation: adata_Validation.h5ad      # 50 perts / 60,751 cells; drove the live leaderboard
+  test: adata_Test.h5ad                  # 100 perts / 132,670 cells; decided the final ranking
 
 # var_names are HGNC symbols; var['gene_id'] holds Ensembl IDs. Both ship inside
 # the h5ad, so no external mapping table is needed.

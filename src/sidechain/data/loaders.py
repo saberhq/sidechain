@@ -202,8 +202,8 @@ def load_challenge_split(
     For 2025 the scheme is `carve_from_training`: 'train'/'holdout' are carved
     locally and deterministically from the training file (see `carve_holdout`),
     mirroring challenge-time conditions when only names/counts existed for
-    held-out perturbations. (Arc released the real validation/test AnnData on
-    2025-12-16; an external-holdout scheme against those is pending.)
+    held-out perturbations. (Scoring against the real validation/test AnnData
+    Arc released on 2025-12-16 lives in `sidechain.eval.backtest`.)
 
     `dev=True` uses the smaller `dev_file` for iteration.
     """

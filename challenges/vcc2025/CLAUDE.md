@@ -30,12 +30,20 @@ gene names from the h5ad and ignore the CSV.
 ## Running it
 
 ```bash
-# the real run: full 221k-cell file, ~16 min, peaks around 9 GB
+# pipeline check: carve 25 perturbations out of the training set, ~16 min, peaks ~9.6 GB
 uv run python -m sidechain.eval.dry_run --rungs 0,0b,1 --n-holdout 25
+
+# TRUE backtest: train on all 150, score against Arc's released validation answers
+# (needs adata_Validation.h5ad on disk), ~19 min, peaks ~7.4 GB
+uv run python -m sidechain.eval.backtest --holdout validation --rungs 0,0b,1
 
 # smoke test only
 uv run python -m sidechain.eval.dry_run --dev --rungs 0 --max-cells 6000
 ```
+
+Only `backtest` numbers may be compared to the 2025 leaderboard; `--holdout test`
+(the 100-perturbation final set) is deliberately left for milestone shots, not routine
+runs.
 
 The full file is the default. `--dev` switches to the smaller local subset and is for smoke tests
 only — no `--dev` number is ever recorded as a result, because at 4× fewer cells per perturbation
