@@ -1,0 +1,67 @@
+# ============================================================================
+# Sidechain external-dataset registry.
+#
+# The sibling of data_sources.yaml: that one registers *priors*, this one
+# registers *corpora*. Same principle -- adding a dataset appends a block and
+# shelves with `enabled: false` rather than deletion, so an ingest can be
+# reproduced, audited or retired without editing code.
+#
+# Every block MUST declare:
+#   host / record       where it comes from, pinned. Zenodo record ids pin a
+#                       VERSION; the concept DOI resolves to "latest" and would
+#                       change under us, so we never fetch by concept DOI.
+#   budget_gb           the ceiling this dataset is allowed to occupy. The gate
+#                       refuses a selection that exceeds it, so a fetch can
+#                       never decide for itself how much disk it takes.
+#   files               explicit list. Selection is strict: a name not in the
+#                       record raises rather than being skipped, because a
+#                       silently partial corpus looks complete.
+#
+# Per-file `spec` carries what cannot be inferred from the data and must not be
+# guessed -- context name and control label especially. HepG2 is the worked
+# example: its obs says `Hep-G2`, Arc's split files say `hepg2`, and no single
+# normalization rule maps every label in this file correctly. Declared, not
+# derived.
+# ============================================================================
+
+datasets:
+
+  - name: scperturb_multicontext
+    enabled: true
+    host: zenodo
+    record: "13350497"           # v1.4 -- pinned; NOT the concept DOI 7041848
+    license: CC-BY-4.0           # expected; the gate re-checks against the API
+    budget_gb: 15.0
+    dest: external/zenodo-13350497
+    notes: >
+      Pre-harmonized CRISPRi corpora giving four cell lines beyond H1. Ingested
+      and MD5-verified 2026-08-16. Provides the leave-one-context-out holdout
+      that an H1-only mirror cannot.
+
+    files:
+      - name: ReplogleWeissman2022_K562_gwps.h5ad
+        spec: {context: k562, pert_col: perturbation, control_label: control,
+               gene_id_col: ensembl_id, modality: crispri, role: train}
+      - name: ReplogleWeissman2022_K562_essential.h5ad
+        spec: {context: k562, pert_col: perturbation, control_label: control,
+               gene_id_col: ensembl_id, modality: crispri, role: train}
+      - name: ReplogleWeissman2022_rpe1.h5ad
+        spec: {context: rpe1, pert_col: perturbation, control_label: control,
+               gene_id_col: ensembl_id, modality: crispri, role: train}
+      - name: NadigOConner2024_jurkat.h5ad
+        spec: {context: jurkat, pert_col: perturbation, control_label: control,
+               gene_id_col: ensembl_id, modality: crispri, role: train}
+      - name: NadigOConner2024_hepg2.h5ad
+        spec: {context: hepg2, pert_col: perturbation, control_label: control,
+               gene_id_col: ensembl_id, modality: crispri, role: train}
+
+      # Held out of the eval deliberately. This file is Cas13 (direct mRNA
+      # degradation), not CRISPRi (transcriptional repression), and is mostly
+      # combinatorial: 187 perturbation labels, only 29 single-gene. Scoring
+      # THP-1 as a held-out CONTEXT would confound modality with context, so
+      # `role: excluded` keeps the data without letting it into the holdout.
+      # It also carries no Ensembl ids -- var_names are symbols -- so
+      # gene_id_col is null and harmonize() must map symbols before use.
+      - name: WesselsSatija2023.h5ad
+        spec: {context: thp1, pert_col: perturbation, control_label: control,
+               gene_id_col: null, modality: cas13, role: excluded}

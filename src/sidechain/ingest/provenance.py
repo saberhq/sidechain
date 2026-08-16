@@ -25,6 +25,10 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # contract imports anndata; the gate must run without it
+    from sidechain.ingest.contract import Provenance
 
 USER_AGENT = "sidechain-ingest/0.1 (+https://github.com/saberhq/sidechain)"
 
@@ -179,6 +183,27 @@ def gate(
             "exception stays visible later."
         )
     return files
+
+
+def to_provenance(record: HostRecord) -> Provenance:
+    """HostRecord (what the host said) -> Provenance (what the dataset carries).
+
+    The bridge exists so the license reaching a HarmonizedDataset is the one the
+    API actually returned, rather than a value retyped from memory or a README
+    weeks later. Without it the two representations drift, and `Provenance.license`
+    stops being evidence.
+
+    Imported lazily: contract imports anndata, and the gate is meant to run on a
+    fetch-only box with no scientific stack installed.
+    """
+    from sidechain.ingest import contract
+
+    return contract.Provenance(
+        source=record.host,
+        accession=record.record_id,
+        license=record.license,
+        retrieved=record.retrieved,
+    )
 
 
 def write_provenance(
