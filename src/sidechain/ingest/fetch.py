@@ -26,7 +26,14 @@ from pathlib import Path
 
 import yaml
 
-from sidechain.ingest.provenance import GateError, gate, probe_zenodo, write_provenance
+from sidechain.ingest.provenance import (
+    GateError,
+    diff_against_recorded,
+    gate,
+    probe_zenodo,
+    read_provenance,
+    write_provenance,
+)
 from sidechain.utils.paths import resolve_config
 
 DEFAULT_CONFIG = "configs/datasets.yaml"
@@ -58,15 +65,27 @@ def md5sum(path: Path, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def run_gate(block: dict, root: Path) -> tuple:
-    """probe -> gate -> write provenance. Returns (record, selected, dest)."""
+def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
+    """probe -> gate -> record provenance. Returns (record, selected, dest).
+
+    PROVENANCE.json is written ONCE, on the first fetch, and thereafter only
+    compared against. That is the point of it: it is evidence of what we
+    actually took, and the thing later downloads are checked against. An earlier
+    version rewrote it on every invocation, which quietly turned it into a record
+    of the last time the command ran -- so an upstream change to the license or
+    the file list would have been absorbed silently instead of raising.
+
+    `refresh=True` accepts the upstream state and rewrites, for when a change is
+    real and intended. It has to be asked for.
+    """
     host = block["host"]
     if host not in PROBES:
         raise GateError(f"no probe for host {host!r}; known: {', '.join(sorted(PROBES))}")
 
     record = PROBES[host](block["record"])
     wanted = [f["name"] for f in block["files"]]
-    selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted)
+    dest = root / block["dest"]
+    selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted, dest=dest)
 
     declared = block.get("license")
     if declared and declared != record.license:
@@ -76,12 +95,26 @@ def run_gate(block: dict, root: Path) -> tuple:
             "agreed -- resolve before fetching."
         )
 
-    dest = root / block["dest"]
-    write_provenance(
-        dest, record, selected,
-        notes={"dataset": block["name"], "config": str(DEFAULT_CONFIG),
-               "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}},
-    )
+    notes = {"dataset": block["name"], "config": str(DEFAULT_CONFIG),
+             "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
+    recorded = read_provenance(dest)
+
+    if recorded is None:
+        write_provenance(dest, record, selected, notes=notes)
+    elif refresh:
+        write_provenance(dest, record, selected, notes=notes)
+        print("  PROVENANCE.json refreshed on request")
+    else:
+        diffs = diff_against_recorded(recorded, record, selected)
+        if diffs:
+            listed = "\n    ".join(diffs)
+            raise GateError(
+                f"upstream no longer matches the recorded provenance at {dest}:\n"
+                f"    {listed}\n"
+                "  The bytes on disk were fetched under the recorded terms. Re-run with "
+                "--refresh to accept the new state deliberately, having decided the change "
+                "is acceptable."
+            )
     return record, selected, dest
 
 
@@ -114,11 +147,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     ap.add_argument("--check", action="store_true", help="verify existing files, fetch nothing")
+    ap.add_argument(
+        "--refresh", action="store_true",
+        help="accept an upstream change and rewrite PROVENANCE.json (otherwise a difference "
+             "against the recorded provenance is a refusal)",
+    )
     args = ap.parse_args(argv)
 
     try:
         block = select_dataset(args.dataset, args.config)
-        record, selected, dest = run_gate(block, args.root)
+        record, selected, dest = run_gate(block, args.root, refresh=args.refresh)
     except GateError as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 2
@@ -126,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     total = sum(f.size_bytes for f in selected) / 1e9
     print(f"{record.host}:{record.record_id}  v{record.version}  {record.license}")
     print(f"  {len(selected)} files, {total:.2f} GB (budget {block['budget_gb']} GB)")
-    print(f"  -> {dest}/PROVENANCE.json written before any fetch\n")
+    print(f"  -> {dest}/PROVENANCE.json matches the recorded fetch\n")
 
     if args.check:
         return verify(selected, dest)

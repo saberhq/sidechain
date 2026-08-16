@@ -21,6 +21,7 @@ set up, including on a fresh box whose only job is to fetch data.
 from __future__ import annotations
 
 import json
+import shutil
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -151,10 +152,18 @@ def gate(
     budget_gb: float,
     select: list[str] | None = None,
     allow_missing_checksum: bool = False,
+    dest: Path | None = None,
+    headroom_gb: float = 10.0,
 ) -> tuple[RemoteFile, ...]:
     """Decide whether this fetch may proceed. Raises `GateError` if not.
 
     Every refusal here is cheap; every one it prevents is not.
+
+    `budget_gb` is the ceiling declared for THIS dataset -- it stops a record
+    that grew (a new version, extra files) from quietly pulling more than was
+    agreed. `dest` additionally checks real free space, because a per-dataset
+    ceiling says nothing about whether the disk can take it: several datasets
+    each inside their own budget can still fill a volume between them.
     """
     files = record.select(select) if select else record.files
     if not files:
@@ -182,6 +191,17 @@ def gate(
             "allow_missing_checksum=True to proceed -- it is recorded in PROVENANCE.json so the "
             "exception stays visible later."
         )
+
+    if dest is not None:
+        needed = sum(f.size_bytes for f in files if not (dest / f.name).exists())
+        anchor = next((p for p in [dest, *dest.parents] if p.exists()), Path("/"))
+        free = shutil.disk_usage(anchor).free
+        if free - needed < headroom_gb * 1e9:
+            raise GateError(
+                f"not enough disk: need {needed / 1e9:.2f} GB, {free / 1e9:.1f} GB free, "
+                f"and {headroom_gb:.0f} GB must stay free. A per-dataset budget does not "
+                "know about the other datasets; this does."
+            )
     return files
 
 
@@ -234,3 +254,45 @@ def write_provenance(
     path = dest / "PROVENANCE.json"
     path.write_text(json.dumps(payload, indent=2) + "\n")
     return path
+
+
+def read_provenance(dest: Path) -> dict | None:
+    """The provenance already recorded at `dest`, or None if this is a first fetch."""
+    path = dest / "PROVENANCE.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def diff_against_recorded(recorded: dict, record: HostRecord,
+                          selected: tuple[RemoteFile, ...]) -> list[str]:
+    """What changed upstream since the recorded fetch. Empty list means nothing.
+
+    Compares only the fields that would make the bytes different or the terms
+    different. `retrieved` is deliberately excluded -- it changes on every probe
+    by definition, and treating it as a difference would make every run look
+    like a change.
+    """
+    was = recorded.get("record", {})
+    diffs: list[str] = []
+
+    for field_name, now in (("license", record.license), ("version", record.version)):
+        before = was.get(field_name)
+        if before != now:
+            diffs.append(f"{field_name}: recorded {before!r}, host now says {now!r}")
+
+    before_files = {f["name"]: f for f in recorded.get("selected", [])}
+    now_files = {f.name: f for f in selected}
+
+    for name in sorted(set(before_files) - set(now_files)):
+        diffs.append(f"{name}: was in the recorded selection, no longer selected")
+    for name in sorted(set(now_files) - set(before_files)):
+        diffs.append(f"{name}: newly selected, not in the recorded provenance")
+
+    for name in sorted(set(before_files) & set(now_files)):
+        b, n = before_files[name], now_files[name]
+        if b.get("size_bytes") != n.size_bytes:
+            diffs.append(f"{name}: size {b.get('size_bytes')} -> {n.size_bytes}")
+        if b.get("checksum") != n.checksum:
+            diffs.append(f"{name}: checksum {b.get('checksum')} -> {n.checksum}")
+    return diffs
