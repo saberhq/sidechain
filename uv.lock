@@ -523,6 +523,26 @@ wheels = [
 ]
 
 [[package]]
+name = "cell-eval2"
+version = "0.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anndata", version = "0.12.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "anndata", version = "0.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "pyyaml" },
+    { name = "scanpy", version = "1.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scanpy", version = "1.12.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8b/94/a24d594973271658189f885ea61c4f5ed308fbbc22a7962de3117b3c1497/cell_eval2-0.16.0.tar.gz", hash = "sha256:d81208b08aa94a952fe9ec3007dda3afa974335ad6f2f9ca829dca8f7850336b", size = 2475201, upload-time = "2026-08-20T08:15:46.467Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/37/1c/c84b3679944dd4fe0fa9afb5adbd850e7f89eaff90a1b0c7536ad3acfcb3/cell_eval2-0.16.0-py3-none-any.whl", hash = "sha256:c78428ba705a94536e4a55464a34d1905aa5730d4f7e52ea8dbef4e7171d4fbe", size = 529582, upload-time = "2026-08-20T08:15:45.253Z" },
+]
+
+[[package]]
 name = "cell-load"
 version = "0.10.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4184,6 +4204,7 @@ dependencies = [
     { name = "anndata", version = "0.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "arc-state" },
     { name = "cell-eval" },
+    { name = "cell-eval2" },
     { name = "cell-load" },
     { name = "decoupler" },
     { name = "lamindb" },
@@ -4215,6 +4236,7 @@ requires-dist = [
     { name = "anndata" },
     { name = "arc-state" },
     { name = "cell-eval" },
+    { name = "cell-eval2", specifier = ">=0.16.0" },
     { name = "cell-load" },
     { name = "decoupler" },
     { name = "lamindb" },

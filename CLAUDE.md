@@ -37,6 +37,8 @@ Given expression data for genes that *have* been silenced, predict what happens 
 gene **never seen silenced**. In 2026 it is harder still: predict how *multiple unseen cell lines*
 respond, given only their untouched control cells. Arc provides no new training data this year, so
 everyone starts from the same public corpus and whatever else they can bring.
+Spec, as of the 2026-08-20 kickoff: six anonymized lines (three now, three on Oct 22), 300
+knockdowns × 400 cells per context, raw counts, six cell-eval2 metrics — `challenges/vcc2026/CLAUDE.md`.
 
 ## Where things are
 
@@ -56,7 +58,7 @@ Everything bulky is under `~/data/sidechain/` — never in the working tree.
 | path | holds |
 |---|---|
 | `~/data/sidechain/vcc2025/` | 2025 challenge data (a 15.5 GB h5ad, a local subset, gene names) |
-| `~/data/sidechain/vcc2026/` | empty until the Aug-20 drop |
+| `~/data/sidechain/vcc2026/` | 2026 controls bundle (contexts A/B/C; D/E/F from Oct 22), fetched with the `vcc` CLI; leaderboard snapshots |
 | `~/data/sidechain/cache/` | precomputed prior artifacts (NT embeddings etc.) |
 | `~/data/sidechain/literature/` | papers and textbooks |
 

@@ -11,10 +11,11 @@ dependencies = [
   "anndata",
   "pertpy",            # perturbation analysis, Mixscape, E-distance (scverse)
   "decoupler",         # DoRothEA/TRRUST access via OmniPath
-  # arc challenge plumbing -- all four publish to PyPI
+  # arc challenge plumbing -- all five publish to PyPI
   "arc-state",         # STATE baseline + `state tx`
   "cell-load",         # Arc dataloaders
-  "cell-eval",         # Arc official scorer -- the local mirror wraps this
+  "cell-eval",         # 2025 scorer -- the 2025 backtest mirror wraps this
+  "cell-eval2>=0.16.0", # 2026 scorer (preset `vcc2026`); added at kickoff 2026-08-20
   "pdex",              # Arc differential expression
   # modeling
   "torch",
@@ -38,8 +39,8 @@ dev = ["pytest>=8", "pytest-cov", "ruff"]
 testpaths = ["tests"]
 
 [tool.uv]
-# Commit uv.lock so the Mac and the GPU box resolve identically. Re-pin after
-# the Aug-20 spec drop confirms the Arc API surface.
+# Commit uv.lock so the Mac and the GPU box resolve identically. Re-pinned at the
+# 2026-08-20 kickoff (cell-eval2 added); re-pin again if Arc bumps the scorer.
 
 [build-system]
 requires = ["hatchling"]

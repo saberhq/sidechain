@@ -1,9 +1,82 @@
-# Placeholder until the Aug-20 spec drop. Fill from the official 2026 rules at kickoff.
+# Points the year-agnostic core at the 2026 data.
+#
+# Filled 2026-08-20 from the official kickoff materials. Values only -- what will
+# bite you lives in CLAUDE.md beside this file. Read by `loaders.load_challenge_config`.
+#
+# Arc ships NO training data this year. The training corpus is the full 2025 H1
+# release (Training + Validation + Test files, 300 perturbations; see
+# challenges/vcc2025/config.yaml) plus whatever configs/datasets.yaml ingests.
+
 year: 2026
 data_dir: "~/data/sidechain/vcc2026"
-cell_type: null          # TBD at kickoff
-control_types: null      # TBD
-metrics: null            # TBD (2025 was des/pds/mae; 2026 "wider" — confirm)
-splits: null             # TBD
+cell_type: null                          # anonymized on purpose. Never guess; never reorder labels.
+
+# Phases. Only the final phase decides the prizes; the two are scored separately
+# and are not comparable (different lines, different perturbation panels).
+phase: validation                        # validation | final
+phases:
+  validation: {contexts: [A, B, C], released: 2026-08-20, bundle: vcc_2026_controls.zip}
+  final:      {contexts: [D, E, F], released: 2026-10-22, bundle: null}   # fill on Oct 22
+deadline: 2026-11-05T23:59:00Z
+
+# The controls bundle -- fetched with the vcc CLI, which resumes and crc32c-verifies:
+#   vcc datasets download controls -d ~/data/sidechain/vcc2026
+# Everything sits at the zip root (no vcc_data/ directory).
+control_files:
+  A: context_A.h5ad
+  B: context_B.h5ad
+  C: context_C.h5ad
+gene_names_file: gene_names.csv          # HEADERLESS. 18,533 symbols, in submission order.
+pert_counts_file: pert_counts.csv        # one column, 300 gene symbols (no counts column)
+manifest_file: manifest.json             # season, partition, panel id, contexts, cell counts
+
+context_col: context
+pert_col: target_gene
+control_label: "non-targeting"           # the only control arm, again
+control_types: [ntc]
+ntc_guide_col: ntc_id                    # 46 non-targeting guides x 400 cells per context
+n_control_cells_per_context: 18400
+reference_median_umi_per_cell: 20000     # the held-out truth is downsampled to this depth
+
+# Gene space: HGNC symbols in var_names. Whether an Ensembl column ships is
+# UNVERIFIED until the bundle is profiled -- do not assume var['gene_id'].
+gene_id_space: hgnc_symbol
+n_genes: 18533
+requires_id_mapping_to: ensembl_gene_id
+
+# Submission contract, as `vcc prep` enforces it. Mirrored here so emitters can
+# assert against it before writing a 360,000-cell file.
+submission:
+  n_perturbations: 300                   # identical set in every context of a round
+  cells_per_pert: 400                    # exact, not a minimum
+  total_cells: 360000                    # 300 x 400 x 3
+  values: raw_integer_counts             # non-negative, integral, finite; NOT log-normalized
+  max_counts_per_cell: 1000000
+  max_cells: 400000
+  max_stored_entries: 4750000000         # density cap; explicit zeros count; dense = 1.40x over
+  include_control_cells: false           # rejected, not cleaned
+  pert_labels: gene_symbol               # ADNP, not ADNP-1
+  daily_limit: 2                         # per team, resets 00:00 UTC; one in flight
+
+# Scoring: cell-eval2, preset `vcc2026`. Each member scaled (u - b) / (r - b):
+# 0 = context-mean baseline (our Rung 0b), 1 = split-half replicate. Overall is
+# the unweighted mean over 6 metrics x 3 contexts. Anchors b and r are Arc's,
+# measured on the held-out data; the local mirror computes its own.
+scorer: cell-eval2
+scorer_preset: vcc2026
+metrics: [pds, mse, nmae, fid, reach, jac]
+metric_registry:
+  pds:   pds_cosine                                  # higher better; unclamped
+  mse:   expr_mse_unbiased_capped_norm               # lower raw better; scaled clamped to [0, 1]
+  nmae:  de_wilcoxon_lfc_nmae                        # lower raw better; scaled floored at -6
+  fid:   de_wilcoxon_direction_fidelity_yield_raw    # higher better; unclamped
+  reach: de_wilcoxon_direction_reach_raw             # higher better; unclamped
+  jac:   de_wilcoxon_sig_jaccard                     # higher better; unclamped
+extra_state_metrics: false               # no Generalist track is announced for 2026
+
+# Local stand-in for "an unseen cell line": hold out a whole context.
+splits:
+  scheme: leave_one_context_out
+  contexts_available: [H1, K562, RPE1, Jurkat, HepG2]   # H1 2025 + the scPerturb shortlist
+
 baseline_agg_results: null
-notes: "Keep problem-agnostic until 2026-08-20."
