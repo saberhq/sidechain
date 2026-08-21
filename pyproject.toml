@@ -9,26 +9,27 @@ dependencies = [
   # single-cell core
   "scanpy",
   "anndata",
-  "pertpy",            # perturbation analysis, Mixscape, E-distance (scverse)
-  "decoupler",         # DoRothEA/TRRUST access via OmniPath
+  "pertpy", # perturbation analysis, Mixscape, E-distance (scverse)
+  "decoupler", # DoRothEA/TRRUST access via OmniPath
   # arc challenge plumbing -- all five publish to PyPI
-  "arc-state",         # STATE baseline + `state tx`
-  "cell-load",         # Arc dataloaders
-  "cell-eval",         # 2025 scorer -- the 2025 backtest mirror wraps this
+  "arc-state", # STATE baseline + `state tx`
+  "cell-load", # Arc dataloaders
+  "cell-eval", # 2025 scorer -- the 2025 backtest mirror wraps this
   "cell-eval2>=0.16.0", # 2026 scorer (preset `vcc2026`); added at kickoff 2026-08-20
-  "pdex",              # Arc differential expression
+  "pdex", # Arc differential expression
   # modeling
   "torch",
-  "torch-geometric",   # sparse multi-relational GNN (edge_index / COO)
+  "torch-geometric", # sparse multi-relational GNN (edge_index / COO)
   "numpy",
   "scipy",
   "pandas",
   # sequence priors
-  "transformers",      # Nucleotide Transformer inference
+  "transformers", # Nucleotide Transformer inference
   # infra
-  "lamindb",           # dataset + run/artifact versioning
+  "lamindb", # dataset + run/artifact versioning
   "pyyaml",
-  "typer",             # small CLIs
+  "typer", # small CLIs
+  "zstandard>=0.25.0",
 ]
 
 [dependency-groups]

@@ -31,6 +31,11 @@ asymmetry is the entire reason for the split.
 Corollary that matters: **never move content from a private doc into a tracked file.** If a public
 file needs to explain a design decision, write the decision — not the strategy behind it.
 
+> **Status (2026-08-21):** the 2026 spec, evaluation criteria and the validation bundle are
+> released and ingested. `challenges/vcc2026/CLAUDE.md` + `config.yaml` are authoritative for
+> the data and the submission contract; `private/reports/05` (audit) and `06` (bundle QC) for
+> the argument. Do not re-derive the spec from the web; diff it again on **Oct 22** (final bundle).
+
 ## The task, in one paragraph
 
 Given expression data for genes that *have* been silenced, predict what happens when you silence a
