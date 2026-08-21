@@ -20,6 +20,7 @@ from pathlib import Path
 import anndata as ad
 import h5py
 import numpy as np
+import pandas as pd
 import scipy.sparse as sp
 
 from sidechain.data.stream_pseudobulk import _iter_blocks, _read_keep, read_elem
