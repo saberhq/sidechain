@@ -37,18 +37,22 @@ def profile_file(path: Path, pert_col: str, control_label: str) -> dict:
         "n_perturbations": len(perts),
         "n_control_cells": int(counts.get(control_label, 0)),
         "control_fraction": round(float(counts.get(control_label, 0)) / a.n_obs, 4),
-        "cells_per_pert": {
+    }
+    # A controls-only file (the 2026 bundle) has no perturbations to summarize.
+    if len(perts):
+        out["cells_per_pert"] = {
             "min": int(perts.min()),
             "p25": int(perts.quantile(0.25)),
             "median": int(perts.median()),
             "p75": int(perts.quantile(0.75)),
             "max": int(perts.max()),
-        },
-        "perts_with_min_cells": {
+        }
+        out["perts_with_min_cells"] = {
             str(t): int((perts >= t).sum()) for t in (10, 30, 50, 100)
-        },
-        "perturbed_genes_also_measured": f"{sum(p in measured for p in perts.index)}/{len(perts)}",
-    }
+        }
+        out["perturbed_genes_also_measured"] = (
+            f"{sum(p in measured for p in perts.index)}/{len(perts)}"
+        )
     for col in a.obs.columns:
         if col != pert_col:
             out[f"n_unique_{col}"] = int(a.obs[col].nunique())
@@ -88,7 +92,13 @@ def main() -> None:
 
     print(f"# Dataset profile — {cfg.get('year')} · {data_dir}\n")
 
-    files = [f for f in (cfg.get("source_file"), cfg.get("dev_file")) if f]
+    # 2026-style config: one control file per anonymized context, no training file.
+    # Profile each as its own dataset; the cross-context comparison is analysis,
+    # not profiling, and lives elsewhere.
+    control_files = cfg.get("control_files") or {}
+    files = list(control_files.values()) or [
+        f for f in (cfg.get("source_file"), cfg.get("dev_file")) if f
+    ]
     profiles = []
     for fname in files:
         p = data_dir / fname
@@ -105,9 +115,13 @@ def main() -> None:
         print()
 
     main_file = data_dir / files[0] if files else None
-    if main_file and main_file.exists():
-        print("## count matrix")
-        for k, v in profile_matrix(main_file).items():
+    matrix_files = files if control_files else files[:1]
+    for fname in matrix_files:
+        p = data_dir / fname
+        if not p.exists():
+            continue
+        print(f"## count matrix — {fname}")
+        for k, v in profile_matrix(p).items():
             print(f"  {k:34s} {v}")
         print()
 
@@ -128,16 +142,19 @@ def main() -> None:
         )
         print()
 
-    # gene_names.csv ships without a header row; the default read silently drops
-    # the first gene and shifts every downstream index by one.
+    # gene_names.csv: the 2025 file has NO header row (a default read eats the
+    # first gene); the 2026 file HAS one (`gene_name`; a headerless read gains a
+    # bogus gene). Report both reads against the h5ad and say which one is right.
     gn = data_dir / "gene_names.csv"
     if gn.exists() and profiles:
         n_default = pd.read_csv(gn).shape[0]
         n_nohdr = pd.read_csv(gn, header=None).shape[0]
+        n_genes = profiles[0]["n_genes"]
+        ok = "  <- correct"
         print("## gene_names.csv")
-        print(f"  rows with default read()           {n_default}")
-        print(f"  rows with header=None              {n_nohdr}  <- correct")
-        print(f"  n_genes in h5ad                    {profiles[0]['n_genes']}")
+        print(f"  rows with default read()           {n_default}{ok if n_default == n_genes else ''}")
+        print(f"  rows with header=None              {n_nohdr}{ok if n_nohdr == n_genes else ''}")
+        print(f"  n_genes in h5ad                    {n_genes}")
 
 
 if __name__ == "__main__":

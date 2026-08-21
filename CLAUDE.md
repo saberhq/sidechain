@@ -93,9 +93,11 @@ is simply: don't put data in the repo.
   `loaders.gene_index(adata, 'ensembl_gene_id')` is **strict** — it raises rather than falling
   back to `var_names`, because that fallback produced an index matching no prior and every source
   returned zero edges with no error.
-- **`gene_names.csv` has no header row.** `pd.read_csv()` with defaults eats the first gene and
-  returns 18,079 rows — an off-by-one that misaligns every gene. Use `header=None`, or better,
-  read gene names from the h5ad and ignore the CSV.
+- **`gene_names.csv` differs by year — check the row count against the h5ad.** The 2025 file has
+  **no header**: a default `pd.read_csv()` eats the first gene and returns 18,079 rows. The 2026
+  file **has one** (`gene_name`): `header=None` returns 18,534 rows with a bogus first gene.
+  Either mistake misaligns every gene silently. Read gene names from the h5ad where possible;
+  `sidechain.data.profile` prints both reads and marks the one that matches.
 - **Check the minimum before writing "every".** This is about how we describe the *data*, not
   about which metrics we report. If you are about to write "every perturbation appears in all 48
   batches", compute the minimum first — the median and the max were both 48 and the minimum was

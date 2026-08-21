@@ -26,7 +26,7 @@ control_files:
   A: context_A.h5ad
   B: context_B.h5ad
   C: context_C.h5ad
-gene_names_file: gene_names.csv          # HEADERLESS. 18,533 symbols, in submission order.
+gene_names_file: gene_names.csv          # HAS a header row (`gene_name`) -- unlike 2025. 18,533 symbols, submission order.
 pert_counts_file: pert_counts.csv        # one column, 300 gene symbols (no counts column)
 manifest_file: manifest.json             # season, partition, panel id, contexts, cell counts
 
@@ -38,8 +38,8 @@ ntc_guide_col: ntc_id                    # 46 non-targeting guides x 400 cells p
 n_control_cells_per_context: 18400
 reference_median_umi_per_cell: 20000     # the held-out truth is downsampled to this depth
 
-# Gene space: HGNC symbols in var_names. Whether an Ensembl column ships is
-# UNVERIFIED until the bundle is profiled -- do not assume var['gene_id'].
+# Gene space: HGNC symbols in var_names and NOTHING else -- var has no columns,
+# so there is no Ensembl id to key on (profiled 2026-08-20).
 gene_id_space: hgnc_symbol
 n_genes: 18533
 requires_id_mapping_to: ensembl_gene_id
@@ -78,5 +78,8 @@ extra_state_metrics: false               # no Generalist track is announced for 
 splits:
   scheme: leave_one_context_out
   contexts_available: [H1, K562, RPE1, Jurkat, HepG2]   # H1 2025 + the scPerturb shortlist
+  # The rotation measures transfer on genes perturbed in all lines -- a set DISJOINT
+  # from the 300 targets (essential panels cover 0 of them; K562 genome-wide 272, H1 25).
+  # Use it for method selection, never as a forecast. private/reports/06 section 5.
 
 baseline_agg_results: null
