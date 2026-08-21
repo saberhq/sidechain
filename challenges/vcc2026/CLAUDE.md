@@ -100,7 +100,39 @@ uv run python -m sidechain.eval.leaderboard            # prints top 20, saves JS
 Snapshots land in `~/data/sidechain/vcc2026/leaderboards/`. Day 0 (2026-08-20): six entries,
 leader 0.134 with a cross-line pooled delta-transfer model; `mse` was 0 for everyone.
 
-## Running the model
+## Building and submitting a prediction
 
-Not yet — the 2026 mirror (cell-eval2 + our own anchors + leave-one-context-out) is
-`private/TODO.md` Now #2. No 2026 number is trusted before it exists.
+The pipeline is `sidechain.submit` (public). It never holds the 360,000-cell matrix in memory:
+blocks of 400 cells are emitted per (context, perturbation), appended to an h5ad on disk with
+h5py in exactly the layout `vcc prep` produces, checked against the contract as they go, then
+packed into the `.vcc` container (`tar` of `pred.h5ad.zst`). `vcc submit x.vcc` validates the
+container only and the server reads the file on a 128 GB machine, so **the Mac can submit**.
+
+```bash
+# 1. per-perturbation pseudobulks of the source corpora (one streaming pass each; cached)
+uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/vcc2025/adata_{Training,Validation,Test}.h5ad \
+    --label-col target_gene --control non-targeting --control-once --out ~/data/sidechain/cache/vcc2026/h1_pseudobulk.npz
+uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/external/zenodo-13350497/ReplogleWeissman2022_K562_gwps.h5ad \
+    --label-col perturbation --keep ~/data/sidechain/vcc2026/pert_counts.csv --control control \
+    --out ~/data/sidechain/cache/vcc2026/k562_gwps_targets_pseudobulk.npz
+
+# 2. build (emitter x dispersion), ~15 min; writes <out>.h5ad and <out>.vcc
+uv run python -m sidechain.submit.build --emitter delta-transfer --dispersion even \
+    --h1-cache ~/data/sidechain/cache/vcc2026/h1_pseudobulk.npz \
+    --gwps-cache ~/data/sidechain/cache/vcc2026/k562_gwps_targets_pseudobulk.npz \
+    --out ~/data/sidechain/vcc2026/submissions/<name>
+
+# 3. smoke-test the layout on a 3-perturbation panel before any full build
+uv run python -m sidechain.submit.build --emitter control-null --limit-perts 3 --out .../_smoke
+vcc prep .../_smoke.h5ad -g gene_names.csv --perts .../_smoke.pert_counts.csv --dry-run
+
+# 4. submit (2 per day, UTC)
+vcc submit ~/data/sidechain/vcc2026/submissions/<name>.vcc -m "<model name>" --wait
+```
+
+Two modelling choices live in the emitter (`sidechain.models.count_emitters`), not in plumbing:
+**dispersion** (`even` = minimum-variance cells, which make the DE test call the whole
+universe and so satisfy `fid`'s coverage term; `poisson` = realistic cells, which call only a
+few hundred genes) and **shrinkage** of transferred log2FCs (gene-wise positive-part, on by
+default; `--no-shrink` to compare). The local mirror that would score these choices before
+submission is `private/TODO.md` Now #2; until it exists, the leaderboard is the only scorer.

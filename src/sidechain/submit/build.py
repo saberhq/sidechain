@@ -59,7 +59,26 @@ def h1_mean_shift(h1: PseudobulkSums, control: str, axis: np.ndarray) -> np.ndar
     return remap_to_axis(fcs.mean(axis=0), h1.genes, axis)
 
 
-def pooled_delta(target: str, sources: list[tuple[PseudobulkSums, str]], axis: np.ndarray) -> np.ndarray | None:
+def shrink(fc: np.ndarray, var: np.ndarray) -> np.ndarray:
+    """Per-gene positive-part shrinkage of log2FCs toward 0: fc * max(0, 1 - var/fc^2).
+
+    A source measures each gene's fold change with its own sampling error; with
+    ~170 cells per K562 target, a gene at 5 CPM carries roughly +-0.5 log2 of pure
+    noise, which would be transferred as if it were signal and charged by the
+    fold-change metric. This is the gene-wise James-Stein rule: a gene whose
+    estimate is within one standard error of zero is set to zero, one at three
+    standard errors keeps 89 % of its value, one at five keeps 96 %. A single
+    global normal prior was tried first and erased the real effects too -- they
+    are a few hundred genes among ~8,000 nulls, so any one-variance prior is
+    dominated by the nulls.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        factor = np.where(fc != 0, 1.0 - var / np.maximum(fc**2, 1e-12), 0.0)
+    return fc * np.clip(factor, 0.0, 1.0)
+
+
+def pooled_delta(target: str, sources: list[tuple[PseudobulkSums, str]], axis: np.ndarray,
+                 *, shrinkage: bool = True) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did."""
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
     for pb, control in sources:
@@ -67,6 +86,8 @@ def pooled_delta(target: str, sources: list[tuple[PseudobulkSums, str]], axis: n
             continue
         any_src = True
         fc, var = _log2fc_with_var(pb, target, control)
+        if shrinkage:
+            fc = shrink(fc, var)
         w = 1.0 / np.maximum(var, 1e-6)
         num += remap_to_axis(fc * w, pb.genes, axis, fill=0.0)
         den += remap_to_axis(w, pb.genes, axis, fill=0.0)
@@ -85,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--h1-cache")
     ap.add_argument("--gwps-cache")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
+    ap.add_argument("--no-shrink", action="store_true", help="disable the per-gene empirical-Bayes shrinkage of transferred log2FCs")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default="even",
@@ -129,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         gwps = PseudobulkSums.load(args.gwps_cache)
         sources = [(gwps, "control"), (h1, cfg["control_label"])]
         for p in perts:
-            d = pooled_delta(p, sources, axis)
+            d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink)
             if d is None:
                 fallback += 1          # keep the generic shift
             else:

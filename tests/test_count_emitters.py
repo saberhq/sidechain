@@ -69,3 +69,13 @@ def test_even_mode_has_exact_means_and_minimal_spread(tmp_path):
     expected = np.rint(n * np.median(prof.libsizes) * prof.fraction)
     np.testing.assert_array_equal(tot, expected)  # per-gene totals exact
     assert (M.max(axis=0) - M.min(axis=0)).max() <= 1  # spread of at most one count per gene
+
+
+def test_shrinkage_pulls_noisy_genes_more_than_precise_ones():
+    from sidechain.submit.build import shrink
+    fc = np.array([1.0, 1.0, 0.0, -1.0])
+    var = np.array([0.01, 1.0, 0.5, 0.01])
+    out = shrink(fc, var)
+    assert abs(out[0]) > abs(out[1])            # same effect, noisier estimate shrinks more
+    assert out[2] == 0.0 and np.sign(out[3]) == -1
+    assert np.all(np.abs(out) <= np.abs(fc))
