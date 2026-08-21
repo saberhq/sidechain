@@ -134,5 +134,20 @@ Two modelling choices live in the emitter (`sidechain.models.count_emitters`), n
 **dispersion** (`even` = minimum-variance cells, which make the DE test call the whole
 universe and so satisfy `fid`'s coverage term; `poisson` = realistic cells, which call only a
 few hundred genes) and **shrinkage** of transferred log2FCs (gene-wise positive-part, on by
-default; `--no-shrink` to compare). The local mirror that would score these choices before
-submission is `private/TODO.md` Now #2; until it exists, the leaderboard is the only scorer.
+default; `--no-shrink` to compare). Score a choice locally before spending a slot — the **2026 mirror** scores a held-out line
+on Arc's own 0 = mean-response → 1 = replicate scale using cell-eval2's bundle machinery:
+
+```bash
+# once per held-out line: extract a panel, build its bundle (CPU: pdex DE, a "diagnostic" bundle;
+# the box with cell-eval2[gpudge] reproduces the competition rule byte for byte)
+uv run python -m sidechain.data.stream_subset <line>.h5ad --label-col perturbation --keep panel.csv \
+    --control control --max-per-label 400 --max-control 10000 --out real.h5ad
+uv run python -m sidechain.eval.mirror2026 bundle --real real.h5ad --out ~/data/sidechain/runs/mirror/<line> \
+    --pert-col perturbation --control control
+# per model: predict the held-out line from the OTHER lines' pseudobulks, score on the bundle
+uv run python -m sidechain.eval.loco --real real.h5ad --pert-col perturbation --control control \
+    --source <other>_all_pseudobulk.npz:control ... --bundle ~/data/sidechain/runs/mirror/<line>/bundle \
+    --out ~/data/sidechain/runs/mirror/<line>/<arm> --dispersion even
+```
+
+Mirror numbers are relative (arm A vs arm B on one bundle), not forecasts of the board.
