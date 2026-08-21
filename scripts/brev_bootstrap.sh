@@ -30,7 +30,11 @@ cd sidechain && git pull --quiet && uv sync --quiet
 # GPU extras for the 2026 scorer: CUDA kernels + GPU differential expression.
 # Competition-rule scoring resolves DE on the GPU; a CPU (pdex) run builds a
 # "diagnostic" bundle whose config hash differs from the vcc2026 preset.
-uv pip install --quiet --torch-backend=auto "cell-eval2[gpu,gpudge]" \
+# `--torch-backend=auto` picked a CUDA-13 torch (2.13.0+cu130) on a box whose
+# driver (570.x) tops out at CUDA 12.8 -> torch.cuda.is_available() == False.
+# Pin the CUDA-12.6 wheels instead; they run on every driver >= 560.
+uv pip install --quiet --torch-backend=cu126 "cell-eval2[gpu,gpudge]" \
   || echo "cell-eval2 GPU extras failed; the CPU path still works"
+uv pip install --quiet --reinstall --index-url https://download.pytorch.org/whl/cu126 torch
 
 echo "sidechain bootstrap done on $(hostname) at $(date -u): $(uv run python -c 'import torch; print("cuda", torch.cuda.is_available())' 2>/dev/null)"
