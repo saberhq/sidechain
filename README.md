@@ -1,29 +1,27 @@
-# Sidechain
-
-[![Virtual Cell Challenge](https://img.shields.io/badge/Virtual%20Cell%20Challenge-2026-6A4C93)](https://virtualcellchallenge.org/)
-[![Live rank](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsaberhq%2Fsidechain%2Fbadges%2Fleaderboard.json)](https://virtualcellchallenge.org/leaderboard)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg">
+  <img alt="Sidechain — Virtual Cell Challenge 2026" src="assets/wordmark-light.svg">
+</picture>
 
 *Predicting how a cell's transcriptome shifts when a gene is silenced — a solo entry to the
 [Virtual Cell Challenge 2026](https://virtualcellchallenge.org/), built in the open.*
 
-Created by [@SaberHQ](https://github.com/saberhq)
+Created by [Saber Hafezqorani](https://saberhq.com)
 
 ---
 
-**What it is.** One person plus Claude Code, climbing a ladder of models from the simplest
+**What it is.** Sidechain is a multi-agentic research workflow that tries to decode one of biology's hardest problems – understanding how a cell's biology changes when a gene is silenced. The idea is to climb a ladder of models from the simplest
 baseline up and keeping only what the metric pays for.
 
-**How it's shared.** Code, configs and tests land here the day they're written, and the story
-behind them goes out on LinkedIn as it happens — [show your work](https://austinkleon.com/show-your-work/).
+**How it's shared.** Code, configs and tests land here, and I'll share the journey with the broader scPerturbSeq research community through [LinkedIn](https://www.linkedin.com/in/saberhq) and [blog](https://saberhq.com/blog/) posts. Let's catch up along the way.
 
 ## Where we stand
 
-The first submission scored **#2 of 41** on day one (21 Aug 2026). The badge above is the live
-rank on the official board, refreshed hourly.
+Every submission, as Arc scored it. The [live board](https://virtualcellchallenge.org/leaderboard)
+shows only a team's latest entry, so the rank is the one each entry held when it was scored.
 
-## Setup
-
-```bash
-uv sync
-uv run pytest
-```
+| date (UTC) | submission | overall | rank when scored |
+|---|---|---|---|
+| 2026-08-21 | `sidechain r1-delta-even v1` | 0.0788 | #2 of 41 |
+| 2026-08-21 | `Sidechain SER-1p` | 0.0730 | — (a probe) |
+| 2026-08-22 | `Sidechain SER-1n` | 0.0822 | #14 of 107 |
