@@ -39,9 +39,28 @@ dev = ["pytest>=8", "pytest-cov", "ruff"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[project.optional-dependencies]
+# The GPU box only: cell-eval2's CUDA kernels + GPU differential expression
+# (gpudge), which is what makes a locally built scoring bundle match the
+# competition rule byte for byte. `uv sync --extra gpu` on Linux; a no-op on the Mac.
+gpu = ["cell-eval2[gpu,gpudge]; sys_platform == 'linux'"]
+
 [tool.uv]
 # Commit uv.lock so the Mac and the GPU box resolve identically. Re-pinned at the
 # 2026-08-20 kickoff (cell-eval2 added); re-pin again if Arc bumps the scorer.
+#
+# torch on Linux comes from the CUDA-12.6 wheel index: the default index serves a
+# CUDA-13 build that the Brev boxes' 570-series driver cannot run (cuda False), and
+# `uv run` re-syncs the env to this lock before every command, so a hand-installed
+# torch is silently replaced. The Mac keeps the default (CPU/MPS) build.
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'linux'" }]
 
 [build-system]
 requires = ["hatchling"]
