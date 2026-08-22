@@ -151,3 +151,11 @@ uv run python -m sidechain.eval.loco --real real.h5ad --pert-col perturbation --
 ```
 
 Mirror numbers are relative (arm A vs arm B on one bundle), not forecasts of the board.
+
+**The GPU box** (NVIDIA Brev, `scripts/brev_bootstrap.sh`): `uv sync --extra gpu` installs
+cell-eval2's CUDA kernels + `gpudge` (GPU differential expression). Two traps, both paid for:
+`uv run` re-syncs the env to `uv.lock` before every command, so torch must resolve from the
+lock (pyproject pins the CUDA-12.6 index for Linux — the default index serves a CUDA-13 build
+the 570-series driver cannot run); and a venv that has been hand-edited with `uv pip` can end
+up with dist-info but no files — `rm -rf .venv && uv sync --extra gpu` is the fix, not more
+`uv pip`. The login user is `shadeform`, not uid 1000.
