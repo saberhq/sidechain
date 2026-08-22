@@ -27,3 +27,16 @@ def test_extracts_exactly_the_wanted_cells_with_caps(tmp_path, dense):
     src = a[sub.obs_names].X
     src = src.toarray() if sp.issparse(src) else src
     np.testing.assert_array_equal(sub.X.toarray(), src)
+
+
+def test_relabel_control(tmp_path):
+    rng = np.random.default_rng(3)
+    X = rng.poisson(1.0, size=(30, 5)).astype(np.float32)
+    labels = np.array(["ctrl"] * 15 + ["A"] * 15)
+    a = ad.AnnData(X=sp.csr_matrix(X), obs=pd.DataFrame({"pert": labels}, index=[f"c{i}" for i in range(30)]),
+                   var=pd.DataFrame(index=[f"g{j}" for j in range(5)]))
+    p = tmp_path / "r.h5ad"
+    a.write_h5ad(p)
+    sub = extract_cells(p, "pert", {"A"}, control="ctrl", relabel_control="non-targeting")
+    vc = sub.obs["pert"].astype(str).value_counts()
+    assert vc["non-targeting"] == 15 and vc["A"] == 15 and "ctrl" not in vc.index

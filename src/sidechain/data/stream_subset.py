@@ -36,6 +36,7 @@ def extract_cells(
     max_control: int | None = None,
     seed: int = 0,
     block_rows: int | None = None,
+    relabel_control: str | None = None,
 ) -> ad.AnnData:
     """Cells of `keep` (+ control), at most `max_per_label` each, chosen uniformly at random."""
     path = Path(path).expanduser()
@@ -67,6 +68,12 @@ def extract_cells(
     for col in sub_obs.columns:
         if isinstance(sub_obs[col].dtype, pd.CategoricalDtype):
             sub_obs[col] = sub_obs[col].cat.remove_unused_categories()
+    if control and relabel_control and relabel_control != control:
+        # cell-eval2's competition rule hashes the control LABEL ('non-targeting');
+        # a line whose controls are called 'control' would otherwise only ever
+        # yield a "diagnostic" bundle. Relabel at extraction, once.
+        col = sub_obs[label_col].astype(str)
+        sub_obs[label_col] = col.where(col != control, relabel_control)
     out = ad.AnnData(X=X, obs=sub_obs, var=var.copy())
     return out
 
@@ -81,11 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-control", type=int)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--block-rows", type=int)
+    ap.add_argument("--relabel-control", help="rename the control label on output, e.g. non-targeting")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     a = extract_cells(args.file, args.label_col, _read_keep(args.keep), control=args.control,
                       max_per_label=args.max_per_label, max_control=args.max_control,
-                      seed=args.seed, block_rows=args.block_rows)
+                      seed=args.seed, block_rows=args.block_rows, relabel_control=args.relabel_control)
     out = Path(args.out).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     a.write_h5ad(out, compression="gzip")
