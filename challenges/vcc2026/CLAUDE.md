@@ -138,14 +138,15 @@ default; `--no-shrink` to compare). Score a choice locally before spending a slo
 on Arc's own 0 = mean-response → 1 = replicate scale using cell-eval2's bundle machinery:
 
 ```bash
-# once per held-out line: extract a panel, build its bundle (CPU: pdex DE, a "diagnostic" bundle;
-# the box with cell-eval2[gpudge] reproduces the competition rule byte for byte)
+# once per held-out line: extract a panel (controls relabelled `non-targeting` -- the competition
+# rule hashes the control label, so this is what makes the bundle rule-exact; the DE backend is
+# not part of the hash, the GPU box only makes it ~40x faster), then build its bundle
 uv run python -m sidechain.data.stream_subset <line>.h5ad --label-col perturbation --keep panel.csv \
-    --control control --max-per-label 400 --max-control 10000 --out real.h5ad
+    --control control --relabel-control non-targeting --max-per-label 400 --max-control 10000 --out real.h5ad
 uv run python -m sidechain.eval.mirror2026 bundle --real real.h5ad --out ~/data/sidechain/runs/mirror/<line> \
-    --pert-col perturbation --control control
+    --pert-col perturbation --control non-targeting
 # per model: predict the held-out line from the OTHER lines' pseudobulks, score on the bundle
-uv run python -m sidechain.eval.loco --real real.h5ad --pert-col perturbation --control control \
+uv run python -m sidechain.eval.loco --real real.h5ad --pert-col perturbation --control non-targeting \
     --source <other>_all_pseudobulk.npz:control ... --bundle ~/data/sidechain/runs/mirror/<line>/bundle \
     --out ~/data/sidechain/runs/mirror/<line>/<arm> --dispersion even
 ```
