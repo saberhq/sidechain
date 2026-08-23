@@ -13,6 +13,12 @@
 #   budget_gb           the ceiling this dataset is allowed to occupy. The gate
 #                       refuses a selection that exceeds it, so a fetch can
 #                       never decide for itself how much disk it takes.
+#                       HOW TO PICK IT: it is a tripwire against the record
+#                       GROWING upstream, not an estimate of free disk -- the
+#                       gate checks real free space separately. Set it ~40%
+#                       above the known selection: loose enough that a point
+#                       release adding a file does not hard-stop the run, tight
+#                       enough that a record which doubled still does.
 #   files               explicit list. Selection is strict: a name not in the
 #                       record raises rather than being skipped, because a
 #                       silently partial corpus looks complete.
@@ -31,7 +37,7 @@ datasets:
     host: zenodo
     record: "13350497"           # v1.4 -- pinned; NOT the concept DOI 7041848
     license: CC-BY-4.0           # expected; the gate re-checks against the API
-    budget_gb: 15.0
+    budget_gb: 20.0             # 13.95 GB selected; headroom for a point release
     dest: external/zenodo-13350497
     notes: >
       Pre-harmonized CRISPRi corpora giving four cell lines beyond H1. Ingested
