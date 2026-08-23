@@ -42,8 +42,15 @@
   </div>
 </section>
 
+{{ if .Site.Data.coverage }}
+<section class="sq-section sq-wrap" id="corpus">
+  {{ partial "section-head.html" (dict "num" "03" "label" "What the models draw on") }}
+  {{ partial "corpus.html" . }}
+</section>
+{{ end }}
+
 <section class="sq-section sq-wrap" id="naming">
-  {{ partial "section-head.html" (dict "num" "03" "label" "Why “Sidechain”") }}
+  {{ partial "section-head.html" (dict "num" "04" "label" "Why “Sidechain”") }}
   <div class="sq-prose sc-measure">
     <p>A <em>side chain</em> is the part of an amino acid that makes it different from the other canonical nineteen. The models are named the same way: each <strong>series</strong> is an amino acid whose side chain matches the model's character, and a number counts entries within it. A letter suffix marks a one-knob variant — <code>SER-1p</code> is <code>SER-1</code> with Poisson cells, <code>SER-1n</code> is <code>SER-1</code> without shrinkage.</p>
   </div>
@@ -63,7 +70,7 @@
 {{ $posts := where .Site.RegularPages "Section" "posts" }}
 <section class="sq-section sq-wrap" id="posts">
   {{ $postsPage := .Site.GetPage "posts" }}
-  {{ partial "section-head.html" (dict "num" "04" "label" "Posts" "aside" (dict "href" $postsPage.RelPermalink "label" "all posts →")) }}
+  {{ partial "section-head.html" (dict "num" "05" "label" "Posts" "aside" (dict "href" $postsPage.RelPermalink "label" "all posts →")) }}
   {{ if $posts }}
   <div class="sq-card-grid">
     {{ range first 6 $posts.ByDate.Reverse }}

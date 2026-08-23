@@ -220,6 +220,7 @@ a.sq-card:hover {
 .sc-series { font-weight: 500; color: var(--ink); }
 .sc-table--naming td:nth-child(2) { color: var(--ink-2); }
 .sc-measure { max-width: var(--measure); margin-top: 14px; }
+.sc-footmark { color: var(--accent); cursor: help; }
 .sc-footnote { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); margin: 12px 0 0; }
 
 /* ---------- Empty state ---------- */

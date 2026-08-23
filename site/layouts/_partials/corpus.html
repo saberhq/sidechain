@@ -1,0 +1,53 @@
+{{- /* "What the models draw on": rendered at build time from data/coverage.json, which
+       `uv run python -m sidechain.data.coverage` measures from the ingest caches —
+       committed JSON, no hand-typed numbers, no client-side code (ADR 0006). The
+       section only exists when the file does. */ -}}
+{{ $c := .Site.Data.coverage }}
+{{ $priors := where $c.sources "role" "prior" }}
+{{ $evals := where $c.sources "role" "eval" }}
+
+<div class="sc-intro">
+  <p>Everything the entries draw on is public data, harmonized locally. Of the {{ $c.panel_size }} genes
+  the challenge asks about, <strong>{{ $c.prior_covered }}</strong> have a measured knockdown somewhere in
+  the held corpora and <strong>{{ $c.uncovered }}</strong> have none yet. The essential-gene panels never
+  feed a submission — they are the local mirror that scores a method before it is submitted.</p>
+</div>
+
+<figure class="sc-bars" aria-label="2026 panel coverage per corpus">
+  <figcaption class="sc-bars-title">Of the {{ $c.panel_size }} challenge targets · measured knockdowns held per corpus</figcaption>
+  <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ $c.panel_size }}</span></span><span></span></div>
+  {{ range $priors }}
+  <div class="sc-bar-row">
+    <span class="sc-bar-label">{{ .line }}</span>
+    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div (float .panel_covered) $c.panel_size) 100) }}%"></span></span>
+    <span class="sc-bar-value">{{ .panel_covered }}/{{ $c.panel_size }}</span>
+  </div>
+  {{ end }}
+  <div class="sc-bar-row sc-bar-row--best">
+    <span class="sc-bar-label">any</span>
+    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div (float $c.prior_covered) $c.panel_size) 100) }}%"></span></span>
+    <span class="sc-bar-value">{{ $c.prior_covered }}/{{ $c.panel_size }}</span>
+  </div>
+</figure>
+
+<div class="sc-table-wrap" tabindex="0">
+<table class="sc-table">
+  <thead>
+    <tr><th>corpus</th><th>cell line</th><th>role</th><th class="sc-num">of the {{ $c.panel_size }}</th><th class="sc-num">cells / covered target</th><th class="sc-num">gene axis</th></tr>
+  </thead>
+  <tbody>
+    {{ range $c.sources }}
+    <tr>
+      <td>{{ .name }}{{ with .note }} <span class="sc-footmark" title="{{ . }}">*</span>{{ end }}</td>
+      <td class="sc-mono">{{ .line }}</td>
+      <td class="sc-mono">{{ if eq .role "prior" }}prior{{ else }}local eval{{ end }}</td>
+      <td class="sc-mono sc-num">{{ .panel_covered }}</td>
+      <td class="sc-mono sc-num">{{ with .cells_per_covered_target }}{{ .min }} – {{ .median }} med{{ else }}—{{ end }}</td>
+      <td class="sc-mono sc-num">{{ .genes }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+</div>
+{{ range $src := $c.sources }}{{ with $src.note }}<p class="sc-footnote">* {{ $src.line }} — {{ . }}</p>{{ end }}{{ end }}
+<p class="sc-footnote">Measured from the ingest caches by <code>sidechain.data.coverage</code> · {{ with $c.generated_utc }}{{ (time.AsTime .).Format "2006-01-02" }}{{ end }}</p>
