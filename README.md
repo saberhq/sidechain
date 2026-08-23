@@ -13,7 +13,7 @@ Created by [Saber Hafezqorani](https://saberhq.com)
 **What it is.** Sidechain is a multi-agentic research workflow that tries to decode one of biology's hardest problems – understanding how a cell's biology changes when a gene is silenced. The idea is to climb a ladder of models from the simplest
 baseline up and keeping only what the metric pays for.
 
-**How it's shared.** Code, configs and tests land here, and I'll share the journey with the broader scPerturbSeq research community through [LinkedIn](https://www.linkedin.com/in/saberhq) and [blog](https://saberhq.com/blog/) posts. Let's catch up along the way.
+**How it's shared.** Code, configs and tests land here, and I'll share the journey with the broader scPerturbSeq research community through [LinkedIn](https://www.linkedin.com/in/saberhq) posts and write-ups at [saberhq.com/sidechain](https://saberhq.com/sidechain/). Let's catch up along the way.
 
 ## Where we stand
 
