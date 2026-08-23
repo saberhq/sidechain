@@ -31,6 +31,18 @@ asymmetry is the entire reason for the split.
 Corollary that matters: **never move content from a private doc into a tracked file.** If a public
 file needs to explain a design decision, write the decision — not the strategy behind it.
 
+## Committing
+
+- **Stage by explicit path. Never `git add -A`, `git add .`, `git add -u`, or `git commit -a`.**
+  More than one session works in this checkout at the same time, so the working tree holds
+  other people's uncommitted work. On 2026-08-22 a `git add -A` for a one-file config change
+  swept 44 files of another session's site work into a commit about the scPerturb budget, and
+  pushed it; history had to be rewritten. Name what you changed:
+  `git add configs/datasets.yaml && git commit -m "..."`. If `git status` shows changes you did
+  not make, leave them alone and say so in your summary. Same in the private repo:
+  `git -C private add <paths>`.
+- **Push only when Saber says so.** Commits are local until he has reviewed them.
+
 > **Status (2026-08-21):** the 2026 spec, evaluation criteria and the validation bundle are
 > released and ingested. `challenges/vcc2026/CLAUDE.md` + `config.yaml` are authoritative for
 > the data and the submission contract; `private/reports/05` (audit) and `06` (bundle QC) for
