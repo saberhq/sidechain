@@ -19,7 +19,7 @@ baseline up and keep only what the metric pays for.
 
 ## Why "Sidechain", and how the models are named
 
-A *side chain* is the part of an amino acid that makes it different from the other nineteen.
+A *side chain* is the part of an amino acid that makes it different from the other canonical nineteen.
 Our models are named the same way: each **series** is an amino acid whose side chain matches
 the model's character, and a number counts entries within it — `GLY` (no side chain: nulls and
 baselines), `ALA` (a single statistical shift), `SER` (transfers a group: cross-line delta
