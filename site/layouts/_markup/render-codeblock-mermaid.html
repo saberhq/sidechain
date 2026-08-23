@@ -1,0 +1,5 @@
+{{- /* ```mermaid fences render client-side; scripts.html loads the library when this ran. */ -}}
+<pre class="mermaid">
+{{- .Inner | htmlEscape | safeHTML }}
+</pre>
+{{ .Page.Store.Set "hasMermaid" true }}

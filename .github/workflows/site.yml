@@ -1,0 +1,61 @@
+# Builds site/ with Hugo and publishes it with GitHub Pages.
+#
+# Where it lands: https://saberhq.com/sidechain/ — GitHub serves every project site of an
+# account under the user site's custom domain (saberhq.github.io carries saberhq.com), so
+# nothing in the personal site's repo has to change. Hugo's baseURL already carries the
+# /sidechain/ path (site/hugo.toml).
+#
+# One-time setup, before the first run: Pages must be enabled on this repo with
+# "GitHub Actions" as the source — the workflow token cannot do that itself. Either
+#   gh api -X POST repos/saberhq/sidechain/pages -f build_type=workflow
+# or Settings → Pages → Source: GitHub Actions. Until then the deploy job fails.
+
+name: Publish site to saberhq.com/sidechain
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.148.2"   # same pin as saberhq.github.io
+          extended: true
+
+      - name: Build
+        run: hugo --source site --minify --cleanDestinationDir
+
+      - name: Upload
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

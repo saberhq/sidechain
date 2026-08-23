@@ -1,0 +1,82 @@
+{{- /* "Where we stand": stat tiles, a bar per scored submission, and the table — all
+       rendered at build time from data/submissions.json, so there is one hand-kept
+       source and no client-side code. Single series: the current best in the brand
+       colour, the rest de-emphasised; the table is the accessible view of the bars.
+       With no entries yet (a fresh season) the section says so instead of failing. */ -}}
+{{ $d := .Site.Data.submissions }}
+{{ $entries := $d.entries }}
+{{ if $entries }}
+{{ $n := len $entries }}
+
+{{- /* best overall, best rank */ -}}
+{{ $best := index $entries 0 }}
+{{ $bestRank := dict }}
+{{ range $entries }}
+  {{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}
+  {{ if .rank }}
+    {{ if or (not $bestRank.rank) (lt .rank $bestRank.rank) }}{{ $bestRank = . }}{{ end }}
+  {{ end }}
+{{ end }}
+
+<div class="sc-stats">
+  <div class="sc-stat">
+    <div class="sc-stat-label">Best overall</div>
+    <div class="sc-stat-value">{{ printf "%.4f" $best.overall }}</div>
+    <div class="sc-stat-sub">{{ $best.name }} · {{ $best.date }}</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Best rank when scored</div>
+    <div class="sc-stat-value">{{ with $bestRank.rank }}#{{ . }}{{ else }}—{{ end }}</div>
+    <div class="sc-stat-sub">{{ with $bestRank.rank }}of {{ $bestRank.teams }} teams · {{ $bestRank.date }}{{ else }}no ranked entry yet{{ end }}</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Scored submissions</div>
+    <div class="sc-stat-value">{{ $n }}</div>
+    <div class="sc-stat-sub">since {{ (index $entries 0).date }}</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Deadline</div>
+    <div class="sc-stat-value">{{ (time.AsTime $d.deadline).Format "Jan 2" }}</div>
+    <div class="sc-stat-sub">final test set {{ (time.AsTime $d.final_test_set).Format "Jan 2" }}</div>
+  </div>
+</div>
+
+{{- /* Bars: one per submission, scale 0 → a round ceiling above the best (0.1 steps). */ -}}
+{{ $ceil := math.Ceil (mul $best.overall 10) }}
+{{ $ceil = div $ceil 10.0 }}
+{{ if lt $ceil 0.1 }}{{ $ceil = 0.1 }}{{ end }}
+<figure class="sc-bars" aria-label="Overall score per scored submission">
+  <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
+  <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
+  {{ range $entries }}
+  <div class="sc-bar-row{{ if eq .name $best.name }} sc-bar-row--best{{ end }}">
+    <span class="sc-bar-label">{{ .name }}</span>
+    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div .overall $ceil) 100) }}%"></span></span>
+    <span class="sc-bar-value">{{ printf "%.4f" .overall }}</span>
+  </div>
+  {{ end }}
+</figure>
+
+<div class="sc-table-wrap" tabindex="0">
+<table class="sc-table">
+  <thead>
+    <tr><th>date (UTC)</th><th>submission</th><th>on the board as</th><th class="sc-num">overall</th><th>rank when scored</th></tr>
+  </thead>
+  <tbody>
+    {{ range $entries }}
+    <tr>
+      <td class="sc-mono">{{ .date }}</td>
+      <td class="sc-mono">{{ .name }}</td>
+      <td><code>{{ .board_name }}</code></td>
+      <td class="sc-mono sc-num">{{ printf "%.4f" .overall }}</td>
+      <td class="sc-mono">{{ if .rank }}#{{ .rank }} of {{ .teams }}{{ else }}—{{ with .note }} ({{ . }}){{ end }}{{ end }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+</div>
+{{ else }}
+<div class="sc-empty">
+  <p>No scored submission yet. Deadline {{ (time.AsTime $d.deadline).Format "January 2" }}; final test set {{ (time.AsTime $d.final_test_set).Format "January 2" }}.</p>
+</div>
+{{ end }}

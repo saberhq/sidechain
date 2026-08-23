@@ -1,0 +1,23 @@
+{{- /* Header strip — the personal site's, so a visitor is visibly still on saberhq.com.
+       The mark links up to saberhq.com; the crumb ("/ sidechain") links to this site's
+       home. Context: dict "page" . plus optional "crumb" and "back" (dict "href" "label",
+       replaces the nav with a single back link). */ -}}
+{{ $p := .page }}
+<header class="sq-siteheader">
+  <div class="sq-wrap sq-siteheader-in">
+    <a class="sq-mark" href="{{ $p.Site.Params.parent }}">saberhq.com</a>
+    {{ with .crumb }}<a class="sq-crumb" href="{{ $p.Site.Home.RelPermalink }}">/ {{ . }}</a>{{ end }}
+    {{ with .crumb2 }}<span class="sq-crumb">/ {{ . }}</span>{{ end }}
+    <span class="sq-fill"></span>
+    {{ with .back }}
+      <a class="sq-back" href="{{ .href }}">{{ .label }}</a>
+    {{ else }}
+      <nav class="sq-nav" aria-label="Links">
+        {{ range $p.Site.Menus.main }}
+          <a href="{{ .URL }}" target="_blank" rel="noopener">{{ .Name }}</a>
+        {{ end }}
+      </nav>
+    {{ end }}
+    <button class="sq-theme-toggle" type="button" data-theme-toggle aria-label="Toggle color theme"></button>
+  </div>
+</header>

@@ -4346,6 +4346,8 @@ gpu = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fonttools" },
+    { name = "pillow" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -4379,6 +4381,8 @@ provides-extras = ["gpu"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fonttools" },
+    { name = "pillow" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov" },
     { name = "ruff" },

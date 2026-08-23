@@ -1,0 +1,38 @@
+{{ define "header" }}
+  {{ $posts := .CurrentSection }}
+  {{ partial "site-header.html" (dict "page" . "crumb" "sidechain" "crumb2" "posts" "back" (dict "href" $posts.RelPermalink "label" "← all posts")) }}
+{{ end }}
+
+{{ define "main" }}
+<article class="sq-article">
+  <div class="sq-article-wrap">
+    <div class="sq-kicker"><span class="sq-kicker-accent">Post</span> · {{ .Date.Format "2006-01-02" }} · {{ .ReadingTime }} min</div>
+    <h1 class="sq-article-title">{{ .Title }}</h1>
+    {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
+    <div class="sq-byline">
+      <span class="sq-byline-author">{{ .Params.author | default .Site.Params.author }}</span>
+      <span class="sq-byline-rule"></span>
+      {{ with .Params.links }}
+        <span class="sq-byline-links">
+          {{ range . }}<a href="{{ .url }}" target="_blank" rel="noopener">[{{ .label }}]</a> {{ end }}
+        </span>
+      {{ end }}
+    </div>
+    {{ with .Params.image }}
+    {{ $src := . }}
+    {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
+    <figure class="sq-cover">
+      <img src="{{ $src }}" alt="{{ $.Title }}">
+    </figure>
+    {{ end }}
+    <div class="sq-prose">
+      {{ .Content }}
+    </div>
+    {{ partial "post-actions.html" . }}
+  </div>
+</article>
+{{ end }}
+
+{{ define "footer" }}
+  {{ partial "site-footer.html" (dict "page" . "crumb" (dict "label" "POSTS" "href" .CurrentSection.RelPermalink)) }}
+{{ end }}

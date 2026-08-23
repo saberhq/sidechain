@@ -1,0 +1,71 @@
+{{- /* Document head. The brand tokens are the only source of colour/type/spacing values;
+       site.css builds on them. Same load order and pipeline as saberhq.com. */ -}}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+<meta name="color-scheme" content="light dark">
+
+{{- /* Browser-chrome colour; values mirror --paper in tokens/colors.css (a meta tag
+       cannot read a CSS variable). The theme script below rewrites them when the
+       visitor has an explicit stored choice. */}}
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF9F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16130F">
+
+<title>{{ partial "title.html" . }}</title>
+<link rel="canonical" href="{{ .Permalink }}">
+<link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
+<link rel="icon" href="{{ "favicon.png" | relURL }}" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="{{ "apple-touch-icon.png" | relURL }}">
+{{- with .OutputFormats.Get "rss" }}
+<link rel="alternate" type="application/rss+xml" href="{{ .Permalink }}" title="{{ $.Site.Title }}">
+{{- end }}
+
+{{ template "_internal/opengraph.html" . }}
+
+{{- /* Saber HQ theme: set data-theme before first paint so there is no flash of the wrong
+       theme. The localStorage key is the one saberhq.com uses; both sites share the
+       origin, so a choice made on either page holds on the other. */}}
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('saberhq-theme');
+    var dark = t ? t === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    if (t) {
+      document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+        m.removeAttribute('media');
+        m.setAttribute('content', dark ? '#16130F' : '#FAF9F7');
+      });
+    }
+  } catch (e) {}
+})();
+</script>
+
+{{- /* Geist, Geist Mono and Geist Pixel load from Google Fonts via tokens/fonts.css */}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+{{- $css := slice
+  (resources.Get "tokens/fonts.css")
+  (resources.Get "tokens/colors.css")
+  (resources.Get "tokens/typography.css")
+  (resources.Get "tokens/spacing.css")
+  (resources.Get "chroma-light.css")
+  (resources.Get "chroma-dark.css")
+  (resources.Get "site.css")
+  | resources.Concat "css/sidechain.css" | resources.Minify | resources.Fingerprint "sha384" }}
+<link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}" crossorigin="anonymous">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "Sidechain",
+  "url": "{{ .Site.BaseURL }}",
+  "codeRepository": "{{ .Site.Params.repo }}",
+  "description": {{ .Site.Params.description }},
+  "programmingLanguage": "Python",
+  "author": { "@type": "Person", "name": "Saber Hafezqorani", "url": "https://saberhq.com/" },
+  "isPartOf": { "@type": "WebSite", "name": "Saber HQ", "url": "https://saberhq.com/" }
+}
+</script>

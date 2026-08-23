@@ -1,0 +1,60 @@
+/* Saber HQ color tokens.
+   One accent: Okabe–Ito vermillion. Warm paper neutrals. Everything else is ink. */
+:root {
+  /* neutrals — warm paper (light) */
+  --paper: #FAF9F7;
+  --surface: #FFFFFF;
+  --surface-sunken: #F3F1ED;
+  --ink: #191613;
+  --ink-2: #45403A;
+  --ink-3: #6F6A62;
+  --ink-4: #9C968D;
+  --rule-strong: #191613;   /* 1.5px section rules */
+  --rule: #E3E0DA;          /* 1px hairlines */
+  --rule-faint: #EEEBE5;
+
+  /* accent — vermillion (Okabe–Ito). Sparing: numbers, links, org names, dash bullets. */
+  --accent: #D55E00;
+  --accent-strong: #B34F00; /* pressed / hover-on-accent */
+  --accent-wash: #F7E9DE;   /* code + selection backgrounds only, never large fills */
+
+  /* semantic aliases */
+  --text-body: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-meta: var(--ink-3);      /* mono metadata */
+  --text-faint: var(--ink-4);
+  --surface-card: var(--surface);
+  --link: var(--accent);
+  --link-hover: var(--ink);       /* links darken to ink + underline on hover */
+  --focus-ring: var(--accent);
+  --btn-solid-bg: var(--ink);
+  --btn-solid-text: var(--paper);
+
+  /* data-viz — full Okabe–Ito, colorblind-safe, THEME-INVARIANT, charts only.
+     Vermillion leads as the brand series; grey de-emphasizes. */
+  --viz-1: #D55E00; /* vermillion (brand) */
+  --viz-2: #0072B2; /* blue */
+  --viz-3: #009E73; /* bluish green */
+  --viz-4: #CC79A7; /* reddish purple */
+  --viz-5: #56B4E9; /* sky blue */
+  --viz-6: #E69F00; /* orange */
+  --viz-7: #F0E442; /* yellow */
+  --viz-8: #999999; /* grey */
+}
+
+/* dark theme — warm dark, same logic. Toggle with data-theme="dark" on <html> or a container. */
+[data-theme="dark"] {
+  --paper: #16130F;
+  --surface: #1E1A15;
+  --surface-sunken: #110E0B;
+  --ink: #ECE7DF;
+  --ink-2: #C9C3B9;
+  --ink-3: #999183;
+  --ink-4: #6B655B;
+  --rule-strong: #ECE7DF;
+  --rule: #322D26;
+  --rule-faint: #241F1A;
+  --accent: #F08A3E;        /* vermillion lifted for dark contrast */
+  --accent-strong: #FFA057;
+  --accent-wash: #2E2013;
+}

@@ -1,0 +1,25 @@
+/* Saber HQ spacing, structure, radii, motion. */
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px; --space-9: 96px;
+
+  /* the rail: mono meta column left, content right */
+  --rail-col: 140px;   /* print/resume: 118px */
+  --rail-gap: 32px;    /* print: 20px */
+
+  /* rules */
+  --rule-w-strong: 1.5px;  /* section-opening rule (print: 1.6px) */
+  --rule-w: 1px;
+
+  /* radii — print uses 0 */
+  --radius: 6px;      /* cards */
+  --radius-sm: 4px;   /* tags, code chips */
+
+  /* layout */
+  --measure: 68ch;         /* article body max width */
+  --page-max: 1100px;      /* site content block */
+
+  /* motion: fast + small. opacity/color/translate only; no bounces. */
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --dur: 160ms;
+}

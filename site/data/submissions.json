@@ -1,0 +1,32 @@
+{
+  "_about": "Every Sidechain submission Arc has scored, oldest first. Hand-kept, same rows as the README table: add one after each scored entry (`vcc status <entry_id>`). `rank` is the rank the entry held when scored (the board shows only a team's latest entry); null for a deliberate probe. Only public numbers belong here.",
+  "deadline": "2026-11-05",
+  "final_test_set": "2026-10-22",
+  "entries": [
+    {
+      "date": "2026-08-21",
+      "name": "SER-1",
+      "board_name": "sidechain r1-delta-even v1",
+      "overall": 0.0788,
+      "rank": 2,
+      "teams": 41
+    },
+    {
+      "date": "2026-08-21",
+      "name": "SER-1p",
+      "board_name": "Sidechain SER-1p",
+      "overall": 0.0730,
+      "rank": null,
+      "teams": null,
+      "note": "a probe"
+    },
+    {
+      "date": "2026-08-22",
+      "name": "SER-1n",
+      "board_name": "Sidechain SER-1n",
+      "overall": 0.0822,
+      "rank": 14,
+      "teams": 107
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{{- /* A plain page outside posts/ (none yet): same article chrome, no byline or actions. */ -}}
+{{ define "main" }}
+<article class="sq-article">
+  <div class="sq-article-wrap">
+    <div class="sq-kicker">{{ .Section | default "page" }}</div>
+    <h1 class="sq-article-title">{{ .Title }}</h1>
+    {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
+    <div class="sq-prose">
+      {{ .Content }}
+    </div>
+  </div>
+</article>
+{{ end }}

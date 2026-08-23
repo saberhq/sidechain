@@ -1,0 +1,9 @@
+{{ define "main" }}
+<div class="sq-listing sq-wrap">
+  <div class="sq-kicker"><span class="sq-kicker-accent">404</span> · not here</div>
+  <h1 class="sq-listing-title">Not here</h1>
+  <div class="sq-prose sq-listing-content">
+    <p>No page at this address. Try the <a href="{{ .Site.Home.RelPermalink }}">Sidechain home</a> or the <a href="{{ (.Site.GetPage "posts").RelPermalink }}">posts</a>.</p>
+  </div>
+</div>
+{{ end }}

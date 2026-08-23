@@ -1,0 +1,29 @@
+{{ define "header" }}
+  {{ partial "site-header.html" (dict "page" . "crumb" "sidechain" "crumb2" "posts") }}
+{{ end }}
+
+{{ define "main" }}
+{{ $posts := .RegularPages }}
+<div class="sq-listing sq-wrap">
+  <div class="sq-kicker"><span class="sq-kicker-accent">Sidechain</span> · {{ len $posts }} {{ if eq (len $posts) 1 }}post{{ else }}posts{{ end }}</div>
+  <h1 class="sq-listing-title">{{ .Title }}</h1>
+  <div class="sq-prose sq-listing-content">
+    {{ .Content }}
+  </div>
+  {{ if $posts }}
+  <div class="sq-card-grid">
+    {{ range $posts.ByDate.Reverse }}
+      {{ partial "post-card.html" . }}
+    {{ end }}
+  </div>
+  {{ else }}
+  <div class="sc-empty">
+    <p>Nothing published yet. Subscribe to the <a href="{{ (.OutputFormats.Get "rss").RelPermalink }}">feed</a> and the first post will find you.</p>
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+
+{{ define "footer" }}
+  {{ partial "site-footer.html" (dict "page" . "crumb" (dict "label" "POSTS" "href" .RelPermalink)) }}
+{{ end }}

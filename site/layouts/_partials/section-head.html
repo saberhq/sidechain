@@ -1,0 +1,8 @@
+{{- /* The brand's section opener: 1.5px ink rule, numbered mono label, number in accent.
+       Context: dict "num" "label" plus optional "aside" (dict "href" "label" "external"). */ -}}
+<div class="sq-section-head">
+  <span class="sc-section-num">{{ .num }}</span>
+  <h2 class="sq-section-label">{{ .label }}</h2>
+  <span class="sq-section-fill"></span>
+  {{ with .aside }}<a class="sq-section-aside" href="{{ .href }}"{{ if .external }} target="_blank" rel="noopener"{{ end }}>{{ .label }}</a>{{ end }}
+</div>

@@ -1,0 +1,10 @@
+{{- /* Links in markdown. Remote ones open in a new tab: nearly every link here leaves the
+       page (the repo, the challenge, papers) and the reader should keep their place;
+       mailto: stays in-tab. Root-relative ones ("/posts/") get the site's /sidechain/ path
+       prefixed, so a post can link within the site without knowing where it is mounted.
+       Hugo's relURL leaves a leading-slash path alone, hence the TrimPrefix. */ -}}
+{{- $d := .Destination -}}
+{{- $hasScheme := or (in $d ":") (strings.HasPrefix $d "//") -}}
+{{- $isRemote := and $hasScheme (not (strings.HasPrefix $d "mailto:")) -}}
+{{- if and (not $hasScheme) (strings.HasPrefix $d "/") }}{{ $d = relURL (strings.TrimPrefix "/" $d) }}{{ end -}}
+<a href="{{ $d | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}{{ if $isRemote }} target="_blank" rel="noopener"{{ end }}>{{ .Text | safeHTML }}</a>

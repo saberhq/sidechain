@@ -55,6 +55,9 @@ knockdowns × 400 cells per context, raw counts, six cell-eval2 metrics — `cha
 - `tests/` — contract tests. A prior isn't done until these pass.
 - `agents/` — the subagent briefs. One file per role, deliberately short.
 - `notebooks/00_dry_run_2025.ipynb` — the 2025 loop end to end, narrated.
+- `site/` — the public page at [saberhq.com/sidechain](https://saberhq.com/sidechain/): themeless
+  Hugo on the saberhq.com brand tokens, deployed by `.github/workflows/site.yml`. Posts go in
+  `site/content/posts/`; `site/data/submissions.json` feeds the standings. `site/README.md`.
 
 ## Data lives OUTSIDE the repo
 

@@ -1,0 +1,10 @@
+{{- /* Micro footer strip — same on every page. Context: dict "page" . plus optional
+       "crumb" (dict "label" "href") appended after SIDECHAIN. */ -}}
+{{ $p := .page }}
+<footer class="sq-sitefooter">
+  <div class="sq-wrap sq-sitefooter-in">
+    <span><a href="{{ $p.Site.Params.parent }}">SABERHQ.COM</a> <span class="sq-dash">—</span> <a href="{{ $p.Site.Home.RelPermalink }}">SIDECHAIN</a>{{ with .crumb }} <span class="sq-dash">—</span> <a href="{{ .href }}">{{ .label }}</a>{{ end }}</span>
+    <span><a href="{{ $p.Site.Params.repo }}" target="_blank" rel="noopener">SOURCE ↗</a> <span class="sq-dash">·</span> <a href="{{ ($p.Site.Home.OutputFormats.Get "rss").RelPermalink }}">RSS</a></span>
+    <span>© {{ now.Format "2006" }} SABER HAFEZQORANI</span>
+  </div>
+</footer>

@@ -1,0 +1,6 @@
+{{- /* Images in markdown: a root-relative src ("/images/x.png") gets the /sidechain/ prefix,
+       like links. Bundle-relative ("x.png" beside index.md) and remote srcs pass through. */ -}}
+{{- $d := .Destination -}}
+{{- $hasScheme := or (in $d ":") (strings.HasPrefix $d "//") -}}
+{{- if and (not $hasScheme) (strings.HasPrefix $d "/") }}{{ $d = relURL (strings.TrimPrefix "/" $d) }}{{ end -}}
+<img src="{{ $d | safeURL }}" alt="{{ .PlainText }}"{{ with .Title }} title="{{ . }}"{{ end }} loading="lazy">

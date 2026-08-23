@@ -1,0 +1,39 @@
+{{- /* End-of-article actions: back to top + share + copy link (the personal site's). */ -}}
+<div class="sq-post-actions">
+  <button class="sq-action" type="button" data-scroll-top><span class="sq-glyph">↑</span> Back to top</button>
+  <span class="sq-fill"></span>
+  <button class="sq-action" type="button" data-share data-url="{{ .Permalink }}" data-title="{{ .Title }}">Share <span class="sq-glyph sq-glyph--accent">↗</span></button>
+  <button class="sq-action" type="button" data-copy-link data-url="{{ .Permalink }}">Copy link</button>
+</div>
+<script>
+(function () {
+  var top = document.querySelector('[data-scroll-top]');
+  if (top) top.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+
+  var share = document.querySelector('[data-share]');
+  if (share) share.addEventListener('click', function () {
+    var url = share.getAttribute('data-url');
+    var title = share.getAttribute('data-title');
+    if (navigator.share) {
+      navigator.share({ title: title, url: url }).catch(function () {});
+    } else {
+      location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(url);
+    }
+  });
+
+  var copyBtn = document.querySelector('[data-copy-link]');
+  if (copyBtn) copyBtn.addEventListener('click', function () {
+    var url = copyBtn.getAttribute('data-url');
+    var done = function () {
+      var was = copyBtn.innerHTML;
+      copyBtn.textContent = 'Link copied';
+      setTimeout(function () { copyBtn.innerHTML = was; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt('Copy this link:', url); });
+    } else {
+      window.prompt('Copy this link:', url);
+    }
+  });
+})();
+</script>

@@ -1,0 +1,83 @@
+{{ define "header" }}
+  {{ partial "site-header.html" (dict "page" . "crumb" "sidechain") }}
+{{ end }}
+
+{{ define "main" }}
+<section class="sq-hero sq-wrap">
+  <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
+  <h1 class="sc-wordmark"><span>Sidechain</span><span class="sc-wordmark-mark">.</span></h1>
+  <p class="sq-tagline">{{ .Site.Params.description }}</p>
+  <div class="sq-hero-actions">
+    <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
+    <a class="sq-btn sq-btn--secondary" href="{{ .Site.Params.linkedin }}" target="_blank" rel="noopener">Follow along on LinkedIn <span class="sq-glyph">↗</span></a>
+  </div>
+</section>
+
+<section class="sq-section sq-wrap" id="standings">
+  {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "aside" (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true)) }}
+  <div class="sc-intro">
+    <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored.</p>
+  </div>
+  {{ partial "standings.html" . }}
+</section>
+
+<section class="sq-section sq-wrap" id="about">
+  {{ partial "section-head.html" (dict "num" "02" "label" "What it is") }}
+  <div class="sq-about-grid">
+    <div class="sq-about-copy">
+      {{ .Content }}
+      {{ if or .Params.topics .Params.topicAccent }}
+      <div class="sq-topics">
+        {{ range .Params.topics }}<span class="sq-tag">{{ . }}</span>{{ end }}
+        {{ with .Params.topicAccent }}<span class="sq-tag sq-tag--accent">{{ . }}</span>{{ end }}
+      </div>
+      {{ end }}
+    </div>
+    <div class="sq-news">
+      {{ range .Params.news }}
+        <span class="sq-news-date">{{ .date }}</span>
+        <span class="sq-news-item">{{ $.RenderString (dict "display" "inline") .text }}</span>
+      {{ end }}
+    </div>
+  </div>
+</section>
+
+<section class="sq-section sq-wrap" id="naming">
+  {{ partial "section-head.html" (dict "num" "03" "label" "Why “Sidechain”") }}
+  <div class="sq-prose sc-measure">
+    <p>A <em>side chain</em> is the part of an amino acid that makes it different from the other nineteen. The models are named the same way: each <strong>series</strong> is an amino acid whose side chain matches the model's character, and a number counts entries within it. A letter suffix marks a one-knob variant — <code>SER-1p</code> is <code>SER-1</code> with Poisson cells, <code>SER-1n</code> is <code>SER-1</code> without shrinkage.</p>
+  </div>
+  <div class="sc-table-wrap" tabindex="0">
+  <table class="sc-table sc-table--naming">
+    <thead><tr><th>series</th><th>side chain</th><th>what it names</th></tr></thead>
+    <tbody>
+      {{ range .Params.series }}
+      <tr><td class="sc-mono sc-series">{{ .code }}</td><td>{{ .chain }}</td><td>{{ .names }}</td></tr>
+      {{ end }}
+    </tbody>
+  </table>
+  </div>
+  <p class="sc-footnote">For the chemistry behind the pun: Compound Interest's <a href="https://www.compoundchem.com/2014/09/16/aminoacids/" target="_blank" rel="noopener">20 common amino acids</a> poster.</p>
+</section>
+
+{{ $posts := where .Site.RegularPages "Section" "posts" }}
+<section class="sq-section sq-wrap" id="posts">
+  {{ $postsPage := .Site.GetPage "posts" }}
+  {{ partial "section-head.html" (dict "num" "04" "label" "Posts" "aside" (dict "href" $postsPage.RelPermalink "label" "all posts →")) }}
+  {{ if $posts }}
+  <div class="sq-card-grid">
+    {{ range first 6 $posts.ByDate.Reverse }}
+      {{ partial "post-card.html" . }}
+    {{ end }}
+  </div>
+  {{ else }}
+  <div class="sc-empty">
+    <p>Nothing published yet — the first write-up is being written. Until then the running commentary is on <a href="{{ .Site.Params.linkedin }}" target="_blank" rel="noopener">LinkedIn ↗</a>, and you can subscribe to the <a href="{{ ($postsPage.OutputFormats.Get "rss").RelPermalink }}">feed</a> so the first post finds you.</p>
+  </div>
+  {{ end }}
+</section>
+{{ end }}
+
+{{ define "footer" }}
+  {{ partial "site-footer.html" (dict "page" .) }}
+{{ end }}

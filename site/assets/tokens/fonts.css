@@ -1,0 +1,8 @@
+/* Saber HQ webfonts — Geist (voice) + Geist Mono (instrument panel).
+   Served from Google Fonts (variable). CAVEAT: for print/PDF export embed
+   static-weight TrueType instances instead — Chromium can't embed variable
+   fonts properly (falls back to fuzzy Type 3 outlines). */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Geist+Pixel&display=swap');
+
+/* Geist Pixel (display accent: the saberhq.com mark, favicon letterforms) is included
+   in the Google Fonts import above — like the rest of the family, variable. */

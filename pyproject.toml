@@ -34,7 +34,7 @@ dependencies = [
 
 [dependency-groups]
 # uv installs this on a plain `uv sync`.
-dev = ["pytest>=8", "pytest-cov", "ruff"]
+dev = ["pytest>=8", "pytest-cov", "ruff", "fonttools", "pillow"]  # the last two: scripts/wordmark.py
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

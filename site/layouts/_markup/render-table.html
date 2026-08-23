@@ -1,0 +1,14 @@
+{{- /* Markdown tables: a real <table> inside a horizontally scrollable, keyboard-focusable
+       wrapper — the same wrapper the home page uses — instead of display:block on the
+       table, which strips table semantics in Safari. */ -}}
+<div class="sc-table-wrap" tabindex="0">
+<table{{ with .Attributes.class }} class="{{ . }}"{{ end }}>
+<thead>
+{{- range .THead }}<tr>{{ range . }}<th{{ with .Alignment }} style="text-align:{{ . }}"{{ end }}>{{ .Text }}</th>{{ end }}</tr>{{ end }}
+</thead>
+<tbody>
+{{- range .TBody }}<tr>{{ range . }}<td{{ with .Alignment }} style="text-align:{{ . }}"{{ end }}>{{ .Text }}</td>{{ end }}</tr>
+{{ end -}}
+</tbody>
+</table>
+</div>

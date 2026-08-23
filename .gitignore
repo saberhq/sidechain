@@ -61,6 +61,11 @@ vcc_data/
 *.tgz
 *.pdf
 
+# ---- site build output (site/ is the public page; see site/README.md) ----
+site/public/
+site/resources/
+site/.hugo_build.lock
+
 # ---- machine-local ----
 .DS_Store
 .claude/settings.local.json
