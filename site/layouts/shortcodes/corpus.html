@@ -1,8 +1,7 @@
-{{- /* "What the models draw on": rendered at build time from data/coverage.json, which
-       `uv run python -m sidechain.data.coverage` measures from the ingest caches —
-       committed JSON, no hand-typed numbers, no client-side code (ADR 0006). The
-       section only exists when the file does. */ -}}
-{{ $c := .Site.Data.coverage }}
+{{- /* The `corpus` shortcode — the corpus-coverage figure for a post: rendered at build
+       time from data/coverage.json, which `uv run python -m sidechain.data.coverage`
+       measures from the ingest caches. Committed JSON, no hand-typed numbers (ADR 0006). */ -}}
+{{ $c := site.Data.coverage }}
 {{ $priors := where $c.sources "role" "prior" }}
 {{ $evals := where $c.sources "role" "eval" }}
 

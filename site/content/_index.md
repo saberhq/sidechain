@@ -6,13 +6,6 @@ topics:
   - zero-shot cell lines
   - human + Claude Code
 topicAccent: Virtual Cell Challenge 2026
-news:
-  - date: Aug 22
-    text: "`SER-1n` — shrinkage off — scores 0.0822, the best entry so far."
-  - date: Aug 21
-    text: "First entry scored: 0.0788, #2 of 42 teams on day one. It slid within hours — a baseline is there to be overtaken."
-  - date: Aug 20
-    text: "The 2026 challenge opens: six unseen cell lines, 300 knockdowns each, no training data from the organisers."
 series:
   - code: GLY
     chain: none — the simplest residue

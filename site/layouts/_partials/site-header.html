@@ -11,13 +11,13 @@
     <span class="sq-fill"></span>
     {{ with .back }}
       <a class="sq-back" href="{{ .href }}">{{ .label }}</a>
-    {{ else }}
+    {{ else }}{{ if not .nonav }}
       <nav class="sq-nav" aria-label="Links">
         {{ range $p.Site.Menus.main }}
           <a href="{{ .URL }}" target="_blank" rel="noopener">{{ .Name }}</a>
         {{ end }}
       </nav>
-    {{ end }}
+    {{ end }}{{ end }}
     <button class="sq-theme-toggle" type="button" data-theme-toggle aria-label="Toggle color theme"></button>
   </div>
 </header>

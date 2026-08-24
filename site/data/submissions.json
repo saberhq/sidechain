@@ -9,7 +9,8 @@
       "board_name": "sidechain r1-delta-even v1",
       "overall": 0.0788,
       "rank": 2,
-      "teams": 42
+      "teams": 42,
+      "card": "Rung 1': per-gene log2FC pooled (inverse-variance) over K562 genome-wide + H1 2025 for the targets they cover, gene-wise positive-part shrinkage, re-anchored on each context's control profile; minimum-variance (even-spread) integer cells at control depth; 28 uncovered targets get the H1 mean shift."
     },
     {
       "date": "2026-08-21",
@@ -17,7 +18,8 @@
       "board_name": "Sidechain SER-1p",
       "overall": 0.073,
       "rank": 10,
-      "teams": 50
+      "teams": 50,
+      "card": "Same transferred log2FCs as SER-1 (K562 genome-wide + H1, inverse-variance pooled, gene-wise shrinkage, alpha=1), emitted as independent Poisson cells at control depth instead of minimum-variance cells. Controlled experiment on emission dispersion."
     },
     {
       "date": "2026-08-22",
@@ -25,7 +27,8 @@
       "board_name": "Sidechain SER-1n",
       "overall": 0.0822,
       "rank": 9,
-      "teams": 50
+      "teams": 50,
+      "card": "SER-1 with the transferred log2FCs left unshrunk (no gene-wise positive-part shrinkage); minimum-variance cells. Probe: does shrinkage remove small true signals that cosine-PDS needs?"
     }
   ]
 }

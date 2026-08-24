@@ -1,8 +1,8 @@
-{{- /* "Where we stand": stat tiles, a bar per scored submission, and the table — all
-       rendered at build time from data/submissions.json, so there is one hand-kept
-       source and no client-side code. Single series: the current best in the brand
-       colour, the rest de-emphasised; the table is the accessible view of the bars.
-       With no entries yet (a fresh season) the section says so instead of failing. */ -}}
+{{- /* "Where we stand": stat tiles (2×2), a bar per scored submission, and the table with
+       each entry's model card — all rendered at build time from data/submissions.json,
+       which scripts/standings.py generates from the submission records and the board
+       snapshots. Never hand-edited. With no entries yet the section says so instead of
+       failing the build. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
@@ -18,7 +18,7 @@
   {{ end }}
 {{ end }}
 
-<div class="sc-stats">
+<div class="sc-stats sc-stats--two">
   <div class="sc-stat">
     <div class="sc-stat-label">Best overall</div>
     <div class="sc-stat-value">{{ printf "%.4f" $best.overall }}</div>
@@ -58,18 +58,29 @@
 </figure>
 
 <div class="sc-table-wrap" tabindex="0">
-<table class="sc-table">
+<table class="sc-table sc-table--entries">
   <thead>
-    <tr><th>date (UTC)</th><th>submission</th><th>on the board as</th><th class="sc-num">overall</th><th>rank when scored</th></tr>
+    <tr><th>date (UTC)</th><th>submission</th><th class="sc-num">overall</th><th>rank when scored</th></tr>
   </thead>
   <tbody>
-    {{ range $entries }}
-    <tr>
-      <td class="sc-mono">{{ .date }}</td>
-      <td class="sc-mono">{{ .name }}</td>
-      <td><code>{{ .board_name }}</code></td>
-      <td class="sc-mono sc-num">{{ printf "%.4f" .overall }}</td>
-      <td class="sc-mono">{{ if .rank }}#{{ .rank }} of {{ .teams }}{{ else }}—{{ with .note }} ({{ . }}){{ end }}{{ end }}</td>
+    {{ range $e := $entries }}
+    <tr class="sc-row-entry">
+      <td class="sc-mono">{{ $e.date }}</td>
+      <td class="sc-mono sc-series">{{ $e.name }}</td>
+      <td class="sc-mono sc-num">{{ printf "%.4f" $e.overall }}</td>
+      <td class="sc-mono">{{ if $e.rank }}#{{ $e.rank }} of {{ $e.teams }}{{ else }}—{{ end }}</td>
+    </tr>
+    <tr class="sc-row-card">
+      <td colspan="4">
+        {{ if $e.card }}
+        <details class="sc-modelcard">
+          <summary><span class="sc-modelcard-tag">model card</span> <code>{{ $e.board_name }}</code></summary>
+          <p>{{ $e.card }}</p>
+        </details>
+        {{ else }}
+        <span class="sc-modelcard-tag">on the board as</span> <code>{{ $e.board_name }}</code>
+        {{ end }}
+      </td>
     </tr>
     {{ end }}
   </tbody>

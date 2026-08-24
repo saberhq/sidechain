@@ -84,6 +84,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             "overall": round(s["score_avg"], 4),
             "rank": rank,
             "teams": teams,
+            "card": (s.get("description") or "").strip(),
         })
     rows.sort(key=lambda r: r.pop("_submitted"))  # submission order; the key leaves the output
     return rows

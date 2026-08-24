@@ -6,7 +6,7 @@
 {{ define "main" }}
 <article class="sq-article">
   <div class="sq-article-wrap">
-    <div class="sq-kicker"><span class="sq-kicker-accent">Post</span> · {{ .Date.Format "2006-01-02" }} · {{ .ReadingTime }} min</div>
+    <div class="sq-kicker"><span class="sq-kicker-accent2">Post</span> · {{ .Date.Format "2006-01-02" }} · {{ .ReadingTime }} min</div>
     <h1 class="sq-article-title">{{ .Title }}</h1>
     {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
     <div class="sq-byline">
