@@ -17,13 +17,17 @@
 [data-theme="dark"] { color-scheme: dark; }
 
 /* Companion accent — the writing's voice: the posts rail, post kickers, "Read more".
-   Okabe–Ito blue, the palette's complement to vermillion (it is --viz-2; the dark value
-   is --viz-5 sky blue, lifted for contrast the way vermillion lifts to #F08A3E).
+   Deep carmine: the palette's reddish-purple family (--viz-4 #CC79A7) stepped dark enough
+   to carry 10.5px text. Measured, not eyeballed — 6.49:1 on paper, and ΔE 17 from vermillion
+   in OKLab, holding 16.4 / 17.9 under deuteranopia / protanopia, so the two reds never
+   collapse into each other. (Raw --viz-4 is 2.91:1 — too pale for text; plain crimson sits
+   at ΔE 9.5 from vermillion — too close to read as a second colour.) The dark value is
+   lifted the way vermillion lifts to #F08A3E.
    Sidechain-local brand extension: defined here, NOT in tokens/ — those stay verbatim
    copies of saberhq.com's; promote it there if the brand adopts it. Rules: never a fill,
    never body-link colour, one voice only. */
-:root { --accent-2: #0072B2; --accent-2-wash: #E7F0F7; }
-[data-theme="dark"] { --accent-2: #56B4E9; --accent-2-wash: #14212B; }
+:root { --accent-2: #A62B4D; --accent-2-wash: #F7E4EA; }
+[data-theme="dark"] { --accent-2: #DE5A78; --accent-2-wash: #2A1620; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

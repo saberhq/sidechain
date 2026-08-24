@@ -7,10 +7,14 @@ its own wordmark and layout, built and deployed from this repo.
 **The layout is a two-column journal** (Saber, 2026-08-23): the work in the left column
 (hero, standings with fold-out model cards, what-it-is, naming), the writing in a sticky
 right rail of post cards; no header nav (the hero buttons and footer carry the links).
-**The companion accent** is Okabe–Ito blue — `--accent-2`, `#0072B2` light / `#56B4E9`
-dark, defined in `assets/site.css` (NOT in `assets/tokens/`, which stay verbatim copies
-of saberhq.com's) — and it means exactly one thing: the writing. The posts rail, post
-kickers and "Read more" wear it; everything else, links included, stays vermillion.
+**The companion accent** is a deep carmine — `--accent-2`, `#A62B4D` light / `#DE5A78`
+dark, defined in `assets/site.css` (NOT in `assets/tokens/`, which stay verbatim copies of
+saberhq.com's) — and it means exactly one thing: the writing. The posts rail, post kickers
+and "Read more" wear it; everything else, links included, stays vermillion. It is the
+palette's reddish-purple family (`--viz-4`) stepped dark enough to carry 10.5px text:
+6.49:1 on paper, ΔE 17 from vermillion in OKLab and ≥16 under deuteranopia/protanopia, so
+the two reds never collapse into one. Raw `--viz-4` (2.91:1) and plain crimson (ΔE 9.5 from
+vermillion) both fail those tests — re-measure before substituting anything.
 
 ## How it is built
 
@@ -44,9 +48,31 @@ uv run python scripts/brand_sync.py --check  # are the tokens still saberhq.com'
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
 
-Posts are markdown with front matter (`title`, `date`, `description`, `draft`, optional
-`short`, `image`, `links`). `draft: true` keeps a post out of the build — write in the
-open, publish deliberately. A ```mermaid fence renders as a diagram.
+### Where posts go
+
+**`content/posts/`** — anything published there appears in the landing page's right-hand
+rail (the 5 newest) and on `/posts/` (all of them). Two shapes:
+
+```
+content/posts/my-post.md              # plain post
+content/posts/my-post/index.md        # page bundle: put its images beside it
+content/posts/my-post/chart.png       #   and reference them as ![x](chart.png)
+```
+
+`hugo new --source site posts/my-post.md` starts one from the archetype. Front matter:
+`title`, `date`, `description` (the card text and the search snippet — write it for a
+stranger), `draft`, optional `short`, `image`, `links`. A ```mermaid fence renders as a
+diagram, and `{{</* corpus */>}}` drops in the corpus-coverage figure.
+
+Two ways a finished post stays invisible, both silent:
+
+- **`draft: true`** — deliberate; flip it to `false` to publish (`hugo server -D` previews).
+- **A `date` in the future (UTC!)** — Hugo drops future-dated content, and because the site
+  only rebuilds when something is pushed, the post stays missing until the *next push after
+  that date*. Late-evening US dates are already tomorrow in UTC. Use today's date or earlier.
+
+Rough drafts that are not ready to be public belong in `private/site/posts/` (private repo);
+publishing is a deliberate copy into `content/posts/`, not a sync.
 
 Links and images: write in-site links root-relative (`[posts](/posts/)`) — the `/sidechain/`
 prefix is added at build time for markdown links and images, **not** for raw HTML `<a>`/`<img>`,
