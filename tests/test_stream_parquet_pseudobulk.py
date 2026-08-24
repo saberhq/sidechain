@@ -741,7 +741,8 @@ def test_construct_discovery_reads_both_columns_and_leaves_the_control_out(tmp_p
         {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [1.0]},
         {"target": CONTROL_LABEL, "guide": "nt_3|nt_4", "tokens": [0], "values": [1.0]},
     ])
-    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path), with_constructs=True)
+    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path),
+                                    with_constructs=True, progress=False)
 
     assert found == {"AAA", "BBB", CONTROL_LABEL}
     assert pairs == {("AAA", "AAA_c1"), ("AAA", "AAA_c2"), ("BBB", "BBB_c1")}
@@ -752,7 +753,7 @@ def test_construct_discovery_stays_off_the_wire_when_it_is_not_asked_for(tmp_pat
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
     ])
-    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path))
+    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path), progress=False)
     assert found == {"AAA"} and pairs == set()
 
 

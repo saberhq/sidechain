@@ -886,8 +886,8 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _discover_labels(names: list[str], opener, *,
-                     with_constructs: bool = False) -> tuple[set[str], set[tuple[str, str]]]:
+def _discover_labels(names: list[str], opener, *, with_constructs: bool = False,
+                     progress: bool = True) -> tuple[set[str], set[tuple[str, str]]]:
     """A cheap first pass over the label column(s) only.
 
     Parquet is columnar, so reading `gene_target` alone touches a small fraction of each
@@ -905,7 +905,11 @@ def _discover_labels(names: list[str], opener, *,
     found: set[str] = set()
     pairs: set[tuple[str, str]] = set()
     columns = ["gene_target", "guide_target"] if with_constructs else ["gene_target"]
-    for name in names:
+    # Reported every few files. Without it this phase is a long silent wait over 223 files
+    # before the first stream line appears, which is indistinguishable from a hung job --
+    # and on a box that bills by the hour, "is it stuck?" is an expensive question.
+    t0 = time.time()
+    for n, name in enumerate(names, 1):
         with opener(name) as handle:
             table = pq.ParquetFile(handle).read(columns=columns)
         found.update(table.column("gene_target").to_pylist())
@@ -913,6 +917,10 @@ def _discover_labels(names: list[str], opener, *,
             frame = table.to_pandas()
             frame = frame[frame["gene_target"] != CONTROL_LABEL].drop_duplicates()
             pairs.update((str(t), str(g)) for t, g in frame.to_numpy())
+        if progress and (n % 10 == 0 or n == len(names)):
+            print(f"  discover [{n}/{len(names)}] labels={len(found):,}"
+                  + (f"  constructs={len(pairs):,}" if with_constructs else "")
+                  + f"  {time.time() - t0:6.0f}s", flush=True)
     return found, pairs
 
 
