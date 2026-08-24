@@ -79,11 +79,48 @@ Everything bulky is under `~/data/sidechain/` — never in the working tree.
 |---|---|
 | `~/data/sidechain/vcc2025/` | 2025 challenge data (a 15.5 GB h5ad, a local subset, gene names) |
 | `~/data/sidechain/vcc2026/` | 2026 controls bundle (contexts A/B/C; D/E/F from Oct 22), fetched with the `vcc` CLI; leaderboard snapshots |
+| `~/data/sidechain/external/` | third-party corpora **exactly as published** — one directory per source, named `<host>-<record id>` |
+| `~/data/sidechain/derived/` | artifacts **we computed** from `external/` — one directory per source |
 | `~/data/sidechain/cache/` | precomputed prior artifacts (NT embeddings etc.) |
 | `~/data/sidechain/literature/` | papers and textbooks |
+| `~/data/sidechain/runs/` | eval and mirror outputs |
 
 `.gitignore` blocks `*.h5ad`, `*.zip`, `*.pdf` and friends as defence in depth, but the real rule
 is simply: don't put data in the repo.
+
+### Reading the tree: `external/` vs `derived/`, and what "streamed" means
+
+If you are working out what some directory under `~/data/sidechain/` *is*, this is the answer.
+The two trees are split because they have **opposite recovery properties**, and that is what you
+want to know when the disk is full:
+
+- **`external/` is someone else's immutable bytes.** Checksummed, re-downloadable from a recorded
+  URL. First thing to delete under disk pressure, never needs backing up. `rm -rf external/<x>`
+  is always safe.
+- **`derived/` is ours and expensive.** A streamed pseudobulk over 126 GB of parquet is hours of
+  network. Back this up; delete it last.
+
+**Every directory under either tree carries its own explanation — read it rather than guessing:**
+
+| file | sits in | answers |
+|---|---|---|
+| `PROVENANCE.json` | `external/<host>-<record>/` | which host, which pinned version, every file's size + checksum, the licence, and **`route`** |
+| `LINEAGE.json` | `derived/<source>/` | which `PROVENANCE.json` this came from, which code SHA built it, and what the accumulator's resolution was |
+
+**`route` is the field that explains a directory that looks empty.** `configs/datasets.yaml`
+declares it per dataset:
+
+- **`route: download`** (the default, and what every block before X-Atlas is) — the bytes land in
+  `external/<host>-<record>/` beside their `PROVENANCE.json`. `budget_gb` bounds *that selection*.
+- **`route: stream`** — the corpus is read once over the network and **never lands**. Its
+  `external/<host>-<record>/` holds `PROVENANCE.json` **and nothing else** — that is the intended
+  shape, *not* a download that failed. The only output is an aggregate in `derived/`, and there
+  `budget_gb` bounds the **output** instead. A streamed block declares both `dest:` (where the
+  provenance goes) and `derived:` (where the aggregate goes); the gate refuses a stream that
+  omits `derived:`.
+
+So `external/hf-Xaira-Therapeutics-X-Atlas-Orion/` containing a single JSON file is correct and
+complete: X-Atlas/Orion is 126.26 GB we stream and never store.
 
 ## House rules
 

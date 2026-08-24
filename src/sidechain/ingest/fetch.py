@@ -27,9 +27,13 @@ from pathlib import Path
 import yaml
 
 from sidechain.ingest.provenance import (
+    DOWNLOAD,
+    STREAM,
     GateError,
     diff_against_recorded,
     gate,
+    probe_figshare,
+    probe_huggingface,
     probe_zenodo,
     read_provenance,
     write_provenance,
@@ -39,7 +43,11 @@ from sidechain.utils.paths import resolve_config
 DEFAULT_CONFIG = "configs/datasets.yaml"
 DEFAULT_ROOT = Path.home() / "data" / "sidechain"
 
-PROBES = {"zenodo": probe_zenodo}
+PROBES = {
+    "zenodo": probe_zenodo,
+    "huggingface": probe_huggingface,
+    "figshare": probe_figshare,
+}
 
 
 def load_datasets(path: str | Path = DEFAULT_CONFIG) -> dict[str, dict]:
@@ -58,11 +66,39 @@ def select_dataset(name: str, config: str | Path = DEFAULT_CONFIG) -> dict:
 
 
 def md5sum(path: Path, chunk: int = 1 << 20) -> str:
-    h = hashlib.md5()
+    return digest(path, "md5", chunk=chunk)
+
+
+def digest(path: Path, algo: str, *, chunk: int = 1 << 20) -> str:
+    """Hash `path` with the algorithm the HOST published, not a fixed one.
+
+    Zenodo states `md5:...`; Hugging Face stores LFS objects under their sha256
+    and states `sha256:...`. Hardcoding md5 -- which this did while zenodo was
+    the only host -- would hash an HF file with the wrong algorithm, compare the
+    result to a digest it could never equal, and report MISMATCH on bytes that
+    are perfectly fine. A verifier that cries wolf gets ignored, which costs
+    more than having no verifier.
+    """
+    try:
+        h = hashlib.new(algo)
+    except ValueError as exc:
+        raise GateError(
+            f"{path.name}: host published a {algo!r} checksum, which this Python's "
+            "hashlib cannot compute. Verify it by hand rather than skipping it."
+        ) from exc
     with path.open("rb") as fh:
         while data := fh.read(chunk):
             h.update(data)
     return h.hexdigest()
+
+
+def block_route(block: dict) -> str:
+    """The declared route for `block`, defaulting to download.
+
+    Absent means download: every block written before streaming existed is a
+    download, and that is the reading that keeps the old blocks true.
+    """
+    return str(block.get("route", DOWNLOAD))
 
 
 def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
@@ -83,9 +119,27 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
         raise GateError(f"no probe for host {host!r}; known: {', '.join(sorted(PROBES))}")
 
     record = PROBES[host](block["record"])
+    route = block_route(block)
     wanted = [f["name"] for f in block["files"]]
     dest = root / block["dest"]
-    selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted, dest=dest)
+
+    # A stream MUST say where its aggregate goes. Without `derived:` the free-
+    # space check would silently measure the wrong tree and the output would
+    # have nowhere declared to live -- and the checked-in config passing a
+    # contract test says nothing about the next block someone adds.
+    space_dest = dest
+    if route == STREAM:
+        if not block.get("derived"):
+            raise GateError(
+                f"dataset {block['name']!r} declares route: stream but no `derived:`. "
+                "A stream produces an aggregate and that aggregate needs a declared home "
+                "under derived/ -- external/ is for someone else's immutable bytes and is "
+                "the first thing deleted under disk pressure."
+            )
+        space_dest = root / block["derived"]
+
+    selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,
+                    dest=dest, route=route, space_dest=space_dest)
 
     declared = block.get("license")
     if declared and declared != record.license:
@@ -97,15 +151,21 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
 
     notes = {"dataset": block["name"], "config": str(DEFAULT_CONFIG),
              "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
+    if route == STREAM:
+        # Where the aggregate goes, and under what terms. Recorded here because
+        # the stream itself writes LINEAGE.json beside the aggregate and needs
+        # to point back at exactly this file.
+        notes["derived"] = block.get("derived")
+        notes["output_budget_gb"] = float(block["budget_gb"])
     recorded = read_provenance(dest)
 
     if recorded is None:
-        write_provenance(dest, record, selected, notes=notes)
+        write_provenance(dest, record, selected, notes=notes, route=route)
     elif refresh:
-        write_provenance(dest, record, selected, notes=notes)
+        write_provenance(dest, record, selected, notes=notes, route=route)
         print("  PROVENANCE.json refreshed on request")
     else:
-        diffs = diff_against_recorded(recorded, record, selected)
+        diffs = diff_against_recorded(recorded, record, selected, route=route)
         if diffs:
             listed = "\n    ".join(diffs)
             raise GateError(
@@ -119,7 +179,7 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
 
 
 def verify(selected, dest: Path) -> int:
-    """Check every selected file's size and MD5. Returns a process exit code."""
+    """Check every selected file's size and checksum. Returns a process exit code."""
     bad = 0
     for f in selected:
         path = dest / f.name
@@ -132,10 +192,10 @@ def verify(selected, dest: Path) -> int:
             bad += 1
             continue
         if not f.checksum:
-            print(f"  no-md5   {f.name} (host published none)")
+            print(f"  no-sum   {f.name} (host published none)")
             continue
-        got = md5sum(path)
-        want = f.checksum.split(":", 1)[-1]
+        algo, _, want = f.checksum.rpartition(":")
+        got = digest(path, algo or "md5")
         print(f"  {'ok      ' if got == want else 'MISMATCH'} {f.name}")
         bad += got != want
     return 1 if bad else 0
@@ -162,9 +222,23 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     total = sum(f.size_bytes for f in selected) / 1e9
+    route = block_route(block)
     print(f"{record.host}:{record.record_id}  v{record.version}  {record.license}")
-    print(f"  {len(selected)} files, {total:.2f} GB (budget {block['budget_gb']} GB)")
+    if route == STREAM:
+        print(f"  {len(selected)} files, {total:.2f} GB to READ over the network "
+              f"(nothing lands; budget {block['budget_gb']} GB bounds the OUTPUT)")
+    else:
+        print(f"  {len(selected)} files, {total:.2f} GB (budget {block['budget_gb']} GB)")
     print(f"  -> {dest}/PROVENANCE.json matches the recorded fetch\n")
+
+    if route == STREAM:
+        # No curl plan and no checksum pass: both would describe files that are
+        # never going to exist, and `verify` would report all of them MISSING.
+        print("route: stream -- the gate is satisfied and nothing is downloaded here.")
+        print(f"  derived aggregates -> {args.root / block['derived']}")
+        print("  the streaming reader consumes this PROVENANCE.json and writes LINEAGE.json")
+        print("  beside the aggregate (sidechain.data.stream_parquet_pseudobulk, step b).")
+        return 0
 
     if args.check:
         return verify(selected, dest)

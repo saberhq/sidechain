@@ -43,6 +43,21 @@ class HarmonizedDataset:
               and `context_col` names the cell line / context;
       X    -- raw integer counts unless `counts_are_raw` is False, in which
               case `notes` must say what transformation the source applied.
+
+    `granularity` says whether a row is a cell or a pseudobulk, and it is
+    DECLARED rather than inferred for the same reason `kind:` is declared on a
+    prior source: inferring it means inspecting the matrix to answer a question
+    about the dataset's shape. It exists because a streamed corpus is one we
+    never hold the cells of -- X-Atlas/Orion is 126 GB we read once and keep
+    only sums from -- so every per-cell check (dropout rate, UMIs per cell,
+    guide call rate) is not merely missing but *meaningless*. With this field
+    `qc_report` can mark those `not_applicable` mechanically and still emit a
+    valid report; without it, it cannot tell "this is an aggregate" from "the
+    column was absent" and would have to crash or guess.
+
+    Orthogonal to `counts_are_raw`: a sum of raw integer UMI counts is still
+    raw integer counts, so a pseudobulk can and usually does carry
+    `counts_are_raw=True`. Both fields are needed.
     """
 
     adata: ad.AnnData
@@ -51,6 +66,7 @@ class HarmonizedDataset:
     context_col: str
     counts_are_raw: bool
     provenance: Provenance
+    granularity: str = "cell"   # "cell" | "pseudobulk" -- set by the adapter, never inferred
     notes: dict = field(default_factory=dict)
 
 

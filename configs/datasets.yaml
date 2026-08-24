@@ -19,9 +19,66 @@
 #                       above the known selection: loose enough that a point
 #                       release adding a file does not hard-stop the run, tight
 #                       enough that a record which doubled still does.
-#   files               explicit list. Selection is strict: a name not in the
-#                       record raises rather than being skipped, because a
-#                       silently partial corpus looks complete.
+#   files               explicit list, or a glob. Selection is strict either
+#                       way: a name not in the record raises, and a glob that
+#                       matches NOTHING raises, because a silently partial
+#                       corpus looks complete.
+#
+# Optional, and each one defaults to the pre-streaming behaviour so every block
+# written before they existed stays true:
+#   route               `download` (default) or `stream`. This changes what
+#                       budget_gb is measured against -- see below. An
+#                       unrecognised value is refused, never treated as
+#                       `download`, because that typo would put a 126 GB
+#                       corpus on a laptop.
+#   derived             where OUR computed artifacts go, when route is stream.
+#                       Separate tree from `dest` on purpose: external/ is
+#                       someone else's immutable bytes (always safe to delete,
+#                       re-downloadable), derived/ is ours and expensive (hours
+#                       of network to rebuild). ADR 0003 §1.
+#   kind                per file, defaulting to `expression`. It selects which
+#                       spec keys are REQUIRED, so it exists to stop a file
+#                       being asked a question it cannot answer. Declared
+#                       rather than guessed from the filename, same as `kind:`
+#                       on a prior source in data_sources.yaml.
+#                         expression     per-cell or pseudobulk counts. Needs
+#                                        context, pert_col, control_label,
+#                                        modality, role.
+#                         gene_map       a token->gene lookup table. Not
+#                                        perturbation data and cannot answer
+#                                        "what is the control label", so it
+#                                        carries `role` and nothing else.
+#                         lfc_table      a PRECOMPUTED per-gene contrast. The
+#                                        control arm was already divided out
+#                                        upstream, so `control_label` is not
+#                                        merely absent but meaningless, and
+#                                        declaring one would be fiction. Needs
+#                                        target_col, gene_id_col, effect_col,
+#                                        pvalue_col, modality, role -- the
+#                                        columns that actually exist.
+#                         cell_metadata  the obs sidecar for a counts file that
+#                                        ships its labels separately. `role`
+#                                        alone, like gene_map.
+#
+# CONTEXT IS DECLARED IN EXACTLY ONE OF TWO WAYS, and a block must pick one:
+#   context: <name>     the whole file is one context (every scPerturb block).
+#   context_col: <col>  the context varies per ROW and that column names it.
+#                       Feng's per-line table is the case: `Cell_Line` holds 19
+#                       lines in one file. Setting both, or neither, is a
+#                       contract-test failure -- `null` for the unused one is
+#                       how a block says which it means, the same idiom
+#                       WesselsSatija2023 already uses for `gene_id_col: null`.
+#
+# WHAT budget_gb MEANS DEPENDS ON route, and this is the one thing in this file
+# most likely to be misread:
+#   route: download     the ceiling on the SELECTION. The gate refuses files
+#                       that exceed it, so a fetch never decides for itself how
+#                       much disk it takes.
+#   route: stream       the corpus never lands, so its size is not a disk
+#                       claim. The ceiling is on the AGGREGATE we write, and
+#                       that is what free space is checked against. A block
+#                       reading `budget_gb: 12.0` beside a 126 GB corpus is not
+#                       a contradiction -- it is 12 GB out, 126 GB read.
 #
 # Per-file `spec` carries what cannot be inferred from the data and must not be
 # guessed -- context name and control label especially. HepG2 is the worked
@@ -71,3 +128,288 @@ datasets:
       - name: WesselsSatija2023.h5ad
         spec: {context: thp1, pert_col: perturbation, control_label: control,
                gene_id_col: null, modality: cas13, role: excluded}
+
+  # ==========================================================================
+  # The FIRST streamed dataset, and the first whose budget_gb bounds OUTPUT.
+  #
+  # Read both of those before reading the numbers below, or this block lies to
+  # you: 126 GB is what we READ over the network, 12 GB is the ceiling on what
+  # we WRITE. Nothing from this corpus ever lands in external/ -- that
+  # directory holds this dataset's PROVENANCE.json and nothing else, which is
+  # the intended shape (ADR 0003 §1), not a download that failed.
+  #
+  # Why streamed at all: 126.3 GB of parquet collapses to a per-perturbation
+  # pseudobulk of ~10 GB in ONE pass, and we never need the cells again. The
+  # Figshare route to the same data is 559.7 GB and its HCT116 file still has
+  # no host-computed checksum, so that route stays shut.
+  #
+  # `dest` vs `derived`: they are deliberately different trees with opposite
+  # recovery properties (ADR 0003 §1). external/ is someone else's immutable
+  # bytes -- always safe to delete, never backed up. derived/ is ours and
+  # expensive -- hours of network to rebuild. Report 07 §2.4 sketched a single
+  # `dest: derived/xatlas-orion`, which would put the provenance record inside
+  # the expensive tree and break `rm -rf external/<x>` as a safe operation.
+  # Split here, following the ADR.
+  # ==========================================================================
+  - name: xatlas_orion
+    enabled: true
+    host: huggingface
+    record: "Xaira-Therapeutics/X-Atlas-Orion"
+    license: CC-BY-NC-SA-4.0    # ShareAlike bites only if we REDISTRIBUTE a derived artifact
+    route: stream               # NEW: nothing lands in external/ but PROVENANCE.json
+    budget_gb: 12.0             # bounds the OUTPUT aggregates, NOT the 126.26 GB read
+    dest: external/hf-Xaira-Therapeutics-X-Atlas-Orion   # PROVENANCE.json only
+    derived: derived/xatlas-orion                        # aggregates + LINEAGE.json
+    notes: >
+      Genome-wide CRISPRi in HCT116 (109 batches, 46.6 GB) and HEK293T (223
+      batches, 79.7 GB). The reason this is on the critical path: its guide
+      library targets 300/300 of the 2026 panel, including all 28 targets
+      nothing else we hold has ever perturbed, and its expression axis covers
+      18,106 of the 18,533 challenge genes -- both measured 2026-08-22 from
+      Figshare's guide_library.csv and metadata/gene_metadata.parquet, NOT from
+      the HF API. What the HF API confirmed on 2026-08-23 is this block's
+      hosting facts only: 332 files, 126.26 GB, the 109/223 split and the
+      license. Accumulate PER PERTURBATION, not per (perturbation, batch) --
+      109 batches x 18,330 targets is ~1.7 cells per bucket and a ~290 TB dense
+      tensor (report 07 §2.3, which overturns ADR 0003 on this point).
+
+    files:
+      # Globbed, not listed: 332 per-batch files would be a config block that
+      # goes stale the moment Xaira adds a batch. A glob matching zero files is
+      # a hard error, so a renamed folder stops the run rather than silently
+      # streaming nothing.
+      - name: "data/HCT116_*.parquet"
+        kind: expression
+        spec: {context: hct116, pert_col: gene_target, control_label: Non-Targeting,
+               gene_id_col: ensembl_id, modality: crispri, role: train,
+               granularity: pseudobulk, batch_col: sample}
+      - name: "data/HEK293T_*.parquet"
+        kind: expression
+        spec: {context: hek293t, pert_col: gene_target, control_label: Non-Targeting,
+               gene_id_col: ensembl_id, modality: crispri, role: train,
+               granularity: pseudobulk, batch_col: sample}
+
+      # Not expression data: the token -> gene lookup the long-format parquet is
+      # useless without. `gene_token_id` in the data files indexes into this
+      # table, so streaming without it yields counts on an unnamed axis.
+      # 0.88 MB. Listed here so it is inside the gate's selection and carries a
+      # checksum in PROVENANCE.json; the STREAMING READER fetches it, not
+      # `sidechain.ingest.fetch` -- on route: stream that entry point downloads
+      # nothing at all, this file included.
+      - name: metadata/gene_metadata.parquet
+        kind: gene_map
+        spec: {role: reference, id_cols: [gene_token_id, ensembl_id, gene_name]}
+
+  # ==========================================================================
+  # Feng et al. 2026 -- genome-scale CRISPRi across human iPSC lines.
+  # Cell Genomics 6:101076 (PMC12903452). Two Figshare records, both MIT: the
+  # most permissive terms of anything we hold and the only source with no
+  # redistribution encumbrance at all.
+  #
+  # WHAT THIS BUYS, measured 2026-08-23 from the fetched tables themselves:
+  #   * the genome-wide arm's published table covers 182 of the 300 panel
+  #     targets, including 10 of the 28 that NOTHING we hold has ever
+  #     perturbed (ABCD1, HEATR6, MAPK7, PARP3, PDK3, SLC44A1, SNN, TAF4,
+  #     TBC1D19, ZC2HC1A). Those 10 are the entire net-new contribution.
+  #   * the targeted arm covers 5 of the 300 and 0 of the 28 -- it is NOT a
+  #     prior source and is not taken as one. It is here because 444 targets x
+  #     19 lines x ~2,600 cells/target is the only DENSE replicate structure we
+  #     have, and method questions (does delta transfer adapt or just average?
+  #     line versus donor? is shrinkage erasing signal?) need that, not breadth.
+  #
+  # A NOTE ON 182 vs 197, because both numbers are true of different things and
+  # the difference is a trap: the CELL METADATA carries guide calls for 7,218
+  # targets, 197 of which are on the panel. The PUBLISHED LFC TABLE has only
+  # 6,673 targets, 182 on the panel -- 545 assayed targets did not survive into
+  # it. The guide-call number is an upper bound on what is usable and must not
+  # be quoted as coverage; only the table's own `Target` column counts.
+  #
+  # WHY IT IS WEIGHTED DOWN HARD, and this is the number that matters: the
+  # genome-wide arm is 219,254 guide-assigned cells over 7,218 targets --
+  # median ~25 cells per target, against ~170 for K562-gwps. It is a thin
+  # genome-scale second opinion on per-gene DIRECTION, not a deep screen. It is
+  # also ONE POOLED CONTEXT: the published per-gene table has no line column,
+  # so the 34 lines are a donor-variation axis inside the pool, not a rotation.
+  # `reports/07` §3, `ideas/feng-2026-ipsc-crispri-map.md` (private).
+  # ==========================================================================
+  - name: feng_2026_lfc
+    enabled: true
+    host: figshare
+    record: "26819743.v1"       # `.v1` PINS it. A bare Figshare id follows "latest".
+    license: MIT
+    budget_gb: 3.8              # 2.71 GB selected; ~40 % headroom for a point release
+    dest: external/figshare-26819743
+    notes: >
+      Precomputed per-gene log fold changes -- the contrast is ALREADY TAKEN,
+      so these files carry no control arm and no counts. That is why they are
+      `kind: lfc_table` rather than expression: asking them for a control label
+      is meaningless. They feed `pooled_delta` through an (lfc, var) source
+      type rather than a fabricated pseudobulk, because Feng has no per-cell
+      CPM sums and inventing them would put fiction into the one object every
+      downstream consumer trusts as measured.
+
+      Feng ships NO variance and `pooled_delta` weights by 1/var, so it is
+      derived from `pval_adj`: invert BH to a nominal p, two-sided z,
+      se = |lfc|/z, var = se^2. GUARD: `pval_adj` saturates at ~1.0 for most
+      rows (every row of the genome-wide file's first block reads
+      0.999999927233465), which sends z -> 0 and var -> infinity. Floor the
+      variance and count how many genes survive with finite weight BEFORE
+      pooling. reports/07 §3.3.
+
+    files:
+      # ONE pooled context. Header, read 2026-08-23: Target,
+      # Expressed_Gene_Symbol, Expressed_Gene_Ens_ID, lfc, pval_adj.
+      #
+      # MEASURED FROM THE FILE 2026-08-23, and two of these are smaller than
+      # the paper and reports/07 imply -- quote these, not those:
+      #   43,187,656 rows = 6,673 targets x 6,472 expressed genes, EXACTLY
+      #   (rows per target: min = median = max = 6,472; a complete rectangle).
+      #   * 6,673 targets, not 7,226. 545 of the 7,218 targets that actually
+      #     carry guide calls were dropped from the published table.
+      #   * the expressed axis is 6,472 genes, of which 6,151 are on the
+      #     18,533-gene challenge axis -- so Feng votes on 33 % of the axis
+      #     and is silent on the other two thirds. It cannot be a dense source.
+      #   * panel coverage 182 / 300, orphan coverage 10 / 28, and those 10
+      #     (ABCD1, HEATR6, MAPK7, PARP3, PDK3, SLC44A1, SNN, TAF4, TBC1D19,
+      #     ZC2HC1A) are the whole net-new contribution over everything held.
+      #   * 98.9 % of rows have pval_adj > 0.99. Per panel target the count of
+      #     NON-saturated genes runs min 7 / median 58 / max 269, and no target
+      #     has zero. So the variance-from-p weighting yields a usable weight
+      #     on ~58 genes per target and a floored one everywhere else -- which
+      #     is the intended behaviour, not a bug, but it means Feng is a
+      #     SPARSE directional vote and must be described as one.
+      #
+      # Its own non-Ensembl entry in Expressed_Gene_Ens_ID is `PURO`.
+      - name: GenomeWideScreen_LFC_byGene.tsv.gz
+        kind: lfc_table
+        spec: {context: ipsc_pooled, context_col: null, target_col: Target,
+               gene_id_col: Expressed_Gene_Ens_ID, gene_symbol_col: Expressed_Gene_Symbol,
+               effect_col: lfc, pvalue_col: pval_adj, pvalue_adjusted: true,
+               modality: crispri, role: train}
+
+      # 53,490,080 rows: 444 targets x 19 lines (report 07 §3.1 says 20 --
+      # measured 2026-08-23 from the file itself, it is 19). Header adds two
+      # columns over the genome-wide file: `Cell_Line` (which is why context is
+      # per-ROW here, not per-file) and `wt_expr` (baseline expression, absent
+      # from the genome-wide table).
+      #
+      # THE GRID IS RAGGED -- 8,204 (target, line) pairs of a full 8,436, and
+      # lines per target runs min 13 / median 19 / max 19. Median and max are
+      # both 19, so any summary statistic hides it; the minimum is the finding.
+      # Anything comparing targets ACROSS lines has to handle a missing cell
+      # rather than assume the rectangle.
+      #
+      # The 19 lines are 9 donors x 2 clones plus one singleton (eipl_1/eipl_3,
+      # fiaj_1/fiaj_3, ... zapk_3 alone) -- that nesting is the donor-versus-
+      # line axis, and it is readable straight off the labels.
+      #
+      # TRAP, measured not read: `Expressed_Gene_Ens_ID` is NOT all Ensembl. It
+      # carries three transgenes under their own names -- `BSD` (blasticidin
+      # resistance), `dCas9-KRAB-MeCP2` (the CRISPRi effector itself) and
+      # `mScarlet` (a fluorescent reporter) appear as rows with those literal
+      # strings in the Ensembl column. The genome-wide file has its own,
+      # different one: `PURO`. A strict Ensembl read raises on them, correctly;
+      # a naive one carries a plasmid into the gene axis as if it were human.
+      - name: TargetedScreen_LFC_byGene-perLine.tsv.gz
+        kind: lfc_table
+        spec: {context: null, context_col: Cell_Line, target_col: Target,
+               gene_id_col: Expressed_Gene_Ens_ID, gene_symbol_col: Expressed_Gene_Symbol,
+               effect_col: lfc, pvalue_col: pval_adj, pvalue_adjusted: true,
+               baseline_expr_col: wt_expr, modality: crispri, role: analysis}
+
+  # ==========================================================================
+  # The genome-wide arm's raw counts. Taken now rather than deferred (Saber,
+  # 2026-08-23) so the analysis substrate is on disk before it is wanted.
+  #
+  # READ THIS BEFORE PLANNING ANYTHING THAT RECOMPUTES FENG'S LFCs FROM THESE:
+  # the genome-wide arm has 48 non-targeting cells IN TOTAL -- 36 in the
+  # fitness pool, 12 in the non-fitness pool, against 219,254 guide-assigned
+  # cells (measured 2026-08-23 from the Cell-Metadata files). Feng's published
+  # `lfc` therefore CANNOT be anchored on an NTC arm, and neither can ours.
+  # This settles reports/07 §3.4's "only worth it if the LFC table's
+  # normalization proves incompatible" the other way round: these counts are
+  # not a route to recomputing the contrast our way. What they ARE good for is
+  # everything the pooled table threw away -- `Cell_Line` is labelled PER CELL
+  # here, so the per-line structure the published genome-wide table lacks is
+  # recoverable from these bytes and nowhere else.
+  #
+  # The targeted arm's own counts (TargetedScreen_RNA-UMI-Counts.csv.gz, 4.48
+  # GB) are deliberately NOT selected -- see the note at the end of this block.
+  # ==========================================================================
+  - name: feng_2026_counts
+    enabled: true
+    host: figshare
+    record: "27989294.v2"
+    license: MIT
+    budget_gb: 4.7              # 3.36 GB selected; ~40 % headroom
+    dest: external/figshare-27989294
+    notes: >
+      SHAPE WARNING, measured not assumed. The RNA count CSVs are
+      GENES x CELLS -- cells are COLUMNS (the fitness file's header row is
+      180,461 cell ids) -- which is transposed relative to every h5ad we hold,
+      and they are DENSE text. Read them line by line: one line is one gene
+      across all cells, which suits a per-gene accumulator and is the only way
+      these fit in memory at all. Never `read_csv` one whole.
+
+      CELL IDs DO NOT MATCH ACROSS THE THREE FILES and joining them naively is
+      a silent misjoin. The same barcode is spelled three ways:
+        Cell-Metadata      MP-ST-P3-D3_I1_AAACCTGAGACGCAAC-1
+        RNA-UMI-Counts        ST-P3-D3_I1_AAACCTGAGACGCAAC-1   (no `MP-`)
+        Guide-UMI-Counts   MP.ST.P3.D3_I1_AAACCTGAGACGCAAC.1   (R make.names)
+      Normalise all three to one form and assert the join covers every cell
+      before using it -- an unmatched-row count of zero is the check, not a
+      spot inspection.
+
+      `Guide_Call` is `<TARGET>_<sgRNA sequence>`, or the literal `unassigned`
+      for 68 % of genome-wide cells. The perturbation label is the part before
+      the LAST underscore; the control label is `NonTarget` after that split
+      and only after it, so exact-match control matching must run on the
+      derived column, never on the raw one.
+
+    files:
+      # Fitness pool: 322,746 cells, 104,130 guide-assigned, 24 lines, 36 NTC.
+      - name: GenomeWideScreen_FitnessGenes_RNA-UMI-Counts.csv.gz
+        kind: expression
+        spec: {context: null, context_col: Cell_Line, pert_col: Guide_Call,
+               pert_label_from: guide_call_prefix, control_label: NonTarget,
+               obs_from: GenomeWideScreen_FitnessGenes_Cell-Metadata.tsv.gz,
+               cell_id_col: Cell_ID, batch_col: Batch, orientation: genes_by_cells,
+               gene_id_col: null, counts_are_raw: true, granularity: cell,
+               modality: crispri, role: analysis}
+
+      # Non-fitness pool: 396,458 cells, 115,124 guide-assigned, 34 lines, 12 NTC.
+      - name: GenomeWideScreen_NonFitnessGenes_RNA-UMI-Counts.csv.gz
+        kind: expression
+        spec: {context: null, context_col: Cell_Line, pert_col: Guide_Call,
+               pert_label_from: guide_call_prefix, control_label: NonTarget,
+               obs_from: GenomeWideScreen_NonFitnessGenes_Cell-Metadata.tsv.gz,
+               cell_id_col: Cell_ID, batch_col: Batch, orientation: genes_by_cells,
+               gene_id_col: null, counts_are_raw: true, granularity: cell,
+               modality: crispri, role: analysis}
+
+      # The obs sidecars. Without these the count matrices have no perturbation
+      # label, no line and no batch -- they are the only place any of that
+      # lives, which is why they are selected rather than skipped as small.
+      # Cell_ID, Batch, Guide_Call, Cell_Line. 3.6 + 4.2 MB.
+      - name: GenomeWideScreen_FitnessGenes_Cell-Metadata.tsv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+      - name: GenomeWideScreen_NonFitnessGenes_Cell-Metadata.tsv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+
+      # The raw guide evidence behind `Guide_Call`: guides x cells, so a
+      # multiplet or a marginal call can be re-adjudicated rather than trusted.
+      # 50 + 105 MB.
+      - name: GenomeWideScreen_FitnessGenes_Guide-UMI-Counts.csv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+      - name: GenomeWideScreen_NonFitnessGenes_Guide-UMI-Counts.csv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+
+      # NOT SELECTED, and the reason is a budget decision rather than a
+      # judgement about the data: TargetedScreen_RNA-UMI-Counts.csv.gz is 4.48
+      # GB and would take this block to 7.8 GB. The targeted arm's per-line
+      # LFCs (feng_2026_lfc) answer the method questions listed above without
+      # it. Add it here if a question needs cells rather than contrasts.
