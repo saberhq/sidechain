@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "site",
+      "runtimeExecutable": "hugo",
+      "runtimeArgs": ["server", "--source", "site", "--port", "1414", "--buildDrafts=false", "--noHTTPCache"],
+      "port": 1414
+    }
+  ]
+}

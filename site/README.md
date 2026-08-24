@@ -26,11 +26,11 @@ site/
 ## Working on it
 
 ```bash
-hugo server --source site            # http://localhost:1313/sidechain/  (live reload)
-hugo --source site --minify          # builds into site/public/ (gitignored)
+hugo server --source site --port 1414   # http://localhost:1414/sidechain/  (live reload)
+hugo --source site --minify             # builds into site/public/ (gitignored)
 
-hugo new --source site posts/my-post.md      # a draft post from the archetype
-hugo server -D --source site                 # preview drafts too
+hugo new --source site posts/my-post.md          # a draft post from the archetype
+hugo server -D --source site --port 1414         # preview drafts too
 uv run python scripts/wordmark.py            # README wordmark + favicon + social card
 uv run python scripts/brand_sync.py --check  # are the tokens still saberhq.com's?
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
@@ -73,6 +73,9 @@ gh api -X POST repos/saberhq/sidechain/pages -f build_type=workflow
 ```
 
 (or Settings → Pages → Source: GitHub Actions). The deploy job fails until that is done.
+
+The preview runs on **port 1414** (also in `.claude/launch.json`) because the personal site's
+`hugo server` owns 1313 — with both running, the two previews sit side by side.
 
 Dark mode follows the personal site's: the `saberhq-theme` key in `localStorage`, which
 both pages share because they share an origin.
