@@ -85,6 +85,18 @@
 # example: its obs says `Hep-G2`, Arc's split files say `hepg2`, and no single
 # normalization rule maps every label in this file correctly. Declared, not
 # derived.
+#
+# `control_label` MAY BE A LIST, and reading it off the column is not enough.
+# Which labels count as controls is a fact about the EXPERIMENT, stated in the
+# paper's methods -- not a property of the strings in the column. Feng 2026 is
+# the worked example and it cost a wrong conclusion before it was caught: it
+# defines its controls as cells with "either no guide or a non-targeting gRNA",
+# so its arm is `[NonTarget, unassigned]` and 499,998 cells. Taking only the
+# label that READS like a control gives 48 -- a 4-orders-of-magnitude
+# undercount, and a delta built on it would be noise presented as signal.
+# `checks.control_mask` takes the list and requires every entry to match
+# something. When ingesting a new corpus, read its methods for the control
+# definition before writing this field.
 # ============================================================================
 
 datasets:
@@ -208,12 +220,15 @@ datasets:
   #
   # WHAT THIS BUYS, measured 2026-08-23 from the fetched tables themselves:
   #   * the genome-wide arm's published table covers 182 of the 300 panel
-  #     targets, including 10 of the 28 that NOTHING we hold has ever
-  #     perturbed (ABCD1, HEATR6, MAPK7, PARP3, PDK3, SLC44A1, SNN, TAF4,
-  #     TBC1D19, ZC2HC1A). Those 10 are the entire net-new contribution.
+  #     targets. Of those 182: 172 are already covered by K562-gwps, and 10 are
+  #     targets NOTHING we hold had perturbed (ABCD1, HEATR6, MAPK7, PARP3,
+  #     PDK3, SLC44A1, SNN, TAF4, TBC1D19, ZC2HC1A). The 10 are a SUBSET of the
+  #     182, not additional to it -- pool coverage goes 272 -> 282, and 18 of
+  #     the 300 remain uncovered by anything.
   #   * the targeted arm covers 5 of the 300 and 0 of the 28 -- it is NOT a
   #     prior source and is not taken as one. It is here because 444 targets x
-  #     19 lines x ~2,600 cells/target is the only DENSE replicate structure we
+  #     19 lines x median 74 cells per (target, line) is the only DENSE
+  #     replicate structure we
   #     have, and method questions (does delta transfer adapt or just average?
   #     line versus donor? is shrinkage erasing signal?) need that, not breadth.
   #
@@ -225,8 +240,8 @@ datasets:
   # be quoted as coverage; only the table's own `Target` column counts.
   #
   # WHY IT IS WEIGHTED DOWN HARD, and this is the number that matters: the
-  # genome-wide arm is 219,254 guide-assigned cells over 7,218 targets --
-  # median ~25 cells per target, against ~170 for K562-gwps. It is a thin
+  # genome-wide arm is 219,206 cells on a targeting guide over 7,218 targets --
+  # median 25 cells per target, against ~170 for K562-gwps. It is a thin
   # genome-scale second opinion on per-gene DIRECTION, not a deep screen. It is
   # also ONE POOLED CONTEXT: the published per-gene table has no line column,
   # so the 34 lines are a donor-variation axis inside the pool, not a rotation.
@@ -321,17 +336,25 @@ datasets:
   # The genome-wide arm's raw counts. Taken now rather than deferred (Saber,
   # 2026-08-23) so the analysis substrate is on disk before it is wanted.
   #
-  # READ THIS BEFORE PLANNING ANYTHING THAT RECOMPUTES FENG'S LFCs FROM THESE:
-  # the genome-wide arm has 48 non-targeting cells IN TOTAL -- 36 in the
-  # fitness pool, 12 in the non-fitness pool, against 219,254 guide-assigned
-  # cells (measured 2026-08-23 from the Cell-Metadata files). Feng's published
-  # `lfc` therefore CANNOT be anchored on an NTC arm, and neither can ours.
-  # This settles reports/07 §3.4's "only worth it if the LFC table's
-  # normalization proves incompatible" the other way round: these counts are
-  # not a route to recomputing the contrast our way. What they ARE good for is
-  # everything the pooled table threw away -- `Cell_Line` is labelled PER CELL
-  # here, so the per-line structure the published genome-wide table lacks is
-  # recoverable from these bytes and nowhere else.
+  # THE CONTROL ARM IS `unassigned`, AND IT IS 499,998 CELLS. Feng defines its
+  # controls as cells "assigned to a donor but either NO GUIDE or a
+  # non-targeting gRNA" (paper, PMC12903452), so the `unassigned` label is the
+  # control arm rather than discarded cells. Measured from the Cell-Metadata
+  # files and exact against the paper: 499,950 unassigned + 48 NonTarget =
+  # 499,998 control, and 219,206 carrying a targeting guide.
+  #
+  # Only 48 cells have a `Guide_Call` reading `NonTarget_*` (36 fitness, 12
+  # non-fitness, over 9 detected guides of the 40 in the library). An earlier
+  # version of this comment took that 48 for the whole control arm and
+  # concluded the counts could not support recomputing the contrast. Wrong by
+  # four orders of magnitude, and the opposite conclusion: ~500k controls
+  # against 219k perturbed is ample. Post-mortem in reports/07 §3.5 (private).
+  #
+  # So these counts are good for two things, not one: recomputing the contrast
+  # our own way if Feng's normalization proves incompatible, AND everything the
+  # pooled table threw away -- `Cell_Line` is labelled PER CELL here, so the
+  # per-line structure the published genome-wide table lacks is recoverable
+  # from these bytes and nowhere else.
   #
   # The targeted arm's own counts (TargetedScreen_RNA-UMI-Counts.csv.gz, 4.48
   # GB) are deliberately NOT selected -- see the note at the end of this block.
@@ -341,7 +364,7 @@ datasets:
     host: figshare
     record: "27989294.v2"
     license: MIT
-    budget_gb: 4.7              # 3.36 GB selected; ~40 % headroom
+    budget_gb: 11.0             # 7.93 GB selected -- the WHOLE record; ~40 % headroom
     dest: external/figshare-27989294
     notes: >
       SHAPE WARNING, measured not assumed. The RNA count CSVs are
@@ -360,28 +383,37 @@ datasets:
       before using it -- an unmatched-row count of zero is the check, not a
       spot inspection.
 
-      `Guide_Call` is `<TARGET>_<sgRNA sequence>`, or the literal `unassigned`
-      for 68 % of genome-wide cells. The perturbation label is the part before
-      the LAST underscore; the control label is `NonTarget` after that split
-      and only after it, so exact-match control matching must run on the
-      derived column, never on the raw one.
+      `Guide_Call` is `<TARGET>_<sgRNA sequence>`, `NonTarget_<sgRNA>`, or the
+      literal `unassigned` (69 % of genome-wide cells). The perturbation label
+      is the part before the LAST underscore, so exact-match control matching
+      must run on that derived column and never on the raw one. AND the control
+      set is BOTH `NonTarget` and `unassigned` -- see the block comment above;
+      treating only `NonTarget` as control leaves a 48-cell control arm instead
+      of a 499,998-cell one.
 
     files:
-      # Fitness pool: 322,746 cells, 104,130 guide-assigned, 24 lines, 36 NTC.
+      # Fitness pool -- genes whose knockdown impairs growth, harvested EARLY
+      # (3, 4, 5 DPI) before those cells drop out of the screen. 2,259 targets,
+      # 322,746 cells, 104,094 on a targeting guide, 24 lines, 218,652 control.
       - name: GenomeWideScreen_FitnessGenes_RNA-UMI-Counts.csv.gz
         kind: expression
         spec: {context: null, context_col: Cell_Line, pert_col: Guide_Call,
-               pert_label_from: guide_call_prefix, control_label: NonTarget,
+               pert_label_from: guide_call_prefix,
+               control_label: [NonTarget, unassigned],
                obs_from: GenomeWideScreen_FitnessGenes_Cell-Metadata.tsv.gz,
                cell_id_col: Cell_ID, batch_col: Batch, orientation: genes_by_cells,
                gene_id_col: null, counts_are_raw: true, granularity: cell,
                modality: crispri, role: analysis}
 
-      # Non-fitness pool: 396,458 cells, 115,124 guide-assigned, 34 lines, 12 NTC.
+      # Non-fitness pool -- everything else, harvested at 6 DPI to let the
+      # response develop. 4,959 targets, 396,458 cells, 115,112 on a targeting
+      # guide, 34 lines, 281,346 control. The two pools are on different clocks,
+      # so comparing an effect across them compares timepoints too.
       - name: GenomeWideScreen_NonFitnessGenes_RNA-UMI-Counts.csv.gz
         kind: expression
         spec: {context: null, context_col: Cell_Line, pert_col: Guide_Call,
-               pert_label_from: guide_call_prefix, control_label: NonTarget,
+               pert_label_from: guide_call_prefix,
+               control_label: [NonTarget, unassigned],
                obs_from: GenomeWideScreen_NonFitnessGenes_Cell-Metadata.tsv.gz,
                cell_id_col: Cell_ID, batch_col: Batch, orientation: genes_by_cells,
                gene_id_col: null, counts_are_raw: true, granularity: cell,
@@ -408,8 +440,47 @@ datasets:
         kind: cell_metadata
         spec: {role: reference}
 
-      # NOT SELECTED, and the reason is a budget decision rather than a
-      # judgement about the data: TargetedScreen_RNA-UMI-Counts.csv.gz is 4.48
-      # GB and would take this block to 7.8 GB. The targeted arm's per-line
-      # LFCs (feng_2026_lfc) answer the method questions listed above without
-      # it. Add it here if a question needs cells rather than contrasts.
+      # ==================================================================
+      # The TARGETED arm's cells. Taken 2026-08-24 (Saber) for method
+      # development, which is the only thing this arm is for -- it covers 5 of
+      # the 300 panel targets and 0 of the 28 orphans, so it is not and will
+      # never be a prior source. What it is instead: the densest replicate
+      # structure we hold. 444 targets x 19 lines x median 74 cells per
+      # (target, line), and the 19 lines are NESTED IN 10 DONORS (2 clones per
+      # donor, readable off the labels: eipl_1/eipl_3, fiaj_1/fiaj_3, ...
+      # zapk_3 alone). That nesting is the only clean way we have to separate
+      # "this line differs" from "this donor differs".
+      #
+      # Measured 2026-08-24 against the paper; it agrees on every figure except
+      # one piece of prose. Cells 1,161,864 (exact), 19 lines recovered of 20
+      # designed (the paper states both), median 74 cells per (target, line)
+      # (exact), 6,517 expressed genes (exact -- the per-line LFC table's 6,520
+      # is those plus the three transgenes).
+      #
+      # THE PROSE IMPRECISION, so the next reader does not re-derive it: the
+      # paper says "assigned 635,022 (55%) to 444 targets". Measured, 635,022
+      # is cells assigned to ANY guide; only 626,781 carry a TARGETING guide
+      # and the other 8,241 are non-targeting. The difference is exactly the
+      # NTC count, so the arithmetic is sound and only the sentence is loose.
+      #
+      # Control arm here, as in the genome-wide arm: NonTarget + unassigned =
+      # 8,241 + 526,842 = 535,083 cells (46 %). The targeted library carries
+      # 20 non-targeting guides and all 20 are detected, unlike the genome-wide
+      # arm where only 9 of 40 appear.
+      # ==================================================================
+      - name: TargetedScreen_RNA-UMI-Counts.csv.gz
+        kind: expression
+        spec: {context: null, context_col: Cell_Line, pert_col: Guide_Call,
+               pert_label_from: guide_call_prefix,
+               control_label: [NonTarget, unassigned],
+               obs_from: TargetedScreen_Cell-Metadata.tsv.gz,
+               cell_id_col: Cell_ID, batch_col: Batch, orientation: genes_by_cells,
+               gene_id_col: null, counts_are_raw: true, granularity: cell,
+               modality: crispri, role: analysis}
+
+      - name: TargetedScreen_Cell-Metadata.tsv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+      - name: TargetedScreen_Guide-UMI-Counts.csv.gz
+        kind: cell_metadata
+        spec: {role: reference}

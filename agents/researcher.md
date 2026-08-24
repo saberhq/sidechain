@@ -16,5 +16,10 @@ Per entry: {claim, why it might move a metric and by what mechanism, the concret
 would consume, effort + whether it needs a GPU, proposed slot in the model}. Flag anything that
 would become a new entry in `configs/data_sources.yaml`.
 
+**For any perturbation corpus, quote the methods' definition of its CONTROL ARM** — which cells,
+under which label(s). It is the one field `configs/datasets.yaml` cannot infer and the one a
+later session will otherwise guess from the column. Feng 2026 cost us that: its control arm is
+`[NonTarget, unassigned]` and 499,998 cells, while the label that reads like a control covers 48.
+
 **Assignments come from the task queue, not from this file.** This brief describes the role; what
 to work on next is decided outside it.

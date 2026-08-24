@@ -130,3 +130,45 @@ def test_zero_count_cells_are_refused_rather_than_nan():
 def test_cp10k_rows_sum_to_10k():
     out = to_cp10k(COUNTS)
     assert np.allclose(out.sum(axis=1), 1e4)
+
+
+# ------------------------------- a control arm can be more than one label --
+
+
+def test_control_mask_accepts_several_labels():
+    """Feng 2026 defines its controls as "either no guide or a non-targeting
+    gRNA", so its control arm is two labels. Until this accepted a list the
+    corpus could not be declared correctly at all."""
+    labels = ["TP53", "NonTarget", "unassigned", "BRCA1", "unassigned"]
+    mask = control_mask(labels, ["NonTarget", "unassigned"])
+    assert mask.tolist() == [False, True, True, False, True]
+
+
+def test_a_single_string_still_works():
+    """Every existing block declares one label; none of them may change."""
+    mask = control_mask(["a", "control", "b"], "control")
+    assert mask.tolist() == [False, True, False]
+
+
+def test_taking_only_the_control_looking_label_undercounts_the_arm():
+    """The 2026-08-23 mistake, in miniature. `NonTarget` alone is 1 of 4 cells
+    here; Feng's real ratio was 48 against 499,998, and a delta anchored on the
+    48 would have been noise presented as signal."""
+    labels = ["NonTarget"] + ["unassigned"] * 3 + ["TP53"] * 6
+    narrow = control_mask(labels, "NonTarget")
+    full = control_mask(labels, ["NonTarget", "unassigned"])
+    assert narrow.sum() == 1
+    assert full.sum() == 4
+
+
+def test_a_declared_label_matching_nothing_raises_even_if_others_match():
+    """Silently partial is the failure mode of the whole module: three of four
+    labels matching looks exactly like a control arm that is simply smaller."""
+    labels = ["TP53", "NonTarget", "BRCA1"]
+    with pytest.raises(ValueError, match="unassigned"):
+        control_mask(labels, ["NonTarget", "unassigned"])
+
+
+def test_an_empty_control_label_list_raises():
+    with pytest.raises(ValueError, match="empty"):
+        control_mask(["a", "b"], [])

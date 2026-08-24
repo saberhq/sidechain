@@ -21,10 +21,27 @@ session.
    `nan` summary statistics. `counts_state` answers the question from the data,
    and `to_cp10k` refuses to transform something it cannot confirm is counts.
 
-Neither check is clever. Both are cheap, and both failed in a way that looked
-like a finding rather than a bug -- which is the reason they are here.
+3. THE CONTROL ARM IS WHATEVER THE AUTHORS DEFINED, NOT WHAT THE LABEL READS.
+   Rule 1 says match the control label exactly. It does not say WHICH labels
+   are controls, and on 2026-08-23 that gap produced a wrong conclusion in a
+   report. Feng 2026's genome-wide arm has 48 cells whose guide call reads
+   `NonTarget_*`; its control arm is 499,998 cells, because the paper defines
+   controls as "either no guide or a non-targeting gRNA" -- so `unassigned` is
+   a control too, not a discarded cell. Reading the label instead of the design
+   undercounted the arm by four orders of magnitude and led to "these counts
+   cannot recompute the contrast", which is the opposite of the truth.
+   `control_mask` therefore accepts a LIST, and every entry must match
+   something. Whether a corpus's controls are one label or five is a fact about
+   the experiment that has to be read out of the methods and declared -- it can
+   never be inferred from the values in the column.
+
+None of these checks is clever. All are cheap, and all three failed in a way
+that looked like a finding rather than a bug -- which is the reason they are
+here.
 """
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 import numpy as np
 import scipy.sparse as sp
@@ -107,24 +124,42 @@ def to_cp10k(X) -> np.ndarray:
     return dense / totals * 1e4
 
 
-def control_mask(labels, control_label: str) -> np.ndarray:
+def control_mask(labels, control_label: str | Sequence[str]) -> np.ndarray:
     """Boolean mask of control cells, by EXACT label match.
 
     Deliberately not a substring, prefix, case-insensitive or fuzzy test. The
     contract carries `control_label` as a declared field precisely so this can
     be an equality check -- inferring it is what went wrong.
+
+    **`control_label` may be a LIST, because a control arm is not always one
+    label.** Feng 2026 is the case that forced this: it defines its controls as
+    cells "assigned to a donor but either no guide or a non-targeting gRNA", so
+    its control arm is `NonTarget` AND `unassigned` together -- 499,998 cells.
+    Taking only the label that reads like a control gives 48, and a delta built
+    on 48 cells against 219,206 perturbed would be noise presented as signal.
+    Until this accepted a list, that corpus could not be declared correctly at
+    all, so the config would have had to lie or drop 99.99 % of its controls.
+
+    Every declared label must match at least one row. A set where one label
+    matches nothing is the silently-partial failure this module exists to
+    prevent -- the same strictness as `HostRecord.select` on a glob that hits
+    no files.
     """
     arr = np.asarray(labels).astype(str)
-    mask = arr == control_label
-    if not mask.any():
-        present = sorted(set(arr))
-        near = [v for v in present if control_label.lower() in v.lower()][:5]
+    wanted = [control_label] if isinstance(control_label, str) else list(control_label)
+    if not wanted:
+        raise ValueError("control_label is empty; declare at least one control label")
+
+    present = sorted(set(arr))
+    missing = [w for w in wanted if w not in set(arr)]
+    if missing:
+        near = [v for p in missing for v in present if p.lower() in v.lower()][:5]
         hint = (
-            f" Labels containing it as a substring: {near} -- if one of those is the "
+            f" Labels containing one as a substring: {near} -- if one of those is the "
             "real control, declare it exactly rather than matching loosely."
             if near else f" First few labels present: {present[:5]}"
         )
         raise ValueError(
-            f"no cells match control_label={control_label!r} exactly.{hint}"
+            f"no cells match control_label(s) {missing!r} exactly.{hint}"
         )
-    return mask
+    return np.isin(arr, wanted)

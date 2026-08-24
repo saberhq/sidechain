@@ -155,6 +155,15 @@ complete: X-Atlas/Orion is 126.26 GB we stream and never store.
   file **has one** (`gene_name`): `header=None` returns 18,534 rows with a bogus first gene.
   Either mistake misaligns every gene silently. Read gene names from the h5ad where possible;
   `sidechain.data.profile` prints both reads and marks the one that matches.
+- **Read the methods for the control definition; never infer it from the labels.** Which values
+  count as controls is a fact about the *experiment*, not a property of the strings in the column,
+  and `control_label` in `configs/datasets.yaml` is a **list** for that reason. Feng 2026 has 48
+  cells whose guide call reads `NonTarget_*` and a control arm of **499,998** — its paper defines
+  controls as "either no guide or a non-targeting gRNA", so `unassigned` is a control, not a
+  discarded cell. Reading the label instead of the design undercounted the arm 10,000-fold and put
+  a wrong conclusion into a report before it was caught (2026-08-23). The sibling of the exact-match
+  rule in `ingest/checks.py`: that one says *match the declared label exactly*, this one says
+  *the declaration itself has to come from the paper*.
 - **Check the minimum before writing "every".** This is about how we describe the *data*, not
   about which metrics we report. If you are about to write "every perturbation appears in all 48
   batches", compute the minimum first — the median and the max were both 48 and the minimum was
