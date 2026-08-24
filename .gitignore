@@ -95,3 +95,12 @@ site/.hugo_build.lock
 # start of a line. `private/  # notes` matches a file literally named
 # "private/  # notes", i.e. nothing. Keep every annotation on its own line.
 private/
+
+# ---- a nested clone of THIS repo ----
+# Never legitimate, and it happened once: on 2026-08-24
+# `brev exec BOX -- bash -s < scripts/brev_bootstrap.sh` ran the script's lines on the
+# MAC instead of the box, and `[ -d sidechain ] || git clone ... sidechain.git` cloned
+# this repo into itself. It landed untracked AND unignored -- showing as `?? sidechain/`,
+# one `git add -A` away from committing an entire second repo. Ignored so a repeat is
+# inert rather than one command from the index.
+/sidechain/

@@ -5,12 +5,48 @@
 # `ubuntu`, not the `shadeform` login you actually get; everything landed in the
 # wrong home):
 #
-#   brev create sidechain-gpu --type hyperstack_A100_80G
-#   brev exec sidechain-gpu @scripts/brev_bootstrap.sh
+#   brev search --min-total-vram 24 --min-disk 200   # pick from a FRESH list, cheapest first
+#   brev create sidechain-gpu --type massedcompute_L40S
+#   brev copy scripts/brev_bootstrap.sh sidechain-gpu:~/brev_bootstrap.sh
+#   brev exec sidechain-gpu -- 'bash ~/brev_bootstrap.sh'
 #   brev copy ~/data/sidechain/vcc2026/vcc_2026_controls.zip sidechain-gpu:~/data/sidechain/vcc2026/
 #
 # Idempotent. Needs passwordless sudo for apt only. The vcc login (API key) is
 # Saber's to run, in his own shell: `printf '%s' "$KEY" | vcc login --token-stdin`.
+#
+# ---------------------------------------------------------------------------
+# FIVE THINGS THAT FAIL SILENTLY ON THIS BOX (measured 2026-08-24). Full runbook:
+# the `sidechain-brev` skill.
+#
+# 1. ANY SCRIPT YOU RUN AFTER THIS ONE MUST RE-EXPORT PATH.
+#    The `export PATH="$HOME/.local/bin:$PATH"` below applies to THIS shell only.
+#    A non-interactive `brev exec` does not source the profile, so a later script
+#    hits `uv: command not found` on its first `uv run`, dies instantly under
+#    `set -e`, writes no output directory, and looks exactly like "never launched".
+#      export PATH="$HOME/.local/bin:$PATH"     <- first line of every remote script
+#
+# 2. `brev exec -- bash -s < script.sh` RUNS THIS SCRIPT ON YOUR MAC, not on the box.
+#    The redirect never reaches the remote shell. The errors mention SSH and quote
+#    script lines as instance names, so it reads like a connection problem -- but the
+#    lines are executing locally. On 2026-08-24 that ran line 59 below
+#    (`[ -d sidechain ] || git clone ...`) inside ~/code/sidechain and cloned the repo
+#    into itself, untracked and unignored. `/sidechain/` is in .gitignore now.
+#    NEVER pipe or redirect a script into `brev exec`. Copy it over and run it there.
+#
+# 3. `nohup ... &` DOES NOT SURVIVE `brev exec`. Long jobs need tmux:
+#      brev exec BOX -- 'tmux new-session -d -s job "bash ~/run.sh > ~/run.log 2>&1"'
+#    then poll `tail ~/run.log` from separate short execs.
+#
+# 4. REPEATED `--type` FLAGS DO NOT ACCUMULATE in `brev create` -- only the last is
+#    used, so a "fallback chain" is silently a single attempt.
+#
+# 5. `CREATE_FAILED` IS USUALLY THE PROVIDER. hyperstack_L40 refused a valid config;
+#    massedcompute_L40S took it minutes later. Delete the failed instance, wait for
+#    `brev ls` to stop listing it, and pick again from a FRESH `brev search` -- the
+#    availability list goes stale and a stale type comes back "not recognized".
+#
+# And: the box BILLS WHILE IT EXISTS. `brev stop` or `brev delete` when done.
+# ---------------------------------------------------------------------------
 set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 
