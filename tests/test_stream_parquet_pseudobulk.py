@@ -18,10 +18,16 @@ import pyarrow.parquet as pq
 import pytest
 
 from sidechain.data.stream_parquet_pseudobulk import (
+    COLUMNS,
     CONTROL_LABEL,
+    Keying,
+    _columns_for,
+    _discover_labels,
     build_gene_axis,
+    multi_construct_labels,
     read_gene_names,
     stream_files,
+    stream_keyings,
     write_lineage,
 )
 from sidechain.data.stream_pseudobulk import PseudobulkSums
@@ -36,11 +42,18 @@ GENE_MAP = pd.DataFrame({
 
 
 def _write(path, rows):
-    """One parquet file in the real schema. `rows` are dicts of column -> value."""
+    """One parquet file in the real schema. `rows` are dicts of column -> value.
+
+    `guide_target` defaults to one construct per target (`<TARGET>_c1`), which is the shape
+    16,832 of X-Atlas's 18,330 targets actually have. A row that wants a second construct
+    says so with `guide=`.
+    """
     table = pa.table({
         "gene_token_id": pa.array([r["tokens"] for r in rows], type=pa.list_(pa.int64())),
         "gene_expression": pa.array([r["values"] for r in rows], type=pa.list_(pa.float64())),
         "gene_target": pa.array([r["target"] for r in rows], type=pa.string()),
+        "guide_target": pa.array(
+            [r.get("guide", f"{r['target']}_c1") for r in rows], type=pa.string()),
         "sample": pa.array([r.get("sample", "B1") for r in rows], type=pa.string()),
         "pass_guide_filter": pa.array([r.get("pass", 1) for r in rows], type=pa.int64()),
         "pct_counts_mt": pa.array([r.get("mt", 1.0) for r in rows], type=pa.float64()),
@@ -570,3 +583,263 @@ def test_lineage_records_the_axis_the_caller_asked_for(tmp_path):
     rec = json.loads(path.read_text())["entries"]["x/e"]
     assert rec["accumulator"]["gene_axis"] == "challenge-symbols"
     assert build_gene_axis(GENE_MAP, None).restricted is False
+
+
+# ----------------------------------------------- the construct-keyed accumulator --
+#
+# `--guide-agreement` adds a second accumulator keyed by `guide_target` -- the dual-guide
+# CONSTRUCT -- in the same pass. It exists to answer "do two independently delivered
+# constructs against the same gene produce the same profile?", which prices what a
+# single-construct estimate is worth. These tests hold the three properties that make the
+# answer meaningful: the split is exact, the population is restricted to the targets that
+# can answer it, and the control is not split.
+
+
+def _keyings(labels, guide_labels=None):
+    keyings = [Keying(name="", column="gene_target", labels=labels,
+                      scope="test", resolution="per-perturbation")]
+    if guide_labels is not None:
+        keyings.append(Keying(name="guide", column="guide_target", labels=guide_labels,
+                              scope="test", resolution="per-construct"))
+    return keyings
+
+
+def test_two_constructs_against_one_gene_split_exactly_into_that_genes_row(tmp_path):
+    """The strong invariant: the construct rows must SUM to the gene row, cell for cell.
+
+    If they do not, the two aggregates describe different populations and any concordance
+    measured between them is measuring the bug instead of the biology.
+    """
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0, 1], "values": [4.0, 6.0]},
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [2.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [1, 2], "values": [5.0, 1.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [3.0]},
+    ])
+    (pb, _), (gpb, _) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", CONTROL_LABEL], ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    gene_row = pb.count_sum[pb.labels.index("AAA")]
+    c1 = gpb.count_sum[gpb.labels.index("AAA_c1")]
+    c2 = gpb.count_sum[gpb.labels.index("AAA_c2")]
+    np.testing.assert_allclose(c1 + c2, gene_row)
+    np.testing.assert_allclose(c1, [6.0, 6.0, 0.0])
+    np.testing.assert_allclose(c2, [0.0, 5.0, 1.0])
+    assert pb.n_cells[pb.labels.index("AAA")] == 3
+    assert gpb.n_cells[gpb.labels.index("AAA_c1")] == 2
+    assert gpb.n_cells[gpb.labels.index("AAA_c2")] == 1
+
+
+def test_the_control_is_pooled_under_the_construct_keying_not_split_by_it(tmp_path):
+    """X-Atlas pairs its 1,026 non-targeting sgRNAs at random, so every control cell can
+    carry a different construct string. Splitting on it would replace the one arm every
+    delta is measured against with a cloud of one-cell labels."""
+    _write(tmp_path / "f.parquet", [
+        {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [3.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_7|nt_9", "tokens": [0], "values": [5.0]},
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [1], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [1], "values": [1.0]},
+    ])
+    (_, _), (gpb, _) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", CONTROL_LABEL], ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    assert "nt_1|nt_2" not in gpb.labels
+    assert gpb.n_cells[gpb.labels.index(CONTROL_LABEL)] == 2
+    np.testing.assert_allclose(gpb.count_sum[gpb.labels.index(CONTROL_LABEL)], [8.0, 0.0, 0.0])
+
+
+def test_a_single_construct_targets_cells_are_left_out_of_the_construct_aggregate(tmp_path):
+    """Its construct profile IS its gene profile, already accumulated next door. Carrying
+    all ~20,890 constructs on the 38,584-gene axis would cost ~19 GB to duplicate them."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": "BBB", "guide": "BBB_c1", "tokens": [1], "values": [9.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    (pb, _), (gpb, gqc) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", "BBB", CONTROL_LABEL],
+                         ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    assert "BBB" in pb.labels and pb.n_cells[pb.labels.index("BBB")] == 1
+    assert not any(lab.startswith("BBB") for lab in gpb.labels)
+    # The construct accumulator saw 3 cells: two AAA constructs and one control.
+    assert gqc.cells_seen == 3
+
+
+def test_one_pass_feeds_both_accumulators_rather_than_two_reads(tmp_path):
+    """Two passes would read 126 GB twice and could not be compared cell for cell -- the
+    second read is not guaranteed to land on the same revision."""
+    reads = []
+    real = _opener(tmp_path)
+
+    def counting_opener(name):
+        reads.append(name)
+        return real(name)
+
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    stream_keyings(["f.parquet"], opener=counting_opener, axis=_axis(),
+                   keyings=_keyings(["AAA", CONTROL_LABEL],
+                                    ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+    assert reads == ["f.parquet"]
+
+
+def test_the_guide_filter_drops_the_same_cells_from_both_keyings(tmp_path):
+    """`pass_guide_filter` is a property of the CELL, not of the keying, so the count is
+    the same in both sidecars and neither aggregate contains a filtered cell."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [7.0], "pass": 0},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    (pb, qc), (gpb, gqc) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", CONTROL_LABEL], ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    assert qc.cells_dropped_filter == gqc.cells_dropped_filter == 1
+    assert "AAA_c1" not in gpb.labels          # pruned: it accumulated zero cells
+    np.testing.assert_allclose(pb.count_sum[pb.labels.index("AAA")], [1.0, 0.0, 0.0])
+
+
+def test_the_raw_counts_guard_still_fires_when_only_the_construct_keying_wants_the_cells(
+        tmp_path):
+    """The guard asks about `gene_expression`, which no keying changes -- so an early
+    return from the perturbation accumulator must not disarm it."""
+    _write(tmp_path / "f.parquet", [
+        # cp10k rows: not raw counts. The perturbation keying keeps none of these labels.
+        {"target": "ZZZ", "guide": "ZZZ_c1", "tokens": [0, 1], "values": [4000.0, 6000.0]},
+        {"target": "ZZZ", "guide": "ZZZ_c2", "tokens": [0, 1], "values": [1000.0, 9000.0]},
+    ])
+    with pytest.raises(ValueError, match="not raw counts"):
+        stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                       keyings=_keyings([CONTROL_LABEL], ["ZZZ_c1", "ZZZ_c2"]))
+
+
+def test_the_guide_column_is_fetched_only_when_a_keying_keys_on_it(tmp_path):
+    """126 GB of columnar parquet: a column nobody asked for is a column never sent."""
+    plain = _keyings(["AAA"])
+    assert "guide_target" not in _columns_for(plain)
+    assert "guide_target" in _columns_for(_keyings(["AAA"], ["AAA_c1", "AAA_c2"]))
+    # and the base list is unchanged by the call
+    assert "guide_target" not in COLUMNS
+
+
+def test_construct_discovery_reads_both_columns_and_leaves_the_control_out(tmp_path):
+    """The control's construct strings are unbounded (random sgRNA pairs) and nothing keys
+    on them; the targeting ones are a designed library of ~20,890."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": "BBB", "guide": "BBB_c1", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_3|nt_4", "tokens": [0], "values": [1.0]},
+    ])
+    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path), with_constructs=True)
+
+    assert found == {"AAA", "BBB", CONTROL_LABEL}
+    assert pairs == {("AAA", "AAA_c1"), ("AAA", "AAA_c2"), ("BBB", "BBB_c1")}
+    assert not any(t == CONTROL_LABEL for t, _ in pairs)
+
+
+def test_construct_discovery_stays_off_the_wire_when_it_is_not_asked_for(tmp_path):
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+    ])
+    found, pairs = _discover_labels(["f.parquet"], _opener(tmp_path))
+    assert found == {"AAA"} and pairs == set()
+
+
+def test_only_targets_with_more_than_one_construct_become_construct_labels():
+    pairs = {("AAA", "AAA_c1"), ("AAA", "AAA_c2"), ("BBB", "BBB_c1"),
+             ("CCC", "CCC_c1"), ("CCC", "CCC_c2"), ("CCC", "CCC_c3")}
+    labels, n_targets = multi_construct_labels(pairs)
+    assert n_targets == 2
+    assert labels == ["AAA_c1", "AAA_c2", "CCC_c1", "CCC_c2", "CCC_c3", CONTROL_LABEL]
+
+
+def test_the_construct_set_is_a_refinement_of_the_labels_being_accumulated():
+    """Otherwise the two aggregates in one directory would describe different populations
+    that merely share a filename stem."""
+    pairs = {("AAA", "AAA_c1"), ("AAA", "AAA_c2"), ("CCC", "CCC_c1"), ("CCC", "CCC_c2")}
+    labels, n_targets = multi_construct_labels(pairs, keep={"AAA", CONTROL_LABEL})
+    assert n_targets == 1
+    assert labels == ["AAA_c1", "AAA_c2", CONTROL_LABEL]
+
+
+def test_the_construct_aggregate_records_its_own_resolution_in_lineage(tmp_path):
+    """An aggregate whose resolution is unknown cannot be trusted or extended -- and a
+    reader must know whether `labels` holds gene symbols or `sgRNA1|sgRNA2` strings before
+    loading a multi-GB array."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    axis = _axis()
+    (pb, qc), (gpb, gqc) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=axis,
+        keyings=_keyings(["AAA", CONTROL_LABEL], ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    common = {"provenance": tmp_path / "PROVENANCE.json", "dataset": "xatlas_orion",
+              "context": "hct116", "axis": axis, "artifacts": {}}
+    write_lineage(tmp_path, pb=pb, qc=qc, scope="all labels", entry="hct116_full", **common)
+    path = write_lineage(tmp_path, pb=gpb, qc=gqc, scope="multi-construct targets only",
+                         entry="hct116_full.guide", resolution="per-construct",
+                         keyed_by="guide_target", **common)
+
+    entries = json.loads(path.read_text())["entries"]
+    assert set(entries) == {"xatlas_orion/hct116_full", "xatlas_orion/hct116_full.guide"}
+    assert entries["xatlas_orion/hct116_full"]["accumulator"]["keyed_by"] == "gene_target"
+    guide = entries["xatlas_orion/hct116_full.guide"]["accumulator"]
+    assert guide["keyed_by"] == "guide_target"
+    assert guide["resolution"] == "per-construct"
+
+
+def test_labels_in_corpus_is_counted_under_each_keying_not_shared(tmp_path):
+    """"18,294 targets" and "20,890 constructs" are different facts about the same corpus.
+    Sharing one counter would report whichever accumulator ran last."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
+        {"target": "BBB", "guide": "BBB_c1", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [3.0]},
+    ])
+    (_, qc), (_, gqc) = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", "BBB", CONTROL_LABEL],
+                         ["AAA_c1", "AAA_c2", CONTROL_LABEL]))
+
+    assert qc.labels_in_corpus == 3          # AAA, BBB, Non-Targeting
+    assert gqc.labels_in_corpus == 4         # AAA_c1, AAA_c2, BBB_c1, Non-Targeting
+
+
+def test_a_construct_keying_with_no_control_cells_stops_the_run(tmp_path):
+    """Same guarantee as the perturbation keying, and the message says which keying."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0, 1], "values": [1.0, 4.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [7.0]},
+    ])
+    with pytest.raises(ValueError, match="keyed by guide_target"):
+        stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                       keyings=[Keying(name="guide", column="guide_target",
+                                       labels=["AAA_c1", "AAA_c2", CONTROL_LABEL],
+                                       scope="test", resolution="per-construct")])
+
+
+def test_stream_files_still_returns_one_pair(tmp_path):
+    """The 30 callers that want the ordinary per-perturbation aggregate are untouched."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "tokens": [0], "values": [1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    pb, qc = stream_files(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                          labels=["AAA", CONTROL_LABEL])
+    assert pb.labels == ["AAA", CONTROL_LABEL]
+    assert qc.cells_seen == 2
