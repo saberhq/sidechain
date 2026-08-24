@@ -30,6 +30,7 @@ import anndata as ad
 import pandas as pd
 import scipy.sparse as sp
 
+from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
@@ -87,7 +88,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--real", required=True, type=Path)
     ap.add_argument("--pert-col", default="target_gene")
     ap.add_argument("--control", default="non-targeting")
-    ap.add_argument("--source", action="append", required=True, help="pseudobulk .npz:control_label (repeatable)")
+    ap.add_argument("--source", action="append", default=[],
+                    help="pseudobulk .npz:control_label (repeatable)")
+    ap.add_argument("--lfc-source", action="append", default=[], metavar="NPZ",
+                    help="cached LfcTable .npz -- a source publishing the contrast already "
+                         "taken rather than cells (e.g. Feng 2026). Repeatable.")
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default="even")
@@ -98,10 +103,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
 
+    # `--source` is no longer required on its own: an LfcTable is a complete
+    # source, so an arm built only from published contrasts is a legitimate run
+    # and scoring one is how you find out what that corpus is worth alone.
+    # At least one of the two is still mandatory -- an arm with no sources at
+    # all would score the fallback shift and look like a model.
+    if not args.source and not args.lfc_source:
+        ap.error("need at least one --source or --lfc-source")
     sources = []
     for spec in args.source:
         path, _, ctrl = spec.rpartition(":")
         sources.append((PseudobulkSums.load(path), ctrl or "control"))
+    sources += [LfcTable.load(path) for path in args.lfc_source]
     out = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,

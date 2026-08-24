@@ -16,6 +16,14 @@ Poisson or minimum-variance "even" cells):
                    the target context's control profile. Targets no source covers fall back to
                    the H1 mean shift. Rung 1'.
 
+`--source` adds a pseudobulk corpus beyond the two named caches, as `.npz:control_label`
+(repeatable) -- the same syntax `sidechain.eval.loco` takes, so an arm scored on the mirror
+is submitted with the identical source list. `--lfc-source` adds a corpus that publishes the
+contrast already taken instead of cells (Feng 2026), built by
+`python -m sidechain.data.lfc_table`. It pools identically; it just derives its per-gene
+variance from an adjusted p-value rather than from CPM spread, and abstains (zero weight) on
+genes whose p-value has saturated.
+
 `--limit-perts N` builds a small panel (first N perturbations) and writes a matching
 pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout locally.
 """
@@ -30,6 +38,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.models.count_emitters import (
     ContextProfile,
@@ -77,20 +86,86 @@ def shrink(fc: np.ndarray, var: np.ndarray) -> np.ndarray:
     return fc * np.clip(factor, 0.0, 1.0)
 
 
-def pooled_delta(target: str, sources: list[tuple[PseudobulkSums, str]], axis: np.ndarray,
+class _PseudobulkDeltaSource:
+    """Adapts `(PseudobulkSums, control_label)` to the `effect(target)` shape.
+
+    Exists so `pooled_delta` iterates one kind of thing. Sources that ship
+    counts and sources that ship a precomputed contrast then differ only in how
+    they answer "what is this target's fold change and how well is it known",
+    which is the only question the pooling actually asks.
+    """
+
+    __slots__ = ("control", "pb")
+
+    def __init__(self, pb: PseudobulkSums, control: str):
+        self.pb, self.control = pb, control
+
+    @property
+    def genes(self) -> np.ndarray:
+        return self.pb.genes
+
+    def effect(self, target: str):
+        if target not in self.pb.labels:
+            return None
+        return _log2fc_with_var(self.pb, target, self.control)
+
+
+def as_delta_source(src):
+    """Normalise a source into something with `.genes` and `.effect(target)`.
+
+    Accepts the historical `(PseudobulkSums, control_label)` tuple so every
+    existing call site and command line keeps working unchanged, and passes an
+    `LfcTable` (or anything else implementing the pair) straight through.
+    """
+    if isinstance(src, tuple):
+        return _PseudobulkDeltaSource(*src)
+    if hasattr(src, "effect") and hasattr(src, "genes"):
+        return src
+    raise TypeError(
+        f"{type(src).__name__} is not a delta source: expected a "
+        "(PseudobulkSums, control_label) tuple or an object with .genes and "
+        ".effect(target) -> (fc, var) | None"
+    )
+
+
+def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  *, shrinkage: bool = True) -> np.ndarray | None:
-    """Inverse-variance pool of the sources that perturbed `target`; None if none did."""
+    """Inverse-variance pool of the sources that perturbed `target`; None if none did.
+
+    A source may be a `(PseudobulkSums, control_label)` tuple -- counts we
+    accumulated, variance from the per-cell CPM spread -- or an `LfcTable`,
+    which publishes the contrast already taken and derives its variance from an
+    adjusted p-value. Both answer `effect(target)` with `(fc, var)` on their own
+    gene axis, and everything below is indifferent to which it got.
+
+    A source may also ABSTAIN per gene by returning `var = inf` there, which
+    makes its weight exactly 0. Feng does this on the 98.9 % of rows whose
+    p-value has saturated: it has a fold change but no evidence about it, and at
+    a median of 25 cells per target "no detectable change" would otherwise drag
+    real effects from better-powered sources toward zero. Note `any_src` is set
+    on the source COVERING the target, not on it having a usable weight -- a
+    target only Feng covers, and only saturated rows at that, returns a
+    genuine all-zero delta rather than None, and does not silently fall through
+    to the mean-shift fallback.
+    """
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
-    for pb, control in sources:
-        if target not in pb.labels:
+    for src in (as_delta_source(s) for s in sources):
+        got = src.effect(target)
+        if got is None:
             continue
         any_src = True
-        fc, var = _log2fc_with_var(pb, target, control)
+        fc, var = got
         if shrinkage:
             fc = shrink(fc, var)
-        w = 1.0 / np.maximum(var, 1e-6)
-        num += remap_to_axis(fc * w, pb.genes, axis, fill=0.0)
-        den += remap_to_axis(w, pb.genes, axis, fill=0.0)
+        # `1/inf` is 0, which is the abstention. The `maximum` floor only guards
+        # the other end -- a variance so small it would swamp every other
+        # source -- and must not be applied to inf, hence the divide as written.
+        with np.errstate(divide="ignore"):
+            w = 1.0 / np.maximum(var, 1e-6)
+        w = np.where(np.isfinite(var), w, 0.0)
+        fc = np.where(np.isfinite(fc), fc, 0.0)
+        num += remap_to_axis(fc * w, src.genes, axis, fill=0.0)
+        den += remap_to_axis(w, src.genes, axis, fill=0.0)
     if not any_src:
         return None
     out = np.zeros(len(axis))
@@ -105,6 +180,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--emitter", choices=["control-null", "h1-mean-shift", "delta-transfer"], required=True)
     ap.add_argument("--h1-cache")
     ap.add_argument("--gwps-cache")
+    ap.add_argument("--source", action="append", default=[], metavar="NPZ:CONTROL",
+                    help="additional pseudobulk source for delta-transfer, as .npz:control_label "
+                         "(repeatable) -- the syntax sidechain.eval.loco uses, so a mirror-scored "
+                         "source list carries over verbatim")
+    ap.add_argument("--lfc-source", action="append", default=[], metavar="NPZ",
+                    help="cached LfcTable .npz -- a source publishing the contrast already "
+                         "taken rather than cells (e.g. Feng 2026). Repeatable. Built by "
+                         "`python -m sidechain.data.lfc_table`.")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
     ap.add_argument("--no-shrink", action="store_true", help="disable the per-gene empirical-Bayes shrinkage of transferred log2FCs")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
@@ -150,6 +233,13 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("--gwps-cache is required for delta-transfer")
         gwps = PseudobulkSums.load(args.gwps_cache)
         sources = [(gwps, "control"), (h1, cfg["control_label"])]
+        for spec in args.source:
+            path, _, ctrl = spec.rpartition(":")
+            sources.append((PseudobulkSums.load(path), ctrl or "control"))
+        # Appended, not special-cased: `pooled_delta` normalises both forms, so a
+        # source with no cells behind it enters the pool exactly like one that has
+        # them and nothing downstream needs to know which it was.
+        sources += [LfcTable.load(path) for path in args.lfc_source]
         for p in perts:
             d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink)
             if d is None:
