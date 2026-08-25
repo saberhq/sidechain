@@ -169,7 +169,16 @@ datasets:
     record: "Xaira-Therapeutics/X-Atlas-Orion"
     license: CC-BY-NC-SA-4.0    # ShareAlike bites only if we REDISTRIBUTE a derived artifact
     route: stream               # NEW: nothing lands in external/ but PROVENANCE.json
-    budget_gb: 12.0             # bounds the OUTPUT aggregates, NOT the 126.26 GB read
+    # Bounds the OUTPUT aggregates, NOT the 126.26 GB read. Raised from 12.0 on
+    # 2026-08-25 against a measurement rather than an estimate: the full-corpus
+    # run writes 6.76 GB for HCT116 (5.80 main + 0.95 construct-keyed) and 8.02
+    # for HEK293T, so the directory holds 14.9 GB with the panel pair beside it.
+    # 12.0 was set before any full-corpus artifact existed and was simply wrong.
+    # Note this number is ADVISORY on `route: stream` -- the gate spends it as a
+    # free-disk reservation at fetch time (`provenance.py:518`) and the streamer
+    # never reads it, so nothing refuses an oversized aggregate. It is a
+    # declaration of what this source costs, and it has to stay true by hand.
+    budget_gb: 20.0
     dest: external/hf-Xaira-Therapeutics-X-Atlas-Orion   # PROVENANCE.json only
     derived: derived/xatlas-orion                        # aggregates + LINEAGE.json
     notes: >
