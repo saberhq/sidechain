@@ -371,6 +371,28 @@ class _Accumulator:
         )
 
 
+def _scatter_add(target: np.ndarray, rows: np.ndarray, product) -> None:
+    """`target[rows] += product`, without ever materialising a dense (rows x genes) block.
+
+    The indicator-times-batch product is sparse: a 2,048-cell batch touches ~5M
+    (label, gene) entries out of the ~69M a dense block allocates on the 38,584-gene axis --
+    a 13x blowup that then gets memset, gathered, added and scattered, three times per
+    batch. Measured on the box mid-run: 100% of ONE core with eleven idle, ~3 ms per cell,
+    putting the full corpus at ~7 hours. Network was never the constraint.
+
+    Correctness rests on one property of the sparse product: scipy sums duplicate
+    coordinates, so every (row, col) in the result is unique. With unique coordinates
+    `target[r, c] += data` is a plain gather-add-scatter, and the entries it skips are
+    exactly the ones that would have added 0.0 -- so the result is bit-identical to the
+    dense form, not merely close to it. `test_the_sparse_scatter_is_bit_identical_to_the_
+    dense_form` holds that.
+    """
+    coo = product.tocoo()
+    if coo.nnz == 0:
+        return
+    target[rows[coo.row], coo.col] += coo.data
+
+
 def _consume_batch(accs: list[_Accumulator], axis: GeneAxis, frame: pd.DataFrame, *,
                    check_counts: bool) -> bool:
     """Apply the guide filter once, then fold the surviving cells into every accumulator.
@@ -492,9 +514,9 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
     ind = sp.csr_matrix(
         (np.ones(len(local)), (local, np.arange(len(local)))), shape=(len(uniq), len(local))
     )
-    acc.count_sum[uniq] += (ind @ sub).toarray()
-    acc.cpm_sum[uniq] += (ind @ cpm).toarray()
-    acc.cpm_sq_sum[uniq] += (ind @ cpm.multiply(cpm)).toarray()
+    _scatter_add(acc.count_sum, uniq, ind @ sub)
+    _scatter_add(acc.cpm_sum, uniq, ind @ cpm)
+    _scatter_add(acc.cpm_sq_sum, uniq, ind @ cpm.multiply(cpm))
 
     np.add.at(acc.n_cells, codes, 1)
     np.add.at(acc.libsize_sum, codes, lib)

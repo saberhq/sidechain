@@ -16,6 +16,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+import scipy.sparse as sp
 
 from sidechain.data.stream_parquet_pseudobulk import (
     COLUMNS,
@@ -23,6 +24,7 @@ from sidechain.data.stream_parquet_pseudobulk import (
     Keying,
     _columns_for,
     _discover_labels,
+    _scatter_add,
     build_gene_axis,
     multi_construct_labels,
     read_gene_names,
@@ -844,3 +846,35 @@ def test_stream_files_still_returns_one_pair(tmp_path):
                           labels=["AAA", CONTROL_LABEL])
     assert pb.labels == ["AAA", CONTROL_LABEL]
     assert qc.cells_seen == 2
+
+
+def test_the_sparse_scatter_is_bit_identical_to_the_dense_form():
+    """The accumulator stopped densifying `(labels in batch x genes)` because that was 13x
+    the sparse product and made the full-corpus run CPU-bound at ~7 hours. The saving is
+    only allowed if the arithmetic does not move -- not "close to", bit-identical, because
+    these sums are compared against artifacts built by the dense form."""
+    rng = np.random.default_rng(0)
+    n_labels, n_genes, n_cells = 40, 500, 300
+    codes = rng.integers(0, n_labels, n_cells)
+    uniq, local = np.unique(codes, return_inverse=True)
+    ind = sp.csr_matrix((np.ones(n_cells), (local, np.arange(n_cells))),
+                        shape=(len(uniq), n_cells))
+    dense_cells = rng.random((n_cells, n_genes)) * 1e6
+    dense_cells[rng.random((n_cells, n_genes)) < 0.9] = 0.0
+    sub = sp.csr_matrix(dense_cells)
+
+    sparse_path = np.zeros((n_labels, n_genes))
+    _scatter_add(sparse_path, uniq, ind @ sub)
+
+    dense_path = np.zeros((n_labels, n_genes))
+    dense_path[uniq] += (ind @ sub).toarray()
+
+    assert np.array_equal(sparse_path, dense_path)
+
+
+def test_the_scatter_survives_a_batch_whose_product_is_empty():
+    """Every cell's counts fell outside the emitted axis: nnz 0, and `tocoo` on an empty
+    product must not index with empty arrays into a real accumulator."""
+    target = np.ones((3, 4))
+    _scatter_add(target, np.array([0, 2]), sp.csr_matrix((2, 4)))
+    np.testing.assert_array_equal(target, np.ones((3, 4)))
