@@ -9,12 +9,22 @@ the challenge panel, which the essential-gene screens barely cover
 (private reports/06 s5).
 
     uv run python -m sidechain.eval.loco \
-        --real ~/data/sidechain/cache/vcc2026/hepg2_flowtest_real.h5ad --pert-col perturbation --control control \
+        --real ~/data/sidechain/cache/vcc2026/hepg2_flowtest_real.h5ad \
+        --pert-col perturbation --control non-targeting \
         --source ~/data/sidechain/cache/vcc2026/k562_essential_all_pseudobulk.npz:control \
         --source ~/data/sidechain/cache/vcc2026/rpe1_all_pseudobulk.npz:control \
         --source ~/data/sidechain/cache/vcc2026/jurkat_all_pseudobulk.npz:control \
-        --bundle ~/data/sidechain/runs/mirror/hepg2_flowtest/bundle \
-        --out ~/data/sidechain/runs/mirror/hepg2_flowtest/transfer_even --dispersion even
+        --bundle ~/data/sidechain/runs/mirror/hepg2_flowtest_rule/bundle \
+        --out ~/data/sidechain/runs/mirror/hepg2_flowtest_rule/transfer_even --dispersion even
+
+THE TWO `control`S ON THAT COMMAND LINE ARE DIFFERENT LABELS, and this example used to get
+one of them wrong. `--control` names the control arm inside the *truth* h5ad, and those are
+harmonised to `non-targeting`. The `:control` suffix on each `--source` names the control
+arm inside *that source's own* pseudobulk, and the Replogle-derived ones really do spell it
+`control` (H1 spells it `non-targeting`) -- which is the entire reason the suffix is
+per-source rather than one global flag. This example read `--control control` until
+2026-08-25; three mirror bundles were built from it and record a control label their truth
+file does not contain.
 
 The prediction is built on the real file's own gene axis and cell counts
 (so it scores against that file), with the same emitter and the same pooled,
