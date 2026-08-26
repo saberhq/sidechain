@@ -878,3 +878,118 @@ def test_the_scatter_survives_a_batch_whose_product_is_empty():
     target = np.ones((3, 4))
     _scatter_add(target, np.array([0, 2]), sp.csr_matrix((2, 4)))
     np.testing.assert_array_equal(target, np.ones((3, 4)))
+
+
+# ------------------------------------------------------- screen-coverage QC tallies --
+#
+# Two numbers a screen is judged on before it is worth pooling, and neither is recoverable
+# from a finished aggregate: how many CELLS each gene was detected in (`count_sum` says how
+# many counts, which is a different question), and how many cells carried each construct.
+
+
+def test_gene_detection_counts_cells_not_counts(tmp_path):
+    """A gene at count_sum=100 might be 100 cells at 1 count or 1 cell at 100. Only the
+    detection count separates them, and it is the one the "expressed in < N cells" filter
+    needs."""
+    _write(tmp_path / "f.parquet", [
+        # AAA: one cell, 100 counts.  BBB: three cells, 1 count each.
+        {"target": "T", "tokens": [0, 1], "values": [100.0, 1.0]},
+        {"target": "T", "tokens": [1, 2], "values": [1.0, 7.0]},
+        {"target": "T", "tokens": [1, 2], "values": [1.0, 5.0]},
+        {"target": CONTROL_LABEL, "tokens": [0, 2], "values": [3.0, 9.0]},
+    ])
+    (pb, qc), = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["T", CONTROL_LABEL]), guide_coverage=True)
+
+    col = {g: i for i, g in enumerate(pb.genes)}
+    # AAA appears in 2 cells (one T, one control) but carries 103 counts.
+    assert qc.gene_cells[col["AAA"]] == 2
+    assert pb.count_sum[:, col["AAA"]].sum() == 103.0
+    # BBB appears in 3 cells and carries 3 counts -- the opposite shape.
+    assert qc.gene_cells[col["BBB"]] == 3
+    assert pb.count_sum[:, col["BBB"]].sum() == 3.0
+    assert qc.gene_cells[col["CCC"]] == 3
+
+
+def test_two_tokens_colliding_into_one_gene_count_the_cell_once(tmp_path):
+    """`DUP` is fed by tokens 3 and 4. A cell carrying both is one cell that detected DUP,
+    not two -- otherwise the detection count exceeds the cell count and the filter built on
+    it is wrong in the safe-looking direction."""
+    axis = build_gene_axis(GENE_MAP, ["AAA", "DUP"])
+    _write(tmp_path / "f.parquet", [
+        {"target": "T", "tokens": [3, 4], "values": [2.0, 5.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [4.0]},
+    ])
+    (pb, qc), = stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=axis,
+                               keyings=_keyings(["T", CONTROL_LABEL]), guide_coverage=True)
+    col = {g: i for i, g in enumerate(pb.genes)}
+    assert qc.gene_cells[col["DUP"]] == 1
+    assert pb.count_sum[pb.labels.index("T"), col["DUP"]] == 7.0
+
+
+def test_construct_coverage_counts_every_construct_not_just_multi(tmp_path):
+    """The construct-keyed ACCUMULATOR is restricted to multi-construct targets because it
+    carries a gene axis. This tally carries none, so it covers the whole library -- which is
+    the gRNA-level coverage view."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
+        {"target": "AAA", "guide": "AAA_c2", "tokens": [0, 1], "values": [1.0, 2.0]},
+        {"target": "BBB", "guide": "BBB_only", "tokens": [1], "values": [9.0]},
+        {"target": "BBB", "guide": "BBB_only", "tokens": [1, 2], "values": [3.0, 1.0]},
+        {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [3.0]},
+    ])
+    (_, qc), = stream_keyings(
+        ["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+        keyings=_keyings(["AAA", "BBB", CONTROL_LABEL]), guide_coverage=True)
+
+    counts = dict(zip(qc.guide_labels, qc.guide_cells.tolist(), strict=True))
+    # BBB has ONE construct, so no accumulator would ever key it -- but it is here.
+    assert counts["BBB_only"] == 2
+    assert counts["AAA_c1"] == 1 and counts["AAA_c2"] == 1
+    # and the control stays pooled, exactly as under the guide keying
+    assert counts[CONTROL_LABEL] == 1
+    assert "nt_1|nt_2" not in counts
+
+
+def test_coverage_is_off_unless_asked_for(tmp_path):
+    """It costs a (G,) array and a column the stream would not otherwise fetch."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "T", "tokens": [0, 1], "values": [4.0, 1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    (_, qc), = stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                              keyings=_keyings(["T", CONTROL_LABEL]))
+    assert qc.gene_cells is None
+    assert qc.guide_labels == [] and qc.guide_cells is None
+    assert "guide_target" not in _columns_for(_keyings(["T"]))
+    assert "guide_target" in _columns_for(_keyings(["T"]), guide_coverage=True)
+
+
+def test_coverage_tallies_round_trip_through_the_sidecar(tmp_path):
+    _write(tmp_path / "f.parquet", [
+        {"target": "T", "guide": "T_c1", "tokens": [0, 1], "values": [4.0, 1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    (_, qc), = stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                              keyings=_keyings(["T", CONTROL_LABEL]), guide_coverage=True)
+    qc.save(tmp_path / "s.qc.npz")
+    z = np.load(tmp_path / "s.qc.npz", allow_pickle=True)
+    np.testing.assert_array_equal(z["gene_cells"], qc.gene_cells)
+    assert [str(x) for x in z["guide_labels"]] == list(qc.guide_labels)
+    np.testing.assert_array_equal(z["guide_cells"], qc.guide_cells)
+
+
+def test_a_cell_dropped_for_zero_on_axis_counts_is_not_tallied(tmp_path):
+    """The tallies must describe the cells that actually entered the aggregate."""
+    _write(tmp_path / "f.parquet", [
+        {"target": "T", "guide": "T_c1", "tokens": [3], "values": [50.0]},   # DUP: off-axis
+        {"target": "T", "guide": "T_c1", "tokens": [0, 1], "values": [4.0, 1.0]},
+        {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
+    ])
+    (_, qc), = stream_keyings(["f.parquet"], opener=_opener(tmp_path), axis=_axis(),
+                              keyings=_keyings(["T", CONTROL_LABEL]), guide_coverage=True)
+    assert qc.cells_dropped_zero == 1
+    counts = dict(zip(qc.guide_labels, qc.guide_cells.tolist(), strict=True))
+    assert counts["T_c1"] == 1          # the off-axis cell is not counted
+    assert int(qc.gene_cells.sum()) == 3   # AAA+BBB from cell 2, AAA from the control

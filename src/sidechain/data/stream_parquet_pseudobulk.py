@@ -68,7 +68,7 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -144,12 +144,18 @@ def label_column(frame: pd.DataFrame, column: str) -> np.ndarray:
     return np.where(gene == CONTROL_LABEL, CONTROL_LABEL, frame[column].to_numpy())
 
 
-def _columns_for(keyings: list[Keying]) -> list[str]:
-    """`COLUMNS` plus whatever the requested keyings key on. Order is stable."""
+def _columns_for(keyings: list[Keying], *, guide_coverage: bool = False) -> list[str]:
+    """`COLUMNS` plus whatever the requested keyings key on. Order is stable.
+
+    `guide_coverage` adds `guide_target` on its own account: counting cells per construct
+    needs the column even when no accumulator is keyed by it.
+    """
     cols = list(COLUMNS)
     for keying in keyings:
         if keying.column not in cols:
             cols.append(keying.column)
+    if guide_coverage and "guide_target" not in cols:
+        cols.append("guide_target")
     return cols
 
 
@@ -179,6 +185,22 @@ class StreamQC:
     cells_dropped_zero: int = 0
     labels_in_corpus: int = 0   # distinct gene_target values seen, kept or not
 
+    # ---- screen-coverage QC. Both are cheap here and UNRECOVERABLE afterwards. ----------
+    # `count_sum` says how many counts a gene got; neither it nor anything else we keep says
+    # how many CELLS it was seen in, or how many cells carried a given construct. Those are
+    # the two coverage views a screen is judged on before it is worth pooling, and getting
+    # them later means re-reading the corpus.
+    #
+    # `gene_cells[g]` -- cells with a NON-ZERO count for emitted gene g, over every cell this
+    # accumulator kept. Answers "expressed in fewer than N cells", which `count_sum` cannot:
+    # a gene at count_sum 100 might be 100 cells at 1 or 1 cell at 100.
+    gene_cells: np.ndarray | None = None        # (G,) int64
+    # Cells per CONSTRUCT, over every construct the corpus carries -- not just the
+    # multi-construct ones the guide keying accumulates. No gene axis, so ~20k int64s.
+    # Controls are pooled under one label, as everywhere else (`label_column`).
+    guide_labels: list[str] = field(default_factory=list)
+    guide_cells: np.ndarray | None = None       # (len(guide_labels),) int64
+
     def mean_pct_mt(self) -> np.ndarray:
         return self.pct_mt_sum / np.maximum(self.n_cells, 1)
 
@@ -198,6 +220,11 @@ class StreamQC:
             cells_seen=self.cells_seen, cells_dropped_filter=self.cells_dropped_filter,
             cells_dropped_zero=self.cells_dropped_zero,
             labels_in_corpus=self.labels_in_corpus,
+            gene_cells=(self.gene_cells if self.gene_cells is not None
+                        else np.zeros(0, dtype=np.int64)),
+            guide_labels=np.asarray(self.guide_labels, dtype=object),
+            guide_cells=(self.guide_cells if self.guide_cells is not None
+                         else np.zeros(0, dtype=np.int64)),
         )
 
 
@@ -290,7 +317,8 @@ def build_gene_axis(gene_map: pd.DataFrame, challenge_genes: list[str] | None) -
 class _Accumulator:
     """The (labels x genes) sums, plus the sidecar counters. Allocated once, up front."""
 
-    def __init__(self, labels: list[str], genes: np.ndarray, column: str = "gene_target"):
+    def __init__(self, labels: list[str], genes: np.ndarray, column: str = "gene_target",
+                 *, track_coverage: bool = False):
         self.labels = labels
         self.genes = genes
         # Which column this accumulator keys on -- see `Keying`. Held here rather than
@@ -319,6 +347,13 @@ class _Accumulator:
         # nothing else can: "did you mean this label?" when a declared one matches nothing,
         # and "what else is in here?" without re-reading 126 GB.
         self.seen_labels: set[str] = set()
+
+        # Screen-coverage tallies. Off by default: `gene_cells` is another (G,) array and
+        # `guide_cells` needs a column the stream would not otherwise fetch, and neither is
+        # wanted by a panel-scope run. See `StreamQC` for why they cannot be added later.
+        self.track_coverage = track_coverage
+        self.gene_cells = np.zeros(len(genes), dtype=np.int64) if track_coverage else None
+        self.guide_cells: dict[str, int] = {}
 
     def batch_row(self, batch: str) -> np.ndarray:
         if batch not in self.batch_cells:
@@ -362,12 +397,17 @@ class _Accumulator:
         batches = sorted(self.batch_cells)
         table = (np.stack([self.batch_cells[b] for b in batches], axis=1)
                  if batches else np.zeros((len(self.labels), 0), dtype=np.int32))
+        guide_labels = sorted(self.guide_cells)
         return StreamQC(
             labels=list(self.labels), batches=batches, batch_cells=table,
             pct_mt_sum=self.pct_mt_sum, pct_mt_sq_sum=self.pct_mt_sq_sum,
             total_counts_sum=self.total_counts_sum, n_cells=self.n_cells,
             cells_seen=self.cells_seen, cells_dropped_filter=self.dropped_filter,
             cells_dropped_zero=self.dropped_zero, labels_in_corpus=len(self.seen_labels),
+            gene_cells=self.gene_cells,
+            guide_labels=guide_labels,
+            guide_cells=(np.array([self.guide_cells[g] for g in guide_labels], dtype=np.int64)
+                         if guide_labels else None),
         )
 
 
@@ -505,6 +545,18 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
     lib = lib[alive]
     frame = frame[alive]
 
+    if acc.track_coverage:
+        # Per-gene DETECTION, not counts: how many of the cells we just kept had a non-zero
+        # value for each emitted gene. `getnnz` counts stored entries per column, and the
+        # CSR build already summed duplicate (cell, gene) coordinates -- so a gene fed by two
+        # colliding tokens in one cell is counted once, which is the intended meaning.
+        acc.gene_cells += sub.getnnz(axis=0).astype(np.int64)
+        if "guide_target" in frame.columns:
+            constructs, counts = np.unique(label_column(frame, "guide_target"),
+                                           return_counts=True)
+            for name, count in zip(constructs, counts, strict=True):
+                acc.guide_cells[str(name)] = acc.guide_cells.get(str(name), 0) + int(count)
+
     cpm = sp.diags(1e6 / lib) @ sub
 
     # Only the labels this batch actually touched get densified, so the transient is
@@ -567,6 +619,7 @@ def stream_keyings(
     keyings: list[Keying],
     batch_rows: int = 2048,
     progress: bool = True,
+    guide_coverage: bool = False,
 ) -> list[tuple[PseudobulkSums, StreamQC]]:
     """One pass over `paths`, accumulating every keying at once. Results are in order.
 
@@ -581,8 +634,13 @@ def stream_keyings(
     X-Atlas file is a single row group of 0.23-0.72 GB), plus the per-batch dense
     temporaries, which are (labels touched by the batch x genes) per accumulator.
     """
-    accs = [_Accumulator(k.labels, axis.genes, column=k.column) for k in keyings]
-    columns = _columns_for(keyings)
+    # Coverage is tallied on the PRIMARY accumulator only. It describes the cells that went
+    # into the aggregate everything downstream reads; tallying it again on a construct-keyed
+    # accumulator would count a subset of the same cells under a second name.
+    accs = [_Accumulator(k.labels, axis.genes, column=k.column,
+                         track_coverage=guide_coverage and i == 0)
+            for i, k in enumerate(keyings)]
+    columns = _columns_for(keyings, guide_coverage=guide_coverage)
     t0 = time.time()
     for n, path in enumerate(paths, 1):
         for acc in accs:
@@ -785,6 +843,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep", help="CSV of labels to accumulate (the 300 panel); default all")
     ap.add_argument("--all-genes", action="store_true",
                     help="emit every X-Atlas symbol rather than only the challenge axis")
+    ap.add_argument("--guide-coverage", action="store_true",
+                    help="screen-QC tallies in the sidecar: cells per CRISPR construct over "
+                         "EVERY construct, and cells-per-gene detection counts. Costs the "
+                         "guide_target column. Implied by --guide-agreement")
     ap.add_argument("--guide-agreement", action="store_true",
                     help="also emit a construct-keyed pseudobulk over the multi-construct "
                          "targets (<out>.guide.npz). Costs the guide_target column on every "
@@ -879,8 +941,11 @@ def main(argv: list[str] | None = None) -> int:
               f"{axis.n_mapped} x 3 float64 = {ram:.2f} GB  -- {keying.scope}")
     print(f"  accumulators total: {total_ram:.2f} GB\n")
 
+    # --guide-agreement already pays for the guide_target column, so the coverage tally on
+    # top of it is free; asking for it separately is the cheap QC-only path.
+    guide_coverage = args.guide_coverage or args.guide_agreement
     results = stream_keyings(names, opener=opener, axis=axis, keyings=keyings,
-                             batch_rows=args.batch_rows)
+                             batch_rows=args.batch_rows, guide_coverage=guide_coverage)
 
     out = Path(args.out).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -903,6 +968,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  cells accumulated    : {qc.cells_seen:,}")
         print(f"  labels in corpus     : {qc.labels_in_corpus:,}")
         print(f"  batches seen         : {len(qc.batches)}")
+        if qc.gene_cells is not None and qc.gene_cells.size:
+            never = int((qc.gene_cells == 0).sum())
+            print(f"  genes detected in <10 cells : "
+                  f"{int((qc.gene_cells < 10).sum()):,} of {qc.gene_cells.size:,}"
+                  f"  (never detected: {never:,})")
+        if qc.guide_cells is not None and qc.guide_cells.size:
+            g = qc.guide_cells
+            print(f"  constructs                  : {g.size:,}"
+                  f"   median {int(np.median(g)):,} cells"
+                  f"   <10 cells: {int((g < 10).sum()):,}"
+                  f"   <25: {int((g < 25).sum()):,}")
         print(f"  -> {npz}")
     print(f"  -> {lineage}")
     return 0
