@@ -64,8 +64,18 @@ cd ~/code
 cd sidechain && git pull --quiet && uv sync --quiet
 
 # GPU extras for the 2026 scorer: CUDA kernels + GPU differential expression.
-# Competition-rule scoring resolves DE on the GPU; a CPU (pdex) run builds a
-# "diagnostic" bundle whose config hash differs from the vcc2026 preset.
+# What the GPU buys is SPEED, not rule-compliance -- corrected 2026-08-26 after
+# this comment sent a session the wrong way. The competition rule hashes the
+# CONTROL LABEL, not the DE backend (`pert_col`, `de.backend` and `outdir` are
+# excluded from the digest), so a CPU `pdex` bundle is rule-exact too: both
+# bundles rebuilt that day with `--control non-targeting` and `--de-backend
+# pdex` came back with `rule_mismatches: []`. A bundle is diagnostic when its
+# held-out line's controls are still labelled `control`.
+#
+# These extras install into WHICHEVER venv is active. A second clone of this
+# repo -- pinning a SHA for a reproducible run, say -- gets none of them from
+# `uv sync --frozen`, and the gap only shows up when an arm asks for the gpudge
+# backend its bundle was built with. Re-run these two lines in that clone.
 # `--torch-backend=auto` picked a CUDA-13 torch (2.13.0+cu130) on a box whose
 # driver (570.x) tops out at CUDA 12.8 -> torch.cuda.is_available() == False.
 # Pin the CUDA-12.6 wheels instead; they run on every driver >= 560.
