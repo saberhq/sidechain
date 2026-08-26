@@ -54,11 +54,27 @@ TARGET_SELF_LOG2FC = -2.32  # > 80 % knockdown of the target itself; excluded fr
 
 
 def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0):
-    """Per-gene log2FC of mean CPM and its delta-method variance, for one source."""
+    """Per-gene log2FC of mean CPM and its delta-method variance, for one source.
+
+    Computed ROW-WISE, not by slicing `pb.mean_cpm()` / `pb.var_cpm()`. Those build the whole
+    (labels x genes) matrix and this function needs exactly two of its rows -- which was
+    invisible at 301 labels and fatal at 18,294: on a full-corpus X-Atlas artifact each call
+    allocated ~5.6 GB per matrix, several times over, for two rows of 38,584 floats. Pooling
+    272 targets from two such sources would have asked for hundreds of multi-GB temporaries.
+
+    The arithmetic is unchanged -- `mean_cpm` and `var_cpm` are defined as exactly these
+    per-row expressions, so this returns bit-identical values (held by
+    `test_row_wise_log2fc_matches_the_whole_matrix_form`).
+    """
     i, c = pb.labels.index(label), pb.labels.index(control)
-    m = pb.mean_cpm(); v = pb.var_cpm(); n = np.maximum(pb.n_cells, 1)
-    fc = log2fc_from_cpm(m[i], m[c], pseudocount)
-    var = (v[i] / n[i]) / (m[i] + pseudocount) ** 2 + (v[c] / n[c]) / (m[c] + pseudocount) ** 2
+    ni = max(int(pb.n_cells[i]), 1)
+    nc = max(int(pb.n_cells[c]), 1)
+    mi = pb.cpm_sum[i] / ni
+    mc = pb.cpm_sum[c] / nc
+    vi = np.maximum(pb.cpm_sq_sum[i] / ni - mi * mi, 0.0)
+    vc = np.maximum(pb.cpm_sq_sum[c] / nc - mc * mc, 0.0)
+    fc = log2fc_from_cpm(mi, mc, pseudocount)
+    var = (vi / ni) / (mi + pseudocount) ** 2 + (vc / nc) / (mc + pseudocount) ** 2
     return fc, var / LN2_SQ
 
 

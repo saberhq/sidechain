@@ -158,3 +158,37 @@ def test_loco_requires_at_least_one_source_but_not_a_pseudobulk_one():
     with pytest.raises(SystemExit) as exc:
         loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", "o"])
     assert exc.value.code == 2      # argparse error, not a traceback
+
+
+def test_row_wise_log2fc_matches_the_whole_matrix_form():
+    """`_log2fc_with_var` stopped materialising `mean_cpm()`/`var_cpm()` because on a
+    full-corpus artifact (18,294 x 38,584) each was 5.6 GB for two rows. The saving is only
+    allowed if the numbers do not move -- bit-identical, since these sums are pooled against
+    results produced by the matrix form."""
+    from sidechain.models.count_emitters import log2fc_from_cpm
+    from sidechain.submit.build import LN2_SQ, _log2fc_with_var
+
+    rng = np.random.default_rng(7)
+    n_labels, n_genes = 6, 40
+    pb = PseudobulkSums(
+        labels=[f"T{i}" for i in range(n_labels - 1)] + ["ctrl"],
+        genes=np.array([f"g{j}" for j in range(n_genes)], dtype=object),
+        count_sum=rng.random((n_labels, n_genes)) * 100,
+        cpm_sum=rng.random((n_labels, n_genes)) * 1e6,
+        cpm_sq_sum=rng.random((n_labels, n_genes)) * 1e12,
+        n_cells=rng.integers(1, 500, n_labels),
+        libsize_sum=rng.random(n_labels) * 1e5,
+    )
+
+    def matrix_form(label, control, pseudocount=1.0):
+        i, c = pb.labels.index(label), pb.labels.index(control)
+        m = pb.mean_cpm(); v = pb.var_cpm(); n = np.maximum(pb.n_cells, 1)
+        fc = log2fc_from_cpm(m[i], m[c], pseudocount)
+        var = (v[i] / n[i]) / (m[i] + pseudocount) ** 2 + (v[c] / n[c]) / (m[c] + pseudocount) ** 2
+        return fc, var / LN2_SQ
+
+    for label in pb.labels[:-1]:
+        fc_new, var_new = _log2fc_with_var(pb, label, "ctrl")
+        fc_old, var_old = matrix_form(label, "ctrl")
+        assert np.array_equal(fc_new, fc_old), label
+        assert np.array_equal(var_new, var_old), label
