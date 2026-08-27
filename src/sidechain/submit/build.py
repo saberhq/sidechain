@@ -53,7 +53,8 @@ LN2_SQ = np.log(2) ** 2
 TARGET_SELF_LOG2FC = -2.32  # > 80 % knockdown of the target itself; excluded from scoring, kept for realism
 
 
-def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0):
+def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0,
+                     var_floor: str = "none"):
     """Per-gene log2FC of mean CPM and its delta-method variance, for one source.
 
     Computed ROW-WISE, not by slicing `pb.mean_cpm()` / `pb.var_cpm()`. Those build the whole
@@ -62,9 +63,17 @@ def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: 
     allocated ~5.6 GB per matrix, several times over, for two rows of 38,584 floats. Pooling
     272 targets from two such sources would have asked for hundreds of multi-GB temporaries.
 
-    The arithmetic is unchanged -- `mean_cpm` and `var_cpm` are defined as exactly these
-    per-row expressions, so this returns bit-identical values (held by
-    `test_row_wise_log2fc_matches_the_whole_matrix_form`).
+    With `var_floor="none"` the arithmetic is unchanged -- `mean_cpm` and `var_cpm` are
+    defined as exactly these per-row expressions, so this returns bit-identical values (held
+    by `test_row_wise_log2fc_matches_the_whole_matrix_form`).
+
+    `var_floor="poisson"` floors each arm's per-cell CPM variance at its Poisson sampling
+    variance, `(m + pseudocount) * 1e6 / mean_libsize`: observed spread below what counting
+    noise alone would produce is undersampling, not certainty. The `+ pseudocount` keeps
+    never-expressed genes (observed variance exactly 0 at any n) off the pathological
+    max-weight branch. An arm with a single cell has no observed spread at all, so it
+    abstains outright (`var = inf`, weight 0) rather than letting the floor pretend one
+    cell was a measurement.
     """
     i, c = pb.labels.index(label), pb.labels.index(control)
     ni = max(int(pb.n_cells[i]), 1)
@@ -73,8 +82,13 @@ def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: 
     mc = pb.cpm_sum[c] / nc
     vi = np.maximum(pb.cpm_sq_sum[i] / ni - mi * mi, 0.0)
     vc = np.maximum(pb.cpm_sq_sum[c] / nc - mc * mc, 0.0)
+    if var_floor == "poisson":
+        vi = np.maximum(vi, (mi + pseudocount) * 1e6 / (pb.libsize_sum[i] / ni))
+        vc = np.maximum(vc, (mc + pseudocount) * 1e6 / (pb.libsize_sum[c] / nc))
     fc = log2fc_from_cpm(mi, mc, pseudocount)
     var = (vi / ni) / (mi + pseudocount) ** 2 + (vc / nc) / (mc + pseudocount) ** 2
+    if var_floor == "poisson" and (ni < 2 or nc < 2):
+        var = np.full_like(var, np.inf)
     return fc, var / LN2_SQ
 
 
@@ -111,10 +125,10 @@ class _PseudobulkDeltaSource:
     which is the only question the pooling actually asks.
     """
 
-    __slots__ = ("control", "pb")
+    __slots__ = ("control", "pb", "var_floor")
 
-    def __init__(self, pb: PseudobulkSums, control: str):
-        self.pb, self.control = pb, control
+    def __init__(self, pb: PseudobulkSums, control: str, var_floor: str = "none"):
+        self.pb, self.control, self.var_floor = pb, control, var_floor
 
     @property
     def genes(self) -> np.ndarray:
@@ -123,18 +137,21 @@ class _PseudobulkDeltaSource:
     def effect(self, target: str):
         if target not in self.pb.labels:
             return None
-        return _log2fc_with_var(self.pb, target, self.control)
+        return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor)
 
 
-def as_delta_source(src):
+def as_delta_source(src, var_floor: str = "none"):
     """Normalise a source into something with `.genes` and `.effect(target)`.
 
     Accepts the historical `(PseudobulkSums, control_label)` tuple so every
     existing call site and command line keeps working unchanged, and passes an
     `LfcTable` (or anything else implementing the pair) straight through.
+    `var_floor` only reaches the pseudobulk form: an LfcTable's variance comes
+    from a p-value, already carries abstention (`inf`), and has no cell counts
+    to floor against.
     """
     if isinstance(src, tuple):
-        return _PseudobulkDeltaSource(*src)
+        return _PseudobulkDeltaSource(*src, var_floor=var_floor)
     if hasattr(src, "effect") and hasattr(src, "genes"):
         return src
     raise TypeError(
@@ -145,7 +162,8 @@ def as_delta_source(src):
 
 
 def pooled_delta(target: str, sources: list, axis: np.ndarray,
-                 *, shrinkage: bool = True) -> np.ndarray | None:
+                 *, shrinkage: bool = True, var_floor: str = "none",
+                 stats: dict | None = None) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
 
     A source may be a `(PseudobulkSums, control_label)` tuple -- counts we
@@ -163,9 +181,21 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     target only Feng covers, and only saturated rows at that, returns a
     genuine all-zero delta rather than None, and does not silently fall through
     to the mean-shift fallback.
+
+    `var_floor="poisson"` applies the sampling floor inside each pseudobulk
+    source's variance (see `_log2fc_with_var`) and drops the weight clamp to a
+    pure numerical guard -- with the floor on, no finite variance can be small
+    for a pathological reason, so the clamp no longer has statistical work to do.
+    `stats`, if given, accumulates the diagnostics across calls: how many gene
+    weights sit at or below the historical 1e-6 clamp (the accidental-certainty
+    arm this floor exists to remove), how many (target, source) arms fully
+    abstained, and how many covered targets ended with zero total weight.
     """
+    if var_floor not in ("none", "poisson"):
+        raise ValueError(f"unknown var_floor {var_floor!r}: expected 'none' or 'poisson'")
+    clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
-    for src in (as_delta_source(s) for s in sources):
+    for src in (as_delta_source(s, var_floor=var_floor) for s in sources):
         got = src.effect(target)
         if got is None:
             continue
@@ -177,15 +207,24 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
         # the other end -- a variance so small it would swamp every other
         # source -- and must not be applied to inf, hence the divide as written.
         with np.errstate(divide="ignore"):
-            w = 1.0 / np.maximum(var, 1e-6)
+            w = 1.0 / np.maximum(var, clamp)
         w = np.where(np.isfinite(var), w, 0.0)
         fc = np.where(np.isfinite(fc), fc, 0.0)
+        if stats is not None:
+            finite = np.isfinite(var)
+            stats["gene_weights"] = stats.get("gene_weights", 0) + int(finite.sum())
+            stats["gene_weights_var_le_1e-6"] = (
+                stats.get("gene_weights_var_le_1e-6", 0) + int((finite & (var <= 1e-6)).sum()))
+            if not finite.any():
+                stats["source_arms_abstained"] = stats.get("source_arms_abstained", 0) + 1
         num += remap_to_axis(fc * w, src.genes, axis, fill=0.0)
         den += remap_to_axis(w, src.genes, axis, fill=0.0)
     if not any_src:
         return None
     out = np.zeros(len(axis))
     nz = den > 0
+    if stats is not None and not nz.any():
+        stats["targets_zero_weight"] = stats.get("targets_zero_weight", 0) + 1
     out[nz] = num[nz] / den[nz]
     return out
 
@@ -206,6 +245,11 @@ def main(argv: list[str] | None = None) -> int:
                          "`python -m sidechain.data.lfc_table`.")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
     ap.add_argument("--no-shrink", action="store_true", help="disable the per-gene empirical-Bayes shrinkage of transferred log2FCs")
+    ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
+                    help="floor each pseudobulk arm's per-gene variance at its Poisson sampling "
+                         "variance and abstain on single-cell arms, so observed zero spread stops "
+                         "counting as certainty in the pooling weights; 'none' reproduces the "
+                         "historical weights bit-for-bit")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default="even",
@@ -238,6 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     t0 = time.time()
     shifts: dict[str, np.ndarray | None] = {p: None for p in perts}
     fallback = 0
+    pool_stats: dict = {}
     if args.emitter in ("h1-mean-shift", "delta-transfer"):
         if not args.h1_cache:
             raise SystemExit("--h1-cache is required for this emitter")
@@ -257,7 +302,8 @@ def main(argv: list[str] | None = None) -> int:
         # them and nothing downstream needs to know which it was.
         sources += [LfcTable.load(path) for path in args.lfc_source]
         for p in perts:
-            d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink)
+            d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                             var_floor=args.var_floor, stats=pool_stats)
             if d is None:
                 fallback += 1          # keep the generic shift
             else:
@@ -268,7 +314,13 @@ def main(argv: list[str] | None = None) -> int:
             vec *= args.alpha
             if p in gene_pos:
                 vec[gene_pos[p]] = TARGET_SELF_LOG2FC
-    print(f"shifts ready in {time.time() - t0:.0f}s; fallback-to-generic: {fallback}", flush=True)
+    line = f"shifts ready in {time.time() - t0:.0f}s; fallback-to-generic: {fallback}"
+    if pool_stats.get("gene_weights"):
+        frac = pool_stats.get("gene_weights_var_le_1e-6", 0) / pool_stats["gene_weights"]
+        line += (f"; var<=1e-6: {frac:.1%} of gene weights"
+                 f"; abstained source-arms: {pool_stats.get('source_arms_abstained', 0)}"
+                 f"; zero-weight targets: {pool_stats.get('targets_zero_weight', 0)}")
+    print(line, flush=True)
 
     # -- write
     out = Path(args.out).expanduser()

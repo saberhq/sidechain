@@ -57,6 +57,7 @@ def build_transfer_prediction(
     dispersion: str = "even",
     shrinkage: bool = True,
     alpha: float = 1.0,
+    var_floor: str = "none",
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = 500.0,
@@ -74,8 +75,10 @@ def build_transfer_prediction(
     em = PoissonEmitter(prof, seed=seed, dispersion=dispersion)
     gene_pos = {g: i for i, g in enumerate(axis)}
     blocks, obs_labels, covered = [], [], 0
+    pool_stats: dict = {}
     for p in perts:
-        d = pooled_delta(p, sources, axis, shrinkage=shrinkage)
+        d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
+                         stats=pool_stats)
         if d is not None:
             covered += 1
             d = d * alpha
@@ -90,7 +93,8 @@ def build_transfer_prediction(
     pred.write_h5ad(out_path)
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
             "cells": int(pred.n_obs), "genes": int(pred.n_vars), "dispersion": dispersion,
-            "shrinkage": shrinkage, "alpha": alpha}
+            "shrinkage": shrinkage, "alpha": alpha, "var_floor": var_floor,
+            "pool_stats": pool_stats}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -108,6 +112,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dispersion", choices=["poisson", "even"], default="even")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
+                    help="floor each pseudobulk arm's variance at its Poisson sampling variance "
+                         "(same knob as sidechain.submit.build, so a scored arm submits verbatim)")
     ap.add_argument("--cells-per-pert", type=int)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
@@ -130,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,
                                      control=args.control, dispersion=args.dispersion,
                                      shrinkage=not args.no_shrink, alpha=args.alpha,
+                                     var_floor=args.var_floor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",

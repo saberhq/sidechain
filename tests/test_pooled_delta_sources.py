@@ -139,6 +139,109 @@ def test_shrinkage_on_an_abstaining_gene_does_not_produce_nan():
     assert out[1] > 0
 
 
+# ----------------------------------------------------- the variance floor --
+
+
+def _pb_var(labels, cpm, var, n_cells=150, lib_per_cell=20000.0, genes=("A", "B", "C")):
+    """A PseudobulkSums with chosen per-gene observed variance per label.
+
+    `n_cells` may be a scalar or per-label; `lib_per_cell` sets the mean library
+    size the Poisson floor reads.
+    """
+    m = np.asarray(cpm, dtype=float)
+    v = np.asarray(var, dtype=float)
+    n = np.asarray(n_cells if np.ndim(n_cells) else [n_cells] * len(labels), dtype=np.int64)
+    return PseudobulkSums(
+        labels=list(labels), genes=np.array(genes),
+        count_sum=m * n[:, None], cpm_sum=m * n[:, None],
+        cpm_sq_sum=(m**2 + v) * n[:, None],
+        n_cells=n, libsize_sum=n.astype(float) * lib_per_cell,
+    )
+
+
+def test_without_the_floor_a_zero_spread_gene_pins_the_pool():
+    """The measured pathology (research idea: inverse-variance weight flooring),
+    pinned as the DEFAULT so the shipped arms stay bit-for-bit reproducible: a
+    gene whose observed spread is exactly 0 hits the 1e-6 clamp, takes weight
+    1e6, and erases another source's real +2 effect down to ~nothing."""
+    flat = _pb_var(["control", "TP53"], [[100.0] * 3, [100.0] * 3], [[0.0] * 3, [0.0] * 3])
+    # Poisson-realistic spread at 20k UMI: var_cpm = mean * 1e6/libsize = mean * 50
+    real = _pb_var(["control", "TP53"], [[100.0] * 3, [400.0] * 3],
+                   [[5000.0] * 3, [20000.0] * 3])
+    stats: dict = {}
+    out = pooled_delta("TP53", [(flat, "control"), (real, "control")], AXIS,
+                       shrinkage=False, stats=stats)
+    assert abs(out[0]) < 0.05                     # ~99.8 % erasure of a ~2.0 log2FC
+    assert stats["gene_weights_var_le_1e-6"] == 3  # every zero-spread gene sat at the clamp
+
+
+def test_the_poisson_floor_unpins_zero_spread_genes():
+    """Same two sources with `var_floor='poisson'`: the flat source keeps a vote
+    sized by its sampling variance instead of a 1e6 veto, so the pooled value
+    lands between the sources -- and nothing sits at the old clamp any more."""
+    flat = _pb_var(["control", "TP53"], [[100.0] * 3, [100.0] * 3], [[0.0] * 3, [0.0] * 3])
+    real = _pb_var(["control", "TP53"], [[100.0] * 3, [400.0] * 3],
+                   [[5000.0] * 3, [20000.0] * 3])
+    stats: dict = {}
+    out = pooled_delta("TP53", [(flat, "control"), (real, "control")], AXIS,
+                       shrinkage=False, var_floor="poisson", stats=stats)
+    fc_real = pooled_delta("TP53", [(real, "control")], AXIS, shrinkage=False,
+                           var_floor="poisson")
+    assert 0.5 < out[0] < fc_real[0]
+    assert stats["gene_weights_var_le_1e-6"] == 0
+
+
+def test_a_single_cell_arm_dominates_without_the_floor_and_abstains_with_it():
+    """A label seen once computes observed variance identically 0 (population
+    form), so without the floor its pure-noise fold change outvotes a 150-cell
+    source; with the floor the arm abstains and the pool is the other source
+    alone. This is the 150x-weight arm from the idea file's measurements."""
+    once = _pb_var(["control", "TP53"], [[100.0] * 3, [800.0] * 3], [[0.0] * 3, [0.0] * 3],
+                   n_cells=[150, 1])
+    real = _pb_var(["control", "TP53"], [[100.0] * 3, [200.0] * 3], [[1.0] * 3, [1.0] * 3])
+
+    unfloored = pooled_delta("TP53", [(once, "control"), (real, "control")], AXIS, shrinkage=False)
+    only_real = pooled_delta("TP53", [(real, "control")], AXIS, shrinkage=False)
+    assert unfloored[0] > only_real[0] + 0.5      # the 1-cell arm dragged the pool its way
+
+    floored = pooled_delta("TP53", [(once, "control"), (real, "control")], AXIS,
+                           shrinkage=False, var_floor="poisson")
+    floored_real = pooled_delta("TP53", [(real, "control")], AXIS, shrinkage=False,
+                                var_floor="poisson")
+    assert np.allclose(floored, floored_real)
+
+
+def test_a_target_covered_only_by_a_single_cell_arm_reports_zero_weight_not_fallback():
+    """Abstention must not collapse into the None -> mean-shift fallback: the
+    source covers the target, so the pool returns a genuine all-zero delta and
+    the stats count the target, which is how the A/B reports coverage cost."""
+    once = _pb_var(["control", "TP53"], [[100.0] * 3, [800.0] * 3], [[0.0] * 3, [0.0] * 3],
+                   n_cells=[150, 1])
+    stats: dict = {}
+    out = pooled_delta("TP53", [(once, "control")], AXIS, shrinkage=False,
+                       var_floor="poisson", stats=stats)
+    assert out is not None and np.allclose(out, 0.0)
+    assert stats["source_arms_abstained"] == 1
+    assert stats["targets_zero_weight"] == 1
+
+
+def test_var_floor_none_leaves_every_existing_number_untouched():
+    """The knob defaults off, and off means bit-identical: the same pool with
+    `var_floor='none'` passed explicitly equals the historical call."""
+    pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
+    a = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False)
+    b = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False, var_floor="none")
+    assert np.array_equal(a, b)
+
+
+def test_an_unknown_var_floor_is_refused_not_ignored():
+    import pytest
+
+    pb = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
+    with pytest.raises(ValueError, match="var_floor"):
+        pooled_delta("TP53", [(pb, "control")], AXIS, var_floor="possion")
+
+
 # ------------------------------------------------- the loco entry point --
 
 
