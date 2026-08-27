@@ -52,6 +52,16 @@
       "teams": 301,
       "card": "SER-3n = cross-line delta transfer, model 3 (n = no shrinkage). The same four sources as SER-2, with the two genome-wide screens read in full \u2014 every gene they measured rather than the challenge panel alone \u2014 re-anchored on the new line's resting state. All models: saberhq.com/sidechain/models/",
       "card_retro": true
+    },
+    {
+      "date": "2026-08-27",
+      "name": "SER-3fn",
+      "board_name": "Sidechain SER-3fn",
+      "overall": 0.1034,
+      "rank": 58,
+      "teams": 362,
+      "card": "SER-3fn = cross-line delta transfer, model 3 (f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, trusts each source only as far as its cell counts justify, and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
+      "card_retro": false
     }
   ]
 }
