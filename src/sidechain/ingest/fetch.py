@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import yaml
@@ -34,6 +35,7 @@ from sidechain.ingest.provenance import (
     gate,
     probe_figshare,
     probe_huggingface,
+    probe_lamin,
     probe_zenodo,
     read_provenance,
     write_provenance,
@@ -47,6 +49,7 @@ PROBES = {
     "zenodo": probe_zenodo,
     "huggingface": probe_huggingface,
     "figshare": probe_figshare,
+    "lamin": probe_lamin,
 }
 
 
@@ -138,11 +141,25 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
             )
         space_dest = root / block["derived"]
 
+    # `license_override_source` authorises the block's `license:` to stand in
+    # for a host that CANNOT state one (lamin has no license field on Artifact).
+    # The value names where the terms were actually verified; gate() refuses an
+    # override that contradicts a host that DID state a license, and refuses
+    # one with no source. Recorded into PROVENANCE.json below either way.
+    override_source = block.get("license_override_source")
+    license_override = (block["license"], str(override_source)) if override_source else None
+
     selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,
-                    dest=dest, route=route, space_dest=space_dest)
+                    dest=dest, route=route, space_dest=space_dest,
+                    license_override=license_override)
 
     declared = block.get("license")
-    if declared and declared != record.license:
+    if license_override:
+        # PROVENANCE.json must carry the EFFECTIVE terms (so license_flags are
+        # computed from something real), while the notes keep the host's own
+        # silence visible beside where the terms actually came from.
+        record = replace(record, license=declared)
+    elif declared and declared != record.license:
         raise GateError(
             f"license changed: config says {declared!r}, the {host} API now says "
             f"{record.license!r}. Terms were re-checked and do not match what was "
@@ -151,6 +168,12 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
 
     notes = {"dataset": block["name"], "config": str(DEFAULT_CONFIG),
              "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
+    if license_override:
+        notes["license_override"] = {
+            "host_stated": "unknown",
+            "applied": declared,
+            "source": str(override_source),
+        }
     if route == STREAM:
         # Where the aggregate goes, and under what terms. Recorded here because
         # the stream itself writes LINEAGE.json beside the aggregate and needs

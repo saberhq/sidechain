@@ -222,6 +222,104 @@ datasets:
         spec: {role: reference, id_cols: [gene_token_id, ensembl_id, gene_name]}
 
   # ==========================================================================
+  # The first two LAMIN-STREAMED datasets (T28's first stream), picked by the
+  # 2026-08-27 fifth-context sweep over laminlabs/pertdata (27 probeable
+  # datasets) and altoslabs/perturbench (3): the two best panel-coverage
+  # candidates among corpora we do not already hold. The sweep's headline is
+  # NEGATIVE and worth keeping: nothing public and harmonized covers the 2026
+  # panel like a genome-wide screen does -- the maximum anywhere was
+  # mcfaline23's 17 of the 272 loco-fold targets, an order of magnitude below
+  # Feng's 172, which already failed to help (reports/07 §3.4). These two are
+  # streamed to SCORE that negative rather than argue it.
+  #
+  # `host: lamin` probes the instance REGISTRY (keys, sizes, lamin hashes) and
+  # can never learn a license from it -- no field on the lamin Artifact model
+  # carries terms (research/inbox/2026-08-27_lamin-instance-enumeration.md,
+  # private). Hence `license_override_source` on both blocks: the terms were
+  # verified at the ORIGINAL host, named there, and recorded as an override in
+  # PROVENANCE.json. The gate refuses an override that CONTRADICTS a host that
+  # states terms; lamin states none, which is the one situation overrides are
+  # for.
+  # ==========================================================================
+  - name: pertdata_sunshine23
+    enabled: true
+    host: lamin
+    record: "laminlabs/pertdata"
+    license: CC-BY-4.0
+    license_override_source: >
+      scPerturb Zenodo record 13350497 v1.4 declares CC-BY-4.0 and its file
+      list includes SunshineHein2023.h5ad (verified at the 2026-08-16 ingest,
+      external/zenodo-13350497/PROVENANCE.json); the pertdata scperturb/ tree
+      is Lamin's curated re-annotation of that corpus. Lamin metadata itself
+      cannot state a license (2026-08-27 enumeration).
+    route: stream                # obs/var/X read remotely; only the pseudobulk lands
+    budget_gb: 1.0               # OUTPUT ceiling: ~184 labels x 33,538 genes x 3 float64 arrays
+    dest: external/lamin-laminlabs-pertdata      # PROVENANCE.json only
+    derived: derived/lamin-pertdata              # aggregates + per-artifact .lineage.json
+    notes: >
+      Sunshine 2023 (SunshineHein2023): CRISPRi in Calu-3, 90,380 cells, 183
+      single-gene targets (SARS-CoV-2 host-factor panel). Covers 6 of the 272
+      loco_k562gwps fold targets (BCKDK, IFNAR2, LDLR, MYD88, TMEM41B, TRMT1;
+      135-700 cells each) and 6/300 of the challenge panel -- measured
+      2026-08-27 from obs.parquet alone. Labels are pert_target_multi
+      (stringified lists; single-token rows only), controls are the
+      scrambled-guide cells found via pert_name startswith 'non-targeting'
+      (13,591 cells) and labelled 'control' in the aggregate -- the raw column
+      has no control value, which is why control_label here names the DERIVED
+      label. X is raw integer counts; var is indexed by ensembl_id with the
+      symbol column the pooling matches on.
+    files:
+      - name: scperturb/sunshine23/X.h5ad
+        kind: expression
+        spec: {context: calu3, context_col: null, pert_col: pert_target_multi,
+               control_label: control, gene_id_col: ensembl_id,
+               modality: crispri, role: train, granularity: cell}
+      - name: scperturb/sunshine23/obs.parquet
+        kind: cell_metadata
+        spec: {role: reference}
+      - name: scperturb/sunshine23/var.parquet
+        kind: gene_map
+        spec: {role: reference, id_cols: [ensembl_id, symbol]}
+
+  - name: perturbench_mcfaline23
+    enabled: true
+    host: lamin
+    record: "altoslabs/perturbench"
+    license: CC-BY-4.0
+    license_override_source: >
+      huggingface.co/datasets/altoslabs/perturbench declares cc-by-4.0 (HF API
+      cardData.license, verified 2026-08-27); the lamin instance's processed
+      h5ads are the same project's artifacts, mirrored on that HF repo. Lamin
+      metadata itself cannot state a license (2026-08-27 enumeration).
+    route: stream
+    budget_gb: 1.0               # OUTPUT ceiling: ~530 labels x 15,004 genes x 3 float64 arrays
+    dest: external/lamin-altoslabs-perturbench   # PROVENANCE.json only
+    derived: derived/lamin-perturbench           # aggregates + per-artifact .lineage.json
+    notes: >
+      McFaline-Figueroa 2023 sci-Plex-GxE: CRISPRi kinome screen (527 real
+      gene targets) in three glioblastoma lines (A172, T98G, U87MG) under five
+      environments. THE AGGREGATE TAKES ONLY treatment=none AND
+      sample=sci3_CRISPRi_kinome: the drug arms would blend an environment
+      into every knockdown delta, and a 2,965-cell MMR/HPRT1 CROP-seq
+      sub-experiment hides inside the none arm (both measured 2026-08-27).
+      Covers 17/272 loco-fold targets (882-1,629 cells each, all present in
+      all three lines) and 23/300 of the challenge panel -- the best coverage
+      of anything public we do not already hold, and still 16x below X-Atlas.
+      `context: gbm_pooled` names the three-line pool the aggregate takes --
+      one vote, like Feng's pooled iPSC arm, not a rotation. The processed
+      file's X is LOG-NORMALISED; raw integer counts live in layers/counts,
+      which is what streams (--x-path layers/counts). Controls are labelled
+      'control' in gene_id directly (207,235 cells corpus-wide; the none-arm
+      subset anchors the aggregate). 'RcontrolSEL' (1,316 cells) is an
+      unflagged random-control pseudo-target and is dropped by name.
+    files:
+      - name: mcfaline23_gxe_processed.h5ad
+        kind: expression
+        spec: {context: gbm_pooled, context_col: null, pert_col: gene_id,
+               control_label: control, gene_id_col: null,
+               modality: crispri, role: train, granularity: cell}
+
+  # ==========================================================================
   # Feng et al. 2026 -- genome-scale CRISPRi across human iPSC lines.
   # Cell Genomics 6:101076 (PMC12903452). Two Figshare records, both MIT: the
   # most permissive terms of anything we hold and the only source with no

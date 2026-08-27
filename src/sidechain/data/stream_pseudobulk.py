@@ -91,9 +91,14 @@ def _var_names(f: h5py.File) -> np.ndarray:
     return var.index.astype(str).to_numpy()
 
 
-def _iter_blocks(f: h5py.File, block_rows: int | None):
-    """Yield (row0, block) with block a csr_matrix or dense ndarray of raw values."""
-    X = f["X"]
+def _iter_blocks(f: h5py.File, block_rows: int | None, x_path: str = "X"):
+    """Yield (row0, block) with block a csr_matrix or dense ndarray of raw values.
+
+    `x_path` selects which matrix streams: "X" for every corpus that stores raw
+    counts there, "layers/counts" for files whose X was normalised in place and
+    whose raw counts live in a layer (perturbench's processed h5ads).
+    """
+    X = f[x_path]
     if isinstance(X, h5py.Group):  # csr_matrix group
         enc = X.attrs.get("encoding-type", b"")
         enc = enc.decode() if isinstance(enc, bytes) else str(enc)
@@ -119,6 +124,78 @@ def _iter_blocks(f: h5py.File, block_rows: int | None):
             yield r0, X[r0:r1, :]
 
 
+def stream_pseudobulk_file(
+    f: h5py.File,
+    label_col: str,
+    keep: set[str] | None = None,
+    *,
+    block_rows: int | None = None,
+    skip_labels: set[str] | None = None,
+    progress: bool = False,
+    labels_all: np.ndarray | None = None,
+    genes: np.ndarray | None = None,
+    source: str = "",
+    x_path: str = "X",
+) -> PseudobulkSums:
+    """The accumulator on an OPEN h5 handle -- local file or remote object store.
+
+    Split out of `stream_pseudobulk` so a lamindb `Artifact.open()` handle (an
+    h5py.File over S3) streams through the identical code path as a local h5ad.
+    `labels_all` / `genes` override the file's own obs column / var index for
+    corpora whose labels live in a SIDECAR (pertdata ships the harmonized
+    `pert_target` in obs.parquet, not in X.h5ad) -- the caller owns proving the
+    sidecar is row-aligned before handing it in.
+    """
+    t0 = time.time()
+    name = source or str(getattr(f, "filename", "<remote>"))
+    display = Path(name).name if "/" in name else name
+    if labels_all is None:
+        labels_all = _obs_labels(f, label_col)
+    if genes is None:
+        genes = _var_names(f)
+    wanted = sorted(set(labels_all) if keep is None else (set(labels_all) & set(keep)))
+    if skip_labels:
+        wanted = [w for w in wanted if w not in skip_labels]
+    code_of = {lab: i for i, lab in enumerate(wanted)}
+    L, G = len(wanted), len(genes)
+    count_sum = np.zeros((L, G)); cpm_sum = np.zeros((L, G)); cpm_sq = np.zeros((L, G))
+    n_cells = np.zeros(L, dtype=np.int64); lib_sum = np.zeros(L)
+    codes_all = np.array([code_of.get(lab, -1) for lab in labels_all], dtype=np.int64)
+    n_total = len(labels_all)
+    for r0, block in _iter_blocks(f, block_rows, x_path):
+        r1 = r0 + block.shape[0]
+        codes = codes_all[r0:r1]
+        sel = np.where(codes >= 0)[0]
+        if sel.size == 0:
+            continue
+        sub = block[sel]
+        c = codes[sel]
+        lib = np.asarray(sub.sum(axis=1)).ravel().astype(np.float64)
+        ok = lib > 0
+        sub, c, lib = sub[ok], c[ok], lib[ok]
+        if sub.shape[0] == 0:
+            continue
+        ind = sp.csr_matrix((np.ones(len(c)), (c, np.arange(len(c)))), shape=(L, len(c)))
+        if sp.issparse(sub):
+            sub = sp.csr_matrix(sub, dtype=np.float64)
+            cpm = sp.diags(1e6 / lib) @ sub
+            count_sum += (ind @ sub).toarray()
+            cpm_sum += (ind @ cpm).toarray()
+            cpm_sq += (ind @ cpm.multiply(cpm)).toarray()
+        else:
+            sub = np.asarray(sub, dtype=np.float64)
+            cpm = sub * (1e6 / lib)[:, None]
+            count_sum += ind @ sub
+            cpm_sum += ind @ cpm
+            cpm_sq += ind @ (cpm * cpm)
+        np.add.at(n_cells, c, 1)
+        np.add.at(lib_sum, c, lib)
+        if progress:
+            print(f"  {display}: {r1:>9}/{n_total} rows  {time.time() - t0:6.0f}s", flush=True)
+    return PseudobulkSums(wanted, np.asarray(genes), count_sum, cpm_sum, cpm_sq, n_cells,
+                          lib_sum, [name])
+
+
 def stream_pseudobulk(
     path: str | Path,
     label_col: str,
@@ -130,50 +207,10 @@ def stream_pseudobulk(
 ) -> PseudobulkSums:
     """One pass over `path`; sums for every label in `keep` (None = all labels)."""
     path = Path(path).expanduser()
-    t0 = time.time()
     with h5py.File(path, "r") as f:
-        labels_all = _obs_labels(f, label_col)
-        genes = _var_names(f)
-        wanted = sorted(set(labels_all) if keep is None else (set(labels_all) & set(keep)))
-        if skip_labels:
-            wanted = [w for w in wanted if w not in skip_labels]
-        code_of = {lab: i for i, lab in enumerate(wanted)}
-        L, G = len(wanted), len(genes)
-        count_sum = np.zeros((L, G)); cpm_sum = np.zeros((L, G)); cpm_sq = np.zeros((L, G))
-        n_cells = np.zeros(L, dtype=np.int64); lib_sum = np.zeros(L)
-        codes_all = np.array([code_of.get(lab, -1) for lab in labels_all], dtype=np.int64)
-        n_total = len(labels_all)
-        for r0, block in _iter_blocks(f, block_rows):
-            r1 = r0 + block.shape[0]
-            codes = codes_all[r0:r1]
-            sel = np.where(codes >= 0)[0]
-            if sel.size == 0:
-                continue
-            sub = block[sel]
-            c = codes[sel]
-            lib = np.asarray(sub.sum(axis=1)).ravel().astype(np.float64)
-            ok = lib > 0
-            sub, c, lib = sub[ok], c[ok], lib[ok]
-            if sub.shape[0] == 0:
-                continue
-            ind = sp.csr_matrix((np.ones(len(c)), (c, np.arange(len(c)))), shape=(L, len(c)))
-            if sp.issparse(sub):
-                sub = sp.csr_matrix(sub, dtype=np.float64)
-                cpm = sp.diags(1e6 / lib) @ sub
-                count_sum += (ind @ sub).toarray()
-                cpm_sum += (ind @ cpm).toarray()
-                cpm_sq += (ind @ cpm.multiply(cpm)).toarray()
-            else:
-                sub = np.asarray(sub, dtype=np.float64)
-                cpm = sub * (1e6 / lib)[:, None]
-                count_sum += ind @ sub
-                cpm_sum += ind @ cpm
-                cpm_sq += ind @ (cpm * cpm)
-            np.add.at(n_cells, c, 1)
-            np.add.at(lib_sum, c, lib)
-            if progress:
-                print(f"  {path.name}: {r1:>9}/{n_total} rows  {time.time() - t0:6.0f}s", flush=True)
-    return PseudobulkSums(wanted, genes, count_sum, cpm_sum, cpm_sq, n_cells, lib_sum, [str(path)])
+        return stream_pseudobulk_file(
+            f, label_col, keep, block_rows=block_rows, skip_labels=skip_labels,
+            progress=progress, source=str(path))
 
 
 def merge(a: PseudobulkSums, b: PseudobulkSums) -> PseudobulkSums:

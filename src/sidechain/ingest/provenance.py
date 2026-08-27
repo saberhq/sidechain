@@ -424,6 +424,58 @@ def probe_figshare(record_id: str | int) -> HostRecord:
     )
 
 
+def probe_lamin(record_id: str) -> HostRecord:
+    """LaminDB instance -> HostRecord. `record_id` is `<owner>/<name>`.
+
+    Reads the instance's Artifact REGISTRY (keys, sizes, hashes) through
+    `ln.DB`, which touches no default-instance state and moves no data bytes.
+    Only artifacts that carry a key are listed -- a keyless artifact has no
+    name a config block could select.
+
+    **License is always "unknown" here, by construction, and that is a finding,
+    not a shortcut**: no field on the lamin Artifact model carries terms of use
+    (measured across five public instances, 2026-08-27 -- private
+    `research/inbox/2026-08-27_lamin-instance-enumeration.md`). One instance
+    attaches a license as a typed ULabel by local convention, which is a
+    convention, not metadata the gate can trust generically. So a lamin-hosted
+    dataset can only pass the gate with `license_override` -- the terms
+    verified at the ORIGINAL source and recorded as an override -- which is
+    exactly the visibility ADR 0003 wants for a host that cannot state terms.
+
+    The hash lamin records is whatever the ingesting party computed (md5-shaped
+    for uploads, internal for multipart); it is recorded verbatim under a
+    `lamin:` prefix as evidence of identity, not as something our download
+    `verify` could recompute -- a lamin block is `route: stream` by nature, and
+    the stream path never runs the checksum pass on files that never land.
+    """
+    import lamindb as ln
+
+    db = ln.DB(record_id)
+    rows = list(
+        db.Artifact.filter(is_latest=True, key__isnull=False)
+        .values("key", "size", "hash")
+    )
+    files = tuple(
+        RemoteFile(
+            name=r["key"],
+            size_bytes=int(r["size"] or 0),
+            checksum=f"lamin:{r['hash']}" if r.get("hash") else None,
+            url="",
+        )
+        for r in sorted(rows, key=lambda r: r["key"])
+    )
+    return HostRecord(
+        host="lamin",
+        record_id=record_id,
+        api_url=f"https://lamin.ai/{record_id}",
+        title=record_id,
+        license="unknown",
+        retrieved=datetime.now(UTC).date().isoformat(),
+        version=None,
+        files=files,
+    )
+
+
 def gate(
     record: HostRecord,
     *,
@@ -434,6 +486,7 @@ def gate(
     headroom_gb: float = 10.0,
     route: str = DOWNLOAD,
     space_dest: Path | None = None,
+    license_override: tuple[str, str] | None = None,
 ) -> tuple[RemoteFile, ...]:
     """Decide whether this fetch may proceed. Raises `GateError` if not.
 
@@ -478,16 +531,38 @@ def gate(
     if not files:
         raise GateError(f"{record.host}:{record.record_id} lists no files")
 
-    if record.license == "unknown" or not record.license:
+    # An override may FILL AN ABSENCE, never contradict a statement. It exists
+    # for hosts that cannot state terms at all (lamin has no license field on
+    # Artifact), where the terms were verified at the ORIGINAL source and the
+    # override records where. A host that states a DIFFERENT license is a
+    # conflict to resolve upstream, not to paper over here.
+    effective_license = record.license
+    if license_override:
+        override, source = license_override
+        if not source or not str(source).strip():
+            raise GateError(
+                f"license_override {override!r} for {record.host}:{record.record_id} names no "
+                "source. The override IS the verification record; without where the terms "
+                "were actually read, it is just an assertion."
+            )
+        if record.license and record.license != "unknown":
+            raise GateError(
+                f"{record.host}:{record.record_id} states {record.license!r} but the config "
+                f"overrides it to {override!r}. An override fills an absence; it does not "
+                "outvote the host. Resolve the conflict at the source."
+            )
+        effective_license = override
+
+    if effective_license == "unknown" or not effective_license:
         raise GateError(
             f"{record.host}:{record.record_id} declares no license. This is a STOP, not a "
             "warning: unstated terms are more restrictive than a permissive tag, not less. "
             "Resolve with the depositor before fetching."
         )
 
-    if record.license not in ACCEPTED_LICENSES:
+    if effective_license not in ACCEPTED_LICENSES:
         raise GateError(
-            f"{record.host}:{record.record_id} states {record.license!r}, which is not on the "
+            f"{record.host}:{record.record_id} states {effective_license!r}, which is not on the "
             f"accepted list ({', '.join(sorted(ACCEPTED_LICENSES))}). Stated-but-unrecognised "
             "is not the same as permissive: read the terms, then add it to LICENSE_POLICY "
             "deliberately. Letting it through would also record it with both license_flags "

@@ -72,6 +72,32 @@ def test_empty_license_string_is_also_a_stop():
         gate(_record(license=""), budget_gb=100)
 
 
+def test_license_override_fills_an_absence():
+    """A host with no license field (lamin) passes only via an override that
+    names where the terms were actually verified."""
+    got = gate(_record(license="unknown"), budget_gb=100,
+               license_override=("CC-BY-4.0", "zenodo record 13350497 v1.4, verified 2026-08-16"))
+    assert [f.name for f in got] == ["small.h5ad", "big.h5ad"]
+
+
+def test_license_override_never_outvotes_a_stated_license():
+    with pytest.raises(GateError, match="does not outvote"):
+        gate(_record(license="CC-BY-NC-SA-4.0"), budget_gb=100,
+             license_override=("CC-BY-4.0", "some source"))
+
+
+def test_license_override_without_a_source_is_an_assertion_not_a_record():
+    with pytest.raises(GateError, match="names no source"):
+        gate(_record(license="unknown"), budget_gb=100,
+             license_override=("CC-BY-4.0", "  "))
+
+
+def test_license_override_still_faces_the_accepted_list():
+    with pytest.raises(GateError, match="not on the"):
+        gate(_record(license="unknown"), budget_gb=100,
+             license_override=("Proprietary-EULA", "somewhere"))
+
+
 def test_over_budget_is_a_stop():
     """The X-Atlas case: 559.7 GB discovered from metadata, not from a disk
     that filled up mid-transfer."""
