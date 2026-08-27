@@ -45,6 +45,7 @@ from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
 from sidechain.submit.build import pooled_delta
+from sidechain.utils.naming import check_out_leaf
 
 
 def build_transfer_prediction(
@@ -119,6 +120,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
+    # Same rule as mirror2026.score: an arm named like a model must spell it right;
+    # freeform ablation labels pass untouched.
+    check_out_leaf(args.out.expanduser().name, context="loco")
 
     # `--source` is no longer required on its own: an LfcTable is a complete
     # source, so an arm built only from published contrasts is a legitimate run

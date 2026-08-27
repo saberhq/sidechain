@@ -47,6 +47,7 @@ from sidechain.models.count_emitters import (
     remap_to_axis,
 )
 from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify_h5ad
+from sidechain.utils.naming import CLAIMS_RE, check_out_leaf
 from sidechain.utils.paths import resolve_config
 
 LN2_SQ = np.log(2) ** 2
@@ -259,6 +260,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-libsize", type=float, default=1000.0,
                     help="drop control cells below this depth from the library-size pool")
     args = ap.parse_args(argv)
+
+    stem = Path(args.out).name
+    check_out_leaf(stem, context="submit.build", require_slug=True)
+    if not CLAIMS_RE.match(stem):
+        print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
+              "board submission's stem starts with its lowercased short name (ADR 0005), "
+              "e.g. ser-2n_delta4_even_noshrink_v1", flush=True)
 
     cfg = yaml.safe_load(resolve_config(args.challenge_config).read_text())
     data_dir = Path(cfg["data_dir"]).expanduser()

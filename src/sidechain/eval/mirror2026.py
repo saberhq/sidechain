@@ -40,6 +40,8 @@ from pathlib import Path
 import anndata as ad
 import pandas as pd
 
+from sidechain.utils.naming import check_out_leaf
+
 
 def _ce2() -> list[str]:
     """The cell-eval2 console script next to this interpreter (the package has no __main__)."""
@@ -158,6 +160,10 @@ def main(argv: list[str] | None = None) -> int:
                               de_backend=args.de_backend, n_splits=args.splits, force=args.force)
         print(json.dumps({"bundle": str(bundle), "manifest": json.loads((bundle / "manifest.json").read_text())}, indent=1, default=str))
     else:
+        # A run named like a model must spell the name right: the run directory is the
+        # model's identity in RESULTS.md, and a mirror-scored name is as permanent as a
+        # board one. Freeform arm labels (h1_xatlas, baseline) pass untouched.
+        check_out_leaf(args.out.expanduser().name, context="mirror2026.score")
         pred = args.pred
         if args.attach_controls:
             args.out.expanduser().mkdir(parents=True, exist_ok=True)

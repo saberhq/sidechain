@@ -80,6 +80,28 @@ def test_unscored_submission_stays_out(tmp_path):
     assert standings.load_rows(subs, snaps) == []
 
 
+def test_unparseable_board_name_without_alias_warns(tmp_path):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
+    status(subs, "2026-08-24", "typo_v1", "e1", "2026-08-24T20:10:41Z",
+           model_name="sidechain something v1")
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["name"] == "typo_v1"  # the row still renders, under the raw stem
+    assert len(standings.NAME_WARNINGS) == 1 and "typo_v1" in standings.NAME_WARNINGS[0]
+
+
+def test_aliased_pre_adr_stem_stays_quiet(tmp_path):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260821T0812Z", {"e1": 2}, total=42)
+    status(subs, "2026-08-21", "r1_delta_even_v1", "e1", "2026-08-21T08:31:00Z",
+           model_name="sidechain r1-delta-even v1")
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["name"] == "SER-1"
+    assert standings.NAME_WARNINGS == []
+
+
 def test_pre_divergence_snapshot_without_total_uses_the_embed_count(tmp_path):
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
