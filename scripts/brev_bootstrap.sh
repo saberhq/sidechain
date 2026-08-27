@@ -72,6 +72,12 @@ cd sidechain && git pull --quiet && uv sync --quiet
 # pdex` came back with `rule_mismatches: []`. A bundle is diagnostic when its
 # held-out line's controls are still labelled `control`.
 #
+# But the CONFIG digest is stricter than the rule digest: it includes
+# `resolved_device`. A bundle built on CPU refuses arms scored on this box
+# unless the GPU is hidden -- `export CUDA_VISIBLE_DEVICES=""` in the run
+# script for any arm whose bundle records `resolved_device: cpu` (2026-08-27,
+# four arms died on it after their DE had already computed; skill trap 10).
+#
 # These extras install into WHICHEVER venv is active. A second clone of this
 # repo -- pinning a SHA for a reproducible run, say -- gets none of them from
 # `uv sync --frozen`, and the gap only shows up when an arm asks for the gpudge
