@@ -263,11 +263,20 @@ datasets:
       135-700 cells each) and 6/300 of the challenge panel -- measured
       2026-08-27 from obs.parquet alone. Labels are pert_target_multi
       (stringified lists; single-token rows only), controls are the
-      scrambled-guide cells found via pert_name startswith 'non-targeting'
-      (13,591 cells) and labelled 'control' in the aggregate -- the raw column
+      dual-NTC cells found via pert_name startswith 'non-targeting'
+      (6,745 cells) and labelled 'control' in the aggregate -- the raw column
       has no control value, which is why control_label here names the DERIVED
       label. X is raw integer counts; var is indexed by ensembl_id with the
       symbol column the pooling matches on.
+      EVERY CELL IS SARS-CoV-2-INFECTED (MOI 4, 24 h) -- the study has NO mock
+      arm, and the curation keeps no infection-status column (verified
+      2026-08-27, research/reading/sunshine23-infection-arm-verification.md,
+      private). Deltas are target-vs-NTC within one infected culture, so they
+      are internally consistent, but as a prior for uninfected lines this is
+      an INFECTED context and must be described as one. Also verified there:
+      scPerturb's own metadata calls this dataset CRISPR-cas9; the paper is
+      dCas9-KRAB CRISPRi, so the modality declared here is the PAPER's, not
+      the curation's.
     files:
       - name: scperturb/sunshine23/X.h5ad
         kind: expression
@@ -312,6 +321,12 @@ datasets:
       'control' in gene_id directly (207,235 cells corpus-wide; the none-arm
       subset anchors the aggregate). 'RcontrolSEL' (1,316 cells) is an
       unflagged random-control pseudo-target and is dropped by name.
+      'none' IS THE VEHICLE ARM, not drug-free media: perturbench's curation
+      rewrites the paper's 'vehicle'/'dmso' labels to 'none', and every arm --
+      drug and control alike -- sits at 0.1% v/v DMSO, so the carrier cancels
+      in a within-screen delta (verified 2026-08-27,
+      research/reading/mcfaline23-none-arm-verification.md, private; CRISPRi
+      dCas9-KRAB confirmed there too).
     files:
       - name: mcfaline23_gxe_processed.h5ad
         kind: expression
