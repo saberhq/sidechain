@@ -10,7 +10,8 @@
       "overall": 0.0788,
       "rank": 2,
       "teams": 42,
-      "card": "Rung 1': per-gene log2FC pooled (inverse-variance) over K562 genome-wide + H1 2025 for the targets they cover, gene-wise positive-part shrinkage, re-anchored on each context's control profile; minimum-variance (even-spread) integer cells at control depth; 28 uncovered targets get the H1 mean shift."
+      "card": "Rung 1': per-gene log2FC pooled (inverse-variance) over K562 genome-wide + H1 2025 for the targets they cover, gene-wise positive-part shrinkage, re-anchored on each context's control profile; minimum-variance (even-spread) integer cells at control depth; 28 uncovered targets get the H1 mean shift.",
+      "card_retro": false
     },
     {
       "date": "2026-08-21",
@@ -19,7 +20,8 @@
       "overall": 0.073,
       "rank": 10,
       "teams": 95,
-      "card": "Same transferred log2FCs as SER-1 (K562 genome-wide + H1, inverse-variance pooled, gene-wise shrinkage, alpha=1), emitted as independent Poisson cells at control depth instead of minimum-variance cells. Controlled experiment on emission dispersion."
+      "card": "Same transferred log2FCs as SER-1 (K562 genome-wide + H1, inverse-variance pooled, gene-wise shrinkage, alpha=1), emitted as independent Poisson cells at control depth instead of minimum-variance cells. Controlled experiment on emission dispersion.",
+      "card_retro": false
     },
     {
       "date": "2026-08-22",
@@ -28,7 +30,8 @@
       "overall": 0.0822,
       "rank": 9,
       "teams": 97,
-      "card": "SER-1 with the transferred log2FCs left unshrunk (no gene-wise positive-part shrinkage); minimum-variance cells. Probe: does shrinkage remove small true signals that cosine-PDS needs?"
+      "card": "SER-1 with the transferred log2FCs left unshrunk (no gene-wise positive-part shrinkage); minimum-variance cells. Probe: does shrinkage remove small true signals that cosine-PDS needs?",
+      "card_retro": false
     },
     {
       "date": "2026-08-24",
@@ -37,7 +40,8 @@
       "overall": 0.0937,
       "rank": 25,
       "teams": 216,
-      "card": ""
+      "card": "SER-2 = cross-line delta transfer, model 2 (named before the knob letters; shrinkage off, as in SER-1n). Borrows each gene's knockdown effect from K562, H1 and the challenge-panel slice of two genome-wide screens in colon and kidney lines \u2014 the first entry to cover all 300 targets \u2014 and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
+      "card_retro": true
     },
     {
       "date": "2026-08-27",
@@ -46,7 +50,8 @@
       "overall": 0.0963,
       "rank": 54,
       "teams": 301,
-      "card": ""
+      "card": "SER-3n = cross-line delta transfer, model 3 (n = no shrinkage). The same four sources as SER-2, with the two genome-wide screens read in full \u2014 every gene they measured rather than the challenge panel alone \u2014 re-anchored on the new line's resting state. All models: saberhq.com/sidechain/models/",
+      "card_retro": true
     }
   ]
 }

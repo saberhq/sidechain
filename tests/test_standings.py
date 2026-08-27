@@ -112,3 +112,20 @@ def test_pre_divergence_snapshot_without_total_uses_the_embed_count(tmp_path):
     status(subs, "2026-08-20", "a_v1", "e1", "2026-08-20T22:00:00Z")
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"]) == (4, 2)
+
+
+def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
+    """The board can't be backfilled (ADR 0005), so a `<record>.card.txt` beside the
+    status record supplies the card for our own surfaces -- flagged, so the site can
+    say the board entry itself is bare. A board card, when present, always wins."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
+    (subs / "2026-08-24_a_v1.card.txt").write_text("SER-9 = a retro card.\n")
+    status(subs, "2026-08-24", "b_v1", "e2", "2026-08-24T21:00:00Z",
+           description="SER-9 = a live board card.")
+    (subs / "2026-08-24_b_v1.card.txt").write_text("must never be read")
+    retro, live = standings.load_rows(subs, snaps)
+    assert (retro["card"], retro["card_retro"]) == ("SER-9 = a retro card.", True)
+    assert (live["card"], live["card_retro"]) == ("SER-9 = a live board card.", False)

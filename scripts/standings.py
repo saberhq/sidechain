@@ -115,6 +115,15 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
                 f"{f.name}: board name {(s.get('model_name') or '(none)')!r} carries no "
                 "series name and the stem has no ALIASES entry -- falling back to the raw "
                 "stem; add the alias or fix the record (ADR 0005)")
+        # Two entries reached the board before cards were required (ADR 0005) and the
+        # board cannot be backfilled -- a `<record>.card.txt` beside the status record
+        # supplies the card for OUR surfaces only, flagged so the site labels it.
+        card = (s.get("description") or "").strip()
+        card_retro = False
+        if not card:
+            side = f.with_name(f.name.replace(".status.json", ".card.txt"))
+            if side.exists():
+                card, card_retro = side.read_text().strip(), True
         rows.append({
             "_submitted": s.get("submission_date") or "",
             "date": (s.get("submission_date") or "")[:10],
@@ -123,7 +132,8 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             "overall": round(s["score_avg"], 4),
             "rank": rank,
             "teams": teams,
-            "card": (s.get("description") or "").strip(),
+            "card": card,
+            "card_retro": card_retro,
         })
     rows.sort(key=lambda r: r.pop("_submitted"))  # submission order; the key leaves the output
     return rows

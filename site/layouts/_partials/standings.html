@@ -75,7 +75,7 @@
         {{ if $e.card }}
         <details class="sc-modelcard">
           <summary><span class="sc-modelcard-tag">model card</span> <code>{{ $e.board_name }}</code></summary>
-          <p>{{ $e.card }}</p>
+          <p>{{ $e.card }}{{ if $e.card_retro }} <em>(card written here — this entry reached the board before cards shipped with every submission)</em>{{ end }}</p>
         </details>
         {{ else }}
         <span class="sc-modelcard-tag">on the board as</span> <code>{{ $e.board_name }}</code>
