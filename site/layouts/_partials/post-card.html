@@ -1,6 +1,6 @@
 {{- /* Post card — hairline border, mono meta topline, lifts on hover. Context: a page. */ -}}
 <a class="sq-card" href="{{ .RelPermalink }}">
-  <div class="sq-card-meta">{{ .Date.Format "2006-01-02" }} · POST · {{ .ReadingTime }} MIN</div>
+  <div class="sq-card-meta">{{ if .Params.pinned }}<span class="sc-pin">PINNED</span> · {{ end }}{{ .Date.Format "2006-01-02" }} · POST · {{ .ReadingTime }} MIN</div>
   <div class="sq-card-title">{{ .Title }}</div>
   <p class="sq-card-desc">{{ .Params.description | default (.Summary | plainify | truncate 150) }}</p>
   <p class="sq-card-read">Read more →</p>

@@ -6,6 +6,17 @@
 {{ define "main" }}
 <article class="sq-article">
   <div class="sq-article-wrap">
+    {{- /* The banner: one of Saber's photographs, above the title on every post that has
+           one. Fixed 5:2 frame (scripts/banner.py cuts it), caption is the date the photo
+           was taken — the frame and the quiet caption are the signature, not a treatment. */}}
+    {{ with .Params.image }}
+    {{ $src := . }}
+    {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
+    <figure class="sq-cover sc-banner">
+      <img src="{{ $src }}" alt="{{ $.Params.caption | default $.Title }}">
+      {{ with $.Params.caption }}<figcaption class="sc-banner-caption">{{ . }}</figcaption>{{ end }}
+    </figure>
+    {{ end }}
     <div class="sq-kicker"><span class="sq-kicker-accent2">Post</span> · {{ .Date.Format "2006-01-02" }} · {{ .ReadingTime }} min</div>
     <h1 class="sq-article-title">{{ .Title }}</h1>
     {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
@@ -18,13 +29,6 @@
         </span>
       {{ end }}
     </div>
-    {{ with .Params.image }}
-    {{ $src := . }}
-    {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
-    <figure class="sq-cover">
-      <img src="{{ $src }}" alt="{{ $.Title }}">
-    </figure>
-    {{ end }}
     <div class="sq-prose">
       {{ .Content }}
     </div>

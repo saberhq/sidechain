@@ -44,6 +44,7 @@ hugo --source site --minify             # builds into site/public/ (gitignored)
 hugo new --source site posts/my-post.md          # a draft post from the archetype
 hugo server -D --source site --port 1414         # preview drafts too
 uv run python scripts/wordmark.py            # README wordmark + favicon + social card
+uv run python scripts/banner.py photo.jpg --slug my-post   # post banner from a photo
 uv run python scripts/brand_sync.py --check  # are the tokens still saberhq.com's?
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
@@ -71,8 +72,16 @@ Two ways a finished post stays invisible, both silent:
   only rebuilds when something is pushed, the post stays missing until the *next push after
   that date*. Late-evening US dates are already tomorrow in UTC. Use today's date or earlier.
 
-Rough drafts that are not ready to be public belong in `private/site/posts/` (private repo);
-publishing is a deliberate copy into `content/posts/`, not a sync.
+Rough drafts that are not ready to be public belong in `private/site/drafts/` (private repo);
+publishing is a deliberate copy into `content/posts/`, not a sync. The `/post` skill
+(private repo) runs that whole pipeline — sources, voice, banner, publish checks.
+
+**The photo banner.** A post may open with one of Saber's photographs: `image: cover.jpg`
+in the front matter, cut to a fixed 5:2 frame by `scripts/banner.py` (which also strips
+EXIF and writes `social.jpg`, the 1.91:1 crop for link-preview cards — list it as
+`images: [social.jpg]` so LinkedIn picks it over the site-wide `og.png`). The caption is
+the date the photo was taken (`caption: "2024-11-03"`); the fixed frame and the quiet
+dated caption are the visual signature, so don't restyle them per post.
 
 Links and images: write in-site links root-relative (`[posts](/posts/)`) — the `/sidechain/`
 prefix is added at build time for markdown links and images, **not** for raw HTML `<a>`/`<img>`,

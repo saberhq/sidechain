@@ -290,6 +290,15 @@ a.sq-card:hover {
 .sq-byline-rule { flex: 1; border-top: var(--rule-w) solid var(--rule); }
 .sq-cover { margin: 0 0 34px; }
 .sq-cover img { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: var(--radius); border: var(--rule-w) solid var(--rule); }
+/* The photo banner (scripts/banner.py): above the title, 5:2 frame, dated caption. */
+.sc-banner { margin: 0 0 26px; }
+.sc-banner img { height: auto; aspect-ratio: 5 / 2; }
+.sc-banner-caption {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track);
+  color: var(--ink-3); margin-top: 6px; text-align: right;
+}
+/* The rail's pinned chip — carmine, the writing's own accent. */
+.sc-pin { color: var(--accent-2); font-weight: 500; }
 
 /* ---------- Prose (markdown bodies) ---------- */
 .sq-prose p { font-size: var(--body-size); line-height: var(--body-leading); letter-spacing: var(--body-track); text-wrap: pretty; margin: 0 0 18px; }

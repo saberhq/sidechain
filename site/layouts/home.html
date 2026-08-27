@@ -61,6 +61,10 @@
     <div class="sc-rail-in">
       {{ $postsPage := .Site.GetPage "posts" }}
       {{ $posts := where .Site.RegularPages "Section" "posts" }}
+      {{- /* A post with `pinned: true` heads the rail regardless of date (the "what is
+             Sidechain" post); the rest follow newest-first. */}}
+      {{ $pinned := where $posts "Params.pinned" true }}
+      {{ $rail := first 5 (union $pinned.ByDate.Reverse (where $posts "Params.pinned" "!=" true).ByDate.Reverse) }}
       <div class="sq-section-head sc-rail-head">
         <h2 class="sq-section-label" id="rail-label">Posts</h2>
         <span class="sq-section-fill"></span>
@@ -68,7 +72,7 @@
       </div>
       {{ if $posts }}
       <div class="sc-rail-cards">
-        {{ range first 5 $posts.ByDate.Reverse }}
+        {{ range $rail }}
           {{ partial "post-card.html" . }}
         {{ end }}
       </div>
