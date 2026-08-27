@@ -45,6 +45,7 @@ from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
 from sidechain.submit.build import pooled_delta
+from sidechain.utils.logging import log_run
 from sidechain.utils.naming import check_out_leaf
 
 
@@ -149,7 +150,19 @@ def main(argv: list[str] | None = None) -> int:
     res = score(with_ctrl, args.real, args.bundle, out, pert_col=args.pert_col, control=args.control,
                 de_backend=args.de_backend)
     res["build"] = info
+    # The source list used to live only in the command line -- the 2026-08-26
+    # session had to re-run three arms just to prove which sources produced them.
+    res["sources"] = {"pseudobulk": args.source, "lfc": args.lfc_source}
     (out / "summary.json").write_text(json.dumps(res, indent=1) + "\n")
+    log_run(
+        {"entry": "loco", "real": str(args.real), "bundle": str(args.bundle),
+         "out": str(out), "sources": args.source, "lfc_sources": args.lfc_source,
+         "dispersion": args.dispersion, "shrinkage": not args.no_shrink,
+         "alpha": args.alpha, "var_floor": args.var_floor, "seed": args.seed,
+         "de_backend": args.de_backend},
+        {"overall": res.get("overall"), "members": res.get("members")},
+        artifacts=[str(out / "summary.json")],
+    )
     print(json.dumps({k: v for k, v in res.items() if k in ("members", "overall")}, indent=1))
     return 0
 

@@ -146,6 +146,7 @@ def score(
     allow_discrete: bool = False,
     skip_guardrails: bool = False,
     de_real: str | Path | None = None,
+    log_run: bool = True,
 ) -> dict[str, Any]:
     """Run cell-eval on a prediction. Returns metrics, guardrails and raw frames.
 
@@ -157,6 +158,10 @@ def score(
     against the same holdout it is the same computation every time -- and on the
     full 2025 file it dominates the run. Pass it to skip the recompute. The result
     dict always carries `de_real_path` so the next call can reuse it.
+
+    `log_run=True` records the scored run in lamindb via `utils.logging.log_run`
+    (ADR 0001) -- non-fatal by that function's contract, and skipped entirely
+    (no lamindb import) when False.
     """
     from cell_eval import MetricsEvaluator
 
@@ -235,6 +240,16 @@ def score(
         from cell_eval import score_agg_metrics
 
         out["vs_baseline"] = score_agg_metrics(agg, str(baseline))
+
+    if log_run:
+        from sidechain.utils.logging import log_run as _log_run
+
+        _log_run(
+            {"entry": "local_mirror.score", "profile": profile, "requested": metric_names,
+             "pert_col": pert_col, "control": control_pert, "outdir": str(outdir)},
+            metrics,
+            artifacts=[str(outdir)],
+        )
 
     return out
 

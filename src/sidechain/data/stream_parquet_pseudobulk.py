@@ -65,7 +65,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -78,6 +77,7 @@ import scipy.sparse as sp
 
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.ingest import checks
+from sidechain.utils.logging import code_sha
 from sidechain.utils.paths import resolve_config
 
 CONTROL_LABEL = "Non-Targeting"
@@ -707,18 +707,8 @@ def _require_control(pb: PseudobulkSums, acc: _Accumulator, keying: Keying, *,
 
 # ------------------------------------------------------------------ lineage --
 
-
-def code_sha() -> str:
-    """The commit this aggregate was built at, or `dirty:<sha>` / `unknown`."""
-    try:
-        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                             check=True, cwd=Path(__file__).resolve().parent).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True,
-                               text=True, check=True,
-                               cwd=Path(__file__).resolve().parent).stdout.strip()
-        return f"dirty:{sha}" if dirty else sha
-    except Exception:  # noqa: BLE001 - lineage must never be the thing that fails a 4h stream
-        return "unknown"
+# code_sha moved to utils.logging (imported above) so run logging and stream
+# lineage stamp the same value.
 
 
 def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str,
