@@ -176,9 +176,12 @@ complete: X-Atlas/Orion is 126.26 GB we stream and never store.
   (`.python-version`), and `requires-python` is capped below 3.13 so the Mac and the GPU box
   resolve to the same dependency versions.
 - `arc-state`, `cell-eval`, `cell-load` and `pdex` come from PyPI — no git sources needed.
-- Heavy priors (Nucleotide Transformer embeddings) **precompute once** on a rented GPU and are
-  cached via lamindb, whose storage root is `~/data/sidechain/cache/`. Downstream runs on the Mac
-  (PyTorch MPS).
+- Heavy priors (Nucleotide Transformer embeddings) **precompute once** on a rented GPU and move
+  through lamindb's hosted instance `saberhq/sidechain` (Lamin-managed S3, us-west-2):
+  `scripts/lamin_register.py` registers an artifact keyed by its path under `~/data/sidechain/`,
+  and any machine pulls it back with `ln.Artifact.get(key=...).cache()`. Downstream runs on the
+  Mac (PyTorch MPS). Scored runs log themselves there too (`utils/logging.log_run`; set
+  `SIDECHAIN_LAMIN_INSTANCE=` empty to disable) — non-fatal on machines without credentials.
 
 ## Reading budget
 

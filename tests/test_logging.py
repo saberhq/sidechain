@@ -24,7 +24,7 @@ def _reset_warn_once(monkeypatch):
 @pytest.fixture()
 def fake_lamindb(monkeypatch):
     """A minimal lamindb double recording every call."""
-    calls = {"track": [], "artifacts": [], "finish": 0}
+    calls = {"connect": [], "track": [], "artifacts": [], "finish": 0}
 
     class _Artifact:
         def __init__(self, path, key=None):
@@ -34,6 +34,7 @@ def fake_lamindb(monkeypatch):
             calls["artifacts"].append((self.path, self.key))
 
     mod = types.ModuleType("lamindb")
+    mod.connect = lambda slug: calls["connect"].append(slug)
     mod.track = lambda params=None: calls["track"].append(params)
     mod.Artifact = _Artifact
     mod.finish = lambda: calls.__setitem__("finish", calls["finish"] + 1)
@@ -55,6 +56,28 @@ def test_log_run_records_config_metrics_git_sha_and_artifacts(fake_lamindb, tmp_
     assert sha == "unknown" or len(sha.removeprefix("dirty:")) == 40
     assert fake_lamindb["artifacts"] == [(str(art), "runs/summary.json")]
     assert fake_lamindb["finish"] == 1
+
+
+def test_log_run_connects_to_the_hosted_instance_by_default(fake_lamindb, monkeypatch):
+    """`ln.connect()` is process-local, so log_run must make the connection
+    itself -- there is no machine default to inherit."""
+    monkeypatch.delenv("SIDECHAIN_LAMIN_INSTANCE", raising=False)
+    slog.log_run({}, {})
+    assert fake_lamindb["connect"] == ["saberhq/sidechain"]
+    assert len(fake_lamindb["track"]) == 1
+
+
+def test_the_instance_env_var_overrides_and_empty_disables(fake_lamindb, monkeypatch):
+    monkeypatch.setenv("SIDECHAIN_LAMIN_INSTANCE", "someone/else")
+    slog.log_run({}, {})
+    assert fake_lamindb["connect"] == ["someone/else"]
+
+    # empty string: skip connecting entirely (offline / opted-out machine);
+    # the rest of the pipeline still runs against whatever default exists.
+    monkeypatch.setenv("SIDECHAIN_LAMIN_INSTANCE", "")
+    slog.log_run({}, {})
+    assert fake_lamindb["connect"] == ["someone/else"]
+    assert len(fake_lamindb["track"]) == 2
 
 
 def test_a_lamindb_failure_is_one_warning_never_an_exception(monkeypatch):

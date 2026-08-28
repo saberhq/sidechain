@@ -11,11 +11,21 @@ never pay for, or depend on, the import.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import warnings
 from pathlib import Path
 
 _WARNED = False
+
+# Where run logs land. `ln.connect()` is PROCESS-LOCAL (verified 2026-08-27: a
+# fresh process still sees none/none), so connecting here never changes machine
+# state for the other sessions in this checkout -- which is why this is wired
+# per-call rather than via `lamin connect` on the machine. Override with
+# SIDECHAIN_LAMIN_INSTANCE; set it to the empty string to skip connecting and
+# fall back to whatever default instance the process already has (usually none,
+# which degrades to the one-warning skip below).
+DEFAULT_INSTANCE = "saberhq/sidechain"
 
 
 def code_sha() -> str:
@@ -47,6 +57,11 @@ def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> 
     try:
         import lamindb as ln
 
+        instance = os.environ.get("SIDECHAIN_LAMIN_INSTANCE", DEFAULT_INSTANCE)
+        if instance:
+            # Unauthenticated machines (a fresh Brev box) fail here and land in
+            # the except below -- the run still completes, one warning.
+            ln.connect(instance)
         ln.track(params={"config": config, "metrics": metrics, "code_sha": code_sha()})
         for path in artifacts or []:
             p = Path(path).expanduser()
