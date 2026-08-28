@@ -115,9 +115,12 @@ def test_lam_beside_dispersion_or_outside_the_unit_interval_is_refused(tmp_path)
 
 
 def test_an_interior_lam_keeps_the_means_and_scales_the_spread(tmp_path):
-    """The dial's contract: counts stay integral and non-negative, per-gene
-    means sit at the profile regardless of lam (pds must not move), and
-    cell-to-cell sd is ~lam times the Poisson sd on well-expressed genes."""
+    """The dial's CONDITIONAL contract, isolated on a flat-depth pool
+    (mean ~= median, CV(lib) ~2%): counts stay integral and non-negative,
+    per-gene means sit at the profile, and cell-to-cell sd is ~lam times the
+    Poisson sd on well-expressed genes. On pools with real depth spread the
+    marginal law differs -- the class docstring carries it -- so this fixture
+    is flat BY DESIGN and a skewed pool must not be swapped in."""
     rng = np.random.default_rng(13)
     p = _flat_controls(tmp_path, rng)
     prof = ContextProfile.from_controls(p, "A")
@@ -137,6 +140,98 @@ def test_an_interior_lam_keeps_the_means_and_scales_the_spread(tmp_path):
     assert (sds[0.3][deep] < sds[0.7][deep]).all()
 
 
+def test_an_interior_lam_carries_the_shift_in_both_components(tmp_path):
+    """At lam=0.3 the even share holds 91% of the depth, so an 8x knockdown
+    must survive emission essentially in full. A mixture whose even component
+    were built from the UNSHIFTED profile (the mutation-test survivor this
+    test was added to kill) would leave the gene at ~92% of baseline."""
+    rng = np.random.default_rng(21)
+    p, _ = _controls(tmp_path, rng)
+    prof = ContextProfile.from_controls(p, "A")
+    g = int(np.argmax(prof.fraction))
+    shift = np.zeros(40); shift[g] = -3.0
+    em = PoissonEmitter(prof, seed=22, lam=0.3)
+    base = np.asarray(em.emit(2000).mean(axis=0)).ravel()
+    kd = np.asarray(em.emit(2000, shift).mean(axis=0)).ravel()
+    assert kd[g] < 0.2 * base[g]
+
+
+def test_loco_passes_emit_lambda_through_and_records_it(monkeypatch, tmp_path):
+    """The flag's wiring, with the heavy stages stubbed: --emit-lambda must
+    reach build_transfer_prediction (deleting the pass-through made it a
+    silent no-op under the full suite) and must land in the log_run payload;
+    with neither flag given, the CLI's historical default 'even' must arrive."""
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    captured, logged = {}, {}
+
+    def fake_build(real, sources, out_path, **kw):
+        captured.update(kw)
+        return {}
+
+    monkeypatch.setattr(loco, "build_transfer_prediction", fake_build)
+    monkeypatch.setattr(loco, "attach_controls", lambda pred, real, out, **kw: out)
+    monkeypatch.setattr(loco, "score", lambda *a, **kw: {"overall": 0.0, "members": {}})
+    monkeypatch.setattr(loco, "log_run", lambda params, results, artifacts=None: logged.update(params))
+
+    base = ["--real", "r.h5ad", "--bundle", "b", "--source", "s.npz:ctl"]
+    rc = loco.main(base + ["--out", str(tmp_path / "arm"), "--emit-lambda", "0.35"])
+    assert rc == 0
+    assert captured["emit_lambda"] == 0.35 and captured["dispersion"] is None
+    assert logged["emit_lambda"] == 0.35
+
+    captured.clear()
+    rc = loco.main(base + ["--out", str(tmp_path / "arm2")])
+    assert rc == 0
+    assert captured["emit_lambda"] is None and captured["dispersion"] == "even"
+
+
+def test_submit_build_passes_emit_lambda_to_the_emitter(monkeypatch, tmp_path):
+    """The submission side of the same wiring, on a 3-gene, 2-perturbation
+    toy config. This one has the worse silent failure mode: losing the
+    `lam=` pass-through leaves dispersion=None and the constructor's
+    historical default is POISSON, not the CLI's 'even'."""
+    import yaml
+
+    from sidechain.submit import build as submit_build
+
+    genes = ["gA", "gB", "gC"]
+    rng = np.random.default_rng(31)
+    X = rng.poisson(50.0, size=(30, 3)) + 1
+    ctrl = ad.AnnData(X=sp.csr_matrix(X.astype(np.float32)),
+                      obs=pd.DataFrame(index=[f"c{i}" for i in range(30)]),
+                      var=pd.DataFrame(index=genes))
+    ctrl.write_h5ad(tmp_path / "ctrl_A.h5ad")
+    pd.DataFrame({"gene_name": genes}).to_csv(tmp_path / "gene_names.csv", index=False)
+    pd.DataFrame({"target_gene": ["gA", "gB"], "n_cells": [4, 4]}).to_csv(
+        tmp_path / "pert_counts.csv", index=False)
+    cfg = {"data_dir": str(tmp_path), "gene_names_file": "gene_names.csv", "n_genes": 3,
+           "pert_counts_file": "pert_counts.csv", "pert_col": "target_gene",
+           "context_col": "context", "control_label": "non-targeting",
+           "phase": "validation", "phases": {"validation": {"contexts": ["A"]}},
+           "control_files": {"A": "ctrl_A.h5ad"},
+           "submission": {"cells_per_pert": 4, "max_counts_per_cell": 100000,
+                          "max_cells": 100, "max_stored_entries": 10000}}
+    (tmp_path / "cfg.yaml").write_text(yaml.safe_dump(cfg))
+
+    captured = {}
+    real_cls = submit_build.PoissonEmitter
+
+    class Spy(real_cls):
+        def __init__(self, *a, **kw):
+            captured.update(kw)
+            super().__init__(*a, **kw)
+
+    monkeypatch.setattr(submit_build, "PoissonEmitter", Spy)
+    rc = submit_build.main(["--challenge-config", str(tmp_path / "cfg.yaml"),
+                            "--emitter", "control-null", "--out", str(tmp_path / "toy_probe"),
+                            "--no-pack", "--min-libsize", "0", "--emit-lambda", "0.35"])
+    assert rc == 0
+    assert captured["lam"] == 0.35 and captured["dispersion"] is None
+
+
 def test_the_two_entry_points_refuse_dispersion_beside_emit_lambda():
     """Both CLIs resolve the pair before touching any file, so the refusal is
     testable without data on disk -- and the flag really exists on both, which
@@ -149,6 +244,14 @@ def test_the_two_entry_points_refuse_dispersion_beside_emit_lambda():
     with pytest.raises(SystemExit):
         submit_build.main(["--emitter", "control-null", "--out", "lam_probe_v1",
                            "--dispersion", "even", "--emit-lambda", "0.5"])
+    # ...and an out-of-range lam dies at the argument parser, not an hour into
+    # a build inside the write loop.
+    with pytest.raises(SystemExit):
+        loco.main(["--real", "x.h5ad", "--bundle", "b", "--out", "lam_probe",
+                   "--source", "s.npz:control", "--emit-lambda", "1.5"])
+    with pytest.raises(SystemExit):
+        submit_build.main(["--emitter", "control-null", "--out", "lam_probe_v1",
+                           "--emit-lambda", "-0.1"])
 
 
 def test_shrinkage_pulls_noisy_genes_more_than_precise_ones():

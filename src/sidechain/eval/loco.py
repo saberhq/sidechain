@@ -126,10 +126,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
                     help="endpoint of the emission dial (default: even); exclusive with --emit-lambda")
     ap.add_argument("--emit-lambda", type=float, default=None, metavar="LAM",
-                    help="emission-sharpening dial in [0, 1]: per-gene cell-to-cell sd is LAM x "
-                         "the Poisson sd (even cells are 0, poisson cells are 1; see "
-                         "count_emitters.PoissonEmitter). Same knob in sidechain.submit.build, "
-                         "so a scored arm submits verbatim.")
+                    help="emission-sharpening dial in [0, 1]: 0 = even cells, 1 = poisson cells, "
+                         "interior values narrow the emitted cloud toward the mean (exact "
+                         "variance law: count_emitters.PoissonEmitter). Same knob in "
+                         "sidechain.submit.build, so a scored arm submits verbatim.")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
@@ -141,6 +141,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
+    if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
+        # Same check as the emitter's, but before any work: the constructor
+        # would only catch it after the prediction stage has started.
+        ap.error(f"--emit-lambda must be in [0, 1], got {args.emit_lambda}")
     if args.emit_lambda is None and args.dispersion is None:
         args.dispersion = "even"    # the historical default of this entry point
     # Same rule as mirror2026.score: an arm named like a model must spell it right;

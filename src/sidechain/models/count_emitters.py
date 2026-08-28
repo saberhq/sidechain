@@ -69,13 +69,22 @@ class PoissonEmitter:
     An interior `lam` mixes the two: a fraction 1 - lam^2 of each gene's
     expected counts is laid down by the even allocation and the remaining
     lam^2 is sampled as Poisson, so counts stay integral and non-negative
-    with no rounding step. Conditional on a cell's depth, each gene's
-    cell-to-cell sd is then lam times its Poisson sd -- `lam` IS the "shrink
-    the emitted cloud toward the predicted mean by factor lam" dial of
-    private research/ideas/emission-sharpening-dial.md (the depth spread
-    itself scales faster, by lam^2, a documented approximation). At lam
-    exactly 0 or 1 the mixture short-circuits to the endpoint code path, so
-    those arms are bit-identical to the named modes at the same seed.
+    with no rounding step. `lam` IS the "shrink the emitted cloud toward the
+    predicted mean by factor lam" dial of private
+    research/ideas/emission-sharpening-dial.md. The exact variance law, per
+    gene with expected fraction f at pool depth L (w = lam^2):
+    Var = w*f*E[L] + w^2*f^2*Var(L). So conditional on a cell's depth the sd
+    is lam times the Poisson sd, but on a pool with real depth spread the
+    second term dominates every well-expressed gene (above mean count
+    ~1/CV(L)^2, roughly 5-7 on the 2026 control pools), and THERE the
+    marginal sd spaces as lam^2, not lam. Two more knowingly-accepted
+    wrinkles: the even share is pinned to the pool MEDIAN depth while the
+    Poisson share draws at the pool MEAN, so the interior-lam mean depth
+    drifts by w*(mean-median) (~+1.4% at lam=0.5 on the 2026 pools) -- the
+    per-gene FRACTIONS, which the CPM-side metrics read, are lam-invariant.
+    At lam exactly 0 or 1 the mixture short-circuits to the endpoint code
+    path, so those arms are bit-identical to the named modes at the same
+    seed.
 
     Exactly one of `dispersion` / `lam` may be passed: the modes are sugar for
     the endpoints, and accepting both would let them disagree silently.

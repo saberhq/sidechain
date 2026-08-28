@@ -312,8 +312,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="endpoint of the emission dial (default: even); exclusive with "
                          "--emit-lambda (see count_emitters.PoissonEmitter)")
     ap.add_argument("--emit-lambda", type=float, default=None, metavar="LAM",
-                    help="emission-sharpening dial in [0, 1]: per-gene cell-to-cell sd is LAM x "
-                         "the Poisson sd (even cells are 0, poisson cells are 1). Same knob in "
+                    help="emission-sharpening dial in [0, 1]: 0 = even cells, 1 = poisson cells, "
+                         "interior values narrow the emitted cloud toward the mean (exact "
+                         "variance law: count_emitters.PoissonEmitter). Same knob in "
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     ap.add_argument("--out", required=True, help="output stem; writes <out>.h5ad and <out>.vcc")
     ap.add_argument("--no-pack", action="store_true")
@@ -322,6 +323,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
+    if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
+        # Same check as the emitter's, but before any work: the constructor only
+        # runs inside the write loop, an hour into a full build.
+        ap.error(f"--emit-lambda must be in [0, 1], got {args.emit_lambda}")
     if args.emit_lambda is None and args.dispersion is None:
         args.dispersion = "even"    # the historical default of this entry point
 
