@@ -11,10 +11,13 @@ never pay for, or depend on, the import.
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import warnings
 from pathlib import Path
+
+from .lamin import DEFAULT_INSTANCE, artifact_key, instance
+
+__all__ = ["DEFAULT_INSTANCE", "code_sha", "log_run"]
 
 _WARNED = False
 
@@ -24,8 +27,9 @@ _WARNED = False
 # per-call rather than via `lamin connect` on the machine. Override with
 # SIDECHAIN_LAMIN_INSTANCE; set it to the empty string to skip connecting and
 # fall back to whatever default instance the process already has (usually none,
-# which degrades to the one-warning skip below).
-DEFAULT_INSTANCE = "saberhq/sidechain"
+# which degrades to the one-warning skip below). `utils.lamin.instance()` owns
+# that reading now, and DEFAULT_INSTANCE is re-exported above so callers and
+# tests that import it from here keep working.
 
 
 def code_sha() -> str:
@@ -45,6 +49,24 @@ def code_sha() -> str:
         return "unknown"
 
 
+def _key(p: Path) -> str:
+    """The artifact key for a run output: its path under the data root (ADR 0007 §1).
+
+    The old rule was `runs/<basename>`, and on 2026-08-28 five unrelated scored runs
+    all wrote `summary.json`, so the instance folded them into five *versions* of one
+    `runs/summary.json` -- four scored runs silently demoted to history of a fifth.
+    Keying by the full path keeps distinct runs distinct, and re-scoring the same fold
+    to the same directory still versions, which is what versioning is for.
+
+    Outputs written outside `~/data/sidechain/` keep the old flat key: a run is never
+    worth failing over a filing question.
+    """
+    try:
+        return artifact_key(p)
+    except ValueError:
+        return f"runs/{p.name}"
+
+
 def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> None:
     """Record one scored run in lamindb: params (config + git SHA), metrics, artifacts.
 
@@ -57,15 +79,25 @@ def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> 
     try:
         import lamindb as ln
 
-        instance = os.environ.get("SIDECHAIN_LAMIN_INSTANCE", DEFAULT_INSTANCE)
-        if instance:
+        if inst := instance():
             # Unauthenticated machines (a fresh Brev box) fail here and land in
             # the except below -- the run still completes, one warning.
-            ln.connect(instance)
+            ln.connect(inst)
         ln.track(params={"config": config, "metrics": metrics, "code_sha": code_sha()})
         for path in artifacts or []:
             p = Path(path).expanduser()
-            ln.Artifact(str(p), key=f"runs/{p.name}").save()
+            if p.is_dir():
+                # A run OUTDIR is not a run artifact. `local_mirror` used to pass one,
+                # and a mirror outdir is ~21 GB per line -- a scored run would have
+                # silently uploaded it as a folder artifact, and folder artifacts
+                # OVERWRITE their own previous version's bytes in S3 (all versions share
+                # uid[:16], lamindb/core/storage/paths.py:39-43). Registering a
+                # directory is `scripts/lamin_register.py`'s job: deliberate, loud, and
+                # never a side effect of scoring.
+                warnings.warn(f"log_run: refusing to register directory {p} (pass files)",
+                              RuntimeWarning, stacklevel=2)
+                continue
+            ln.Artifact(str(p), key=_key(p)).save()
         ln.finish()
     except Exception as exc:  # noqa: BLE001 - see the module docstring: non-fatal by contract
         if not _WARNED:

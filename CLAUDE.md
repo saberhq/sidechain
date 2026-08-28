@@ -176,12 +176,22 @@ complete: X-Atlas/Orion is 126.26 GB we stream and never store.
   (`.python-version`), and `requires-python` is capped below 3.13 so the Mac and the GPU box
   resolve to the same dependency versions.
 - `arc-state`, `cell-eval`, `cell-load` and `pdex` come from PyPI — no git sources needed.
-- Heavy priors (Nucleotide Transformer embeddings) **precompute once** on a rented GPU and move
-  through lamindb's hosted instance `saberhq/sidechain` (Lamin-managed S3, us-west-2):
-  `scripts/lamin_register.py` registers an artifact keyed by its path under `~/data/sidechain/`,
-  and any machine pulls it back with `ln.Artifact.get(key=...).cache()`. Downstream runs on the
-  Mac (PyTorch MPS). Scored runs log themselves there too (`utils/logging.log_run`; set
-  `SIDECHAIN_LAMIN_INSTANCE=` empty to disable) — non-fatal on machines without credentials.
+- **The cloud data plane** (ADR 0007) is lamindb's hosted instance `saberhq/sidechain`
+  (Lamin-managed S3, us-west-2). It is transport and backup for the things that are *ours and
+  expensive* — `derived/`, `cache/`, mirror bundles and truth files. `external/` never goes there:
+  its recovery story is the upstream host. **An artifact's key is its path under
+  `~/data/sidechain/`**, so the instance is a mirror of the local tree, not a second naming
+  scheme — `scripts/lamin_register.py` (path → key) and `scripts/lamin_pull.py` (key → path, with
+  a hash check) are exact reciprocals over `utils/lamin.py`. That identity is also the exit plan:
+  leaving costs an `s3 sync`, not a migration.
+  - Heavy priors (Nucleotide Transformer embeddings) **precompute once** on a rented GPU, are
+    registered from the box, and are pulled on the Mac (PyTorch MPS) — no `brev copy` either way.
+  - A box authenticates once at bootstrap: `scripts/brev_lamin_key.sh <box>` ships the one
+    long-lived key from `~/.lamin/current_user.env` as a 0600 file, and `brev_bootstrap.sh` logs
+    in with it. No key is not an error — pulls fall back to `brev copy`.
+  - Scored runs log themselves there too (`utils/logging.log_run`; set `SIDECHAIN_LAMIN_INSTANCE=`
+    empty to disable) — non-fatal on machines without credentials, unlike registration and pulls,
+    which fail loudly because they *are* the task.
 
 ## Reading budget
 

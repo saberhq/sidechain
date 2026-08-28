@@ -21,6 +21,7 @@ Config merge order:
 """
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -244,11 +245,23 @@ def score(
     if log_run:
         from sidechain.utils.logging import log_run as _log_run
 
+        # The registered artifact is this one small file, NOT `outdir`. A mirror outdir
+        # is ~21 GB per line (predictions plus cell-eval's own CSVs), all of it
+        # reproducible; uploading it as a side effect of scoring would put tens of GB
+        # in the managed bucket per run. Same shape as `eval.loco`, which has written a
+        # summary.json and logged that since it was built. ADR 0007 §1.
+        summary = outdir / "summary.json"
+        summary.write_text(json.dumps(
+            {"entry": "local_mirror.score", "profile": profile, "pert_col": pert_col,
+             "control": control_pert, "metrics": metrics,
+             "challenge_metrics": out["challenge_metrics"],
+             "guardrails": out.get("guardrails"), "vs_baseline": out.get("vs_baseline")},
+            indent=1, default=str) + "\n")
         _log_run(
             {"entry": "local_mirror.score", "profile": profile, "requested": metric_names,
              "pert_col": pert_col, "control": control_pert, "outdir": str(outdir)},
             metrics,
-            artifacts=[str(outdir)],
+            artifacts=[str(summary)],
         )
 
     return out

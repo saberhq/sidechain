@@ -8,8 +8,9 @@
 #   brev search --min-total-vram 24 --min-disk 200   # pick from a FRESH list, cheapest first
 #   brev create sidechain-gpu --type massedcompute_L40S
 #   brev copy scripts/brev_bootstrap.sh sidechain-gpu:~/brev_bootstrap.sh
+#   scripts/brev_lamin_key.sh sidechain-gpu           # lamin key, once per box (ADR 0007)
 #   brev exec sidechain-gpu -- 'bash ~/brev_bootstrap.sh'
-#   brev copy ~/data/sidechain/vcc2026/vcc_2026_controls.zip sidechain-gpu:~/data/sidechain/vcc2026/
+#   uv run python scripts/lamin_pull.py --prefix cache/vcc2026/   # ON THE BOX, not brev copy
 #
 # Idempotent. Needs passwordless sudo for apt only. The vcc login (API key) is
 # Saber's to run, in his own shell: `printf '%s' "$KEY" | vcc login --token-stdin`.
@@ -88,5 +89,32 @@ cd sidechain && git pull --quiet && uv sync --quiet
 uv pip install --quiet --torch-backend=cu126 "cell-eval2[gpu,gpudge]" \
   || echo "cell-eval2 GPU extras failed; the CPU path still works"
 uv pip install --quiet --reinstall --index-url https://download.pytorch.org/whl/cu126 torch
+
+# Lamin auth -- the data plane (ADR 0007 §4). `scripts/brev_lamin_key.sh <box>` puts a
+# 0600 ~/.lamin_env here BEFORE this script runs; it holds one long-lived key that Saber
+# created once on the hub. Sourcing it is the only place the key is read: `lamin login`
+# then persists it into this box's ~/.lamin/current_user.env, so every LATER script is
+# authenticated with no env var at all -- which matters, because trap 1 says a later
+# `brev exec` does not source the profile and would not see an export anyway.
+#
+# No key is not an error. The box degrades exactly as before: log_run warns once, and
+# inputs come over `brev copy` instead of `lamin_pull.py`.
+if [ -f "$HOME/.lamin_env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.lamin_env"
+  # `</dev/null` is not cosmetic: with LAMIN_API_KEY unset, `lamin login` falls through
+  # to getpass(), which on a TTY-less `brev exec` READS STDIN AND BLOCKS rather than
+  # failing -- the same silent-hang class as skill trap 9. Closed stdin makes it error.
+  if uv run lamin login </dev/null >/dev/null 2>&1; then
+    unset LAMIN_API_KEY
+    echo "lamin: logged in as $(uv run python -c 'import lamindb as ln; print(ln.setup.settings.user.handle)' 2>/dev/null)"
+  else
+    unset LAMIN_API_KEY
+    echo "lamin: login FAILED (key rejected or hub unreachable) -- pulls fall back to brev copy" >&2
+  fi
+else
+  echo "lamin: no ~/.lamin_env -- run 'scripts/brev_lamin_key.sh <box>' from the Mac to enable"
+  echo "       lamin_pull.py; without it, ship inputs with brev copy and log_run warns once."
+fi
 
 echo "sidechain bootstrap done on $(hostname) at $(date -u): $(uv run python -c 'import torch; print("cuda", torch.cuda.is_available())' 2>/dev/null)"

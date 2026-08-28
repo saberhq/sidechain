@@ -104,3 +104,11 @@ private/
 # one `git add -A` away from committing an entire second repo. Ignored so a repeat is
 # inert rather than one command from the index.
 /sidechain/
+
+# ---- credentials that never belong in the tree ----
+# `.lamin_env` is the 0600 file `scripts/brev_lamin_key.sh` ships to a Brev box: one
+# line, `export LAMIN_API_KEY=...`. It is written to a mktemp and copied over, never
+# created here -- but a session debugging the transport is one `cp` from putting a
+# live key in the checkout, and that key is WRITE access to the instance holding our
+# only cloud copy of the derived tree. Ignored so the mistake is inert. ADR 0007 §4.
+.lamin_env
