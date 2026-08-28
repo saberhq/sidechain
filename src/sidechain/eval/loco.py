@@ -41,17 +41,16 @@ import pandas as pd
 import scipy.sparse as sp
 
 from sidechain.data.lfc_table import LfcTable
-from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
-from sidechain.submit.build import pooled_delta
+from sidechain.submit.build import as_delta_source, pooled_delta, sources_from_specs
 from sidechain.utils.logging import log_run
 from sidechain.utils.naming import check_out_leaf
 
 
 def build_transfer_prediction(
     real_path: Path,
-    sources: list[tuple[PseudobulkSums, str]],
+    sources: list,
     out_path: Path,
     *,
     pert_col: str,
@@ -93,9 +92,14 @@ def build_transfer_prediction(
     pred = ad.AnnData(X=X, obs=pd.DataFrame({pert_col: obs_labels}, index=[f"pred_{i}" for i in range(len(obs_labels))]),
                       var=pd.DataFrame(index=real.var_names))
     pred.write_h5ad(out_path)
+    # `shrinkage` alone under-describes a depth-aware run ('false' while one
+    # arm was shrunk), so the per-source overrides are reported beside it,
+    # aligned with the source list: None = followed the global flag.
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
             "cells": int(pred.n_obs), "genes": int(pred.n_vars), "dispersion": dispersion,
-            "shrinkage": shrinkage, "alpha": alpha, "var_floor": var_floor,
+            "shrinkage": shrinkage,
+            "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
+            "alpha": alpha, "var_floor": var_floor,
             "pool_stats": pool_stats}
 
 
@@ -106,6 +110,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--control", default="non-targeting")
     ap.add_argument("--source", action="append", default=[],
                     help="pseudobulk .npz:control_label (repeatable)")
+    ap.add_argument("--shrink-source", action="append", default=[], metavar="NPZ:CONTROL",
+                    help="pseudobulk source whose transferred log2FCs are shrunk regardless "
+                         "of --no-shrink (depth-aware shrinkage; same syntax and meaning as "
+                         "sidechain.submit.build, so a scored arm submits verbatim)")
     ap.add_argument("--lfc-source", action="append", default=[], metavar="NPZ",
                     help="cached LfcTable .npz -- a source publishing the contrast already "
                          "taken rather than cells (e.g. Feng 2026). Repeatable.")
@@ -130,12 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     # and scoring one is how you find out what that corpus is worth alone.
     # At least one of the two is still mandatory -- an arm with no sources at
     # all would score the fallback shift and look like a model.
-    if not args.source and not args.lfc_source:
-        ap.error("need at least one --source or --lfc-source")
-    sources = []
-    for spec in args.source:
-        path, _, ctrl = spec.rpartition(":")
-        sources.append((PseudobulkSums.load(path), ctrl or "control"))
+    if not args.source and not args.shrink_source and not args.lfc_source:
+        ap.error("need at least one --source, --shrink-source or --lfc-source")
+    sources = sources_from_specs(args.source, args.shrink_source)
     sources += [LfcTable.load(path) for path in args.lfc_source]
     out = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
@@ -152,11 +157,15 @@ def main(argv: list[str] | None = None) -> int:
     res["build"] = info
     # The source list used to live only in the command line -- the 2026-08-26
     # session had to re-run three arms just to prove which sources produced them.
-    res["sources"] = {"pseudobulk": args.source, "lfc": args.lfc_source}
+    # `shrink_pseudobulk` is listed separately: which arms were shrunk is part
+    # of what produced the run.
+    res["sources"] = {"pseudobulk": args.source, "shrink_pseudobulk": args.shrink_source,
+                      "lfc": args.lfc_source}
     (out / "summary.json").write_text(json.dumps(res, indent=1) + "\n")
     log_run(
         {"entry": "loco", "real": str(args.real), "bundle": str(args.bundle),
-         "out": str(out), "sources": args.source, "lfc_sources": args.lfc_source,
+         "out": str(out), "sources": args.source, "shrink_sources": args.shrink_source,
+         "lfc_sources": args.lfc_source,
          "dispersion": args.dispersion, "shrinkage": not args.no_shrink,
          "alpha": args.alpha, "var_floor": args.var_floor, "seed": args.seed,
          "de_backend": args.de_backend},

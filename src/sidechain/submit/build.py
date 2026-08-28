@@ -18,7 +18,9 @@ Poisson or minimum-variance "even" cells):
 
 `--source` adds a pseudobulk corpus beyond the two named caches, as `.npz:control_label`
 (repeatable) -- the same syntax `sidechain.eval.loco` takes, so an arm scored on the mirror
-is submitted with the identical source list. `--lfc-source` adds a corpus that publishes the
+is submitted with the identical source list. `--shrink-source` adds one whose transferred
+log2FCs are shrunk no matter what `--no-shrink` says -- the depth-aware split between deep
+essential-scale arms and genome-wide arms (see `pooled_delta`). `--lfc-source` adds a corpus that publishes the
 contrast already taken instead of cells (Feng 2026), built by
 `python -m sidechain.data.lfc_table`. It pools identically; it just derives its per-gene
 variance from an adjusted p-value rather than from CPM spread, and abstains (zero weight) on
@@ -124,12 +126,28 @@ class _PseudobulkDeltaSource:
     counts and sources that ship a precomputed contrast then differ only in how
     they answer "what is this target's fold change and how well is it known",
     which is the only question the pooling actually asks.
+
+    `shrink` is this source's own position of the shrinkage knob: None defers
+    to `pooled_delta`'s global flag (every historical call), True/False
+    overrides it for this source alone. Per source because the right setting
+    depends on what the arm measured: a deep essential-scale arm estimates its
+    small effects well, so shrinking it only removes noise, while a
+    genome-wide arm's small effects are the direction signal shrinkage would
+    delete.
     """
 
-    __slots__ = ("control", "pb", "var_floor")
+    __slots__ = ("control", "pb", "shrink", "var_floor")
 
-    def __init__(self, pb: PseudobulkSums, control: str, var_floor: str = "none"):
+    def __init__(self, pb: PseudobulkSums, control: str, shrink: bool | None = None,
+                 var_floor: str = "none"):
+        # Refused, not coerced: the third tuple slot sits beside var_floor in
+        # this signature, and a stray string there ('poisson') would otherwise
+        # silently force shrinkage ON -- crash-to-wrong is the bad direction.
+        if shrink is not None and not isinstance(shrink, bool):
+            raise TypeError(f"shrink must be None, True or False, got {shrink!r} "
+                            "-- var_floor is keyword-only in the tuple form")
         self.pb, self.control, self.var_floor = pb, control, var_floor
+        self.shrink = shrink
 
     @property
     def genes(self) -> np.ndarray:
@@ -147,6 +165,9 @@ def as_delta_source(src, var_floor: str = "none"):
     Accepts the historical `(PseudobulkSums, control_label)` tuple so every
     existing call site and command line keeps working unchanged, and passes an
     `LfcTable` (or anything else implementing the pair) straight through.
+    A `(PseudobulkSums, control_label, shrink)` triple additionally pins that
+    source's own shrinkage (see `_PseudobulkDeltaSource`); the two-tuple form
+    means "follow the global flag", exactly as before.
     `var_floor` only reaches the pseudobulk form: an LfcTable's variance comes
     from a p-value, already carries abstention (`inf`), and has no cell counts
     to floor against.
@@ -162,6 +183,24 @@ def as_delta_source(src, var_floor: str = "none"):
     )
 
 
+def sources_from_specs(source_specs: list[str], shrink_source_specs: list[str]) -> list:
+    """Parse `--source` / `--shrink-source` NPZ:CONTROL specs into source tuples.
+
+    The one parser for both entry points: `sidechain.eval.loco` and this
+    module's `main` call it instead of splitting the specs themselves, so the
+    two command lines cannot drift and a mirror-scored arm really does submit
+    verbatim. A missing (or empty) control suffix defaults to 'control';
+    `--shrink-source` specs come back as the `(pb, control, True)` triple that
+    pins shrinkage on for that source.
+    """
+    sources = []
+    for spec, shrunk in [(s, False) for s in source_specs] + [(s, True) for s in shrink_source_specs]:
+        path, _, ctrl = spec.rpartition(":")
+        pb = PseudobulkSums.load(path)
+        sources.append((pb, ctrl or "control", True) if shrunk else (pb, ctrl or "control"))
+    return sources
+
+
 def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  *, shrinkage: bool = True, var_floor: str = "none",
                  stats: dict | None = None) -> np.ndarray | None:
@@ -172,6 +211,13 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     which publishes the contrast already taken and derives its variance from an
     adjusted p-value. Both answer `effect(target)` with `(fc, var)` on their own
     gene axis, and everything below is indifferent to which it got.
+
+    `shrinkage` is the global switch; a source carrying its own `shrink`
+    attribute (the tuple triple, or any source object that sets one) overrides
+    it for that source alone. That is the depth-aware form: shrink the deep
+    essential-scale arms whose sub-noise effects really are noise, leave the
+    genome-wide arms -- where those same-size effects are the measured
+    direction -- untouched.
 
     A source may also ABSTAIN per gene by returning `var = inf` there, which
     makes its weight exactly 0. Feng does this on the 98.9 % of rows whose
@@ -202,7 +248,10 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
             continue
         any_src = True
         fc, var = got
-        if shrinkage:
+        want = getattr(src, "shrink", None)
+        if want is None:
+            want = shrinkage
+        if want:
             fc = shrink(fc, var)
         # `1/inf` is 0, which is the abstention. The `maximum` floor only guards
         # the other end -- a variance so small it would swamp every other
@@ -240,6 +289,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="additional pseudobulk source for delta-transfer, as .npz:control_label "
                          "(repeatable) -- the syntax sidechain.eval.loco uses, so a mirror-scored "
                          "source list carries over verbatim")
+    ap.add_argument("--shrink-source", action="append", default=[], metavar="NPZ:CONTROL",
+                    help="like --source, but this source's transferred log2FCs are shrunk "
+                         "regardless of --no-shrink (depth-aware shrinkage: shrink the deep "
+                         "essential-scale arms, leave genome-wide arms carrying the direction "
+                         "signal unshrunk). Same syntax in sidechain.eval.loco.")
     ap.add_argument("--lfc-source", action="append", default=[], metavar="NPZ",
                     help="cached LfcTable .npz -- a source publishing the contrast already "
                          "taken rather than cells (e.g. Feng 2026). Repeatable. Built by "
@@ -286,6 +340,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     axis = np.asarray(genes)
 
+    # Machine record of what produced this artifact. The stem and the stdout
+    # are indistinguishable between, say, a shrunk and an unshrunk build of the
+    # same sources; re-running arms to prove which flags produced a file is the
+    # incident class this sidecar exists to close.
+    out = Path(args.out).expanduser()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.with_suffix(".args.json").write_text(json.dumps(vars(args), indent=1, default=str) + "\n")
+
     # -- per-perturbation log2FC vectors (None = no shift)
     t0 = time.time()
     shifts: dict[str, np.ndarray | None] = {p: None for p in perts}
@@ -302,9 +364,7 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("--gwps-cache is required for delta-transfer")
         gwps = PseudobulkSums.load(args.gwps_cache)
         sources = [(gwps, "control"), (h1, cfg["control_label"])]
-        for spec in args.source:
-            path, _, ctrl = spec.rpartition(":")
-            sources.append((PseudobulkSums.load(path), ctrl or "control"))
+        sources += sources_from_specs(args.source, args.shrink_source)
         # Appended, not special-cased: `pooled_delta` normalises both forms, so a
         # source with no cells behind it enters the pool exactly like one that has
         # them and nothing downstream needs to know which it was.
@@ -331,8 +391,6 @@ def main(argv: list[str] | None = None) -> int:
     print(line, flush=True)
 
     # -- write
-    out = Path(args.out).expanduser()
-    out.parent.mkdir(parents=True, exist_ok=True)
     h5ad = out.with_suffix(".h5ad")
     if args.limit_perts:
         pd.DataFrame({cfg["pert_col"]: perts}).to_csv(out.with_suffix(".pert_counts.csv"), index=False)

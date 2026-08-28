@@ -242,6 +242,135 @@ def test_an_unknown_var_floor_is_refused_not_ignored():
         pooled_delta("TP53", [(pb, "control")], AXIS, var_floor="possion")
 
 
+# ------------------------------------------- per-source (depth-aware) shrinkage --
+
+
+def _noisy_pb(genes=("A", "B", "C")):
+    """A 100 -> 200 CPM effect whose estimate variance (~2.1 in log2^2) exceeds
+    fc^2 (~0.99), so `shrink` zeroes it while the raw fold change is ~1."""
+    k = len(genes)
+    return _pb_var(["control", "TP53"], [[100.0] * k, [200.0] * k],
+                   [[1.0] * k, [6e6] * k], genes=genes)
+
+
+def test_a_shrink_flagged_source_is_shrunk_while_the_global_switch_is_off():
+    """The depth-aware A/B's shape: global no-shrink (the shipped SER-3fn
+    setting), one deep arm opted back in via the tuple triple. If the flag
+    were ignored, the arm would come through raw and the A/B would silently
+    score two identical pools."""
+    noisy = _noisy_pb()
+    raw = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=False)
+    flagged = pooled_delta("TP53", [(noisy, "control", True)], AXIS, shrinkage=False)
+    assert raw[0] > 0.9
+    assert np.allclose(flagged, 0.0)
+
+
+def test_a_shrink_false_source_stays_raw_while_the_global_switch_is_on():
+    """The override runs both ways: False pins a source raw under a global
+    shrink, it does not merely mean 'unset'."""
+    noisy = _noisy_pb()
+    raw = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=False)
+    pinned = pooled_delta("TP53", [(noisy, "control", False)], AXIS, shrinkage=True)
+    globally = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=True)
+    assert np.allclose(globally, 0.0)
+    assert np.array_equal(pinned, raw)
+
+
+def test_the_two_tuple_form_inherits_the_global_flag_bit_for_bit():
+    """Every scored run to date passed two-tuples; None must mean 'follow the
+    global flag' exactly, in both positions of the switch."""
+    noisy = _noisy_pb()
+    for flag in (True, False):
+        a = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=flag)
+        b = pooled_delta("TP53", [(noisy, "control", None)], AXIS, shrinkage=flag)
+        assert np.array_equal(a, b), flag
+
+
+def test_only_the_flagged_source_is_shrunk_inside_a_mixed_pool():
+    """The point of the knob: one pool, one arm shrunk, its neighbour raw.
+    Disjoint gene axes make each source's contribution readable directly."""
+    deep = _noisy_pb(genes=("A",))
+    wide = _noisy_pb(genes=("C",))
+    out = pooled_delta("TP53", [(deep, "control", True), (wide, "control")], AXIS,
+                       shrinkage=False)
+    assert np.isclose(out[0], 0.0)      # the flagged arm's noise-level effect: shrunk away
+    assert out[2] > 0.9                 # the raw arm's identical effect: kept
+
+
+def test_a_non_bool_shrink_slot_is_refused_not_coerced():
+    """The tuple's third slot sits beside `var_floor` in the constructor, so a
+    stray string there ('poisson') would silently force shrinkage ON. Before
+    the slot existed the same tuple crashed loudly; refusal keeps it loud."""
+    import pytest
+
+    pb = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
+    with pytest.raises(TypeError, match="shrink"):
+        as_delta_source((pb, "control", "poisson"))
+
+
+def test_sources_from_specs_binds_the_flag_and_the_default_control(monkeypatch):
+    """The one parser both entry points call. A --shrink-source spec must come
+    back as the (pb, control, True) triple and a --source spec as the plain
+    pair -- the mutant that appends a pair for both (silently turning
+    --shrink-source into an alias of --source) survived the whole suite before
+    this test existed."""
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.submit.build import sources_from_specs
+
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    out = sources_from_specs(["a.npz:ctrlA", "b.npz:"], ["c.npz:deepctl"])
+    assert out[0] == ("PB:a.npz", "ctrlA")
+    assert out[1] == ("PB:b.npz", "control")      # empty suffix -> the default
+    assert out[2] == ("PB:c.npz", "deepctl", True)
+
+
+def test_loco_passes_the_triple_through_and_records_it(monkeypatch, tmp_path):
+    """The CLI contract end to end, with the heavy stages stubbed: a
+    --shrink-source arm must reach build_transfer_prediction as the True
+    triple, and the run's records -- summary.json's sources block and the
+    log_run payload -- must say which arms were shrunk. Losing either half
+    recreates the 2026-08-26 which-sources-produced-this incident."""
+    import json
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    captured, logged = {}, {}
+
+    def fake_build(real, sources, out_path, **kw):
+        captured["sources"] = sources
+        return {}
+
+    monkeypatch.setattr(loco, "build_transfer_prediction", fake_build)
+    monkeypatch.setattr(loco, "attach_controls", lambda pred, real, out, **kw: out)
+    monkeypatch.setattr(loco, "score", lambda *a, **kw: {"overall": 0.0, "members": {}})
+    monkeypatch.setattr(loco, "log_run", lambda params, results, artifacts=None: logged.update(params))
+
+    out = tmp_path / "arm"
+    rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(out),
+                    "--source", "plain.npz:ctl", "--shrink-source", "deep.npz:deepctl"])
+    assert rc == 0
+    assert captured["sources"][0] == ("PB:plain.npz", "ctl")
+    assert captured["sources"][1] == ("PB:deep.npz", "deepctl", True)
+    rec = json.loads((out / "summary.json").read_text())
+    assert rec["sources"]["pseudobulk"] == ["plain.npz:ctl"]
+    assert rec["sources"]["shrink_pseudobulk"] == ["deep.npz:deepctl"]
+    assert logged["sources"] == ["plain.npz:ctl"]
+    assert logged["shrink_sources"] == ["deep.npz:deepctl"]
+
+
+def test_an_lfc_table_without_the_attribute_still_follows_the_global_flag():
+    """`pooled_delta` reads the override with getattr; a source type that never
+    grew a `shrink` attribute must keep its historical behaviour under both
+    global settings."""
+    tab = _lfc(["TP53"], [[2.0, 0.0, 0.0]], [[0.01, np.inf, np.inf]])
+    on = pooled_delta("TP53", [tab], AXIS, shrinkage=True)
+    off = pooled_delta("TP53", [tab], AXIS, shrinkage=False)
+    assert np.isclose(off[0], 2.0)
+    assert on[0] < off[0]               # var 0.01 against fc 2: shrunk a little, not zeroed
+
+
 # ------------------------------------------------- the loco entry point --
 
 
@@ -261,6 +390,19 @@ def test_loco_requires_at_least_one_source_but_not_a_pseudobulk_one():
     with pytest.raises(SystemExit) as exc:
         loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", "o"])
     assert exc.value.code == 2      # argparse error, not a traceback
+
+
+def test_loco_counts_a_shrink_source_as_a_complete_arm(tmp_path):
+    """`--shrink-source` is a source, not a modifier of one: an arm built only
+    from shrunk sources must pass the at-least-one-source check (it dies later
+    on the missing file, which is the proof it got past argparse)."""
+    import pytest
+
+    from sidechain.eval import loco
+
+    with pytest.raises(FileNotFoundError):
+        loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "o"),
+                   "--shrink-source", str(tmp_path / "missing.npz") + ":control"])
 
 
 def test_row_wise_log2fc_matches_the_whole_matrix_form():
