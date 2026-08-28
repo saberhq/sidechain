@@ -48,29 +48,56 @@ class ContextProfile:
 class PoissonEmitter:
     """Integer cells around a (possibly shifted) context profile.
 
-    Two dispersion modes, because the four DE metrics are a rank test on the
-    cells we emit and the number of genes that test "calls" is set almost
-    entirely by cell-to-cell spread (private reports/05 s3.3):
+    Cell-to-cell spread is ONE DIAL, `lam` in [0, 1], because the four DE
+    metrics are a rank test on the cells we emit and the number of genes that
+    test "calls" is set almost entirely by that spread (private
+    reports/05 s3.3). The two named modes are its endpoints:
 
-    poisson  independent Poisson counts at library sizes drawn from the
+    poisson  lam=1: independent Poisson counts at library sizes drawn from the
              context's controls. Realistic-looking cells; against the real
              controls they call only a few hundred genes.
-    even     minimum-variance allocation: every cell gets the same depth, and
-             each gene's total round(n * lambda_g) is spread as evenly as
-             possible over the n cells (floor everywhere, the remainder as
-             single extra counts on a random subset). Per-gene means are exact,
-             every expressed gene stays nonzero (no fold-change blow-ups), and
-             the rank test calls essentially the whole DE universe, which is
-             what `fid`'s coverage term rewards. Day-0 board: the even-spread
-             null scored -0.01 where resampled-control nulls scored -0.30.
+    even     lam=0: minimum-variance allocation: every cell gets the same
+             depth, and each gene's total round(n * lambda_g) is spread as
+             evenly as possible over the n cells (floor everywhere, the
+             remainder as single extra counts on a random subset). Per-gene
+             means are exact, every expressed gene stays nonzero (no
+             fold-change blow-ups), and the rank test calls essentially the
+             whole DE universe, which is what `fid`'s coverage term rewards.
+             Day-0 board: the even-spread null scored -0.01 where
+             resampled-control nulls scored -0.30.
+
+    An interior `lam` mixes the two: a fraction 1 - lam^2 of each gene's
+    expected counts is laid down by the even allocation and the remaining
+    lam^2 is sampled as Poisson, so counts stay integral and non-negative
+    with no rounding step. Conditional on a cell's depth, each gene's
+    cell-to-cell sd is then lam times its Poisson sd -- `lam` IS the "shrink
+    the emitted cloud toward the predicted mean by factor lam" dial of
+    private research/ideas/emission-sharpening-dial.md (the depth spread
+    itself scales faster, by lam^2, a documented approximation). At lam
+    exactly 0 or 1 the mixture short-circuits to the endpoint code path, so
+    those arms are bit-identical to the named modes at the same seed.
+
+    Exactly one of `dispersion` / `lam` may be passed: the modes are sugar for
+    the endpoints, and accepting both would let them disagree silently.
     """
 
-    def __init__(self, profile: ContextProfile, seed: int = 0, *, dispersion: str = "poisson",
-                 libsize_quantiles: tuple[float, float] = (0.0, 1.0)):
-        if dispersion not in ("poisson", "even"):
-            raise ValueError("dispersion must be 'poisson' or 'even'")
+    def __init__(self, profile: ContextProfile, seed: int = 0, *, dispersion: str | None = None,
+                 lam: float | None = None, libsize_quantiles: tuple[float, float] = (0.0, 1.0)):
+        if lam is not None and dispersion is not None:
+            raise ValueError("pass dispersion or lam, not both -- the modes are the dial's "
+                             "endpoints (even is lam=0, poisson is lam=1)")
+        if lam is None:
+            dispersion = "poisson" if dispersion is None else dispersion
+            if dispersion not in ("poisson", "even"):
+                raise ValueError("dispersion must be 'poisson' or 'even'")
+            lam = 0.0 if dispersion == "even" else 1.0
+        lam = float(lam)
+        if not 0.0 <= lam <= 1.0:
+            raise ValueError(f"lam must be in [0, 1], got {lam}")
         self.p = profile
-        self.dispersion = dispersion
+        self.lam = lam
+        # A readable label for run records; the float is the ground truth.
+        self.dispersion = dispersion if dispersion is not None else f"lam={lam:g}"
         self.rng = np.random.default_rng(seed)
         lo, hi = np.quantile(profile.libsizes, libsize_quantiles)
         self._lib_pool = profile.libsizes[(profile.libsizes >= lo) & (profile.libsizes <= hi)]
@@ -87,19 +114,26 @@ class PoissonEmitter:
 
     def emit(self, n: int, log2fc: np.ndarray | None = None, *, max_counts_per_cell: int = 1_000_000) -> sp.csr_matrix:
         frac = self._fraction(log2fc)
-        if self.dispersion == "even":
+        w = self.lam * self.lam    # Poisson share of the variance; sd scales as lam
+        if w == 0.0:
             counts = self._emit_even(n, frac)
         else:
             lib = self.rng.choice(self._lib_pool, size=n, replace=True).astype(np.float64)
-            counts = self.rng.poisson(lib[:, None] * frac[None, :]).astype(np.float32)
+            if w == 1.0:
+                counts = self.rng.poisson(lib[:, None] * frac[None, :]).astype(np.float32)
+            else:
+                counts = self._emit_even(n, frac, depth_frac=1.0 - w)
+                counts += self.rng.poisson(w * lib[:, None] * frac[None, :]).astype(np.float32)
         tot = counts.sum(axis=1)
         over = tot > max_counts_per_cell
         if over.any():  # unreachable at 20k depth; guard the contract anyway
             counts[over] = np.floor(counts[over] * (max_counts_per_cell / tot[over])[:, None])
         return sp.csr_matrix(counts)
 
-    def _emit_even(self, n: int, frac: np.ndarray) -> np.ndarray:
-        total = np.rint(n * self._lib_median * frac).astype(np.int64)   # per-gene total over n cells
+    def _emit_even(self, n: int, frac: np.ndarray, depth_frac: float = 1.0) -> np.ndarray:
+        # per-gene total over n cells; `depth_frac` carves out the even share of
+        # a lam mixture (1.0 = the whole depth, bit-identical to the old form)
+        total = np.rint(n * self._lib_median * depth_frac * frac).astype(np.int64)
         base, rem = np.divmod(total, n)
         counts = np.broadcast_to(base.astype(np.float32), (n, len(frac))).copy()
         cols = np.where(rem > 0)[0]

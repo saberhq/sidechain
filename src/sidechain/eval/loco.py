@@ -55,7 +55,8 @@ def build_transfer_prediction(
     *,
     pert_col: str,
     control: str,
-    dispersion: str = "even",
+    dispersion: str | None = None,
+    emit_lambda: float | None = None,
     shrinkage: bool = True,
     alpha: float = 1.0,
     var_floor: str = "none",
@@ -73,7 +74,9 @@ def build_transfer_prediction(
     ctrl_tmp.parent.mkdir(parents=True, exist_ok=True)
     ctrl.write_h5ad(ctrl_tmp)
     prof = ContextProfile.from_controls(ctrl_tmp, real_path.stem, min_libsize=min_libsize)
-    em = PoissonEmitter(prof, seed=seed, dispersion=dispersion)
+    if dispersion is None and emit_lambda is None:
+        dispersion = "even"    # this function's historical default
+    em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda)
     gene_pos = {g: i for i, g in enumerate(axis)}
     blocks, obs_labels, covered = [], [], 0
     pool_stats: dict = {}
@@ -96,7 +99,8 @@ def build_transfer_prediction(
     # arm was shrunk), so the per-source overrides are reported beside it,
     # aligned with the source list: None = followed the global flag.
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
-            "cells": int(pred.n_obs), "genes": int(pred.n_vars), "dispersion": dispersion,
+            "cells": int(pred.n_obs), "genes": int(pred.n_vars), "dispersion": em.dispersion,
+            "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "var_floor": var_floor,
@@ -119,7 +123,13 @@ def main(argv: list[str] | None = None) -> int:
                          "taken rather than cells (e.g. Feng 2026). Repeatable.")
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--dispersion", choices=["poisson", "even"], default="even")
+    ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
+                    help="endpoint of the emission dial (default: even); exclusive with --emit-lambda")
+    ap.add_argument("--emit-lambda", type=float, default=None, metavar="LAM",
+                    help="emission-sharpening dial in [0, 1]: per-gene cell-to-cell sd is LAM x "
+                         "the Poisson sd (even cells are 0, poisson cells are 1; see "
+                         "count_emitters.PoissonEmitter). Same knob in sidechain.submit.build, "
+                         "so a scored arm submits verbatim.")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
@@ -129,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
+    if args.emit_lambda is not None and args.dispersion is not None:
+        ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
+    if args.emit_lambda is None and args.dispersion is None:
+        args.dispersion = "even"    # the historical default of this entry point
     # Same rule as mirror2026.score: an arm named like a model must spell it right;
     # freeform ablation labels pass untouched.
     check_out_leaf(args.out.expanduser().name, context="loco")
@@ -146,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,
                                      control=args.control, dispersion=args.dispersion,
+                                     emit_lambda=args.emit_lambda,
                                      shrinkage=not args.no_shrink, alpha=args.alpha,
                                      var_floor=args.var_floor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed)
@@ -166,7 +181,8 @@ def main(argv: list[str] | None = None) -> int:
         {"entry": "loco", "real": str(args.real), "bundle": str(args.bundle),
          "out": str(out), "sources": args.source, "shrink_sources": args.shrink_source,
          "lfc_sources": args.lfc_source,
-         "dispersion": args.dispersion, "shrinkage": not args.no_shrink,
+         "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
+         "shrinkage": not args.no_shrink,
          "alpha": args.alpha, "var_floor": args.var_floor, "seed": args.seed,
          "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},

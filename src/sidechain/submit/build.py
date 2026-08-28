@@ -6,7 +6,8 @@
         --out ~/data/sidechain/vcc2026/submissions/r1_delta_v1
 
 Emitters (cells are integer counts at the target context's depth; --dispersion picks
-Poisson or minimum-variance "even" cells):
+Poisson or minimum-variance "even" cells, and --emit-lambda replaces both with one dial
+between them -- count_emitters.PoissonEmitter):
   control-null     the context's control profile, no shift. A pipeline check; scores ~-0.3
                    because it calls no DE genes (fid charges silence).
   h1-mean-shift    one generic shift for every perturbation: the mean over the 300 H1
@@ -307,13 +308,22 @@ def main(argv: list[str] | None = None) -> int:
                          "historical weights bit-for-bit")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
-    ap.add_argument("--dispersion", choices=["poisson", "even"], default="even",
-                    help="cell-to-cell spread of emitted counts (see count_emitters.PoissonEmitter)")
+    ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
+                    help="endpoint of the emission dial (default: even); exclusive with "
+                         "--emit-lambda (see count_emitters.PoissonEmitter)")
+    ap.add_argument("--emit-lambda", type=float, default=None, metavar="LAM",
+                    help="emission-sharpening dial in [0, 1]: per-gene cell-to-cell sd is LAM x "
+                         "the Poisson sd (even cells are 0, poisson cells are 1). Same knob in "
+                         "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     ap.add_argument("--out", required=True, help="output stem; writes <out>.h5ad and <out>.vcc")
     ap.add_argument("--no-pack", action="store_true")
     ap.add_argument("--min-libsize", type=float, default=1000.0,
                     help="drop control cells below this depth from the library-size pool")
     args = ap.parse_args(argv)
+    if args.emit_lambda is not None and args.dispersion is not None:
+        ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
+    if args.emit_lambda is None and args.dispersion is None:
+        args.dispersion = "even"    # the historical default of this entry point
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -400,7 +410,8 @@ def main(argv: list[str] | None = None) -> int:
             prof = ContextProfile.from_controls(data_dir / cfg["control_files"][ctx], ctx, min_libsize=args.min_libsize)
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
-            em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion)
+            em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
+                                lam=args.emit_lambda)
             for k, p in enumerate(perts):
                 w.add_block(em.emit(contract.cells_per_pert, shifts[p]), ctx, p)
                 if (k + 1) % 50 == 0:
