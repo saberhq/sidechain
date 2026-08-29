@@ -61,10 +61,44 @@ LICENSE_POLICY: dict[str, str] = {
 # recorded with both license_flags false, i.e. as less encumbered than it is.
 ACCEPTED_LICENSES = frozenset(LICENSE_POLICY.values())
 
+# The one non-SPDX value the gate will accept, and it is deliberately shouty.
+#
+# It exists for a corpus whose terms are STATED NOWHERE -- not "we did not look",
+# but "we looked at every source the publisher controls and there is no
+# statement". scBaseCount is the case: no LICENSE at the repo root (404), nothing
+# in either README, nothing on the tool page, nothing in the bucket's object
+# metadata, nothing in the preprint's data-availability section (checked
+# 2026-08-28). The CC0 that surfaces in web search is bioRxiv's *preprint*
+# footer, which governs the manuscript, and recording it as the data terms would
+# be a real string attached to the wrong object.
+#
+# Writing a plausible SPDX id instead would be the lie this whole module exists
+# to prevent, and refusing the corpus outright would throw away a source the
+# competition organisers themselves recommend. So the third answer is to name the
+# absence, and then make naming it EXPENSIVE rather than convenient:
+#
+#   * it is reachable only through `license_override`, so it always carries a
+#     `license_override_source` saying who sanctioned the use and where that was
+#     verified -- an unstated license is the one case where the provenance is the
+#     permission;
+#   * it is legal only on `route: stream`. Unstated terms are more restrictive
+#     than a permissive tag, not less (the gate says so twenty lines down), and
+#     what makes reading tolerable is that we take no copy: the bytes are read
+#     over the network exactly as any public reader may, and only OUR aggregate
+#     lands. A download would have us holding a corpus we have no stated
+#     permission to hold;
+#   * it is recorded as MAXIMALLY encumbered -- both flags below -- because
+#     "unknown" resolves conservatively or it is not conservative at all. That
+#     is what stops a derived artifact being republished without a fresh
+#     decision, which is the one thing an unstated licence really does block.
+UNSTATED = "UNSTATED"
+
 # Licenses whose terms reach past ingest. Recorded on the artifact so the
-# implication survives the session that discovered it.
-REDISTRIBUTION_ENCUMBERED = {"CC-BY-SA-4.0", "CC-BY-NC-SA-4.0"}
-NONCOMMERCIAL = {"CC-BY-NC-4.0", "CC-BY-NC-SA-4.0"}
+# implication survives the session that discovered it. UNSTATED is in both:
+# we do not know that commercial use is allowed, and we do not know that
+# redistribution is allowed, so both record as encumbered.
+REDISTRIBUTION_ENCUMBERED = {"CC-BY-SA-4.0", "CC-BY-NC-SA-4.0", UNSTATED}
+NONCOMMERCIAL = {"CC-BY-NC-4.0", "CC-BY-NC-SA-4.0", UNSTATED}
 
 # How a dataset is consumed. `download` puts every selected byte on disk;
 # `stream` reads it over the network once and keeps only an aggregate.
@@ -560,7 +594,25 @@ def gate(
             "Resolve with the depositor before fetching."
         )
 
-    if effective_license not in ACCEPTED_LICENSES:
+    if effective_license == UNSTATED:
+        # Naming the absence is allowed; naming it casually is not. Both
+        # conditions below are what make it honest rather than a loophole.
+        if not license_override:
+            raise GateError(
+                f"{record.host}:{record.record_id} arrived at {UNSTATED!r} without a "
+                "license_override. That value is a RECORD OF A SEARCH, not a license a host "
+                "can state: it may only be applied by a config block that also names where "
+                "the terms were looked for and what sanctions the use instead."
+            )
+        if route != STREAM:
+            raise GateError(
+                f"{record.host}:{record.record_id} declares {UNSTATED!r} on route={route!r}. "
+                f"Unstated terms are only tolerable on {STREAM!r}, where the bytes are read "
+                "over the network exactly as any public reader may and only our own aggregate "
+                "lands. Downloading a corpus whose terms are stated nowhere means holding a "
+                "copy we have no stated permission to hold."
+            )
+    elif effective_license not in ACCEPTED_LICENSES:
         raise GateError(
             f"{record.host}:{record.record_id} states {effective_license!r}, which is not on the "
             f"accepted list ({', '.join(sorted(ACCEPTED_LICENSES))}). Stated-but-unrecognised "

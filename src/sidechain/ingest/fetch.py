@@ -30,6 +30,7 @@ import yaml
 from sidechain.ingest.provenance import (
     DOWNLOAD,
     STREAM,
+    UNSTATED,
     GateError,
     diff_against_recorded,
     gate,
@@ -147,6 +148,19 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
     # override that contradicts a host that DID state a license, and refuses
     # one with no source. Recorded into PROVENANCE.json below either way.
     override_source = block.get("license_override_source")
+    if block.get("license") == UNSTATED and not override_source:
+        # Caught here rather than in gate() so the message names the real
+        # mistake. Without a source no override is built at all, so gate() sees
+        # only the host's "unknown" and refuses with "resolve with the
+        # depositor" -- advice that is actively wrong for this value, whose
+        # whole meaning is that the depositor states nothing and the search for
+        # it is the record. gate() keeps its own backstop for direct callers.
+        raise GateError(
+            f"dataset {block['name']!r} declares license: {UNSTATED} but no "
+            "`license_override_source`. That value is a record of a search -- which sources "
+            "were checked, on what date, and what sanctions the use instead. Without it, it "
+            "is a word that skips the licence check."
+        )
     license_override = (block["license"], str(override_source)) if override_source else None
 
     selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,

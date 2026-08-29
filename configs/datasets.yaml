@@ -59,6 +59,82 @@
 #                         cell_metadata  the obs sidecar for a counts file that
 #                                        ships its labels separately. `role`
 #                                        alone, like gene_map.
+#                         sample_metadata the same idea one grain coarser: one
+#                                        row per EXPERIMENT, not per cell.
+#                                        Identical required keys to
+#                                        cell_metadata, and kept separate
+#                                        anyway, because the NAME is the
+#                                        information. scBaseCount's manifest
+#                                        is 35,259 rows keyed on
+#                                        `srx_accession`; a reader who saw
+#                                        `cell_metadata` on it would join it
+#                                        on a barcode, match nothing, and get
+#                                        a silent empty label column. Do not
+#                                        merge these two "because the specs
+#                                        are the same shape".
+#                         observational  per-cell counts with NO perturbation
+#                                        label anywhere -- a corpus we stream
+#                                        to BUILD priors from, not a screen we
+#                                        take deltas out of. It cannot declare
+#                                        pert_col/control_label because the
+#                                        link from cell to guide does not
+#                                        exist in the bytes, and it must not
+#                                        declare them as `null` either: null
+#                                        is this file's idiom for "the other
+#                                        branch of a pair", not for "the
+#                                        question is meaningless" (see
+#                                        lfc_table, same argument). Those two
+#                                        keys are therefore FORBIDDEN here,
+#                                        not optional. It needs context /
+#                                        context_col, role, and two keys no
+#                                        other kind has:
+#                                          assay          what the rows we keep
+#                                                         actually are (10x 3'
+#                                                         GEX single-cell, say)
+#                                                         -- the counterpart of
+#                                                         `modality`, which is
+#                                                         a fact about a
+#                                                         perturbation and so
+#                                                         has nothing to say
+#                                                         here.
+#                                          content_filter the rule that keeps
+#                                                         empty matrices out.
+#                                                         REQUIRED and non-
+#                                                         empty. On labelled
+#                                                         data a bad row is
+#                                                         caught downstream --
+#                                                         a control arm that
+#                                                         does not match, a
+#                                                         delta that is zero.
+#                                                         An unlabelled corpus
+#                                                         has no such check, so
+#                                                         the QC rule has to be
+#                                                         declared at the front
+#                                                         door. scBaseCount is
+#                                                         why: 20.8 % of its
+#                                                         human cells (32-55 %
+#                                                         within the four lines
+#                                                         we care about) are
+#                                                         guide-capture sub-
+#                                                         libraries quantified
+#                                                         against the gene
+#                                                         reference -- tens of
+#                                                         thousands of "cells"
+#                                                         at a median of 1 UMI.
+#                                                         Streamed without a
+#                                                         filter, the prior is
+#                                                         mostly zeros and
+#                                                         nothing says so.
+#
+# WHERE A CONTEXT LABEL LIVES can be a third place, and `observational` is the
+# kind that needed it. `context:` is per file and `context_col:` is per row, but
+# scBaseCount's h5ad obs carries only SRX_accession and cell_type -- the cell
+# LINE is in the per-experiment manifest, joined on the accession. So an
+# observational block declares `sample_from` (which listed file holds it),
+# `sample_id_col` (the key on the manifest side) and `obs_sample_col` (the key
+# on the matrix side). Both sides, because they are spelled differently
+# (`srx_accession` vs `SRX_accession`) and Feng already cost us the lesson that
+# a barcode spelled two ways is a silent misjoin, not an error.
 #
 # CONTEXT IS DECLARED IN EXACTLY ONE OF TWO WAYS, and a block must pick one:
 #   context: <name>     the whole file is one context (every scPerturb block).
@@ -97,6 +173,19 @@
 # `checks.control_mask` takes the list and requires every entry to match
 # something. When ingesting a new corpus, read its methods for the control
 # definition before writing this field.
+#
+# `license: UNSTATED` IS A LAST RESORT AND HAS TEETH. Every other block names an
+# SPDX identifier the host actually published. UNSTATED means the opposite of
+# "we did not check": it means we checked every source the publisher controls
+# and found no statement, and it is the only value on the accepted list that is
+# not a licence. The gate makes it costly rather than convenient -- it is
+# reachable ONLY through `license_override_source` (so it always carries the
+# record of the search and of what sanctions the use instead), it is legal ONLY
+# on `route: stream` (unstated terms let us READ what any public reader may
+# read; they do not let us HOLD a copy), and it records as maximally encumbered
+# in PROVENANCE.json, both `noncommercial` and `redistribution_encumbered`
+# true. That last part is the point: publishing anything derived from such a
+# source needs a fresh decision, and the flag is what forces one.
 # ============================================================================
 
 datasets:
@@ -605,4 +694,236 @@ datasets:
         spec: {role: reference}
       - name: TargetedScreen_Guide-UMI-Counts.csv.gz
         kind: cell_metadata
+        spec: {role: reference}
+
+  # ==========================================================================
+  # scBaseCount -- the first OBSERVATIONAL corpus, and the reason that kind
+  # exists. Read the `observational` and `UNSTATED` notes in the header first;
+  # this block is the worked example for both.
+  #
+  # WHAT IT IS NOT: a screen. Thousands of its experiments ARE Perturb-seq, so
+  # "scBaseCount contains no perturbations" is the wrong sentence. The right one
+  # is narrower and is what makes a delta unrecoverable: **perturbation status
+  # is known per EXPERIMENT, from LLM-extracted free text, and never per CELL.**
+  # SRA submits the guide library as a separate feature-barcoding run and
+  # scRecounter quantifies every run against the gene reference independently,
+  # so the link from cell to guide is not present anywhere in these bytes. There
+  # is no guide column and no target column in any file (obs carries exactly
+  # gene_count_*, umi_count_*, SRX_accession, cell_type, cell_ontology_term_id).
+  # Hence no pert_col, no control_label, and `kind: observational` rather than a
+  # relaxed `expression` -- relaxing expression would let a real screen omit its
+  # control label by accident, which is the failure the spec test exists to stop.
+  #
+  # WHAT IT IS FOR: a substrate to build priors FROM, which is why `role: prior`
+  # and why nothing here ever reaches `pooled_delta`. Two arms come off one pass
+  # (private ideas/scbasecount-expression-prior, ideas/scbasecount-context-
+  # matching): a within-line co-expression block, and per-gene moments +
+  # per-line mean profiles. The corresponding `configs/data_sources.yaml` blocks
+  # point at the DERIVED artifact and land with their PriorSource subclass, not
+  # here -- this file registers corpora, that one registers priors.
+  #
+  # THE COVERAGE FACT THAT PUT IT ON THE LIST, measured 2026-08-28 against the
+  # bundle on disk, not read off a README: **18,533 of 18,533 challenge genes
+  # and 300 of 300 panel targets**, matched on symbol. Nothing else we hold
+  # covers the axis completely -- X-Atlas/Orion reaches 18,106. That is about
+  # the READOUT axis; since X-Atlas's full corpus landed there are no orphan
+  # targets left, so the co-expression arm's claim is the weaker one of extra
+  # independent votes on thinly-measured targets, not new coverage.
+  #
+  # HOST vs BYTES, and why `host: lamin` is right even though nothing here is
+  # on S3. The registry is `laminlabs/arc-virtual-cell-atlas`, which is what we
+  # probe for keys, sizes and hashes. The bytes are on
+  # gs://arc-institute-virtual-cell-atlas, and the operative access finding
+  # (2026-08-28) is that anonymous LISTING of that bucket is 401 while anonymous
+  # GET of an object whose exact key you already have is 200, with working
+  # range requests. The registry hands over every key for free, so: no GCP
+  # project, no billing account, no gcsfs. Arc's README says Requester Pays and
+  # the observed behaviour says the objects are world-readable; both can be true
+  # at once, but it is Arc's setting to change, so the streaming reader re-probes
+  # the route at the start of every run rather than assuming it.
+  #
+  # TWO REGISTRY CAVEATS, both measured:
+  #   * SIZES ARE STALE. The human sample_metadata.parquet is recorded in lamin
+  #     as 1,870,575 bytes and is 3,149,238 live. `selected_bytes` in
+  #     PROVENANCE.json is therefore indicative; re-check Content-Length before
+  #     budgeting any fetch. Harmless for the gate here only because route:
+  #     stream does not budget-check the selection.
+  #   * PRESENCE IS COMPLETE. The manifest carries a `file_path` column of
+  #     35,259 gs:// URIs -- a file list Arc publishes INSIDE the data, joined
+  #     against the registry at 35,259 of 35,259, zero missing. So lamin is a
+  #     cross-check here, not a dependency: the manifest alone can drive the
+  #     stream. A GCP project becomes necessary only if a future release's
+  #     manifest names keys the registry lacks.
+  #
+  # RELEASE IS PINNED IN THE KEY PATH. Two releases are registered and
+  # `2026-01-12` is the live one (307,105 artifacts, 32.57 TB). The date is part
+  # of every key below, so this block cannot silently follow a new release --
+  # the same reason a Zenodo record id is not a concept DOI. The corpus is
+  # "continually expanding"; every number in this block is true of 2026-01-12
+  # and of nothing else.
+  #
+  # WHY `Gene` AND NOT GeneFull/Velocyto: five counting modes ship. Gene counts
+  # exonic reads only, which is how every corpus already in our pool was
+  # quantified. Mixing modes would put an intron-dominated profile beside an
+  # exonic one and call the difference biology.
+  #
+  # BUDGET: 2.5 GB is the OUTPUT ceiling for the K562 stage -- the dense
+  # 18,533^2 float32 co-expression block is 1.37 GB, the per-gene moment arrays
+  # are megabytes, and the per-line profile panel is 0.42 GB at all 5,644
+  # labels. EACH ADDITIONAL LINE ADDS ANOTHER ~1.37 GB, so extending the
+  # rotation is a deliberate raise, not a surprise. As on X-Atlas this number is
+  # advisory on route: stream -- the gate spends it as a free-disk reservation
+  # and the streamer never reads it, so it stays true by hand.
+  #
+  # READ COST, which the budget deliberately does not describe: the K562 arm
+  # reads ~50 GB (content-filtered K562 experiments only); the line-profile arm
+  # needs the whole 3' single-cell selection, order 1.5 TB on the wire. Both are
+  # one-pass and nothing lands.
+  #
+  # WHERE THE OUTPUT LIVES: derived/scbasecount/ on the Mac AND registered to
+  # saberhq/sidechain keyed by that same path (ADR 0007 section 1, private). Not
+  # cloud-only -- the instance is transport and a second copy, and the Mac
+  # holding every byte is exactly what keeps the exit plan an `s3 sync` instead
+  # of a migration. At ~1.5 GB there is no disk-pressure argument for departing
+  # from that, so no ADR amendment is owed here.
+  # ==========================================================================
+  - name: scbasecount_human_gene
+    enabled: true
+    host: lamin                  # the REGISTRY we probe; the bytes are on GCS over anonymous HTTPS
+    record: "laminlabs/arc-virtual-cell-atlas"
+    license: UNSTATED
+    license_override_source: >
+      No data licence is stated in any Arc-controlled source. Checked
+      2026-08-28 and each came back empty: the arc-virtual-cell-atlas README,
+      scBaseCount/README.md, arcinstitute.org/tools/virtualcellatlas, the
+      bucket's own object metadata, and the preprint's data-availability
+      section; there is no LICENSE file at the repo root (404). The "CC0 1.0"
+      that surfaces in every web search is bioRxiv's PREPRINT-licence footer,
+      which governs the manuscript -- recording it as the data terms would be a
+      real string attached to the wrong object, the same error literature.md
+      records for CisTransCell. Lamin cannot supply terms either: no field on
+      the Artifact model carries them (2026-08-27 enumeration). What stands in
+      its place is a publisher's sanction rather than a licence, and it is
+      stronger than a licence for this particular use: Arc's own VCC-2026
+      datasets page names scBaseCount in its verbatim list of recommended
+      public training data (private research/reading/vcc-2026-spec.md section
+      8), and Arc is the body running the competition we are entering. The
+      underlying content is re-quantified public SRA submissions, which carry
+      no redistribution restriction from NCBI. So the recorded position is:
+      terms unstated, this use sanctioned by the publisher, and we redistribute
+      nothing -- route: stream, so no corpus byte ever lands. Publishing any
+      derived artifact is a separate decision and the encumbrance flags in
+      PROVENANCE.json are set to force one.
+    route: stream
+    budget_gb: 2.5               # OUTPUT ceiling, K562 stage -- see BUDGET above
+    dest: external/lamin-laminlabs-arc-virtual-cell-atlas   # PROVENANCE.json only
+    derived: derived/scbasecount                            # aggregates + LINEAGE.json
+    notes: >
+      Youngblut et al., scBaseCount (bioRxiv 10.1101/2025.02.27.640494): SRA
+      scraped by an LLM agent and every 10x run re-quantified through one
+      STARsolo pipeline, so counts are comparable across studies. Human Gene
+      mode, release 2026-01-12: 35,259 experiments, 289,251,287 cells,
+      2,378.6 GB. One h5ad per SRA experiment, X stored as a csc_matrix over
+      36,601 genes with layers/UniqueAndMult-{EM,Uniform} beside it.
+
+      CSC IS WHY THIS NEEDS A NEW READER. stream_pseudobulk_file accumulates
+      over ROW blocks and needs CSR; a CSC file cannot be row-sliced cheaply.
+      CSC is the better layout for what we want -- one gene's column across all
+      cells is one contiguous read -- and the natural block here is a whole
+      file, since one experiment averages ~67 MB and the largest opened was
+      ~400 MB resident. The output is not a PseudobulkSums either: there is no
+      label to group by, and the arms want per-gene moments, a gene x gene
+      block and per-line profiles. Fourth reader, not a mode on a pseudobulk
+      one, and named for the kind rather than the format.
+
+      CELL-LINE LABELS ARE FREE TEXT AND LLM-EXTRACTED. 5,644 distinct strings
+      including not_applicable, unsure, case variants and 'Jurkat, HepG2'; the
+      per-line cell counts below are exact-string matches and are therefore
+      FLOORS, not censuses. K562 4,467 experiments / 63.9 M cells, RPE1 1,620 /
+      19.2 M, Jurkat 1,468 / 17.1 M, HepG2 415 / 3.9 M -- four of the LOCO
+      rotation lines. tissue has 7,247 distinct strings and perturbation
+      10,928; every one of these needs a mapping pass, never a == comparison.
+
+      THE CONTENT FILTER IS NOT OPTIONAL AND ITS THRESHOLD IS PROVISIONAL.
+      Eight experiments were opened directly and four were effectively empty
+      matrices with tens of thousands of "cells" in them at a median of 1 UMI
+      -- guide-capture and other non-GEX sub-libraries quantified against the
+      gene reference, which is correct for the pipeline and wrong to average
+      into a prior. Scaled corpus-wide with bytes-per-cell as the proxy (every
+      empty file opened sits below 200 B/cell, every real one above 4,000, and
+      the distribution is strongly bimodal so the cut is not a judgement call):
+      < 500 B/cell is 3,808 experiments, 60.2 M of 289.3 M cells (20.8 %). It
+      concentrates exactly where we would draw -- K562 40.1 %, RPE1 54.8 %,
+      Jurkat 51.2 %, HepG2 32.0 % -- because the lines with the most CRISPR
+      history are the lines that ship a second guide library. So the headline
+      "63.9 M K562 cells" is roughly 38 M usable ones. THE THRESHOLD IS A
+      PROXY: replace it with the true per-cell UMI distribution from
+      metadata/Gene/Homo_sapiens/obs_metadata.parquet (5.5 GB, column-
+      projectable to SRX_accession + umi_count_Unique) before a full run, and
+      re-derive the cut from that rather than raising this number by feel.
+
+      cell_prep is single_cell 32,745 / single_nucleus 2,461 / unsure 52 /
+      not_applicable 1. The nuclear arm is excluded because nuclear RNA is
+      intron-dominated and Gene mode counts exons only. tech_10x is 3' 24,953 /
+      5' 7,146 / other 893 / feature_barcoding 788 / multiome 651 / vdj 462 /
+      not_applicable 335 / cellplex 21 / flex 6 / atac 4; we keep 3' alone
+      because the 2026 control bundle is 3' 10x and the comparison has to be
+      like-for-like.
+
+      CZI OVERLAP, measured 2026-08-29: 2,141 of 35,259 experiments (6.1 %),
+      53 collections, 12.5 M of 289.3 M cells (4.3 %) -- primary-tissue atlases
+      whose top cell_line values are all none/not_applicable, so essentially
+      none of it is in the K562/RPE1/Jurkat/HepG2 mass. The same material is
+      reachable twice (laminlabs/cellxgene holds 6,266 artifacts), which
+      matters before either is described as independent.
+
+      OPEN, AND IT GATES THE FIRST STREAM: how much of the rotation-line mass
+      is re-quantification of screens we already pool (Replogle 22, Nadig 24,
+      X-Atlas, Feng 26). The manifest carries srx_accession per experiment, so
+      pull each published screen's SRX list from NCBI eutils and intersect --
+      free, no credentials, one number per study. It changes the framing rather
+      than the go/no-go: a re-quantified Replogle cell is still a real K562
+      transcriptome and deltas average out over thousands of targets, but a
+      large overlap would break describing this corpus as INDEPENDENT evidence
+      and would make the context-matching arm's positive control a profile
+      matched against itself.
+
+    files:
+      # Globbed for the same reason X-Atlas is: 35,259 per-experiment files
+      # would be a config block that goes stale on the next release, and a
+      # stale explicit list fails as a silent partial corpus. A zero-match glob
+      # is a hard error, so a moved prefix stops the run.
+      #
+      # THE GLOB IS THE GATE'S SELECTION, NOT THE STREAM'S. Everything in
+      # content_filter narrows what the reader actually opens -- the gate's job
+      # here is the licence, the provenance record and the file inventory.
+      #
+      # var index is BARE Ensembl (ENSG..., no version suffix) and
+      # var['gene_symbols'] is the symbol column, both key spaces shipping in
+      # every file, so gene_id_col is null (the index, not a column) and the
+      # 18,533/18,533 match is on symbol. 10x GRCh38-2020-A reference.
+      - name: "scbasecount/2026-01-12/h5ad/Gene/Homo_sapiens/*.h5ad"
+        kind: observational
+        spec: {context: null, context_col: cell_line,
+               sample_from: scbasecount/2026-01-12/metadata/Gene/Homo_sapiens/sample_metadata.parquet,
+               sample_id_col: srx_accession, obs_sample_col: SRX_accession,
+               assay: 10x_3prime_gex_single_cell,
+               content_filter: {min_bytes_per_cell: 500,
+                                cell_prep: [single_cell],
+                                tech_10x: [3_prime_gex]},
+               gene_id_col: null, gene_symbol_col: gene_symbols,
+               counts_are_raw: true, granularity: cell, role: prior}
+
+      # The manifest. One row per EXPERIMENT (35,259 x 19), not per cell, which
+      # is the whole reason `sample_metadata` is its own kind. It is listed
+      # here rather than fetched ad hoc because it is the only place the cell
+      # line, the assay and the content filter's inputs live -- the h5ads carry
+      # none of it -- so it belongs inside the gate's selection with a checksum
+      # in PROVENANCE.json, exactly like X-Atlas's gene_metadata.parquet.
+      # Columns: entrez_id, srx_accession, file_path, obs_count, lib_prep,
+      # tech_10x, cell_prep, organism, tissue, disease, perturbation,
+      # cell_line, antibody_derived_tag, czi_collection_{id,name} and the
+      # ontology / confidence sidecars.
+      - name: scbasecount/2026-01-12/metadata/Gene/Homo_sapiens/sample_metadata.parquet
+        kind: sample_metadata
         spec: {role: reference}
