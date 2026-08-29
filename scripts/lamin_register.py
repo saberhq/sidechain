@@ -44,9 +44,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
-from sidechain.utils.lamin import artifact_key, data_root, instance
+from sidechain.utils.lamin import artifact_key, data_root, export_registries, instance
 
 # lamindb writes " ".join(sys.argv[1:]) into Run.cli_args, a varchar(1024).
 CLI_ARGS_MAX = 1024
@@ -64,6 +65,8 @@ def main(argv: list[str] | None = None) -> int:
                          "path relative to ~/data/sidechain")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the keys that would be written, upload nothing")
+    ap.add_argument("--no-export", action="store_true",
+                    help="skip refreshing the local exit-plan catalogue afterwards")
     ap.add_argument("--allow-folder-overwrite", action="store_true",
                     help="re-register a DIRECTORY under a key that already holds one "
                          "with different contents. This DESTROYS the stored copy of the "
@@ -145,6 +148,25 @@ def main(argv: list[str] | None = None) -> int:
         art = ln.Artifact(str(p), key=key, description=args.description).save()
         print(f"registered {key}  uid={art.uid}  size={art.size}  hash={art.hash}")
     ln.finish()
+
+    # Refresh the exit-plan catalogue here, not on a calendar. The bucket stores objects
+    # under virtual keys, so `manifest.csv` is the only thing that maps a uid-named blob
+    # back to `derived/…`; a catalogue that is one registration behind is a catalogue
+    # that cannot restore what you just uploaded. Doing it on every write makes staleness
+    # structurally impossible, which a schedule a human keeps does not.
+    #
+    # Non-fatal, unlike everything else here: the upload already succeeded, and a failed
+    # catalogue refresh is fixed by re-running `scripts/lamin_export.py`. Failing the
+    # command now would say the registration failed, which would be a lie.
+    if not args.no_export:
+        try:
+            result = export_registries()
+            print(f"exit plan refreshed: {result['n_manifest']} artifacts catalogued in "
+                  f"{result['out']}")
+        except Exception as exc:  # noqa: BLE001 - see above
+            warnings.warn(
+                f"registration succeeded but the exit-plan export did not "
+                f"({exc!r}); re-run scripts/lamin_export.py", RuntimeWarning, stacklevel=2)
     return 0
 
 

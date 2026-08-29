@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_INSTANCE = "saberhq/sidechain"
@@ -109,3 +110,106 @@ def prepare_dest(dest: Path) -> Path:
     elif dest.exists():
         dest.unlink()
     return dest
+
+
+RESTORE = """# Restoring `{instance}` without lamindb
+
+Exported {when} from `{instance}`, storage root `{root}`.
+{n_artifacts} artifacts, {total_gb:.2f} GB, {n_runs} runs, {n_transforms} transforms.
+
+The bytes in that bucket are named by uid, not by path. `manifest.csv` is the mapping.
+
+1. **Get credentials.** `s3://lamin-us-west-2` is *Lamin's* bucket, not ours — your own
+   AWS credentials get `NoCredentialsError`. The hub vends short-lived federated STS
+   credentials for our prefix, and that dependency (the hub answering, the account in
+   good standing) is the real lock-in surface, not the filenames:
+
+   ```python
+   from lamindb_setup.core._hub_core import access_aws
+   from lamindb_setup.core._settings import settings
+   print(access_aws("{root}", access_token=settings.user.access_token))
+   ```
+
+   Export the three values as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+   `AWS_SESSION_TOKEN`. They are ordinary AWS credentials and expire in the hour.
+
+2. **Sync the bytes.** `aws s3 sync {root}/ ./blobs/`
+
+3. **Rename them into the tree.** For each row of `manifest.csv` with a non-empty `key`,
+   copy `blobs/<storage_object>` to `<data root>/<key>` (a directory for `n_files > 0`),
+   then check `hash` with `lamindb_setup.core.hashing.hash_file` / `hash_dir` (md5 up to
+   50 MB, `sha1-fl` above, `md5-d` for folders).
+
+   Rows to expect and skip: `key` empty — lamindb's own run-log `.txt` artifacts, a few
+   KB, no local counterpart; and `is_latest` false — superseded versions, which for a
+   *folder* artifact are not even readable, since folder versions share one storage key.
+
+Step 3 is usually unnecessary: the artifacts we register are keyed by their path under
+`~/data/sidechain/`, and the Mac is the authoritative copy. This exists for the case
+where it is not — a box registered something and was deleted before the Mac pulled it.
+
+**Not exported:** the bytes themselves (that is step 2), and `external/`, which is not
+in the instance at all — its recovery story is the upstream host plus `PROVENANCE.json`.
+
+**Also worth trying, before hand-rolling any of this:** `lamin io snapshot` builds a
+SQLite clone of the instance and reconnects as the root DB user, so it may succeed where
+`lamin io exportdb` fails. Untested on this instance as of the export date.
+"""
+
+
+def export_registries(out: Path | None = None) -> dict:
+    """Dump every registry to CSV plus a uid→key manifest. ADR 0007 §7.
+
+    Assumes a connected instance. Returns a summary dict; writes `artifacts.csv`,
+    `runs.csv`, `transforms.csv`, `storages.csv`, `manifest.csv`, `RESTORE.md` and
+    `export_meta.json` under `out` (default `<data root>/lamin_export`).
+
+    Lives here rather than in the script because `lamin_register.py` calls it after every
+    upload: the catalogue is only useful if it is never behind the bucket, and a schedule
+    a human keeps is exactly the thing that silently stops being kept.
+
+    Built by ITERATING each queryset, not via `to_dataframe()`. Two reasons, both measured
+    2026-08-28 against this instance: `to_dataframe()` truncates to 20 rows unless you pass
+    `limit=None`, and even then it returned 43 of 55 artifacts -- it drops keyless records
+    (lamindb's own source-code snapshots). An export that silently omits rows is worse than
+    no export, because it looks complete.
+    """
+    import lamindb as ln
+    import pandas as pd
+
+    out = (out or data_root() / "lamin_export").expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+
+    counts = {}
+    for name, model in {"artifacts": ln.Artifact, "runs": ln.Run,
+                        "transforms": ln.Transform, "storages": ln.Storage}.items():
+        rows = [{k: v for k, v in rec.__dict__.items() if not k.startswith("_")}
+                for rec in model.filter()]
+        pd.DataFrame(rows).to_csv(out / f"{name}.csv", index=False)
+        counts[name] = len(rows)
+
+    manifest = pd.DataFrame([
+        {"uid": a.uid, "key": a.key, "hash": a.hash, "size": a.size, "n_files": a.n_files,
+         "is_latest": a.is_latest, "version": a.version_tag, "description": a.description,
+         # The whole point of the manifest: uid-named object -> our path.
+         "storage_object": str(a.path)}
+        for a in ln.Artifact.filter()
+    ])
+    manifest.to_csv(out / "manifest.csv", index=False)
+
+    storage = ln.Storage.filter().first()
+    total = int(manifest["size"].fillna(0).sum()) if len(manifest) else 0
+    (out / "RESTORE.md").write_text(RESTORE.format(
+        instance=instance(), when=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+        root=storage.root if storage else "?", n_artifacts=counts.get("artifacts", 0),
+        total_gb=total / 1e9, n_runs=counts.get("runs", 0),
+        n_transforms=counts.get("transforms", 0)))
+
+    import json
+
+    (out / "export_meta.json").write_text(json.dumps({
+        "instance": instance(), "exported_at": datetime.now(UTC).isoformat(),
+        "storage_root": storage.root if storage else None,
+        "lamindb_version": ln.__version__, "counts": counts, "total_bytes": total,
+    }, indent=1) + "\n")
+    return {"out": out, "counts": counts, "total_bytes": total, "n_manifest": len(manifest)}

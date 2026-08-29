@@ -259,10 +259,10 @@ def test_register_refuses_to_overwrite_a_folder_artifacts_own_history(root, monk
     monkeypatch.setitem(sys.modules, "lamindb", mod)
 
     with pytest.raises(SystemExit, match="allow-folder-overwrite"):
-        reg.main([str(bundle)])
+        reg.main([str(bundle), "--no-export"])
     assert saved == []
 
-    assert reg.main([str(bundle), "--allow-folder-overwrite"]) == 0
+    assert reg.main([str(bundle), "--allow-folder-overwrite", "--no-export"]) == 0
     assert saved == ["runs/mirror/loco/bundle"]
 
 
@@ -302,5 +302,110 @@ def test_register_lets_an_unchanged_folder_through(root, monkeypatch):
     mod.Artifact = _Artifact
     monkeypatch.setitem(sys.modules, "lamindb", mod)
 
-    assert reg.main([str(bundle)]) == 0
+    assert reg.main([str(bundle), "--no-export"]) == 0
     assert saved == ["bundle"]
+
+
+def test_register_refreshes_the_exit_plan_after_a_successful_upload(root, monkeypatch, capsys):
+    """The catalogue maps uid-named S3 blobs back to our paths, so one that is a
+    registration behind cannot restore what was just uploaded. ADR 0007 §7 — on every
+    write, not on a schedule a human has to keep."""
+    import sys
+    import types
+
+    reg = _load("lamin_register")
+    f = root / "a.npz"
+    f.write_bytes(b"x")
+
+    calls = []
+    monkeypatch.setattr(reg, "export_registries",
+                        lambda *a, **k: calls.append(True) or {"n_manifest": 7, "out": root})
+
+    mod = types.ModuleType("lamindb")
+    mod.connect = lambda _s: None
+    mod.track = lambda: None
+    mod.finish = lambda: None
+    mod.Artifact = type("A", (), {
+        "__init__": lambda self, path, key=None, description=None: setattr(self, "uid", "u"),
+        "save": lambda self: self, "size": 1, "hash": "h"})
+    monkeypatch.setitem(sys.modules, "lamindb", mod)
+
+    assert reg.main([str(f)]) == 0
+    assert calls == [True]
+    assert "exit plan refreshed" in capsys.readouterr().out
+
+    calls.clear()
+    assert reg.main([str(f), "--no-export"]) == 0
+    assert calls == []
+
+
+def test_a_failed_export_does_not_report_the_upload_as_failed(root, monkeypatch):
+    """The bytes are already in the bucket. Failing here would say otherwise, and the
+    fix is just re-running lamin_export.py."""
+    import sys
+    import types
+    import warnings as w
+
+    reg = _load("lamin_register")
+    f = root / "a.npz"
+    f.write_bytes(b"x")
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("hub unreachable")
+
+    monkeypatch.setattr(reg, "export_registries", _boom)
+
+    mod = types.ModuleType("lamindb")
+    mod.connect = lambda _s: None
+    mod.track = lambda: None
+    mod.finish = lambda: None
+    mod.Artifact = type("A", (), {
+        "__init__": lambda self, path, key=None, description=None: setattr(self, "uid", "u"),
+        "save": lambda self: self, "size": 1, "hash": "h"})
+    monkeypatch.setitem(sys.modules, "lamindb", mod)
+
+    with w.catch_warnings(record=True) as caught:
+        w.simplefilter("always")
+        assert reg.main([str(f)]) == 0
+    assert any("lamin_export" in str(c.message) for c in caught)
+
+
+def test_the_export_writes_a_manifest_that_maps_uids_back_to_paths(root, monkeypatch):
+    """The restore step reads exactly these columns; if `storage_object` or `key` ever
+    stops being written, the bucket becomes unidentifiable and nothing else notices."""
+    import sys
+    import types
+
+    import pandas as pd
+
+    class _Art:
+        uid, key, hash, size = "U0", "derived/a.npz", "h", 10
+        n_files, is_latest, version_tag, description = None, True, None, "d"
+        path = "s3://lamin-us-west-2/ROOT/.lamindb/U0.npz"
+
+        def __init__(self):
+            self.__dict__.update({"uid": "U0", "key": "derived/a.npz"})
+
+    class _QS(list):
+        def first(self):
+            return self[0] if self else None
+
+    art = _Art()
+    mod = types.ModuleType("lamindb")
+    mod.__version__ = "2.9.1"
+    mod.Artifact = type("A", (), {"filter": staticmethod(lambda **k: _QS([art]))})
+    mod.Run = type("R", (), {"filter": staticmethod(lambda **k: _QS())})
+    mod.Transform = type("T", (), {"filter": staticmethod(lambda **k: _QS())})
+    mod.Storage = type("S", (), {
+        "filter": staticmethod(lambda **k: _QS([type("St", (), {"root": "s3://x", "__dict__": {"root": "s3://x"}})()]))})
+    monkeypatch.setitem(sys.modules, "lamindb", mod)
+
+    out = root / "lamin_export"
+    result = lamin.export_registries(out)
+
+    manifest = pd.read_csv(out / "manifest.csv")
+    assert list(manifest["key"]) == ["derived/a.npz"]
+    assert manifest["storage_object"][0].endswith("U0.npz")
+    assert result["n_manifest"] == 1
+    assert "aws s3 sync" in (out / "RESTORE.md").read_text()
+    assert (out / "export_meta.json").exists()
