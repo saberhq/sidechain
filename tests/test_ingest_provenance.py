@@ -151,7 +151,7 @@ def test_provenance_is_written_before_data_exists(tmp_path):
     assert not list(dest.glob("*.h5ad"))  # no data yet, by construction
 
     payload = json.loads(path.read_text())
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["record"]["license"] == "CC-BY-4.0"
     assert payload["record"]["version"] == "1.4"
     assert payload["selected_bytes"] == rec.total_bytes

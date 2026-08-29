@@ -704,9 +704,18 @@ def write_provenance(
     """
     dest.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "route": route,
-        "record": {**asdict(record), "files": [asdict(f) for f in record.files]},
+        # The SELECTION, not the host's whole catalogue. `selected` below is the
+        # evidence -- it is what we took and the only thing `diff_against_recorded`
+        # reads. Recording every file the host holds made sense when a "record"
+        # was a seven-file Zenodo deposit; a lamin INSTANCE is 311,231 artifacts
+        # spanning releases and organisms this dataset will never touch, and
+        # writing them produced a 71.8 MB file whose 50.8 MB majority no code path
+        # ever read. The count keeps the one fact that list carried -- how much
+        # was on offer -- without the file that nobody can open.
+        "record": {**{k: v for k, v in asdict(record).items() if k != "files"},
+                   "host_file_count": len(record.files)},
         "selected": [asdict(f) for f in selected],
         "selected_bytes": sum(f.size_bytes for f in selected),
         "lands_on_disk": route == DOWNLOAD,

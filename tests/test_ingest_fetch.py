@@ -558,6 +558,34 @@ def test_a_typod_route_is_refused_not_downloaded(tmp_path, monkeypatch):
         fetch.run_gate(block, tmp_path)
 
 
+def test_provenance_records_the_selection_not_the_hosts_whole_catalogue(tmp_path, monkeypatch):
+    """A `record` used to mean a small deposit, where listing every file showed
+    what we did NOT take. A lamin instance is 311,231 artifacts across releases
+    and organisms a dataset never touches -- writing them made PROVENANCE.json
+    71.8 MB, of which 50.8 MB was a list no code path reads. What is evidence is
+    the selection; what the host held is a number."""
+    from sidechain.ingest import fetch
+
+    monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record(files=[
+        RemoteFile(f"data/A_Batch{i}.parquet", 1_000_000, "sha256:aa", "u") for i in range(5)
+    ] + [RemoteFile("unrelated/other.parquet", 9, "sha256:bb", "u")]))
+    block = {
+        "name": "x", "host": "huggingface", "record": "Owner/Repo", "budget_gb": 12.0,
+        "dest": "external/x", "derived": "derived/x", "route": "stream",
+        "license": "CC-BY-NC-SA-4.0",
+        "files": [{"name": "data/A_*.parquet", "spec": {}}],
+    }
+    _, _, dest = fetch.run_gate(block, tmp_path)
+    payload = json.loads((dest / "PROVENANCE.json").read_text())
+
+    assert "files" not in payload["record"], "the host's catalogue is not evidence about our fetch"
+    assert payload["record"]["host_file_count"] == 6
+    assert len(payload["selected"]) == 5
+    # still the fields drift detection actually compares
+    assert payload["record"]["license"] == "CC-BY-NC-SA-4.0"
+    assert payload["record"]["version"] == "c0ffee"
+
+
 # ------------------------------------------------- the unstated licence --
 
 
