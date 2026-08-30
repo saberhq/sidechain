@@ -10,6 +10,23 @@ setting moved off the series baseline — so `SER-3fn` reads as "SER model 3, wi
 and `n` on". Scores live in the [standings table](../#standings) — this page is what the
 numbers are attached to.
 
+## SER-3afn — submitted 2026-08-30
+
+**a = amplified transfer · f = floored source weights · n = no shrinkage.** SER-3fn with the
+transferred effects scaled up to reference strength. The screens we borrow from silenced
+their targets only partially — some reached less than half a full knockdown — so the effects
+they measured are systematically smaller than what a reference-strength knockdown produces.
+Measuring each screen's realized knockdown from its own on-target rows predicted the right
+correction almost exactly before it was scored.
+
+## SER-3afgn — submitted 2026-08-30
+
+**a = amplified transfer · f = floored source weights · g = abundance-ratio transfer
+exponent · n = no shrinkage.** SER-3afn plus one deliberate probe: instead of transferring
+each gene's *fold change* unchanged, bend the transferred effect toward the new line's own
+resting abundance of that gene. The local benchmark said the plain fold-change rule is
+already the optimum; this entry tested that verdict on the real board — and confirmed it.
+
 ## SER-3fn — submitted 2026-08-27
 
 **f = floored source weights · n = no shrinkage.** SER-3n with one change: when sources are
