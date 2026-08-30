@@ -59,6 +59,7 @@ def build_transfer_prediction(
     emit_lambda: float | None = None,
     shrinkage: bool = True,
     alpha: float = 1.0,
+    gamma: float = 1.0,
     var_floor: str = "none",
     cells_per_pert: int | None = None,
     seed: int = 0,
@@ -80,12 +81,20 @@ def build_transfer_prediction(
     gene_pos = {g: i for i, g in enumerate(axis)}
     blocks, obs_labels, covered = [], [], 0
     pool_stats: dict = {}
+    # The transfer exponent reads the SAME control profile the emitter anchors on
+    # (min_libsize-filtered, CPM within this file's own gene universe), so the
+    # ratio and the replay are self-consistent by construction.
+    ctrl_cpm = None
+    if gamma != 1.0:
+        if list(prof.genes) != list(axis):
+            raise SystemExit("gamma != 1: control profile genes differ from the real file's axis")
+        ctrl_cpm = prof.fraction * 1e6
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
-                         stats=pool_stats)
+                         gamma=gamma, ctrl_tgt_cpm=ctrl_cpm, stats=pool_stats)
         if d is not None:
             covered += 1
-            d = d * alpha
+            d = d * alpha    # alpha scales the pooled vector; gamma acted per source inside the pool
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
@@ -103,7 +112,7 @@ def build_transfer_prediction(
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
-            "alpha": alpha, "var_floor": var_floor,
+            "alpha": alpha, "gamma": gamma, "var_floor": var_floor,
             "pool_stats": pool_stats}
 
 
@@ -132,6 +141,14 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.submit.build, so a scored arm submits verbatim.")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--gamma", type=float, default=1.0,
+                    help="transfer exponent on the target/source control-CPM ratio: 1 = the "
+                         "fold change transfers (today's emitter, bit-identical), 0 = the "
+                         "absolute CPM change transfers (submit.build.gamma_transfer; "
+                         "research/ideas/effect-size-from-control-features.md). NOT wired on "
+                         "sidechain.submit.build yet: shifts there are pooled once for all "
+                         "contexts and gamma makes them context-specific, so a gamma arm "
+                         "cannot submit verbatim until that restructure lands")
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
                     help="floor each pseudobulk arm's variance at its Poisson sampling variance "
                          "(same knob as sidechain.submit.build, so a scored arm submits verbatim)")
@@ -166,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                                      control=args.control, dispersion=args.dispersion,
                                      emit_lambda=args.emit_lambda,
                                      shrinkage=not args.no_shrink, alpha=args.alpha,
-                                     var_floor=args.var_floor,
+                                     gamma=args.gamma, var_floor=args.var_floor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
@@ -187,8 +204,8 @@ def main(argv: list[str] | None = None) -> int:
          "lfc_sources": args.lfc_source,
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
-         "alpha": args.alpha, "var_floor": args.var_floor, "seed": args.seed,
-         "de_backend": args.de_backend},
+         "alpha": args.alpha, "gamma": args.gamma, "var_floor": args.var_floor,
+         "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
         artifacts=[str(out / "summary.json")],
     )

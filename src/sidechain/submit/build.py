@@ -55,6 +55,46 @@ from sidechain.utils.paths import resolve_config
 
 LN2_SQ = np.log(2) ** 2
 TARGET_SELF_LOG2FC = -2.32  # > 80 % knockdown of the target itself; excluded from scoring, kept for realism
+GAMMA_MULT_FLOOR = 2.0 ** -16  # where the gamma family predicts <= 0 expression, emit ~none instead
+
+
+def gamma_transfer(fc: np.ndarray, ctrl_src_cpm: np.ndarray, ctrl_tgt_cpm: np.ndarray,
+                   gamma: float, pseudocount: float = 1.0,
+                   stats: dict | None = None) -> np.ndarray:
+    """Re-express one source's log2FCs under transfer exponent ``gamma``.
+
+    The emitter replays a delta as ``control * 2^log2FC``, i.e. it assumes the FOLD change is
+    the context-invariant quantity. This is one endpoint of a one-parameter family
+    (private research/ideas/effect-size-from-control-features.md): with
+    ``r_g = (ctrl_tgt_g + 1) / (ctrl_src_g + 1)`` in CPM, the effective multiplier is
+
+        m_g = 1 + (2^fc_g - 1) * r_g^(gamma - 1)
+
+    ``gamma = 1`` is exactly today's emitter (callers skip the call entirely, so the default
+    path stays bit-identical); ``gamma = 0`` transfers the source's ABSOLUTE CPM change
+    instead, added onto the target's controls -- ``(ctrl_src + 1) * (2^fc - 1)`` is exactly
+    ``mean_pert - mean_ctrl`` under the emitter's own pseudocounted fold change.
+
+    Where the target expresses far less than the source, an absolute-change transfer can
+    predict negative expression (m <= 0). That is outside the family's domain; the honest
+    completion is "the gene is emptied", so m is floored at ``GAMMA_MULT_FLOOR`` -- a finite
+    log2FC of -16, effectively zero counts after emission -- rather than passed to ``log2``,
+    whose nan/-inf the emitter would silently repair to "no change" (``_fraction`` maps
+    non-finite shifts to 0.0), turning the strongest predicted silencings into no-ops.
+
+    Genes whose target-side control CPM is unknown (NaN -- the source measures a gene the
+    target axis lacks) get r = 1, which is the identity transform; they are dropped at the
+    remap onto the target axis anyway, so the value never lands.
+    """
+    r = np.where(np.isnan(ctrl_tgt_cpm), 1.0,
+                 (ctrl_tgt_cpm + pseudocount) / (ctrl_src_cpm + pseudocount))
+    mult = 1.0 + np.expm1(fc * np.log(2.0)) * np.power(r, gamma - 1.0)
+    clamped = mult < GAMMA_MULT_FLOOR
+    if stats is not None:
+        stats["gamma_genes_transformed"] = (
+            stats.get("gamma_genes_transformed", 0) + int((~np.isnan(ctrl_tgt_cpm)).sum()))
+        stats["gamma_mult_clamped"] = stats.get("gamma_mult_clamped", 0) + int(clamped.sum())
+    return np.log2(np.maximum(mult, GAMMA_MULT_FLOOR))
 
 
 def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0,
@@ -154,6 +194,12 @@ class _PseudobulkDeltaSource:
     def genes(self) -> np.ndarray:
         return self.pb.genes
 
+    def control_cpm(self) -> np.ndarray:
+        """Mean per-cell CPM of this source's own control arm, on its own gene axis --
+        the ``ctrl_src`` the transfer exponent (gamma) compares the target's controls to."""
+        c = self.pb.labels.index(self.control)
+        return self.pb.cpm_sum[c] / max(int(self.pb.n_cells[c]), 1)
+
     def effect(self, target: str):
         if target not in self.pb.labels:
             return None
@@ -204,6 +250,7 @@ def sources_from_specs(source_specs: list[str], shrink_source_specs: list[str]) 
 
 def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  *, shrinkage: bool = True, var_floor: str = "none",
+                 gamma: float = 1.0, ctrl_tgt_cpm: np.ndarray | None = None,
                  stats: dict | None = None) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
 
@@ -238,9 +285,24 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     weights sit at or below the historical 1e-6 clamp (the accidental-certainty
     arm this floor exists to remove), how many (target, source) arms fully
     abstained, and how many covered targets ended with zero total weight.
+
+    `gamma` is the transfer exponent (see `gamma_transfer`): each source's fold
+    change is re-expressed against the ratio of the TARGET context's control CPM
+    (`ctrl_tgt_cpm`, on `axis` -- required when gamma != 1) to that source's own
+    control CPM, per source BEFORE pooling, because the absolute change that
+    transfers at gamma = 0 is a per-source quantity. It runs after shrinkage
+    (transform the best estimate, not the raw one) and does NOT touch the
+    pooling weights -- the weight estimator belongs to the variance floor and a
+    gamma term must not quietly reweight the pool. A source that publishes no
+    control profile (an LfcTable ships only the contrast) has no ctrl_src, so
+    gamma != 1 refuses it rather than guessing. gamma = 1 skips all of this and
+    is bit-identical to the historical call.
     """
     if var_floor not in ("none", "poisson"):
         raise ValueError(f"unknown var_floor {var_floor!r}: expected 'none' or 'poisson'")
+    if gamma != 1.0 and ctrl_tgt_cpm is None:
+        raise ValueError("gamma != 1 needs ctrl_tgt_cpm: the target context's control CPM "
+                         "on the submission axis is the r in gamma_transfer")
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
     for src in (as_delta_source(s, var_floor=var_floor) for s in sources):
@@ -254,6 +316,14 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
             want = shrinkage
         if want:
             fc = shrink(fc, var)
+        if gamma != 1.0:
+            get_ctrl = getattr(src, "control_cpm", None)
+            if get_ctrl is None:
+                raise ValueError(f"{type(src).__name__} publishes no control profile, so the "
+                                 "transfer exponent is undefined for it -- pool it at gamma=1 "
+                                 "or drop it from a gamma arm")
+            tgt_on_src = remap_to_axis(ctrl_tgt_cpm, axis, src.genes, fill=np.nan)
+            fc = gamma_transfer(fc, get_ctrl(), tgt_on_src, gamma, stats=stats)
         # `1/inf` is 0, which is the abstention. The `maximum` floor only guards
         # the other end -- a variance so small it would swamp every other
         # source -- and must not be applied to inf, hence the divide as written.

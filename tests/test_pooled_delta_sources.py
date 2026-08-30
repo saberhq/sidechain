@@ -371,6 +371,165 @@ def test_an_lfc_table_without_the_attribute_still_follows_the_global_flag():
     assert on[0] < off[0]               # var 0.01 against fc 2: shrunk a little, not zeroed
 
 
+# ------------------------------------------------- the transfer exponent (gamma) --
+
+
+def test_gamma_1_is_bit_identical_to_the_historical_call():
+    """gamma defaults to today's emitter, and the fast path must skip the transform
+    entirely -- even a float-exact round trip through expm1/log2 would move pooled
+    values that every scored arm is compared against bit-for-bit."""
+    pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
+    plain = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False)
+    explicit = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
+                            gamma=1.0, ctrl_tgt_cpm=np.array([10.0, 10.0, 10.0]))
+    assert np.array_equal(plain, explicit)
+
+
+def test_gamma_0_transfers_the_absolute_cpm_change():
+    """The gamma = 0 endpoint has an exact closed form: the effective multiplier is
+    1 + (mean_pert - mean_ctrl) / (ctrl_tgt + 1), i.e. the source's absolute CPM
+    change lands on the target's own control level. This is the non-tautological
+    law the whole family hangs on (idea file: effect-size-from-control-features)."""
+    pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
+    ctrl_tgt = np.array([10.0, 100.0, 400.0])
+    out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
+                       gamma=0.0, ctrl_tgt_cpm=ctrl_tgt)
+    assert np.isclose(out[0], np.log2(1 + 100.0 / 11.0))     # +100 CPM onto 10 CPM controls
+    assert np.isclose(out[1], 0.0)                           # no change stays no change
+    assert np.isclose(out[2], np.log2(1 - 50.0 / 401.0))     # -50 CPM onto 400 CPM controls
+
+
+def test_a_negative_predicted_expression_clamps_to_the_floor_not_no_change():
+    """An absolute-change transfer can predict below-zero expression. log2 of that
+    is nan/-inf, and the emitter's _fraction repairs non-finite shifts to 0.0 --
+    which would silently turn the strongest predicted silencings into no-ops. The
+    clamp must produce a large FINITE downshift, and the stats must count it."""
+    from sidechain.submit.build import GAMMA_MULT_FLOOR
+
+    pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
+    stats: dict = {}
+    out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
+                       gamma=0.0, ctrl_tgt_cpm=np.array([1.0, 1.0, 1.0]), stats=stats)
+    # gene C: -50 CPM onto 1-CPM controls -> multiplier 1 - 50/2 = -24
+    assert np.isfinite(out).all()
+    assert np.isclose(out[2], np.log2(GAMMA_MULT_FLOOR))
+    assert stats["gamma_mult_clamped"] == 1
+    assert stats["gamma_genes_transformed"] == 3
+
+
+def test_each_source_transforms_against_its_own_control():
+    """ctrl_src is a per-source quantity. The mutant that reads one source's
+    control profile for every source produces the wrong ratio on the second --
+    disjoint gene axes make each source's contribution readable directly."""
+    deep = _pb(["control", "TP53"], [[100.0], [200.0]], genes=("A",))
+    wide = _pb(["control", "TP53"], [[400.0], [800.0]], genes=("C",))
+    ctrl_tgt = np.array([50.0, 0.0, 50.0])
+    out = pooled_delta("TP53", [(deep, "control"), (wide, "control")], AXIS,
+                       shrinkage=False, gamma=0.5, ctrl_tgt_cpm=ctrl_tgt)
+    assert np.isclose(out[0], np.log2(1 + (100.0 / 101.0) * (51.0 / 101.0) ** -0.5))
+    assert np.isclose(out[2], np.log2(1 + (400.0 / 401.0) * (51.0 / 401.0) ** -0.5))
+
+
+def test_genes_the_target_axis_lacks_do_not_poison_a_gamma_pool():
+    """A source usually measures genes the target file never carries (X-Atlas is
+    38,584 symbols against the fold's 8,248). Those have no target-side control
+    CPM; they must ride through as identity (r = 1), not as nan, and must not be
+    counted as transformed."""
+    pb = _pb(["control", "TP53"], [[100.0] * 4, [200.0] * 4], genes=("A", "B", "C", "D"))
+    stats: dict = {}
+    out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
+                       gamma=0.5, ctrl_tgt_cpm=np.array([50.0, 50.0, 50.0]), stats=stats)
+    assert np.isfinite(out).all()
+    assert stats["gamma_genes_transformed"] == 3      # D is off the target axis
+
+
+def test_gamma_without_the_target_control_profile_is_refused():
+    import pytest
+
+    pb = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
+    with pytest.raises(ValueError, match="ctrl_tgt_cpm"):
+        pooled_delta("TP53", [(pb, "control")], AXIS, gamma=0.5)
+
+
+def test_gamma_on_a_contrast_only_source_is_refused():
+    """An LfcTable publishes the contrast already taken -- there is no control
+    profile to ratio against, and inventing one (r = 1 everywhere) would silently
+    hold that source at gamma = 1 inside a gamma arm. Refuse instead."""
+    import pytest
+
+    tab = _lfc(["TP53"], [[2.0, 0.0, 0.0]], [[0.01, np.inf, np.inf]])
+    with pytest.raises(ValueError, match="control profile"):
+        pooled_delta("TP53", [tab], AXIS, gamma=0.5,
+                     ctrl_tgt_cpm=np.array([10.0, 10.0, 10.0]))
+
+
+def test_loco_passes_gamma_through_and_records_it(monkeypatch, tmp_path):
+    """The CLI contract: --gamma must reach build_transfer_prediction and land in
+    the log_run payload -- the sweep's provenance is these two records."""
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    captured, logged = {}, {}
+
+    def fake_build(real, sources, out_path, **kw):
+        captured.update(kw)
+        return {}
+
+    monkeypatch.setattr(loco, "build_transfer_prediction", fake_build)
+    monkeypatch.setattr(loco, "attach_controls", lambda pred, real, out, **kw: out)
+    monkeypatch.setattr(loco, "score", lambda *a, **kw: {"overall": 0.0, "members": {}})
+    monkeypatch.setattr(loco, "log_run", lambda params, results, artifacts=None: logged.update(params))
+
+    rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm"),
+                    "--source", "plain.npz:ctl", "--gamma", "0.25"])
+    assert rc == 0
+    assert captured["gamma"] == 0.25
+    assert logged["gamma"] == 0.25
+
+
+def test_gamma_reaches_the_emitted_cells_end_to_end(tmp_path):
+    """gamma must change what is EMITTED, not just what is poolable: the mutant
+    that accepts the kwarg and never passes it to pooled_delta survives every
+    unit test above. gamma = 0 on a target expressing a gene far below the
+    source turns a 2x fold change into a ~20x one, so the emitted share of that
+    gene must move by much more than the fold change alone allows."""
+    import anndata as ad
+    import pandas as pd
+    import scipy.sparse as sp
+
+    from sidechain.eval.loco import build_transfer_prediction
+
+    genes = ["A", "B", "C"]
+    n_ctrl, n_pert = 30, 8
+    ctrl_counts = np.tile([10.0, 1000.0, 990.0], (n_ctrl, 1))       # 2,000 UMI/cell
+    pert_counts = np.tile([10.0, 1000.0, 990.0], (n_pert, 1))
+    X = sp.csr_matrix(np.vstack([ctrl_counts, pert_counts]))
+    obs = pd.DataFrame({"target_gene": ["non-targeting"] * n_ctrl + ["TP53"] * n_pert},
+                       index=[f"c{i}" for i in range(n_ctrl + n_pert)])
+    real_path = tmp_path / "real.h5ad"
+    ad.AnnData(X=X, obs=obs, var=pd.DataFrame(index=genes)).write_h5ad(real_path)
+
+    # source: gene A doubles, 100k -> 200k CPM; the target's controls sit at 5k CPM
+    src = _pb(["control", "TP53"],
+              [[100000.0, 450000.0, 450000.0], [200000.0, 400000.0, 400000.0]])
+
+    shares, infos = {}, {}
+    for gamma in (1.0, 0.0):
+        out = tmp_path / f"pred_g{gamma:g}.h5ad"
+        infos[gamma] = build_transfer_prediction(
+            real_path, [(src, "control")], out, pert_col="target_gene",
+            control="non-targeting", shrinkage=False, gamma=gamma, seed=0)
+        pred = ad.read_h5ad(out)
+        totals = np.asarray(pred.X.sum(axis=0)).ravel()
+        shares[gamma] = totals[0] / totals.sum()
+    assert infos[0.0]["gamma"] == 0.0
+    assert infos[1.0]["gamma"] == 1.0
+    # gamma=1 roughly doubles gene A's share; gamma=0 adds the source's absolute
+    # +100k CPM onto 5k-CPM controls, a ~20x multiplier. Well separated.
+    assert shares[0.0] > 3 * shares[1.0]
+
+
 # ------------------------------------------------- the loco entry point --
 
 
