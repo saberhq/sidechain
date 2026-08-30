@@ -94,6 +94,16 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
     rows = []
     for f in sorted(subs_dir.glob("*.status.json")):
         s = json.loads(f.read_text())
+        if s.get("score_avg") is None and isinstance(s.get("scores"), dict):
+            # A superseded probe's record is the `vcc submit --wait --json` output --
+            # the live status endpoint serves only a team's LATEST validation entry,
+            # so log_submission.py saves that shape via --status-file (2026-08-30,
+            # SER-3afgn). It nests the members under "scores" and omits
+            # submission_date; flatten, and let the record's own filing date stand
+            # in for the missing stamp (midnight, so the first same-day snapshot
+            # supplies the board size).
+            s = {**s, **s["scores"]}
+            s.setdefault("submission_date", f.name.split("_", 1)[0] + "T00:00")
         if s.get("score_avg") is None:
             continue  # failed or unscored submissions stay out of the table
         stem = f.name.split("_", 1)[1].removesuffix(".status.json")

@@ -73,6 +73,30 @@ def test_no_rank_anywhere_renders_an_em_dash(tmp_path):
     assert standings.rank_label(row["rank"], row["teams"]) == "—"
 
 
+def test_a_submit_shaped_record_is_flattened_and_dated_from_its_filename(tmp_path):
+    """A superseded probe's only record is the `vcc submit --wait --json` output --
+    the status endpoint serves just a team's latest validation entry, so
+    log_submission.py --status-file saves that shape verbatim (2026-08-30,
+    SER-3afgn). Its members nest under "scores" and it has no submission_date;
+    the row must still land, with the scoring-time rank and the board size from
+    the first snapshot on the record's own filing date -- not the earliest
+    snapshot ever, which is what an empty stamp used to select."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260820T0900Z", {"other": 1}, 42)
+    snap(snaps, "20260830T1828Z", {"other": 1}, 476)
+    (subs / "2026-08-30_probe_v1.status.json").write_text(json.dumps({
+        "entry_id": "probe1", "model_name": "Sidechain SER-9", "final_status": "published",
+        "scores": {"rank": 101, "score_avg": 0.0992},
+    }))
+    rows = standings.load_rows(subs, snaps)
+    assert len(rows) == 1
+    assert rows[0]["rank"] == 101
+    assert rows[0]["teams"] == 476
+    assert rows[0]["date"] == "2026-08-30"
+    assert rows[0]["overall"] == 0.0992
+
+
 def test_unscored_submission_stays_out(tmp_path):
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
