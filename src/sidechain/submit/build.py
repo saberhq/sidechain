@@ -160,6 +160,53 @@ def shrink(fc: np.ndarray, var: np.ndarray) -> np.ndarray:
     return fc * np.clip(factor, 0.0, 1.0)
 
 
+def parse_coverage_tiers(spec: str | None) -> tuple[tuple[float, float], ...] | None:
+    """``'3:0.10,10:0.50'`` -> ``((3.0, 0.10), (10.0, 0.50))``; None stays None.
+
+    Each pair is `cut:factor` -- a gene-arm whose `n_eff` is below `cut` has its pooling
+    weight multiplied by `factor`. The pairs are read in order and the first match wins,
+    so cuts must increase; anything at or above the last cut keeps its full weight, which
+    is why the strong tier is never written down.
+    """
+    if spec is None:
+        return None
+    tiers = []
+    for part in spec.split(","):
+        cut, _, factor = part.partition(":")
+        if not factor:
+            raise SystemExit(f"--coverage-tiers: {part!r} is not cut:factor, e.g. '3:0.10'")
+        tiers.append((float(cut), float(factor)))
+    cuts = [c for c, _ in tiers]
+    if cuts != sorted(cuts) or len(set(cuts)) != len(cuts):
+        raise SystemExit(f"--coverage-tiers: cut points must strictly increase, got {cuts}")
+    for cut, factor in tiers:
+        if cut <= 0:
+            raise SystemExit(f"--coverage-tiers: cut {cut} must be positive")
+        # A zero factor is refused, not clamped. It would zero the denominator on genes
+        # every source calls weak, and the pooled delta comes out 0 -- which the emitter
+        # replays as "no change" and `fid` charges as silence. The whole point of a tier
+        # is that thin evidence is outvoted where better evidence exists and still used
+        # where none does.
+        if not 0 < factor <= 1:
+            raise SystemExit(f"--coverage-tiers: factor {factor} must be in (0, 1]; a factor "
+                             "of 0 silences genes rather than downweighting them -- use a "
+                             "small positive factor")
+    return tuple(tiers)
+
+
+def coverage_factor(n_eff: np.ndarray, tiers: tuple[tuple[float, float], ...]) -> np.ndarray:
+    """Per-gene weight multiplier from the evidence behind each gene.
+
+    `n_eff` is how many cells' worth of evidence sits behind that gene in that arm (see
+    `PseudobulkSums.n_eff`). Genes below the first cut get the first factor, and so on;
+    genes above the last cut keep their full weight.
+    """
+    out = np.ones_like(n_eff, dtype=np.float64)
+    for cut, factor in reversed(tiers):
+        out = np.where(n_eff < cut, factor, out)
+    return out
+
+
 class _PseudobulkDeltaSource:
     """Adapts `(PseudobulkSums, control_label)` to the `effect(target)` shape.
 
@@ -205,6 +252,21 @@ class _PseudobulkDeltaSource:
             return None
         return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor)
 
+    def n_eff(self, target: str) -> np.ndarray | None:
+        """Cells' worth of evidence behind each gene of this contrast, on this source's axis.
+
+        The WEAKER of the two arms, because the estimate is a difference: a gene the
+        control barely saw is as poorly known as one the perturbation barely saw.
+
+        Only sources built from cells can answer this. An `LfcTable` publishes a contrast
+        with no cells behind it, defines no `n_eff`, and is therefore left at full weight
+        by `pooled_delta` -- its abstention already comes from its p-values.
+        """
+        if target not in self.pb.labels:
+            return None
+        i, c = self.pb.labels.index(target), self.pb.labels.index(self.control)
+        return np.minimum(self.pb.n_eff(i), self.pb.n_eff(c))
+
 
 def as_delta_source(src, var_floor: str = "none"):
     """Normalise a source into something with `.genes` and `.effect(target)`.
@@ -248,9 +310,52 @@ def sources_from_specs(source_specs: list[str], shrink_source_specs: list[str]) 
     return sources
 
 
+def control_similarity(ctrl_src: np.ndarray, ctrl_tgt: np.ndarray,
+                       *, min_overlap: int = 100) -> float:
+    """Cosine between two CONTROL profiles, on log1p CPM, over the genes both measure.
+
+    This is the quantity [[scbasecount-context-matching]] wanted and the thing `reports/05`
+    said was impossible ("no line-specific priors are possible -- we cannot even look one
+    up"). It turns out not to need scBaseCount at all for the pooling case: we hold 18,400
+    control cells for each 2026 context and a control arm inside every pseudobulk source, so
+    the similarity between a target context and a source line is directly measurable from
+    data already on disk. scBaseCount answers the different question of WHAT a context is.
+
+    log1p first, because a raw-CPM cosine is dominated by the few thousand-CPM genes and
+    would rank sources by how ribosomal their libraries are rather than by cell identity.
+
+    Restricted to genes both profiles actually measure -- our pseudobulk sources are
+    gene-truncated to 8-10k while a challenge context carries all 18,533, so the union
+    would score a source down for genes it never had the chance to report. `min_overlap`
+    refuses rather than returning a small number: an empty overlap means an axis mismatch,
+    and silently weighting that source to zero is the kind of quiet wrongness that looks
+    like a modelling result.
+    """
+    both = np.isfinite(ctrl_src) & np.isfinite(ctrl_tgt)
+    # You cannot demand 100 shared genes from a profile that only has 3. The guard is aimed at
+    # an axis MISMATCH -- where the overlap collapses toward zero -- so it scales down to the
+    # smaller of the two profiles rather than refusing every small one on principle.
+    need = max(1, min(min_overlap,
+                      int(np.isfinite(ctrl_src).sum()), int(np.isfinite(ctrl_tgt).sum())))
+    if int(both.sum()) < need:
+        raise ValueError(
+            f"control profiles share only {int(both.sum())} finite genes (need {need}). "
+            "That is an axis mismatch, not a dissimilar cell line -- check the source's gene "
+            "space before weighting anything by this."
+        )
+    a = np.log1p(np.maximum(ctrl_src[both], 0.0))
+    b = np.log1p(np.maximum(ctrl_tgt[both], 0.0))
+    na, nb = np.linalg.norm(a), np.linalg.norm(b)
+    if na == 0 or nb == 0:
+        raise ValueError("a control profile is all zeros over the shared genes")
+    return float(np.dot(a, b) / (na * nb))
+
+
 def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  *, shrinkage: bool = True, var_floor: str = "none",
                  gamma: float = 1.0, ctrl_tgt_cpm: np.ndarray | None = None,
+                 coverage_tiers: tuple[tuple[float, float], ...] | None = None,
+                 similarity_beta: float = 0.0,
                  stats: dict | None = None) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
 
@@ -297,12 +402,24 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     control profile (an LfcTable ships only the contrast) has no ctrl_src, so
     gamma != 1 refuses it rather than guessing. gamma = 1 skips all of this and
     is bit-identical to the historical call.
+
+    `coverage_tiers` multiplies each source's per-gene weight by how much evidence
+    stands behind that gene in that arm (`PseudobulkSums.n_eff`). The variance the
+    weight comes from knows how many cells the ARM has; it does not know that a gene
+    whose counts add up to 100 might be one cell at 100 rather than 100 cells at 1.
+    Every factor is strictly positive, so no gene is ever silenced -- thin evidence is
+    outvoted where better evidence exists and still used where none does. A source
+    with no cells behind it (an LfcTable) is left at full weight. None is the default
+    and is bit-identical to the historical call.
     """
     if var_floor not in ("none", "poisson"):
         raise ValueError(f"unknown var_floor {var_floor!r}: expected 'none' or 'poisson'")
     if gamma != 1.0 and ctrl_tgt_cpm is None:
         raise ValueError("gamma != 1 needs ctrl_tgt_cpm: the target context's control CPM "
                          "on the submission axis is the r in gamma_transfer")
+    if similarity_beta != 0.0 and ctrl_tgt_cpm is None:
+        raise ValueError("similarity_beta != 0 needs ctrl_tgt_cpm: the weighting is a cosine "
+                         "between the TARGET context's control profile and each source's own")
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
     for src in (as_delta_source(s, var_floor=var_floor) for s in sources):
@@ -331,6 +448,47 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
             w = 1.0 / np.maximum(var, clamp)
         w = np.where(np.isfinite(var), w, 0.0)
         fc = np.where(np.isfinite(fc), fc, 0.0)
+        if similarity_beta != 0.0:
+            # A per-SOURCE scalar on the weight, in the same place `coverage_tiers` puts its
+            # per-gene one. It says how much this source's cell line looks like the context we
+            # are predicting, so a haematopoietic context stops being told about itself by an
+            # embryonic stem line at the same volume as by another leukaemia line.
+            #
+            # beta is the sharpness and beta = 0 is exactly uniform (x**0 == 1), so the default
+            # is bit-identical to every historical call -- the same endpoint property the
+            # emission dial has. Cosines here run ~0.9-0.99, so beta has to be large to
+            # separate them; that is a property of the measure, not a bug, and it is why this
+            # is an exponent rather than a multiplier.
+            get_ctrl = getattr(src, "control_cpm", None)
+            if get_ctrl is None:
+                # An LfcTable publishes only the contrast, so it has no control profile and
+                # no similarity. Left at full weight and counted, never silently dropped.
+                if stats is not None:
+                    stats["similarity_sources_unweighted"] = (
+                        stats.get("similarity_sources_unweighted", 0) + 1)
+            else:
+                tgt_on_src = remap_to_axis(ctrl_tgt_cpm, axis, src.genes, fill=np.nan)
+                sim = control_similarity(get_ctrl(), tgt_on_src)
+                w = w * (sim ** similarity_beta)
+                if stats is not None:
+                    stats.setdefault("similarity", {})[type(src).__name__ + ":" + str(
+                        getattr(src, "name", len(stats.get("similarity", {}))))] = round(sim, 6)
+        if coverage_tiers is not None:
+            get_neff = getattr(src, "n_eff", None)
+            ne = get_neff(target) if get_neff is not None else None
+            if ne is not None:
+                cf = coverage_factor(ne, coverage_tiers)
+                w = w * cf
+                if stats is not None:
+                    stats["coverage_gene_arms"] = (
+                        stats.get("coverage_gene_arms", 0) + int(cf.size))
+                    stats["coverage_gene_arms_demoted"] = (
+                        stats.get("coverage_gene_arms_demoted", 0) + int((cf < 1.0).sum()))
+            elif stats is not None:
+                # A source with no cells behind it (LfcTable) keeps full weight. Counted
+                # so a run cannot quietly be half-tiered without saying so.
+                stats["coverage_sources_unweighted"] = (
+                    stats.get("coverage_sources_unweighted", 0) + 1)
         if stats is not None:
             finite = np.isfinite(var)
             stats["gene_weights"] = stats.get("gene_weights", 0) + int(finite.sum())
@@ -376,6 +534,13 @@ def main(argv: list[str] | None = None) -> int:
                          "variance and abstain on single-cell arms, so observed zero spread stops "
                          "counting as certainty in the pooling weights; 'none' reproduces the "
                          "historical weights bit-for-bit")
+    ap.add_argument("--coverage-tiers", metavar="CUT:FACTOR,...",
+                    help="weight each source's per-gene vote by how many cells' worth of "
+                         "evidence stands behind that gene (n_eff), as cut:factor pairs, "
+                         "e.g. '3:0.10,10:0.50' -- below n_eff 3 keep a tenth of the weight, "
+                         "3 to 10 keep half, at or above 10 keep it all. Factors must be "
+                         "positive: this downweights, it never silences. Same knob in "
+                         "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -391,6 +556,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-libsize", type=float, default=1000.0,
                     help="drop control cells below this depth from the library-size pool")
     args = ap.parse_args(argv)
+    cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
     if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
@@ -456,7 +622,8 @@ def main(argv: list[str] | None = None) -> int:
         sources += [LfcTable.load(path) for path in args.lfc_source]
         for p in perts:
             d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
-                             var_floor=args.var_floor, stats=pool_stats)
+                             var_floor=args.var_floor, coverage_tiers=cov_tiers,
+                             stats=pool_stats)
             if d is None:
                 fallback += 1          # keep the generic shift
             else:
@@ -473,6 +640,13 @@ def main(argv: list[str] | None = None) -> int:
         line += (f"; var<=1e-6: {frac:.1%} of gene weights"
                  f"; abstained source-arms: {pool_stats.get('source_arms_abstained', 0)}"
                  f"; zero-weight targets: {pool_stats.get('targets_zero_weight', 0)}")
+    if pool_stats.get("coverage_gene_arms"):
+        dem = pool_stats.get("coverage_gene_arms_demoted", 0)
+        line += (f"; coverage-tiered: {dem / pool_stats['coverage_gene_arms']:.1%} of gene "
+                 f"weights demoted")
+        if pool_stats.get("coverage_sources_unweighted"):
+            line += (f" ({pool_stats['coverage_sources_unweighted']} source-arms have no "
+                     "cells and kept full weight)")
     print(line, flush=True)
 
     # -- write

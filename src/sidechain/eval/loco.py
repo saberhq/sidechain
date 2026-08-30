@@ -43,7 +43,12 @@ import scipy.sparse as sp
 from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
-from sidechain.submit.build import as_delta_source, pooled_delta, sources_from_specs
+from sidechain.submit.build import (
+    as_delta_source,
+    parse_coverage_tiers,
+    pooled_delta,
+    sources_from_specs,
+)
 from sidechain.utils.logging import log_run
 from sidechain.utils.naming import check_out_leaf
 
@@ -61,6 +66,8 @@ def build_transfer_prediction(
     alpha: float = 1.0,
     gamma: float = 1.0,
     var_floor: str = "none",
+    coverage_tiers: tuple[tuple[float, float], ...] | None = None,
+    similarity_beta: float = 0.0,
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = 500.0,
@@ -85,13 +92,18 @@ def build_transfer_prediction(
     # (min_libsize-filtered, CPM within this file's own gene universe), so the
     # ratio and the replay are self-consistent by construction.
     ctrl_cpm = None
+    if similarity_beta != 0.0 and ctrl_cpm is None:
+        raise SystemExit("--similarity-beta needs the held-out context's control profile, the "
+                         "same input --gamma uses")
     if gamma != 1.0:
         if list(prof.genes) != list(axis):
             raise SystemExit("gamma != 1: control profile genes differ from the real file's axis")
         ctrl_cpm = prof.fraction * 1e6
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
-                         gamma=gamma, ctrl_tgt_cpm=ctrl_cpm, stats=pool_stats)
+                         gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
+                         coverage_tiers=coverage_tiers,
+                         similarity_beta=similarity_beta, stats=pool_stats)
         if d is not None:
             covered += 1
             d = d * alpha    # alpha scales the pooled vector; gamma acted per source inside the pool
@@ -113,6 +125,8 @@ def build_transfer_prediction(
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "gamma": gamma, "var_floor": var_floor,
+            "coverage_tiers": coverage_tiers,
+            "similarity_beta": similarity_beta,
             "pool_stats": pool_stats}
 
 
@@ -130,6 +144,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lfc-source", action="append", default=[], metavar="NPZ",
                     help="cached LfcTable .npz -- a source publishing the contrast already "
                          "taken rather than cells (e.g. Feng 2026). Repeatable.")
+    ap.add_argument("--coverage-tiers", metavar="CUT:FACTOR,...",
+                    help="weight each source's per-gene vote by how many cells' worth of "
+                         "evidence stands behind that gene (n_eff), as cut:factor pairs, "
+                         "e.g. '3:0.10,10:0.50'. Same knob in sidechain.submit.build, so a "
+                         "scored arm submits verbatim.")
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -141,6 +160,12 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.submit.build, so a scored arm submits verbatim.")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--similarity-beta", type=float, default=0.0,
+                    help="exponent on each source's control-profile cosine to the held-out "
+                         "context, applied to its pooling weight (submit.build."
+                         "control_similarity). 0 is uniform pooling and bit-identical to the "
+                         "historical call; cosines run ~0.9-0.99 so the exponent has to be "
+                         "large to separate sources. Needs a control profile, like --gamma.")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio: 1 = the "
                          "fold change transfers (today's emitter, bit-identical), 0 = the "
@@ -156,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
+    cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
     if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
@@ -184,6 +210,8 @@ def main(argv: list[str] | None = None) -> int:
                                      emit_lambda=args.emit_lambda,
                                      shrinkage=not args.no_shrink, alpha=args.alpha,
                                      gamma=args.gamma, var_floor=args.var_floor,
+                                     coverage_tiers=cov_tiers,
+                                     similarity_beta=args.similarity_beta,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
@@ -205,6 +233,8 @@ def main(argv: list[str] | None = None) -> int:
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
          "alpha": args.alpha, "gamma": args.gamma, "var_floor": args.var_floor,
+         "similarity_beta": args.similarity_beta,
+         "coverage_tiers": args.coverage_tiers,
          "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
         artifacts=[str(out / "summary.json")],

@@ -8,6 +8,7 @@ that abstains contributes nothing rather than contributing a zero.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
@@ -59,8 +60,6 @@ def test_a_target_no_source_covers_is_still_none():
 
 
 def test_as_delta_source_rejects_something_that_is_neither():
-    import pytest
-
     with pytest.raises(TypeError, match="not a delta source"):
         as_delta_source(object())
 
@@ -656,3 +655,105 @@ def test_row_wise_log2fc_matches_the_whole_matrix_form():
         fc_old, var_old = matrix_form(label, "ctrl")
         assert np.array_equal(fc_new, fc_old), label
         assert np.array_equal(var_new, var_old), label
+
+
+# --------------------------------------------- similarity-weighted pooling --
+
+
+def test_control_similarity_is_a_log_cosine_over_shared_genes():
+    from sidechain.submit.build import control_similarity
+
+    a = np.arange(1, 201, dtype=float)
+    assert control_similarity(a, a.copy()) == pytest.approx(1.0)
+    # a profile with a different SHAPE scores below a matching one
+    b = a[::-1].copy()
+    assert control_similarity(a, b) < 1.0
+
+
+def test_control_similarity_ignores_genes_only_one_side_measures():
+    """Our pseudobulk sources carry 8-10k genes and a challenge context carries 18,533.
+    Scoring a source down for genes it never had the chance to report would rank sources by
+    gene-axis truncation rather than by cell identity."""
+    from sidechain.submit.build import control_similarity
+
+    src = np.arange(1, 201, dtype=float)
+    tgt = src.copy()
+    padded_src = np.concatenate([src, np.full(300, np.nan)])
+    padded_tgt = np.concatenate([tgt, np.arange(1, 301, dtype=float)])
+    assert control_similarity(padded_src, padded_tgt) == pytest.approx(1.0)
+
+
+def test_control_similarity_refuses_an_axis_mismatch_rather_than_scoring_it_low():
+    """An empty overlap means the gene spaces do not line up. Returning a small cosine would
+    weight that source toward zero and look like a modelling result."""
+    from sidechain.submit.build import control_similarity
+
+    a = np.concatenate([np.arange(1, 51, dtype=float), np.full(50, np.nan)])
+    b = np.concatenate([np.full(50, np.nan), np.arange(1, 51, dtype=float)])
+    with pytest.raises(ValueError, match="axis mismatch"):
+        control_similarity(a, b)
+
+
+def test_control_similarity_uses_log_not_raw_cpm():
+    """On raw CPM a handful of thousand-CPM genes dominate the cosine, so every pair of human
+    cell lines scores ~1.0 and the weighting carries no information. log1p is what makes the
+    measure discriminative rather than a formality."""
+    from sidechain.submit.build import control_similarity
+
+    n = 500
+    base = np.full(n, 1.0)
+    huge = base.copy(); huge[0] = 1e6           # one dominant gene, shared
+    x = huge.copy(); y = huge.copy()
+    x[1:250] = 50.0                              # the two differ only on modest genes
+    y[250:] = 50.0
+    log_cos = control_similarity(x, y)
+    raw_cos = float(np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y)))
+    assert raw_cos > 0.999, "the raw cosine should be saturated by the dominant gene"
+    assert log_cos < raw_cos, "log1p must expose the difference the raw cosine hides"
+
+
+def test_similarity_beta_zero_is_bit_identical_to_uniform_pooling():
+    """The endpoint property every knob in this codebase carries: the default cannot change a
+    single historical number. x ** 0 == 1, exactly."""
+    pb = _pb(["control", "T1"], [[100.0, 50.0, 10.0], [200.0, 50.0, 10.0]])
+    tgt = np.array([120.0, 55.0, 11.0])
+    a = pooled_delta("T1", [(pb, "control")], AXIS)
+    b = pooled_delta("T1", [(pb, "control")], AXIS, similarity_beta=0.0, ctrl_tgt_cpm=tgt)
+    np.testing.assert_array_equal(a, b)
+
+
+def test_similarity_beta_needs_the_target_control_profile():
+    pb = _pb(["control", "T1"], [[100.0, 50.0, 10.0], [200.0, 50.0, 10.0]])
+    with pytest.raises(ValueError, match="similarity_beta"):
+        pooled_delta("T1", [(pb, "control")], AXIS, similarity_beta=4.0)
+
+
+def test_similarity_weighting_moves_the_pool_toward_the_more_alike_source():
+    """The mechanism, on a case with a known answer: two sources disagree about T1, one has a
+    control profile matching the target context and the other does not. Uniform pooling splits
+    the difference; weighted pooling leans to the lookalike."""
+    near = _pb(["control", "T1"], [[100.0, 10.0, 1.0], [200.0, 10.0, 1.0]])
+    far = _pb(["control", "T1"], [[1.0, 10.0, 100.0], [0.5, 10.0, 100.0]])
+    tgt = np.array([100.0, 10.0, 1.0])          # the target looks like `near`
+    srcs = [(near, "control"), (far, "control")]
+
+    uniform = pooled_delta("T1", srcs, AXIS, ctrl_tgt_cpm=tgt)
+    weighted = pooled_delta("T1", srcs, AXIS, ctrl_tgt_cpm=tgt, similarity_beta=40.0)
+    near_only = pooled_delta("T1", [(near, "control")], AXIS)
+
+    assert abs(weighted[0] - near_only[0]) < abs(uniform[0] - near_only[0]), (
+        "weighting should pull the pooled G1 effect toward the lookalike source"
+    )
+
+
+def test_a_source_with_no_control_profile_keeps_full_weight_and_is_counted():
+    """An LfcTable publishes the contrast already taken, so it has no control arm and no
+    similarity. Dropping it would silently delete a source; it is left alone and recorded."""
+    lfc = _lfc(["T1"], [[1.0, 0.0, 0.0]], [[0.25, 0.25, 0.25]])
+    pb = _pb(["control", "T1"], [[100.0, 10.0, 1.0], [200.0, 10.0, 1.0]])
+    stats: dict = {}
+    out = pooled_delta("T1", [(pb, "control"), lfc], AXIS,
+                       ctrl_tgt_cpm=np.array([100.0, 10.0, 1.0]),
+                       similarity_beta=8.0, stats=stats)
+    assert out is not None
+    assert stats["similarity_sources_unweighted"] == 1
