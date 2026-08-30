@@ -844,7 +844,26 @@ datasets:
       rotation lines. tissue has 7,247 distinct strings and perturbation
       10,928; every one of these needs a mapping pass, never a == comparison.
 
-      THE CONTENT FILTER IS NOT OPTIONAL AND ITS THRESHOLD IS PROVISIONAL.
+      THE CONTENT FILTER IS NOT OPTIONAL. ITS THRESHOLD IS NO LONGER A PROXY:
+      the true per-cell UMI distribution was read on 2026-08-29 by streaming
+      three columns of obs_metadata.parquet (1.0 GB of the 5.51 GB file, via
+      column projection over range requests) for all 289,251,287 cells in 170 s.
+      Two results. FIRST, the bytes-per-cell proxy is VALIDATED and conservative:
+      the 3,808 experiments it calls junk have a median mean-depth of 7.0
+      UMI/cell and just 0.03 % of their cells reach 500 UMI, while the 31,451 it
+      keeps have a median of 3,887 UMI/cell and 90.6 % of their cells at or above
+      500. So `min_bytes_per_cell: 500` stands on a measurement now, not a
+      bimodality argument. SECOND, and this is why `min_umi_per_cell` was added:
+      a per-EXPERIMENT filter cannot remove a bad BARCODE. Corpus-wide only
+      71.8 % of cells reach 500 UMI, and 9.4 % of the cells inside kept
+      experiments are below it -- the gap that explains why scBaseCount reports
+      63.9 M K562 cells against the 1.99 M in our curated Replogle file. Under
+      the full filter (>=500 B/cell, single_cell, 3_prime_gex, >=1,000 UMI/cell)
+      the corpus is 121.5 M cells; K562 is 26.9 M, RPE1 2.8 M, Jurkat 2.3 M,
+      HepG2 1.7 M. RPE1 and Jurkat fall furthest because Perturb-seq buys cells
+      with depth.
+
+      SUPERSEDED, kept because it was quoted elsewhere:
       Eight experiments were opened directly and four were effectively empty
       matrices with tens of thousands of "cells" in them at a median of 1 UMI
       -- guide-capture and other non-GEX sub-libraries quantified against the
@@ -909,6 +928,7 @@ datasets:
                sample_id_col: srx_accession, obs_sample_col: SRX_accession,
                assay: 10x_3prime_gex_single_cell,
                content_filter: {min_bytes_per_cell: 500,
+                                min_umi_per_cell: 1000,
                                 cell_prep: [single_cell],
                                 tech_10x: [3_prime_gex]},
                gene_id_col: null, gene_symbol_col: gene_symbols,
