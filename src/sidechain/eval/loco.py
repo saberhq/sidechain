@@ -91,13 +91,16 @@ def build_transfer_prediction(
     # The transfer exponent reads the SAME control profile the emitter anchors on
     # (min_libsize-filtered, CPM within this file's own gene universe), so the
     # ratio and the replay are self-consistent by construction.
+    #
+    # BOTH knobs that need it build it here. An earlier version of this block guarded
+    # `similarity_beta` BEFORE `ctrl_cpm` was ever assigned, so with the default gamma = 1 the
+    # guard could never be satisfied and every similarity arm died in eight seconds. The guard
+    # was right about the requirement and wrong about where the requirement is met.
     ctrl_cpm = None
-    if similarity_beta != 0.0 and ctrl_cpm is None:
-        raise SystemExit("--similarity-beta needs the held-out context's control profile, the "
-                         "same input --gamma uses")
-    if gamma != 1.0:
+    if gamma != 1.0 or similarity_beta != 0.0:
         if list(prof.genes) != list(axis):
-            raise SystemExit("gamma != 1: control profile genes differ from the real file's axis")
+            need = "gamma != 1" if gamma != 1.0 else "similarity_beta != 0"
+            raise SystemExit(f"{need}: control profile genes differ from the real file's axis")
         ctrl_cpm = prof.fraction * 1e6
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,

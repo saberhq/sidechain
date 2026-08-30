@@ -132,3 +132,49 @@ def test_variance_inflation_passes_a_well_scaled_prediction():
     out = lm.variance_inflation_check(pred, real, "target_gene", "non-targeting")
     assert out["flagged"] is False
     assert 0.5 < out["variance_ratio"] < 1.5
+
+
+def test_similarity_beta_reaches_the_pool_with_a_control_profile_at_default_gamma(
+        monkeypatch, tmp_path):
+    """The bug this pins cost three of four sweep arms on 2026-08-29.
+
+    `ctrl_tgt_cpm` is built inside `build_transfer_prediction`, and it used to be built ONLY
+    when `gamma != 1`. A guard for `--similarity-beta` was placed above that assignment, so at
+    the default gamma the guard could never be satisfied and every similarity arm died in eight
+    seconds with "needs the held-out context's control profile". The unit tests all passed --
+    they call `pooled_delta` directly and hand it a profile themselves, so nothing exercised
+    the path where loco has to construct one.
+
+    So: default gamma, non-zero beta, and the pool must receive a real profile.
+    """
+    import anndata as ad
+    import scipy.sparse as sp
+
+    from sidechain.eval import loco
+
+    genes = [f"G{i}" for i in range(60)]
+    rng = np.random.default_rng(0)
+    # libsize must clear loco's min_libsize=500 filter, or the control set empties
+    X = sp.csr_matrix(rng.poisson(20, size=(80, 60)).astype(np.float32))
+    obs = pd.DataFrame({"perturbation": ["non-targeting"] * 40 + ["T1"] * 40})
+    real = ad.AnnData(X=X, obs=obs, var=pd.DataFrame(index=genes))
+    real_path = tmp_path / "real.h5ad"
+    real.write_h5ad(real_path)
+
+    seen = {}
+
+    def fake_pool(target, sources, axis, **kw):
+        seen.update(kw)
+        return np.zeros(len(axis))
+
+    monkeypatch.setattr(loco, "pooled_delta", fake_pool)
+    loco.build_transfer_prediction(
+        real_path, [], tmp_path / "pred.h5ad",
+        pert_col="perturbation", control="non-targeting",
+        similarity_beta=20.0,          # gamma stays at its default 1.0
+    )
+    assert seen["similarity_beta"] == 20.0
+    assert seen["ctrl_tgt_cpm"] is not None, (
+        "loco must build the control profile for similarity_beta, not only for gamma"
+    )
+    assert len(seen["ctrl_tgt_cpm"]) == len(genes)
