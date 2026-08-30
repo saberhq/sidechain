@@ -443,6 +443,60 @@ def test_genes_the_target_axis_lacks_do_not_poison_a_gamma_pool():
     assert stats["gamma_genes_transformed"] == 3      # D is off the target axis
 
 
+def test_gamma_runs_after_shrinkage_not_before():
+    """The order contract (kills the block-swap mutant, which survived the whole
+    suite in the 2026-08-29 adversarial review): shrinkage estimates the true fc
+    on the scale its variance was computed on, THEN gamma transforms the best
+    estimate. A within-noise gene must shrink to exactly 0 and pass through
+    gamma as the identity (m = 1); the swapped order inflates it by r^(gamma-1)
+    first (~+1.6 log2 at r ~ 0.06) and then shrinks the wrong scale."""
+    from sidechain.submit.build import gamma_transfer
+    from sidechain.submit.build import shrink as shrink_fn
+
+    noisy = _noisy_pb()
+    ctrl_tgt = np.array([5.0, 5.0, 5.0])
+    out = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=True,
+                       gamma=0.0, ctrl_tgt_cpm=ctrl_tgt)
+    assert np.allclose(out, 0.0)
+
+    # and a well-measured effect composes exactly as transform(shrink(fc))
+    solid = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
+    src = as_delta_source((solid, "control"))
+    fc, var = src.effect("TP53")
+    expected = gamma_transfer(shrink_fn(fc, var), src.control_cpm(), ctrl_tgt, 0.0)
+    got = pooled_delta("TP53", [(solid, "control")], AXIS, shrinkage=True,
+                       gamma=0.0, ctrl_tgt_cpm=ctrl_tgt)
+    assert np.allclose(got, expected)
+
+
+def test_gamma_leaves_the_pooling_weights_untouched():
+    """The weight-invariance contract: two sources voting on the SAME genes with
+    different control CPMs and different variances must pool as the closed-form
+    inverse-variance mean of the gamma-transformed fold changes with the
+    ORIGINAL weights. A mutant that propagates the transform into the variance
+    (var * r^(2(gamma-1)) -- the plausible 'delta-method' refactor) reweights
+    the pool and fails here; it survived every earlier test because no gamma
+    test had two sources sharing a gene."""
+    from sidechain.submit.build import gamma_transfer
+
+    deep = _pb_var(["control", "TP53"], [[100.0] * 3, [200.0] * 3],
+                   [[400.0] * 3, [900.0] * 3])
+    wide = _pb_var(["control", "TP53"], [[400.0] * 3, [800.0] * 3],
+                   [[10000.0] * 3, [40000.0] * 3])
+    ctrl_tgt = np.array([50.0, 50.0, 50.0])
+
+    num = np.zeros(3); den = np.zeros(3)
+    for pb in (deep, wide):
+        src = as_delta_source((pb, "control"))
+        fc, var = src.effect("TP53")
+        w = 1.0 / np.maximum(var, 1e-6)
+        num += gamma_transfer(fc, src.control_cpm(), ctrl_tgt, 0.5) * w
+        den += w
+    got = pooled_delta("TP53", [(deep, "control"), (wide, "control")], AXIS,
+                       shrinkage=False, gamma=0.5, ctrl_tgt_cpm=ctrl_tgt)
+    assert np.allclose(got, num / den)
+
+
 def test_gamma_without_the_target_control_profile_is_refused():
     import pytest
 
@@ -526,8 +580,14 @@ def test_gamma_reaches_the_emitted_cells_end_to_end(tmp_path):
     assert infos[0.0]["gamma"] == 0.0
     assert infos[1.0]["gamma"] == 1.0
     # gamma=1 roughly doubles gene A's share; gamma=0 adds the source's absolute
-    # +100k CPM onto 5k-CPM controls, a ~20x multiplier. Well separated.
+    # +100k CPM onto 5k-CPM controls, a ~20x multiplier. Well separated -- and
+    # bounded ABOVE too: the units mutant (prof.fraction without the *1e6 at
+    # loco.py's call site) makes r ~ 1e-5, explodes the multiplier to ~1e5,
+    # clamps genes B and C, and drives the share to ~1.0. It cleared the
+    # one-sided bound in the 2026-08-29 adversarial review.
     assert shares[0.0] > 3 * shares[1.0]
+    assert 0.02 < shares[0.0] < 0.2
+    assert infos[0.0]["pool_stats"]["gamma_mult_clamped"] == 0
 
 
 # ------------------------------------------------- the loco entry point --
