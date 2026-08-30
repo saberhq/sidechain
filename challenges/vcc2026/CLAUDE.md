@@ -51,31 +51,45 @@ submit; re-run it after every `uv tool upgrade vcc-cli`.
    no `var['gene_id']` — `var` is empty, symbols only** (measured 2026-08-20). The scPerturb
    lines are pre-filtered to ~8–10k genes. `loaders.gene_index(adata, 'ensembl_gene_id')`
    will raise on these files, correctly; a symbol-keyed path is needed.
-4. **Raw integer counts, not log1p.** Non-negative, whole, finite, ≤ 1,000,000 per cell;
+4. **The 18,533 axis is CURATED, and ~30 % of a real cell never appears on it** (measured
+   2026-08-29). `gene_names.csv` is byte-identical, in order, to `context_A.h5ad`'s `var` index,
+   so this is the axis itself and not a file-reading mistake. Entire families are absent: **0 of
+   99 cytoplasmic ribosomal proteins (RPL/RPS), 0 of 81 mitochondrial ribosomal (MRPL/MRPS), 0
+   of 21 HLA**, plus `GAPDH`, `EEF1A1`, `MALAT1`, `NEAT1`, `XIST` — while `ACTB`, `TP53`, `MYC`
+   and 12 of 13 `MT-` genes stay. Summed over the 10x GRCh38-2020-A reference in five unrelated
+   experiments (K562, fibroblast, Kuramochi, NK, Caco2), the off-axis genes carry **29.5–32.5 %
+   of every cell's UMIs**, and they are the top-expressed genes in each one.
+   Two consequences. **Normalise to the library YOU measured, never to the on-axis subtotal** —
+   the off-axis share varies by cell type, so an on-axis CPM silently rescales each context by
+   how much of its transcriptome the axis happens to cover. And when reading any "fraction of
+   the transcriptome" claim about this challenge, remember the scored axis is a curated ~70 %
+   of it; the six metrics never see the most abundant third. What Arc's rule was is not stated
+   anywhere we have found — only the resulting list is, and that list is what the loaders use.
+5. **Raw integer counts, not log1p.** Non-negative, whole, finite, ≤ 1,000,000 per cell;
    exactly 400 cells per perturbation; **no `non-targeting` rows**; `target_gene` holds gene
    symbols (`ADNP`, not `ADNP-1`); a `context` column; ≤ 4.75e9 stored entries (a dense matrix
    is 1.40× over by itself — store CSR without explicit zeros). The 2025 emitter's CP10k-log1p
    cells are rejected outright.
-5. **Depth differs.** The truth is downsampled to a median ~20,000 UMI/cell (H1 was 44,798).
+6. **Depth differs.** The truth is downsampled to a median ~20,000 UMI/cell (H1 was 44,798).
    Emit at the target context's depth.
-6. **Memory.** `vcc prep` reads the whole file with `anndata.read_h5ad` (not backed) and holds
+7. **Memory.** `vcc prep` reads the whole file with `anndata.read_h5ad` (not backed) and holds
    a second copy. Cells at the controls' own density (median 6,006 detected genes) make a
    360,000-cell file of 2.16e9 nonzeros ≈ 24 GiB, ~50 GiB peak in `prep`; context-mean density
    (~11,800 nnz/cell) is 4.25e9 ≈ 48 GiB resident. **A 16 GB Mac cannot package a
    submission.** Write the h5ad out of core (h5py, per context) and run `vcc prep` /
    `vcc submit` on a 64 GB machine at minimum, 128 GB comfortably.
-7. **PDS is cosine** on pseudobulk-sum deltas with all 300 panel targets removed: invariant to
+8. **PDS is cosine** on pseudobulk-sum deltas with all 300 panel targets removed: invariant to
    each predicted effect's magnitude. Direction is what scores; size pays only on `nmae`/`mse`.
-8. **The four DE metrics are computed on the cells you emit** (Wilcoxon vs the real controls,
+9. **The four DE metrics are computed on the cells you emit** (Wilcoxon vs the real controls,
    > 5 CPM in controls, BH per perturbation). The dispersion of emitted cells sets how many
    genes you "call", and `fid`/`jac` charge under-calling. Emission is a modelling choice.
-9. **Two submissions per team per day** (UTC), one in flight (409 otherwise). Only submissions
+10. **Two submissions per team per day** (UTC), one in flight (409 otherwise). Only submissions
    that reach scoring count. Validation and final scores are not comparable.
-10. **`gene_names.csv` HAS a header row this year (`gene_name`)** — the opposite of 2025. A
+11. **`gene_names.csv` HAS a header row this year (`gene_name`)** — the opposite of 2025. A
     `header=None` read yields 18,534 "genes" with the literal `gene_name` first. `vcc prep`
     strips known headers either way; our own readers must check the row count against the h5ad
     (`sidechain.data.profile` prints both reads and marks the right one).
-11. **Target coverage is thin.** Of the 300 targets, H1 covers 25, the genome-wide K562 file
+12. **Target coverage is thin.** Of the 300 targets, H1 covers 25, the genome-wide K562 file
     272, and the four essential-gene panels (K562-essential, RPE1, Jurkat, HepG2) **zero**; 28
     targets are in nothing we hold. `private/reports/06_vcc2026_controls_qc.md` §5.
 
