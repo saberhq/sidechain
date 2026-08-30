@@ -528,6 +528,15 @@ def main(argv: list[str] | None = None) -> int:
                          "taken rather than cells (e.g. Feng 2026). Repeatable. Built by "
                          "`python -m sidechain.data.lfc_table`.")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
+    ap.add_argument("--gamma", type=float, default=1.0,
+                    help="transfer exponent on the target/source control-CPM ratio (see "
+                         "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
+                         "arm submits verbatim). 1 = the fold change transfers -- today's "
+                         "emitter, bit-identical single-pass shifts. Any other value makes the "
+                         "shifts CONTEXT-SPECIFIC: they are pooled once per context inside the "
+                         "write loop, against that context's own control profile. delta-transfer "
+                         "only. The H1 mean-shift fallback is not gamma-transformed (it is an "
+                         "aggregate, not a contrast; fallback is 0 on the current pool).")
     ap.add_argument("--no-shrink", action="store_true", help="disable the per-gene empirical-Bayes shrinkage of transferred log2FCs")
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
                     help="floor each pseudobulk arm's per-gene variance at its Poisson sampling "
@@ -557,6 +566,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="drop control cells below this depth from the library-size pool")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
+    if args.gamma != 1.0 and args.emitter != "delta-transfer":
+        ap.error("--gamma transforms pooled per-target deltas, so it only applies to "
+                 "delta-transfer")
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
     if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
@@ -610,6 +622,7 @@ def main(argv: list[str] | None = None) -> int:
         h1 = PseudobulkSums.load(args.h1_cache)
         generic = h1_mean_shift(h1, cfg["control_label"], axis)
         shifts = {p: generic.copy() for p in perts}
+    sources = None
     if args.emitter == "delta-transfer":
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
@@ -620,34 +633,72 @@ def main(argv: list[str] | None = None) -> int:
         # source with no cells behind it enters the pool exactly like one that has
         # them and nothing downstream needs to know which it was.
         sources += [LfcTable.load(path) for path in args.lfc_source]
-        for p in perts:
-            d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
-                             var_floor=args.var_floor, coverage_tiers=cov_tiers,
-                             stats=pool_stats)
-            if d is None:
-                fallback += 1          # keep the generic shift
-            else:
-                shifts[p] = d
+        if args.gamma == 1.0:
+            for p in perts:
+                d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                                 var_floor=args.var_floor, coverage_tiers=cov_tiers,
+                                 stats=pool_stats)
+                if d is None:
+                    fallback += 1          # keep the generic shift
+                else:
+                    shifts[p] = d
     gene_pos = {g: i for i, g in enumerate(genes)}
-    for p, vec in shifts.items():
-        if vec is not None:
-            vec *= args.alpha
-            if p in gene_pos:
-                vec[gene_pos[p]] = TARGET_SELF_LOG2FC
-    line = f"shifts ready in {time.time() - t0:.0f}s; fallback-to-generic: {fallback}"
-    if pool_stats.get("gene_weights"):
-        frac = pool_stats.get("gene_weights_var_le_1e-6", 0) / pool_stats["gene_weights"]
-        line += (f"; var<=1e-6: {frac:.1%} of gene weights"
-                 f"; abstained source-arms: {pool_stats.get('source_arms_abstained', 0)}"
-                 f"; zero-weight targets: {pool_stats.get('targets_zero_weight', 0)}")
-    if pool_stats.get("coverage_gene_arms"):
-        dem = pool_stats.get("coverage_gene_arms_demoted", 0)
-        line += (f"; coverage-tiered: {dem / pool_stats['coverage_gene_arms']:.1%} of gene "
-                 f"weights demoted")
-        if pool_stats.get("coverage_sources_unweighted"):
-            line += (f" ({pool_stats['coverage_sources_unweighted']} source-arms have no "
-                     "cells and kept full weight)")
-    print(line, flush=True)
+
+    def finalize(shift_map):
+        # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
+        for p, vec in shift_map.items():
+            if vec is not None:
+                vec *= args.alpha
+                if p in gene_pos:
+                    vec[gene_pos[p]] = TARGET_SELF_LOG2FC
+
+    def pool_line(prefix, fb):
+        line = f"{prefix}; fallback-to-generic: {fb}"
+        if pool_stats.get("gene_weights"):
+            frac = pool_stats.get("gene_weights_var_le_1e-6", 0) / pool_stats["gene_weights"]
+            line += (f"; var<=1e-6: {frac:.1%} of gene weights"
+                     f"; abstained source-arms: {pool_stats.get('source_arms_abstained', 0)}"
+                     f"; zero-weight targets: {pool_stats.get('targets_zero_weight', 0)}")
+        if pool_stats.get("gamma_genes_transformed"):
+            line += (f"; gamma-transformed gene-arms: {pool_stats['gamma_genes_transformed']}"
+                     f"; multiplier clamps: {pool_stats.get('gamma_mult_clamped', 0)}")
+        if pool_stats.get("coverage_gene_arms"):
+            dem = pool_stats.get("coverage_gene_arms_demoted", 0)
+            line += (f"; coverage-tiered: {dem / pool_stats['coverage_gene_arms']:.1%} of gene "
+                     f"weights demoted")
+            if pool_stats.get("coverage_sources_unweighted"):
+                line += (f" ({pool_stats['coverage_sources_unweighted']} source-arms have no "
+                         "cells and kept full weight)")
+        return line
+
+    per_context_shifts = None
+    if args.emitter == "delta-transfer" and args.gamma != 1.0:
+        # gamma re-expresses each source's fold change against THIS context's control
+        # profile, so the shifts stop being shareable across contexts: pool once per
+        # context, inside the write loop, on the profile the emitter itself anchors on
+        # (the axis-vs-gene_names check has already run by the time this is called).
+        def per_context_shifts(prof):
+            local = {p: generic.copy() for p in perts}
+            fb = 0
+            ctrl_cpm = prof.fraction * 1e6
+            for p in perts:
+                d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                                 var_floor=args.var_floor, coverage_tiers=cov_tiers,
+                                 gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,
+                                 stats=pool_stats)
+                if d is None:
+                    fb += 1
+                else:
+                    local[p] = d
+            finalize(local)
+            print(pool_line(f"  {prof.name}: gamma={args.gamma:g} shifts ready", fb), flush=True)
+            return local
+
+        print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
+              "write loop", flush=True)
+    else:
+        finalize(shifts)
+        print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
 
     # -- write
     h5ad = out.with_suffix(".h5ad")
@@ -659,10 +710,11 @@ def main(argv: list[str] | None = None) -> int:
             prof = ContextProfile.from_controls(data_dir / cfg["control_files"][ctx], ctx, min_libsize=args.min_libsize)
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
+            ctx_shifts = shifts if per_context_shifts is None else per_context_shifts(prof)
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda)
             for k, p in enumerate(perts):
-                w.add_block(em.emit(contract.cells_per_pert, shifts[p]), ctx, p)
+                w.add_block(em.emit(contract.cells_per_pert, ctx_shifts[p]), ctx, p)
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
     info = verify_h5ad(h5ad, contract)
