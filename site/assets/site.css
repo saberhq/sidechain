@@ -209,6 +209,8 @@ a.sq-card:hover {
 .sc-bar-track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px dashed var(--rule); }
 .sc-bar { position: relative; z-index: 1; display: block; height: 100%; background: var(--viz-8); border-radius: 0 4px 4px 0; }
 .sc-bar-row--best .sc-bar { background: var(--viz-1); }
+.sc-bar-row--bench .sc-bar { background: var(--viz-8); opacity: 0.45; }
+.sc-bar-row--bench .sc-bar-label, .sc-bar-row--bench .sc-bar-value { color: var(--ink-3); }
 .sc-bar-value { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .sc-bar-row--best .sc-bar-value, .sc-bar-row--best .sc-bar-label { font-weight: 500; color: var(--ink); }
 

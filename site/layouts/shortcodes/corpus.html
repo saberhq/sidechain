@@ -3,13 +3,15 @@
        measures from the ingest caches. Committed JSON, no hand-typed numbers (ADR 0006). */ -}}
 {{ $c := site.Data.coverage }}
 {{ $priors := where $c.sources "role" "prior" }}
-{{ $evals := where $c.sources "role" "eval" }}
+{{ $bench := where $c.sources "role" "bench" }}
 
 <div class="sc-intro">
   <p>Everything the entries draw on is public data, harmonized locally. Of the {{ $c.panel_size }} genes
-  the challenge asks about, <strong>{{ $c.prior_covered }}</strong> have a measured knockdown somewhere in
-  the held corpora and <strong>{{ $c.uncovered }}</strong> have none yet. The essential-gene panels never
-  feed a submission — they are the local mirror that scores a method before it is submitted.</p>
+  the challenge asks about, {{ if eq (int $c.uncovered) 0 }}<strong>every one</strong> now has a measured
+  knockdown in the pool{{ else }}<strong>{{ $c.prior_covered }}</strong> have a measured knockdown somewhere
+  in the held corpora and <strong>{{ $c.uncovered }}</strong> have none yet{{ end }}. Bench corpora are held
+  and measured but not pooled; the essential-gene panels never feed a submission — they are the local
+  mirror that scores a method before it is submitted.</p>
 </div>
 
 <figure class="sc-bars" aria-label="2026 panel coverage per corpus">
@@ -22,8 +24,15 @@
     <span class="sc-bar-value">{{ .panel_covered }}/{{ $c.panel_size }}</span>
   </div>
   {{ end }}
+  {{ range $bench }}
+  <div class="sc-bar-row sc-bar-row--bench">
+    <span class="sc-bar-label">{{ .line }}</span>
+    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div (float .panel_covered) $c.panel_size) 100) }}%"></span></span>
+    <span class="sc-bar-value">{{ .panel_covered }}/{{ $c.panel_size }}</span>
+  </div>
+  {{ end }}
   <div class="sc-bar-row sc-bar-row--best">
-    <span class="sc-bar-label">any</span>
+    <span class="sc-bar-label">pooled</span>
     <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div (float $c.prior_covered) $c.panel_size) 100) }}%"></span></span>
     <span class="sc-bar-value">{{ $c.prior_covered }}/{{ $c.panel_size }}</span>
   </div>
@@ -39,7 +48,7 @@
     <tr>
       <td>{{ .name }}{{ with .note }} <span class="sc-footmark" title="{{ . }}">*</span>{{ end }}</td>
       <td class="sc-mono">{{ .line }}</td>
-      <td class="sc-mono">{{ if eq .role "prior" }}prior{{ else }}local eval{{ end }}</td>
+      <td class="sc-mono">{{ if eq .role "prior" }}prior{{ else if eq .role "bench" }}bench{{ else }}local eval{{ end }}</td>
       <td class="sc-mono sc-num">{{ .panel_covered }}</td>
       <td class="sc-mono sc-num">{{ with .cells_per_covered_target }}{{ .min }} – {{ .median }} med{{ else }}—{{ end }}</td>
       <td class="sc-mono sc-num">{{ .genes }}</td>

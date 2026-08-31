@@ -24,18 +24,35 @@ from pathlib import Path
 
 import numpy as np
 
-CACHE = Path.home() / "data" / "sidechain" / "cache" / "vcc2026"
-PANEL = Path.home() / "data" / "sidechain" / "vcc2026" / "pert_counts.csv"
+DATA = Path.home() / "data" / "sidechain"
+CACHE = DATA / "cache" / "vcc2026"
+PANEL = DATA / "vcc2026" / "pert_counts.csv"
 OUT = Path(__file__).resolve().parents[3] / "site" / "data" / "coverage.json"
 
 # What each cache is, in public terms: the cell line and the screen scale, no more.
 # `role`: "prior" feeds the model's per-gene effects; "eval" is a local mirror panel
-# used to score methods before submitting (sidechain.eval.mirror2026, public).
+# used to score methods before submitting (sidechain.eval.mirror2026, public); "bench"
+# is held and measured but not in the pool (all three declared in configs/datasets.yaml).
+# `cache:` is relative to cache/vcc2026/, `path:` to ~/data/sidechain/ — same tree,
+# two entry points, because streamed corpora land their aggregates under derived/.
+# `loader: lfc` reads a published per-gene contrast table (labels × lfc, no cells).
 SOURCES = [
     {"cache": "h1_pseudobulk.npz", "name": "VCC 2025 training data", "line": "H1 hESC", "role": "prior",
      "note": "the 2025 challenge corpus; its 300 perturbations are a different panel than 2026's"},
     {"cache": "k562_gwps_targets_pseudobulk.npz", "name": "Genome-wide CRISPRi screen", "line": "K562", "role": "prior",
      "note": "streamed for the 2026 panel targets only — the cache holds just those columns"},
+    {"path": "derived/xatlas-orion/hct116_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
+     "line": "HCT116", "role": "prior",
+     "note": "streamed once from 126 GB of parquet, never stored — only this aggregate lands (both lines)"},
+    {"path": "derived/xatlas-orion/hek293t_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
+     "line": "HEK293T", "role": "prior"},
+    {"path": "cache/vcc2026/feng_genomewide_lfc.npz", "name": "Genome-wide CRISPRi, published log2FCs",
+     "line": "iPSC pool", "role": "bench", "loader": "lfc",
+     "note": "a published per-gene contrast table, not cells; scored on the local mirror, did not earn a slot in the pool"},
+    {"path": "derived/lamin-pertdata/sunshine23_all_pseudobulk.npz", "name": "CRISPRi host-factor screen",
+     "line": "Calu-3", "role": "bench"},
+    {"path": "derived/lamin-perturbench/mcfaline23_none_pseudobulk.npz", "name": "CRISPRi screen (vehicle arm)",
+     "line": "GBM pool", "role": "bench"},
     {"cache": "k562_essential_all_pseudobulk.npz", "name": "Essential-gene panel", "line": "K562", "role": "eval"},
     {"cache": "rpe1_all_pseudobulk.npz", "name": "Essential-gene panel", "line": "RPE1", "role": "eval"},
     {"cache": "jurkat_all_pseudobulk.npz", "name": "Essential-gene panel", "line": "Jurkat", "role": "eval"},
@@ -52,24 +69,29 @@ def is_control(label: str) -> bool:
 def measure(panel: set[str]) -> dict:
     sources, prior_union = [], set()
     for spec in SOURCES:
-        path = CACHE / spec["cache"]
+        path = CACHE / spec["cache"] if "cache" in spec else DATA / spec["path"]
         if not path.exists():
-            print(f"skipping {spec['cache']} (not built)", file=sys.stderr)
+            print(f"skipping {path.name} (not built)", file=sys.stderr)
             continue
         d = np.load(path, allow_pickle=True)
         labels = [str(x) for x in d["labels"]]
-        cells = {lab: int(n) for lab, n in zip(labels, d["n_cells"])}
-        targets = [lab for lab in labels if not is_control(lab)]
+        if spec.get("loader") == "lfc":
+            # a published contrast table: labels are targets, and there are no cells
+            targets = labels
+            cells = {}
+        else:
+            cells = {lab: int(n) for lab, n in zip(labels, d["n_cells"])}
+            targets = [lab for lab in labels if not is_control(lab)]
         covered = sorted(set(targets) & panel)
-        depth = sorted(cells[t] for t in covered)
+        depth = sorted(cells[t] for t in covered) if cells else []
         if spec["role"] == "prior":
             prior_union |= set(covered)
         sources.append({
             "name": spec["name"], "line": spec["line"], "role": spec["role"],
             "targets_held": len(targets),
             "panel_covered": len(covered),
-            "cells_targets": int(sum(cells[t] for t in targets)),
-            "cells_control": int(sum(n for lab, n in cells.items() if is_control(lab))),
+            "cells_targets": int(sum(cells[t] for t in targets)) if cells else None,
+            "cells_control": int(sum(n for lab, n in cells.items() if is_control(lab))) if cells else None,
             "cells_per_covered_target": (
                 {"min": depth[0], "median": int(np.median(depth)), "max": depth[-1]} if depth else None),
             "genes": len(d["genes"]),
