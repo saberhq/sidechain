@@ -82,6 +82,16 @@
       "teams": 476,
       "card": "SER-3afn = cross-line delta transfer, model 3 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
       "card_retro": false
+    },
+    {
+      "date": "2026-08-31",
+      "name": "SER-4afn",
+      "board_name": "Sidechain SER-4afn",
+      "overall": 0.1078,
+      "rank": 85,
+      "teams": 481,
+      "card": "SER-4afn = cross-line delta transfer, model 4 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
+      "card_retro": false
     }
   ]
 }

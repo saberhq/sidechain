@@ -10,6 +10,13 @@ setting moved off the series baseline — so `SER-3fn` reads as "SER model 3, wi
 and `n` on". Scores live in the [standings table](../#standings) — this page is what the
 numbers are attached to.
 
+## SER-4afn — submitted 2026-08-31
+
+**a = amplified transfer · f = floored source weights · n = no shrinkage.** SER-3afn with the
+amplification stepped back from its local-benchmark optimum to the value the measured
+knockdown depths of the actual submission pool predict. Model 4 rather than a new letter: the
+name records *which* dials are on, never their values, so a value change mints a new number.
+
 ## SER-3afn — submitted 2026-08-30
 
 **a = amplified transfer · f = floored source weights · n = no shrinkage.** SER-3fn with the
