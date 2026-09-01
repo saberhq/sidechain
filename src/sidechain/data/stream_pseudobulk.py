@@ -58,6 +58,36 @@ class PseudobulkSums:
         m = self.cpm_sum / n
         return np.maximum(self.cpm_sq_sum / n - m * m, 0.0)
 
+    def n_eff(self, i: int) -> np.ndarray:
+        """How many cells' worth of evidence sits behind each gene of label row `i`.
+
+        `(sum of the per-cell CPMs)^2 / (sum of their squares)`. If k cells each
+        contributed the same amount this is exactly k; if one cell contributed
+        everything it is 1. Uneven contributions can only push it BELOW the number of
+        cells that actually detected the gene, never above -- so it is a floor on that
+        count, never an overstatement (measured at ~0.73-0.76 of the true count on
+        `hepg2_flowtest_real.h5ad`, where both are computable).
+
+        This is the number `count_sum` cannot give: a gene whose counts add up to 100
+        might be 100 cells at 1 each or one cell at 100, and the pooling weight has no
+        other way to tell those apart.
+
+        It is NOT a detection count -- a gene seen in many cells that disagree wildly
+        also scores low -- which is why it is called `n_eff` everywhere and why the
+        exact count stays worth a re-stream (private research/ideas/dataset-qc-intake.md).
+
+        ROW-WISE, like `submit.build._log2fc_with_var` and for the same reason: the
+        whole-matrix form of this would allocate ~5.6 GB on a full-corpus X-Atlas
+        artifact to answer a question about two rows. There is deliberately no
+        `n_eff_all()`.
+        """
+        s1, s2 = self.cpm_sum[i], self.cpm_sq_sum[i]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            e = np.where(s2 > 0, s1 * s1 / np.maximum(s2, np.finfo(np.float64).tiny), 0.0)
+        # Cannot exceed the arm's own cell count; float error at the equality case
+        # (every detecting cell identical) would otherwise put it a hair above.
+        return np.minimum(e, float(max(int(self.n_cells[i]), 0)))
+
     def save(self, path: str | Path) -> None:
         np.savez_compressed(
             Path(path).expanduser(),
