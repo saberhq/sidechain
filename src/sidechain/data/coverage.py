@@ -43,7 +43,7 @@ SOURCES = [
      "note": "streamed for the 2026 panel targets only — the cache holds just those columns"},
     {"path": "derived/xatlas-orion/hct116_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
      "line": "HCT116", "role": "prior",
-     "note": "streamed once from 126 GB of parquet, never stored — only this aggregate lands (both lines)"},
+     "note": "streamed from 126 GB of parquet and never stored — only aggregates land; read twice (panel targets first, then all labels and all 38,584 columns, which is what this row measures)"},
     {"path": "derived/xatlas-orion/hek293t_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
      "line": "HEK293T", "role": "prior"},
     {"path": "cache/vcc2026/feng_genomewide_lfc.npz", "name": "Genome-wide CRISPRi, published log2FCs",
