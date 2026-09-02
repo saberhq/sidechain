@@ -366,6 +366,25 @@ a.sq-card:hover {
 .sq-kicker-accent2 { color: var(--accent-2); }
 
 /* ---------- Responsive ---------- */
+/* ---------- Mermaid figures ----------
+   ```mermaid fences (layouts/_markup/render-codeblock-mermaid.html) render client-side, so
+   until the library has run the <pre> still holds its own source — hide it rather than flash
+   a wall of graph syntax. The ground stays theme-aware on purpose: scripts.html hands mermaid
+   `neutral` or `dark` to match the page, so forcing a light plate here would put a dark-themed
+   diagram on white. A page whose diagrams bake their own light fills overrides this itself. */
+.sq-prose .mermaid {
+  margin: var(--space-5) 0 0;
+  padding: 18px 14px;
+  background: var(--surface);
+  border: var(--rule-w) solid var(--rule);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  text-align: center;
+}
+.sq-prose .mermaid:not([data-processed]) { color: transparent; min-height: 140px; }
+.sq-prose .mermaid svg { max-width: 100%; height: auto; }
+
+
 @media (max-width: 900px) {
   .sq-wrap { padding-left: var(--space-4); padding-right: var(--space-4); }
   .sq-hero { padding-top: var(--space-7); padding-bottom: var(--space-7); }
