@@ -34,3 +34,22 @@ document.addEventListener('click', function (e) {
 <script data-goatcounter="https://saberhq.goatcounter.com/count"
         async src="https://gc.zgo.at/count.js"></script>
 {{- end }}
+{{- /* Outbound clicks. count.js records pageviews only, so a click that leaves the site
+       records nothing at all. Every external link on these pages opens in a new tab, so the
+       page is never unloaded and the request has time to finish — there is no navigation
+       race here to work around with sendBeacon.
+       Grouped by host: out/github.com counts every GitHub link as one line, with the full
+       URL kept in the event title. Same-host links are skipped, which is what keeps the
+       personal site and /sidechain/ from counting each other as outbound. */ -}}
+{{- if hugo.IsProduction }}
+<script>
+document.addEventListener('click', function (e) {
+  var a = e.target && e.target.closest && e.target.closest('a[href^="http"]');
+  if (!a) return;
+  var host = a.host.replace(/^www\./, '');
+  if (host === location.host.replace(/^www\./, '')) return;
+  if (!window.goatcounter || !window.goatcounter.count) return;
+  window.goatcounter.count({ path: 'out/' + host, title: a.href, event: true });
+});
+</script>
+{{- end }}
