@@ -12,6 +12,16 @@ from sidechain.models.count_emitters import (
 )
 
 
+class _StubPB(str):
+    """A stand-in for a loaded `PseudobulkSums` that is still a plain string.
+
+    `sources_from_specs` stamps `sidechain_name` on whatever `PseudobulkSums.load` returns
+    (it is the key `--transfer-floor NAME=TAU2` matches on), and a bare `str` takes no
+    attributes. Subclassing `str` keeps the stub comparable to the string the tests expect
+    while giving it a `__dict__`.
+    """
+
+
 def _controls(tmp_path, rng, n=200, g=40):
     base = rng.gamma(0.5, 2.0, size=g)
     X = rng.poisson(base[None, :] * rng.uniform(5, 15, size=(n, 1)))
@@ -164,7 +174,8 @@ def test_loco_passes_emit_lambda_through_and_records_it(monkeypatch, tmp_path):
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.eval import loco
 
-    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    monkeypatch.setattr(PseudobulkSums, "load",
+                        classmethod(lambda cls, p: _StubPB(f"PB:{p}")))
     captured, logged = {}, {}
 
     def fake_build(real, sources, out_path, **kw):

@@ -460,6 +460,43 @@ def _consume_batch(accs: list[_Accumulator], axis: GeneAxis, frame: pd.DataFrame
     return ran
 
 
+def decode_lists(frame: pd.DataFrame):
+    """The two parallel list columns -> flat COO ingredients.
+
+    X-Atlas stores each cell's non-zero genes as two same-length lists (`gene_token_id`,
+    `gene_expression`). Flattening them and repeating a row index per cell is the whole of
+    the long -> sparse step. Shared with the cell writer (`stream_cells`) rather than
+    duplicated, because a second decoder that drifted from this one would misalign genes
+    silently, which is this project's most expensive recurring bug.
+    """
+    tok_lists = frame["gene_token_id"].to_numpy()
+    val_lists = frame["gene_expression"].to_numpy()
+    lengths = np.fromiter((len(t) for t in tok_lists), count=len(tok_lists), dtype=np.int64)
+    tokens = np.concatenate(tok_lists) if len(tok_lists) else np.empty(0, dtype=np.int64)
+    values = np.concatenate(val_lists) if len(val_lists) else np.empty(0, dtype=np.float64)
+    rows = np.repeat(np.arange(len(lengths), dtype=np.int64), lengths)
+    return lengths, tokens, values, rows
+
+
+def tokens_to_csr(axis: GeneAxis, tokens, values, rows, *, n_cells: int) -> sp.csr_matrix:
+    """Map gene tokens onto the emitted axis and build the (cells x genes) CSR.
+
+    Tokens outside the emitted axis (and any id beyond the map) are dropped here.
+    `tokens >= 0` is not paranoia: a negative id would index from the END of
+    col_of_token and land silently in some unrelated gene's column. Gene
+    misalignment is this project's most expensive recurring bug and it never
+    announces itself.
+    """
+    in_range = (tokens >= 0) & (tokens < len(axis.col_of_token))
+    cols = np.full(tokens.shape, -1, dtype=np.int64)
+    cols[in_range] = axis.col_of_token[tokens[in_range]]
+    on_axis = cols >= 0
+    return sp.csr_matrix(
+        (values[on_axis], (rows[on_axis], cols[on_axis])),
+        shape=(n_cells, len(axis.genes)),
+    )
+
+
 def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
                 check_counts: bool) -> bool:
     """Fold one guide-filtered frame into one accumulator.
@@ -482,12 +519,7 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
     frame = frame[wanted]
     codes = codes[wanted]
 
-    tok_lists = frame["gene_token_id"].to_numpy()
-    val_lists = frame["gene_expression"].to_numpy()
-    lengths = np.fromiter((len(t) for t in tok_lists), count=len(tok_lists), dtype=np.int64)
-    tokens = np.concatenate(tok_lists) if len(tok_lists) else np.empty(0, dtype=np.int64)
-    values = np.concatenate(val_lists) if len(val_lists) else np.empty(0, dtype=np.float64)
-    rows = np.repeat(np.arange(len(lengths), dtype=np.int64), lengths)
+    lengths, tokens, values, rows = decode_lists(frame)
 
     ran_check = False
     if check_counts and values.size:
@@ -519,21 +551,7 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
                 "transformed matrix."
             )
 
-    # Tokens outside the emitted axis (and any id beyond the map) are dropped here.
-    # `tokens >= 0` is not paranoia: a negative id would index from the END of
-    # col_of_token and land silently in some unrelated gene's column. Gene
-    # misalignment is this project's most expensive recurring bug and it never
-    # announces itself.
-    in_range = (tokens >= 0) & (tokens < len(axis.col_of_token))
-    cols = np.full(tokens.shape, -1, dtype=np.int64)
-    cols[in_range] = axis.col_of_token[tokens[in_range]]
-    on_axis = cols >= 0
-
-    n_cells, n_genes = len(codes), len(acc.genes)
-    sub = sp.csr_matrix(
-        (values[on_axis], (rows[on_axis], cols[on_axis])),
-        shape=(n_cells, n_genes),
-    )
+    sub = tokens_to_csr(axis, tokens, values, rows, n_cells=len(codes))
 
     lib = np.asarray(sub.sum(axis=1)).ravel()
     alive = lib > 0

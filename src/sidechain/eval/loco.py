@@ -44,8 +44,10 @@ from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
 from sidechain.submit.build import (
+    apply_transfer_floors,
     as_delta_source,
     parse_coverage_tiers,
+    parse_transfer_floor,
     pooled_delta,
     sources_from_specs,
 )
@@ -130,6 +132,14 @@ def build_transfer_prediction(
             "alpha": alpha, "gamma": gamma, "var_floor": var_floor,
             "coverage_tiers": coverage_tiers,
             "similarity_beta": similarity_beta,
+            # Recorded per source and by name, not as a bare list: a floor attached to the
+            # wrong arm is the failure mode this knob has, so the run must say which arm got
+            # which number rather than leaving it to the command line's order.
+            "transfer_floor": {getattr(s[0] if isinstance(s, tuple) else s,
+                                       "sidechain_name", f"src{i}"):
+                               float(getattr(s[0] if isinstance(s, tuple) else s,
+                                             "transfer_floor", 0.0) or 0.0)
+                               for i, s in enumerate(sources)},
             "pool_stats": pool_stats}
 
 
@@ -152,6 +162,12 @@ def main(argv: list[str] | None = None) -> int:
                          "evidence stands behind that gene (n_eff), as cut:factor pairs, "
                          "e.g. '3:0.10,10:0.50'. Same knob in sidechain.submit.build, so a "
                          "scored arm submits verbatim.")
+    ap.add_argument("--transfer-floor", action="append", default=[], metavar="NAME=TAU2",
+                    help="per-source transfer-error floor tau^2 added to that source's "
+                         "variance before it becomes a pooling weight, keyed by the source "
+                         "file's basename stem (repeatable), e.g. 'h1_pseudobulk=0.0104'. "
+                         "Same knob in sidechain.submit.build, so a scored arm submits "
+                         "verbatim.")
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -205,7 +221,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.source and not args.shrink_source and not args.lfc_source:
         ap.error("need at least one --source, --shrink-source or --lfc-source")
     sources = sources_from_specs(args.source, args.shrink_source)
-    sources += [LfcTable.load(path) for path in args.lfc_source]
+    for path in args.lfc_source:
+        tab = LfcTable.load(path)
+        tab.sidechain_name = Path(path).expanduser().stem
+        sources.append(tab)
+    sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
     out = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,

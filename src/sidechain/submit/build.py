@@ -194,6 +194,60 @@ def parse_coverage_tiers(spec: str | None) -> tuple[tuple[float, float], ...] | 
     return tuple(tiers)
 
 
+def parse_transfer_floor(specs: list[str] | None) -> dict[str, float]:
+    """``['h1_pseudobulk=0.0104']`` -> ``{'h1_pseudobulk': 0.0104}``; None/[] -> ``{}``.
+
+    Keyed by the source file's basename stem rather than by position, because the pool's
+    order is a command-line accident and a floor attached to the wrong source is silently
+    wrong rather than loud. `apply_transfer_floors` refuses a key that matches no source.
+    """
+    out: dict[str, float] = {}
+    for part in specs or []:
+        name, _, value = part.partition("=")
+        if not value:
+            raise SystemExit(f"--transfer-floor: {part!r} is not NAME=TAU2, e.g. "
+                             "'h1_pseudobulk=0.0104'")
+        try:
+            tau2 = float(value)
+        except ValueError:
+            raise SystemExit(f"--transfer-floor: {value!r} is not a number") from None
+        if tau2 < 0:
+            raise SystemExit(f"--transfer-floor: tau^2 {tau2} must be >= 0 (it is a variance)")
+        if name in out:
+            raise SystemExit(f"--transfer-floor: {name!r} given twice")
+        out[name] = tau2
+    return out
+
+
+def apply_transfer_floors(sources: list, floors: dict[str, float]) -> list:
+    """Attach each ``NAME=TAU2`` to the source whose file stem is NAME.
+
+    Matching is on the stem recorded by `sources_from_specs`. A key matching no source is a
+    hard error: the alternative is a run that silently pools uncalibrated weights while its
+    `build.json` claims otherwise, which is exactly the class of quiet wrongness the
+    exact-match rule in `ingest/checks.py` exists to prevent.
+    """
+    if not floors:
+        return sources
+    seen = {}
+    for src in sources:
+        obj = src[0] if isinstance(src, tuple) else src
+        name = getattr(obj, "sidechain_name", None)
+        if name is not None:
+            seen[name] = src
+    missing = sorted(set(floors) - set(seen))
+    if missing:
+        raise SystemExit(
+            f"--transfer-floor names {missing} match no source; have {sorted(seen)}. "
+            "The floor is per source and attaching it to the wrong one is silently wrong."
+        )
+    for name, tau2 in floors.items():
+        src = seen[name]
+        obj = src[0] if isinstance(src, tuple) else src
+        obj.transfer_floor = tau2
+    return sources
+
+
 def coverage_factor(n_eff: np.ndarray, tiers: tuple[tuple[float, float], ...]) -> np.ndarray:
     """Per-gene weight multiplier from the evidence behind each gene.
 
@@ -240,6 +294,15 @@ class _PseudobulkDeltaSource:
     @property
     def genes(self) -> np.ndarray:
         return self.pb.genes
+
+    @property
+    def transfer_floor(self) -> float:
+        """This source's tau^2, carried on the underlying `PseudobulkSums`.
+
+        Read through rather than stored, because `as_delta_source` rebuilds this wrapper on
+        every `pooled_delta` call while the floor is attached once, to the artifact.
+        """
+        return float(getattr(self.pb, "transfer_floor", 0.0))
 
     def control_cpm(self) -> np.ndarray:
         """Mean per-cell CPM of this source's own control arm, on its own gene axis --
@@ -306,6 +369,10 @@ def sources_from_specs(source_specs: list[str], shrink_source_specs: list[str]) 
     for spec, shrunk in [(s, False) for s in source_specs] + [(s, True) for s in shrink_source_specs]:
         path, _, ctrl = spec.rpartition(":")
         pb = PseudobulkSums.load(path)
+        # The stem is how `--transfer-floor NAME=TAU2` finds this source. Recorded here, at
+        # the one place a source is built from a path, so the two flags cannot disagree about
+        # what a source is called.
+        pb.sidechain_name = Path(path).expanduser().stem
         sources.append((pb, ctrl or "control", True) if shrunk else (pb, ctrl or "control"))
     return sources
 
@@ -411,6 +478,17 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     outvoted where better evidence exists and still used where none does. A source
     with no cells behind it (an LfcTable) is left at full weight. None is the default
     and is bit-identical to the historical call.
+
+    A source may also carry a `transfer_floor` (tau^2), attached by
+    `apply_transfer_floors` and read here: a measured constant ADDED to that source's
+    variance before it becomes a weight. The floor and the tiers are one variance model
+    with two terms, and they are deliberately different shapes -- `var / f(n_eff) +
+    tau^2`. The tier is multiplicative because sampling variance really does fall as
+    1/n; tau^2 is additive because transfer error does not shrink with cell count (no
+    number of HCT116 cells makes HCT116 into K562), so it acts as a CEILING on weight
+    (1/tau^2) rather than a rescale. Measured against a held-out fold's truth, never
+    tuned -- fitting is the only move available on the challenge contexts, where nothing
+    can be scored. tau^2 = 0 is the default and the identity.
     """
     if var_floor not in ("none", "poisson"):
         raise ValueError(f"unknown var_floor {var_floor!r}: expected 'none' or 'poisson'")
@@ -489,6 +567,27 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                 # so a run cannot quietly be half-tiered without saying so.
                 stats["coverage_sources_unweighted"] = (
                     stats.get("coverage_sources_unweighted", 0) + 1)
+        tau2 = float(getattr(src, "transfer_floor", 0.0) or 0.0)
+        if tau2:
+            # The transfer-error floor: this source's variance gets tau^2 ADDED before it
+            # becomes a weight, so no source can claim more certainty than its measured error
+            # against a held-out line supports. Written as a transform of the weight rather
+            # than of the variance so that it composes with the terms above rather than
+            # replacing them: with w = 1/v, w / (1 + tau2*w) is exactly 1/(v + tau2), and the
+            # coverage tier has already divided v by its factor -- which is the intended
+            # order. The tier scales the SAMPLING variance (that really does fall as 1/n);
+            # tau^2 is added after, because transfer error does not shrink with cell count.
+            #
+            # Additive, not multiplicative, and the difference is the whole point: this caps
+            # every weight at 1/tau^2 (w -> 1/tau2 as w -> inf) instead of rescaling the
+            # column, so it bites exactly on the genes a source claims to know perfectly and
+            # barely touches the ones it already admits are noisy.
+            #
+            # tau2 = 0 is the identity on every branch, including w = 0 (abstention), so the
+            # default path is bit-identical to every historical call.
+            w = w / (1.0 + tau2 * w)
+            if stats is not None:
+                stats["transfer_floor_sources"] = stats.get("transfer_floor_sources", 0) + 1
         if stats is not None:
             finite = np.isfinite(var)
             stats["gene_weights"] = stats.get("gene_weights", 0) + int(finite.sum())
@@ -549,6 +648,14 @@ def main(argv: list[str] | None = None) -> int:
                          "e.g. '3:0.10,10:0.50' -- below n_eff 3 keep a tenth of the weight, "
                          "3 to 10 keep half, at or above 10 keep it all. Factors must be "
                          "positive: this downweights, it never silences. Same knob in "
+                         "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
+    ap.add_argument("--transfer-floor", action="append", default=[], metavar="NAME=TAU2",
+                    help="add a measured per-source transfer-error floor tau^2 to that "
+                         "source's variance before it becomes a pooling weight, keyed by the "
+                         "source file's basename stem (repeatable), e.g. "
+                         "'h1_pseudobulk=0.0104'. Caps that source's weight at 1/tau^2 so it "
+                         "cannot claim more certainty than its measured error against a "
+                         "held-out line supports. Fitted, never tuned. Same knob in "
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
@@ -620,6 +727,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.h1_cache:
             raise SystemExit("--h1-cache is required for this emitter")
         h1 = PseudobulkSums.load(args.h1_cache)
+        # Named like every other source. `--h1-cache` and `--gwps-cache` predate `--source`
+        # and load outside `sources_from_specs`, so without this the two oldest arms in the
+        # pool are the only ones `--transfer-floor` cannot address -- and H1 is the arm whose
+        # variance the calibration measurement found most wrong.
+        h1.sidechain_name = Path(args.h1_cache).expanduser().stem
         generic = h1_mean_shift(h1, cfg["control_label"], axis)
         shifts = {p: generic.copy() for p in perts}
     sources = None
@@ -627,12 +739,17 @@ def main(argv: list[str] | None = None) -> int:
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
         gwps = PseudobulkSums.load(args.gwps_cache)
+        gwps.sidechain_name = Path(args.gwps_cache).expanduser().stem
         sources = [(gwps, "control"), (h1, cfg["control_label"])]
         sources += sources_from_specs(args.source, args.shrink_source)
         # Appended, not special-cased: `pooled_delta` normalises both forms, so a
         # source with no cells behind it enters the pool exactly like one that has
         # them and nothing downstream needs to know which it was.
-        sources += [LfcTable.load(path) for path in args.lfc_source]
+        for path in args.lfc_source:
+            tab = LfcTable.load(path)
+            tab.sidechain_name = Path(path).expanduser().stem
+            sources.append(tab)
+        sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
         if args.gamma == 1.0:
             for p in perts:
                 d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,

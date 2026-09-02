@@ -14,6 +14,16 @@ from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.submit.build import as_delta_source, pooled_delta
 
+
+class _StubPB(str):
+    """A stand-in for a loaded `PseudobulkSums` that is still a plain string.
+
+    `sources_from_specs` stamps `sidechain_name` on whatever `PseudobulkSums.load` returns
+    (it is the key `--transfer-floor NAME=TAU2` matches on), and a bare `str` takes no
+    attributes. Subclassing `str` keeps every existing equality assertion below working
+    while giving the stub a `__dict__`.
+    """
+
 AXIS = np.array(["A", "B", "C"])
 
 
@@ -316,7 +326,7 @@ def test_sources_from_specs_binds_the_flag_and_the_default_control(monkeypatch):
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.submit.build import sources_from_specs
 
-    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: _StubPB(f"PB:{p}")))
     out = sources_from_specs(["a.npz:ctrlA", "b.npz:"], ["c.npz:deepctl"])
     assert out[0] == ("PB:a.npz", "ctrlA")
     assert out[1] == ("PB:b.npz", "control")      # empty suffix -> the default
@@ -334,7 +344,7 @@ def test_loco_passes_the_triple_through_and_records_it(monkeypatch, tmp_path):
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.eval import loco
 
-    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: _StubPB(f"PB:{p}")))
     captured, logged = {}, {}
 
     def fake_build(real, sources, out_path, **kw):
@@ -522,7 +532,7 @@ def test_loco_passes_gamma_through_and_records_it(monkeypatch, tmp_path):
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.eval import loco
 
-    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: f"PB:{p}"))
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: _StubPB(f"PB:{p}")))
     captured, logged = {}, {}
 
     def fake_build(real, sources, out_path, **kw):

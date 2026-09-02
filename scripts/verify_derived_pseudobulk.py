@@ -30,10 +30,16 @@ Run it after any rebuild of a derived pseudobulk, from the repo root:
     uv run python scripts/verify_derived_pseudobulk.py            # both contexts
     uv run python scripts/verify_derived_pseudobulk.py hct116     # one
 
-It reads `~/data/sidechain/derived/xatlas-orion/<ctx>_{panel,full}.npz` and their `.qc.npz`
-sidecars, prints PASS/FAIL per check, and exits non-zero if anything failed. Nothing is
-written. **It needs the RAM to hold a full artifact** -- 16.9 GB of arrays for the 18,294 x
-38,584 case, so run it on the box that built them, not on the Mac.
+It reads the full artifacts from `~/data/sidechain/derived/xatlas-orion/<ctx>_full.npz` and
+the panel ones from `archive_panel_20260823/<ctx>_panel.npz` (with their `.qc.npz` sidecars),
+prints PASS/FAIL per check, and exits non-zero if anything failed. Nothing is written.
+**It needs the RAM to hold a full artifact** -- 16.9 GB of arrays for the 18,294 x 38,584
+case, so run it on the box that built them, not on the Mac.
+
+The panel artifacts moved into `archive_panel_20260823/` on 2026-08-31 so that no session
+picks them up as a source by accident (they are 301 labels on a narrower axis, with a
+different CPM denominator -- that directory's README carries the why). This script is the one
+legitimate consumer: comparing the two scopes is its entire purpose, so it follows them there.
 """
 from __future__ import annotations
 
@@ -45,6 +51,10 @@ import numpy as np
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 
 DERIVED = Path.home() / "data" / "sidechain" / "derived" / "xatlas-orion"
+# The panel artifacts were archived on 2026-08-31 (see this module's docstring and that
+# directory's README). Kept as a separate constant rather than inlined, so that the day the
+# archive is pruned this script fails at one obvious line instead of four scattered loads.
+PANEL_DIR = DERIVED / "archive_panel_20260823"
 FAILURES: list[str] = []
 
 
@@ -55,9 +65,9 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def verify(context: str) -> None:
-    panel = PseudobulkSums.load(DERIVED / f"{context}_panel.npz")
+    panel = PseudobulkSums.load(PANEL_DIR / f"{context}_panel.npz")
     full = PseudobulkSums.load(DERIVED / f"{context}_full.npz")
-    pqc = np.load(DERIVED / f"{context}_panel.qc.npz", allow_pickle=True)
+    pqc = np.load(PANEL_DIR / f"{context}_panel.qc.npz", allow_pickle=True)
     fqc = np.load(DERIVED / f"{context}_full.qc.npz", allow_pickle=True)
 
     print(f"\n=== {context} ===")
