@@ -24,3 +24,13 @@ document.addEventListener('click', function (e) {
   mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral', fontFamily: 'Geist, sans-serif' });
 </script>
 {{- end }}
+{{- /* GoatCounter — pageviews, reported to saberhq.goatcounter.com. One property covers both
+       saberhq.com and saberhq.com/sidechain (same origin under GitHub Pages), so this site's
+       traffic reads as /sidechain/* paths there. Cookieless, so no consent banner is owed.
+       Production only: the guard keeps `hugo server` out of the numbers, and count.js skips
+       localhost of its own accord. The same three lines live in the personal site's
+       layouts/_partials/docs/inject/body.html — keep them in step. */ -}}
+{{- if hugo.IsProduction }}
+<script data-goatcounter="https://saberhq.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.js"></script>
+{{- end }}
