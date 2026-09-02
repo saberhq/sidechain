@@ -58,3 +58,46 @@ disableKinds = ["taxonomy", "term"]
 
 [services.rss]
   limit = 20
+
+# Mounts. private/site/ is where site material that must never reach this repo lives —
+# the ledger dashboard being the case that forced this. Its data carries private idea and
+# report titles, so the routing rule in CLAUDE.md puts it on the private side.
+#
+# Three independent things have to fail before any of it could publish:
+#   1. .gitignore blocks private/ here, so `git add -A` cannot stage it;
+#   2. it is committed to the private repo instead, which has no Pages deploy;
+#   3. the Actions runner checks out only this repo, so ../private/ does not exist there —
+#      Hugo skips a mount whose source is missing, without warning or error, and simply
+#      builds the site without those pages. Verified against 0.148.2.
+#
+# So `hugo server --source site` renders the private pages for local review, and the
+# deployed site cannot contain them. Declaring any mount replaces Hugo's defaults, which is
+# why every default directory is re-declared below — dropping one silently empties it.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "../private/site/content"
+    target = "content"
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+  [[module.mounts]]
+    source = "../private/site/data"
+    target = "data"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "../private/site/layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "archetypes"
+    target = "archetypes"
