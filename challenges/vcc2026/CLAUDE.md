@@ -89,9 +89,14 @@ submit; re-run it after every `uv tool upgrade vcc-cli`.
     `header=None` read yields 18,534 "genes" with the literal `gene_name` first. `vcc prep`
     strips known headers either way; our own readers must check the row count against the h5ad
     (`sidechain.data.profile` prints both reads and marks the right one).
-12. **Target coverage is thin.** Of the 300 targets, H1 covers 25, the genome-wide K562 file
-    272, and the four essential-gene panels (K562-essential, RPE1, Jurkat, HepG2) **zero**; 28
-    targets are in nothing we hold. `private/reports/06_vcc2026_controls_qc.md` §5.
+12. **Target coverage per corpus is thin — but the shipped pool is not.** Of the 300 targets, H1
+    covers 25, the genome-wide K562 file 272, and the four essential-gene panels (K562-essential,
+    RPE1, Jurkat, HepG2) **zero**. `private/reports/06_vcc2026_controls_qc.md` §5.
+    **The "28 targets are in nothing we hold" clause is pre-X-Atlas and stale (checked
+    2026-09-01):** `cache/vcc2026/foldsub/{hct116,hek293t}_full_panel300.npz` each carry
+    **300/300** of `pert_counts.csv`, and every build since SER-2 records `pool 300/300,
+    fallback 0`. So the generic-mean-shift fallback fires on **no** target today. Do not build an
+    argument on the 28 without re-measuring; the per-corpus numbers above are still correct.
 
 ## Packaging and submitting
 
