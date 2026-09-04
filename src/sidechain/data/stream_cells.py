@@ -189,7 +189,11 @@ class CellSink:
         for lab, n in zip(*np.unique(pert, return_counts=True), strict=True):
             self.by_label[str(lab)] = self.by_label.get(str(lab), 0) + int(n)
 
-    def write(self, out: Path, gene_ids: np.ndarray | None = None) -> dict:
+    def pending_nnz(self) -> int:
+        return int(sum(b.nnz for b in self.blocks))
+
+    def _drain(self, out: Path, gene_ids: np.ndarray | None, tag: str = "") -> dict:
+        """Write everything held right now to one h5ad and free it."""
         import anndata as ad
 
         X = sp.vstack(self.blocks, format="csr")
@@ -201,8 +205,44 @@ class CellSink:
         adata = ad.AnnData(X=X, obs=obs, var=var)
         out.parent.mkdir(parents=True, exist_ok=True)
         adata.write_h5ad(out, compression="gzip")
-        return {"cells": int(X.shape[0]), "genes": int(X.shape[1]), "nnz": int(X.nnz),
+        info = {"cells": int(X.shape[0]), "genes": int(X.shape[1]), "nnz": int(X.nnz),
                 "file_gb": round(out.stat().st_size / 1e9, 3)}
+        if tag:
+            info["shard"] = tag
+        self.blocks.clear()
+        self.obs.clear()
+        del X, obs, adata
+        return info
+
+    def maybe_flush(self, out: Path, gene_ids: np.ndarray | None, max_nnz: int) -> dict | None:
+        """Spill to a numbered shard once the held matrix reaches `max_nnz` nonzeros.
+
+        Why this exists: the sink used to hold every block and `sp.vstack` them once at the end,
+        so peak memory was TWICE the finished matrix. That is fine for a panel-scope capture
+        (the 142k-cell fold files) and fatal for a genome-wide one -- X-Atlas HCT116 is 3,409,169
+        cells at ~2,700 nonzeros each, about 73 GB as CSR and ~146 GB at the vstack, on a box with
+        70 GB. The run died to the OOM killer with no traceback (2026-09-04).
+
+        Sharding the LABEL LIST instead would also bound memory, but it costs one full pass over
+        the corpus per shard -- 117.59 GB read six times over. Flushing bounds memory at one pass.
+        Shards are a fine end state: `cell_load` takes a directory and globs it.
+        """
+        if max_nnz <= 0 or self.pending_nnz() < max_nnz:
+            return None
+        self._shard_no = getattr(self, "_shard_no", 0) + 1
+        stem = out.with_suffix("")
+        return self._drain(Path(f"{stem}_s{self._shard_no:02d}.h5ad"), gene_ids,
+                           tag=f"s{self._shard_no:02d}")
+
+    def write(self, out: Path, gene_ids: np.ndarray | None = None) -> dict:
+        # If anything was already spilled, the tail becomes one more shard so every cell lives
+        # in a file of the same shape -- never a mix of "the shards" plus a differently-named whole.
+        if getattr(self, "_shard_no", 0):
+            self._shard_no += 1
+            stem = out.with_suffix("")
+            return self._drain(Path(f"{stem}_s{self._shard_no:02d}.h5ad"), gene_ids,
+                               tag=f"s{self._shard_no:02d}")
+        return self._drain(out, gene_ids)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -225,6 +265,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--control-cells", type=int, default=20000)
     ap.add_argument("--limit-files", type=int, help="stream only the first N files (smoke run)")
     ap.add_argument("--batch-rows", type=int, default=2048)
+    ap.add_argument("--shard-nnz", type=int, default=0,
+                    help="spill a numbered h5ad shard once this many nonzeros are held "
+                         "(0 = off, one file, the old behaviour). Peak memory is TWICE "
+                         "what is held, because the final vstack copies it, so budget "
+                         "about 16 bytes per nonzero. 1.5e9 is ~24 GB peak and is what a "
+                         "70 GB box wants for a genome-wide capture.")
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args(argv)
 
@@ -274,7 +320,17 @@ def main(argv: list[str] | None = None) -> int:
     columns = ["gene_token_id", "gene_expression", "gene_target", "guide_target",
                "pass_guide_filter", "sample", "pct_counts_mt", "total_counts",
                "n_genes_by_counts"]
+    # Resolved BEFORE the loop: a spilled shard needs the same var frame as the last one.
+    ids = None
+    if "gene_id" in gene_map.columns:
+        by_symbol = dict(zip(gene_map["gene_symbol"].astype(str),
+                             gene_map["gene_id"].astype(str), strict=False)) \
+            if "gene_symbol" in gene_map.columns else {}
+        if by_symbol:
+            ids = np.array([by_symbol.get(g, "") for g in axis.genes])
+
     t0 = time.time()
+    shards: list[dict] = []
     for n, path in enumerate(names, 1):
         batch = Path(path).stem
         with opener(path) as handle:
@@ -284,19 +340,22 @@ def main(argv: list[str] | None = None) -> int:
                 # pass_guide_filter is int64, not bool: `== 1`, not `is True`.
                 frame = frame[frame["pass_guide_filter"].to_numpy() == 1]
                 sink.fold(frame, batch)
+        spilled = sink.maybe_flush(args.out.expanduser(), ids, args.shard_nnz)
+        if spilled is not None:
+            shards.append(spilled)
+            print(f"  spilled {spilled['shard']}: {spilled['cells']:,} cells, "
+                  f"{spilled['file_gb']} GB", flush=True)
         print(f"  [{n}/{len(names)}] {batch}  kept {sink.kept:,}  "
               f"{time.time() - t0:6.0f}s", flush=True)
 
-    if not sink.blocks:
+    if not sink.blocks and not shards:
         raise SystemExit("no cells kept -- check --keep against the corpus's labels")
-    ids = None
-    if "gene_id" in gene_map.columns:
-        by_symbol = dict(zip(gene_map["gene_symbol"].astype(str),
-                             gene_map["gene_id"].astype(str), strict=False)) \
-            if "gene_symbol" in gene_map.columns else {}
-        if by_symbol:
-            ids = np.array([by_symbol.get(g, "") for g in axis.genes])
     info = sink.write(args.out.expanduser(), gene_ids=ids)
+    if shards:
+        info = {"shards": shards + [info], "cells": sum(s["cells"] for s in shards) + info["cells"],
+                "nnz": sum(s["nnz"] for s in shards) + info["nnz"],
+                "file_gb": round(sum(s["file_gb"] for s in shards) + info["file_gb"], 3),
+                "genes": info["genes"]}
     info.update(planned=planned, kept=sink.kept, labels=len(sink.by_label),
                 control_cells=sink.by_label.get(CONTROL_HARMONISED, 0),
                 seconds=round(time.time() - t0))
