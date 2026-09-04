@@ -170,6 +170,43 @@ complete: X-Atlas/Orion is 126.26 GB we stream and never store.
   22, so the claim was false and an argument had already been built on it. Any "every X has Y"
   statement needs the minimum, not a summary statistic that hides the tail.
 
+## Ending a unit of work: the STATUS block
+
+More than one session works in this checkout, and Saber reads a board rather than nine
+transcripts. So a session that finishes a unit of work — a task done, a question raised, a
+hand-off — ends its message with this, as the **last lines, unfenced**:
+
+```
+STATUS · sidechain-5c · T37 · running|waiting|returned · expect_by 15:30
+→ research/ideas/learned-arm-fusion.md §Outcome
+ASK: decision|review|fyi — keep the union panel or the 272? rec: 272
+```
+
+Only the `STATUS` line is required. A `Stop` hook lifts the block into `private/agents/` and
+nothing else does, so **a session that never sends one is invisible** — however much it has
+reported in chat. That is not a metaphor: on 2026-09-03 a session recapped a full day's work
+and its card still read `unreported`, because the protocol had only ever been written down in
+a file that does not auto-load.
+
+- **Report about yourself.** The hook refuses a block naming another session — it checks the
+  name against this session's own — so never write one as an example. Your name comes from
+  `ListAgents`; a `SessionStart` hook also states it.
+- **`fyi` is the type to reach for most.** It says something landed without asking Saber to
+  decide. Finishing quietly is how work goes unnoticed.
+- **`waiting` needs `expect_by`.** A wait without a clock cannot go overdue, so nothing will
+  ever notice it is stuck.
+- **The `→` line names a file, not a topic.** It is what saves Saber reading a transcript.
+- **`T<n>` comes from `private/TODO.md`.** No id yet? Write `—` and say so in the `ASK`.
+
+The block is a convention — nothing forces you to send one. What *is* enforced, by
+`private/research/protocol/ledger.py`: a `review` ask must carry a question, `A<n>` ids are
+never reused, and a block whose session name is not yours is discarded.
+
+**Name another session by its session id, never its auto-name.** An auto-name
+(`sidechain-91`) belongs to the *process* and changes when the process restarts; the session id
+is stable for the session's life. In `RESULTS.md`, `CHANGELOG.md` and commit messages, write
+the id.
+
 ## Env
 
 - `uv sync` installs everything including the `dev` group (pytest, ruff). Python is pinned to 3.11
