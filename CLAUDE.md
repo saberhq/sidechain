@@ -192,7 +192,9 @@ a file that does not auto-load.
   name against this session's own — so never write one as an example. Your name comes from
   `ListAgents`; a `SessionStart` hook also states it.
 - **`fyi` is the type to reach for most.** It says something landed without asking Saber to
-  decide. Finishing quietly is how work goes unnoticed.
+  decide. Finishing quietly is how work goes unnoticed. Saber closes an `fyi` himself — it
+  wants no reply, so never open an ask to acknowledge one and never re-send the same question.
+  One ask per thing that is actually new; otherwise the board fills with echoes of itself.
 - **`waiting` needs `expect_by`.** A wait without a clock cannot go overdue, so nothing will
   ever notice it is stuck.
 - **The `→` line names a file, not a topic.** It is what saves Saber reading a transcript.
