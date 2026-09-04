@@ -125,6 +125,16 @@ def main() -> int:
     )
     ap.add_argument("--out", required=True, type=Path, help="destination .pt")
     ap.add_argument(
+        "--control-label",
+        action="append",
+        default=[],
+        help="write an explicit ALL-ZERO vector for this label (repeatable). The control arm needs "
+        "a perturbation vector like any other row, and zero is the right one for a residual model: "
+        "no perturbation, no shift. Declaring it here matters because otherwise cell_load backfills "
+        "it with the same silent zero-fill it uses for genuine coverage gaps, and the two become "
+        "indistinguishable in the log.",
+    )
+    ap.add_argument(
         "--allow-missing",
         action="store_true",
         help="write anyway when some labels do not resolve. cell_load will ZERO-FILL them at train "
@@ -181,6 +191,12 @@ def main() -> int:
         )
         return 1
 
+    for label in args.control_label:
+        features[label] = torch.zeros(dim)
+    if args.control_label:
+        print(f"controls     : {len(args.control_label)} explicit zero vector(s) — "
+              + ", ".join(repr(c) for c in args.control_label))
+
     out = args.out.expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(features, out)
@@ -195,6 +211,8 @@ def main() -> int:
                 "n_features_written": len(features),
                 "n_via_alias": len(aliased),
                 "aliases": aliased,
+                "n_controls_zeroed": len(args.control_label),
+                "control_labels": list(args.control_label),
                 "n_missing": len(missing),
                 "missing": missing,
                 "label_sources": [str(p) for p in args.labels] + [str(p) for p in args.labels_h5ad],
