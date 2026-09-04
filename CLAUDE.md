@@ -195,6 +195,9 @@ a file that does not auto-load.
   decide. Finishing quietly is how work goes unnoticed. Saber closes an `fyi` himself — it
   wants no reply, so never open an ask to acknowledge one and never re-send the same question.
   One ask per thing that is actually new; otherwise the board fills with echoes of itself.
+- **An ask you raised is yours to close.** When Saber answers a `decision` or `review` in chat,
+  record it and close it in the same turn you act on it — `ledger.py ask answer A12 "…"` then
+  `ledger.py ask consume A12`. Otherwise it sits on his board looking unanswered.
 - **`waiting` needs `expect_by`.** A wait without a clock cannot go overdue, so nothing will
   ever notice it is stuck.
 - **The `→` line names a file, not a topic.** It is what saves Saber reading a transcript.
