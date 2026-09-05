@@ -28,6 +28,10 @@ challenge axis). Mixing all three would train the model to emit 41% of the axis 
 board metrics read. That trade is a modelling decision, recorded in
 private/research/ideas/gene-embedding-arm.md, not something a prep script should make silently.
 
+``sidechain.data.union_axis`` is the tool that makes it, when it is made: it projects every corpus
+onto one declared axis and records which genes each one measured, so nothing is intersected away.
+Run it first, then this script with ``--in-place`` on what it wrote.
+
 Usage::
 
     python scripts/prep_tx_training.py \
@@ -64,9 +68,19 @@ def write_categorical(obs, name: str, values: list[str]) -> None:
 
 
 def read_categorical(obs, name: str) -> list[str]:
+    """The column's values, whichever of the two encodings anndata used for it.
+
+    A column is categorical in one file and a plain string array in the next -- `batch` is
+    categorical in the X-Atlas fold files and a string array after `stream_subset` -- and
+    reading only the categorical shape crashed on the second (2026-09-05).
+    """
+    import h5py
+
     g = obs[name]
-    cats = [x.decode() if isinstance(x, bytes) else str(x) for x in g["categories"][:]]
-    return [cats[i] for i in g["codes"][:]]
+    if isinstance(g, h5py.Group):
+        cats = [x.decode() if isinstance(x, bytes) else str(x) for x in g["categories"][:]]
+        return [cats[i] for i in g["codes"][:]]
+    return [x.decode() if isinstance(x, bytes) else str(x) for x in g[:]]
 
 
 def main() -> int:
@@ -81,7 +95,12 @@ def main() -> int:
     ap.add_argument("--control-label", default="Non-Targeting",
                     help="the control value as it appears in --pert-col. Declared, never inferred.")
     ap.add_argument("--batch-col", default="batch")
-    ap.add_argument("--out-dir", required=True, type=Path)
+    ap.add_argument("--out-dir", type=Path,
+                    help="where the copies land; omit only with --in-place")
+    ap.add_argument("--in-place", action="store_true",
+                    help="normalise each --src where it lies instead of copying it first. For "
+                         "files this project just wrote (a union-axis projection), where the "
+                         "copy would be a second pass over tens of GB for nothing.")
     ap.add_argument("--out-pert-col", default="gene_target")
     ap.add_argument("--out-cell-type-col", default="cell_type")
     args = ap.parse_args()
@@ -91,20 +110,26 @@ def main() -> int:
     if len(args.src) != len(args.cell_type):
         raise SystemExit(f"{len(args.src)} --src against {len(args.cell_type)} --cell-type; pair them.")
 
-    out_dir = args.out_dir.expanduser()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if args.in_place == bool(args.out_dir):
+        raise SystemExit("give exactly one of --out-dir or --in-place")
+    out_dir = args.out_dir.expanduser() if args.out_dir else None
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
     axes: dict[str, set[str]] = {}
     written = []
 
     for src, ct in zip(args.src, args.cell_type):
         src = src.expanduser()
-        dst = out_dir / src.name
-        print(f"\n{src.name}  ->  {dst}")
-        if dst.exists():
-            print("  destination exists; leaving it alone (delete it to rebuild)")
+        dst = src if out_dir is None else out_dir / src.name
+        if out_dir is None:
+            print(f"\n{src}  (in place)")
         else:
-            shutil.copy2(src, dst)
-            print(f"  copied {dst.stat().st_size / 2**30:.2f} GB")
+            print(f"\n{src.name}  ->  {dst}")
+            if dst.exists():
+                print("  destination exists; leaving it alone (delete it to rebuild)")
+            else:
+                shutil.copy2(src, dst)
+                print(f"  copied {dst.stat().st_size / 2**30:.2f} GB")
 
         with h5py.File(dst, "a") as h:
             obs = h["obs"]
@@ -131,7 +156,7 @@ def main() -> int:
 
             if args.batch_col not in obs:
                 raise SystemExit(f"  no obs/{args.batch_col} to use as batch_col")
-            nb = len(obs[args.batch_col]["categories"])
+            nb = len(set(read_categorical(obs, args.batch_col)))
             print(f"  obs/{args.batch_col}: {nb} batches")
 
             order = list(obs.attrs.get("column-order", []))
@@ -162,7 +187,8 @@ def main() -> int:
                   "with different var; the model's output space then means different genes in "
                   "different rows. Harmonise before training, or train one axis at a time.")
 
-    print(f"\nready for a cell_load TOML pointing at: {out_dir}")
+    where = out_dir if out_dir is not None else "each file's own directory"
+    print(f"\nready for a cell_load TOML pointing at: {where}")
     for p in written:
         print(f"  {p}")
     return 0
