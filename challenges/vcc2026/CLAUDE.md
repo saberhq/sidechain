@@ -38,6 +38,15 @@ uv run python -m sidechain.data.profile --challenge-config challenges/vcc2026/co
 The agent skill (`vcc skill install` → `~/.claude/skills/vcc/`) drives download → prep →
 submit; re-run it after every `uv tool upgrade vcc-cli`.
 
+**Reinstalling or re-pointing the CLI invalidates the keychain ACL, and macOS then prompts for the
+login password on *every* `vcc` call.** The `vcc` keychain item records the interpreter that created
+it, so when that binary moves — a reinstall, an interpreter swap, or the 2026-09-07 miniconda
+removal that left the tool venv's python dangling — the ACL names a path that no longer exists.
+`vcc whoami` reports "Not logged in" while a GUI prompt waits behind it. Reset rather than
+re-granting: `security delete-generic-password -s vcc`, then log in again **in your own terminal**
+(`printf '%s' "$KEY" | vcc login --token-stdin`), then `vcc whoami` to confirm it is silent. An
+agent can delete the item; only you can mint or paste the key.
+
 ## Things that will bite you
 
 1. **Context labels are opaque and load-bearing.** A/B/C name held-out datasets, not cell
