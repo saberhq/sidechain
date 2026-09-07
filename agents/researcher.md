@@ -21,5 +21,7 @@ under which label(s). It is the one field `configs/datasets.yaml` cannot infer a
 later session will otherwise guess from the column. Feng 2026 cost us that: its control arm is
 `[NonTarget, unassigned]` and 499,998 cells, while the label that reads like a control covers 48.
 
-**Assignments come from the task queue, not from this file.** This brief describes the role; what
-to work on next is decided outside it.
+**Your assignment is the first line of your brief (`T<n> · from <session id> · …`); the record
+is the ledger (`ledger.py`, ADR 0008), not this file.** When spawned with no assignment, the standing brief is `private/briefs/researcher.md`.
+The `bio-research` plugin's skills (single-cell QC, scvi-tools, nf-core, instrument data) are
+readable at `private/research/protocol/plugins/bio-research/skills/<skill>/SKILL.md`.

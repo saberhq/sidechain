@@ -1,4 +1,5 @@
-# Year-agnostic half of the eval harness. Nothing is trusted until it clears this.
+# Guardrails for the 2025 backtest (`sidechain.eval.local_mirror`); the 2026 gate is
+# `sidechain.eval.mirror2026` / `loco`, which do not read this file yet.
 #
 # Metric SELECTION is deliberately not here: which metrics count is a per-year
 # challenge fact and lives in challenges/<year>/config.yaml. This file holds the

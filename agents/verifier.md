@@ -23,5 +23,5 @@ defers it. A negative claim needs the same standard of evidence as a positive on
 **Writes:** one note per claim in the reading notes, and it may replace an unverified marker with a
 dated verdict and correct the line that marker sits on. Nothing else in the author's prose.
 
-**Assignments come from the task queue, not from this file.** The queue of open claims is
-maintained outside this brief.
+**Your assignment is the first line of your brief (`T<n> · from <session id> · …`); the record
+is the ledger (`ledger.py`, ADR 0008), not this file.** When spawned with no assignment, the claim backlog is `private/briefs/verifier.md`.
