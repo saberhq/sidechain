@@ -102,6 +102,16 @@
       "teams": 533,
       "card": "SER-5acfnt = weights each source's vote by how well it actually predicts a new cell line, not by how confident it sounds. All models: saberhq.com/sidechain/models/",
       "card_retro": false
+    },
+    {
+      "date": "2026-09-07",
+      "name": "PHE-2",
+      "board_name": "Sidechain PHE-2",
+      "overall": -0.9807,
+      "rank": 746,
+      "teams": null,
+      "card": "PHE-2 = a neural network trained on two cancer cell lines, asked to predict each knockdown's cells directly from an unseen line's untouched controls. All models: saberhq.com/sidechain/models/",
+      "card_retro": false
     }
   ]
 }
