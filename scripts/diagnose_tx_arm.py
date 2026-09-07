@@ -55,6 +55,19 @@ Three controls, because two of the four numbers are uninterpretable without one:
 Model-agnostic by construction: it reads `pert_onehot_map.pt` and `var_dims.pkl` from the
 model directory and calls `predict_step` exactly as `state tx infer` does, so an ESM2-
 featurised arm is the same command with a different `--model-dir`.
+
+**Two flags exist so that runs on differently-prepped data stay comparable.** A model
+trained on `prep_tx_training.py --log1p` output consumes and emits shifted logarithms, and
+every number below would silently move into a different space. `--x-space log1p` takes
+`expm1` of the predictions before any statistic, and `--truth-adata` points the real-cell
+column at the raw-count file, so the whole report lands where an earlier run's did:
+
+    uv run python scripts/diagnose_tx_arm.py --balanced-encoders --x-space log1p \
+        --model-dir  ~/data/sidechain/runs/tx/<run> \
+        --adata       ~/data/sidechain/derived/tx-train-xatlas-log1p/loco_hct116_real.h5ad \
+        --truth-adata ~/data/sidechain/derived/tx-train-xatlas/loco_hct116_real.h5ad
+
+`profiles.npz` is therefore always in count space, whatever `--x-space` said.
 """
 from __future__ import annotations
 
@@ -236,6 +249,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model-dir", required=True, type=Path)
     ap.add_argument("--checkpoint", type=Path, help="default: <model-dir>/checkpoints/best.ckpt")
     ap.add_argument("--adata", required=True, type=Path, help="h5ad supplying basal cells and truth")
+    ap.add_argument("--x-space", choices=("counts", "log1p"), default="counts",
+                    help="what --adata's X holds, which is what the model consumes and emits. "
+                         "`log1p` (a file prepped with `prep_tx_training.py --log1p`) sends the "
+                         "cells to the model unchanged and takes `expm1` of the PREDICTIONS "
+                         "before any statistic, so every number below stays in the count space "
+                         "the earlier runs were measured in and the two are comparable.")
+    ap.add_argument("--truth-adata", type=Path,
+                    help="h5ad supplying the real cells, when that is not --adata. Point it at "
+                         "the raw-count fold file while --adata is the log1p one, and the truth "
+                         "column is then identical to a run made before any of this. Same cells "
+                         "in the same order, or the comparison is meaningless.")
     ap.add_argument("--pert-col", default="gene_target")
     ap.add_argument("--control-pert", default="Non-Targeting")
     ap.add_argument("--n-cells", type=int, default=256, help="cells in the frozen basal set")
@@ -247,6 +271,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="untrained control: replace the trained pert_encoder with fresh random "
                          "weights and change nothing else, so the run measures what training "
                          "bought the perturbation pathway rather than what the pathway can do")
+    ap.add_argument("--balanced-encoders", action="store_true",
+                    help="the checkpoint was trained with sidechain.models.balanced_encoders, "
+                         "which adds a norm module on each encoder output. Install that class "
+                         "before loading, or torch refuses the state_dict for the extra keys. "
+                         "The norms' settings come from the checkpoint's own hparams, so this "
+                         "flag says only *that* it is one, never which kind.")
     ap.add_argument("--device", default="auto")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, help="directory for report.json + profiles.npz")
@@ -260,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     model_dir = args.model_dir.expanduser()
     ckpt = (args.checkpoint or model_dir / "checkpoints" / "best.ckpt").expanduser()
     adata_path = args.adata.expanduser()
+    truth_path = (args.truth_adata or args.adata).expanduser()
 
     _allow_numpy_globals()
     pert_map = torch.load(model_dir / "pert_onehot_map.pt", weights_only=False)
@@ -283,7 +314,14 @@ def main(argv: list[str] | None = None) -> int:
         device = torch.device(prior.get("device", "cpu"))
         _log(f"reusing       {args.from_profiles}/profiles.npz — no forward pass")
         _log(f"              {profiles.shape[0]} perturbations x {profiles.shape[1]} genes")
-        return _statistics(args, adata_path, order, profiles, pert_emb, enc, device, model_dir, ckpt)
+        return _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc,
+                           device, model_dir, ckpt)
+
+    if args.balanced_encoders:
+        from sidechain.models.balanced_encoders import install
+
+        install()
+        _log("encoders      balanced class installed (settings come from the checkpoint)")
 
     from state.tx.models.state_transition import StateTransitionPerturbationModel
 
@@ -358,11 +396,18 @@ def main(argv: list[str] | None = None) -> int:
             if (i + 1) % 50 == 0 or i + 1 == len(order):
                 _log(f"    {i + 1}/{len(order)}")
 
-    return _statistics(args, adata_path, order, profiles, pert_emb, enc, device,
+    if args.x_space == "log1p":
+        # The model emits what it was trained on. Undo the shifted logarithm so the deltas,
+        # the effective rank and the truth comparison are all in the count space every earlier
+        # run reported -- `profiles.npz` is therefore ALWAYS counts, whatever --x-space said.
+        profiles = np.expm1(profiles)
+        _log("    predictions converted back to counts (expm1) for the statistics below")
+
+    return _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc, device,
                        model_dir, ckpt)
 
 
-def _statistics(args, adata_path, order, profiles, pert_emb, enc, device,
+def _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc, device,
                 model_dir, ckpt) -> int:
     """Everything downstream of the forward pass: the deltas, the geometry, the truth."""
     ctrl_i = order.index(args.control_pert)
@@ -396,10 +441,13 @@ def _statistics(args, adata_path, order, profiles, pert_emb, enc, device,
         "model_dir": str(model_dir),
         "checkpoint": str(ckpt),
         "adata": str(adata_path),
+        "truth_adata": str(truth_path),
+        "x_space": str(args.x_space),
         "n_basal_cells": int(args.n_cells),
         "n_perturbations": len(labels),
         "device": str(device),
         "reinit_pert_encoder": bool(args.reinit_pert_encoder),
+        "balanced_encoders": bool(getattr(args, "balanced_encoders", False)),
         "encoders": enc,
         "predicted": {
             "rel_delta_counts_median": float(np.median(rel)),
@@ -417,8 +465,8 @@ def _statistics(args, adata_path, order, profiles, pert_emb, enc, device,
     # ---- 4. against the real cells -------------------------------------------------------
     if not args.no_truth:
         _log("")
-        _log(f"[4] real cells, up to {args.truth_max_cells} per label")
-        tp = true_pseudobulk(adata_path, args.pert_col, args.control_pert, labels,
+        _log(f"[4] real cells from {truth_path.name}, up to {args.truth_max_cells} per label")
+        tp = true_pseudobulk(truth_path, args.pert_col, args.control_pert, labels,
                              args.truth_max_cells, args.seed)
         have = [lab for lab in labels if lab in tp]
         t_ctrl = tp[args.control_pert]
@@ -452,7 +500,7 @@ def _statistics(args, adata_path, order, profiles, pert_emb, enc, device,
             null_means[s] = s_cos.mean()
         p_value = float((null_means >= cos.mean()).mean())
 
-        floor = control_split_null(adata_path, args.pert_col, args.control_pert,
+        floor = control_split_null(truth_path, args.pert_col, args.control_pert,
                                    args.truth_max_cells, 50, args.seed)
         _log(f"    matched labels {len(have)}")
         _log(f"    real  ||delta||/||control||  counts median {np.median(t_rel):.3e}  "

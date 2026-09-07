@@ -19,8 +19,29 @@ on another:
   it is declared here rather than inferred from whatever strings happen to be in the column.
 
 This script does the smallest thing that fixes both: it **copies** the file and adds/normalises obs
-columns with h5py, leaving the count matrix untouched. It does not rewrite X, so it costs a disk
-copy rather than an AnnData round-trip.
+columns with h5py. By default it does not rewrite X, so it costs a disk copy rather than an
+AnnData round-trip.
+
+``--log1p`` additionally rewrites X as **scanpy's shifted logarithm** --
+``normalize_total(target_sum=None)`` then ``log1p`` -- and writes ``uns/log1p`` so ``cell_load``
+autodetects it. Three things about that recipe are deliberate:
+
+* **The size factor is the dataset's median raw count depth**, which is what
+  ``target_sum=None`` means, not CP10k and not CPM. Fixed 1e4/1e6 targets inflate the
+  overdispersion relative to what single-cell data actually shows; the median-depth factor is
+  scanpy's own default and the one the single-cell best-practices book argues for.
+* **It is applied because the model's objective is a distance, not a likelihood.** ``state tx``
+  trains against ``geomloss``'s energy distance between two cell sets. A Euclidean distance on
+  raw counts is dominated by the handful of highest-expressed genes -- which is the pathology
+  the shifted logarithm exists to remove. Raw counts belong to models with a count likelihood
+  (scVI and friends), and this is not one. Arc's own ``state tx`` training file,
+  ``arcinstitute/State-Replogle-Filtered/replogle_concat.h5ad``, holds log-transformed values.
+* **It runs streamed, never through AnnData.** The fold files are 1.5-2.4 GB of CSR on a 17 GB
+  Mac. Both passes read ``X/data`` in blocks of nonzeros and write it back in place; the
+  sparsity structure never changes, because scaling a row and ``log1p`` both map 0 to 0.
+
+``uns/log1p`` is also the idempotence guard: a file that already carries it is left alone rather
+than logged twice, which would be silent and unrecoverable.
 
 What it deliberately does NOT do: harmonise gene axes. The two X-Atlas files already share 38,584
 genes; K562-gwps is a different 8,248 and their three-way intersection is 7,976 (40.7% of the 2026
@@ -38,7 +59,8 @@ Usage::
         --src ~/data/sidechain/cache/vcc2026/loco_hct116_real.h5ad  --cell-type HCT116 \
         --src ~/data/sidechain/cache/vcc2026/loco_hek293t_real.h5ad --cell-type HEK293T \
         --pert-col gene_target --control-label Non-Targeting \
-        --out-dir ~/data/sidechain/derived/tx-train-xatlas
+        --log1p \
+        --out-dir ~/data/sidechain/derived/tx-train-xatlas-log1p
 """
 
 from __future__ import annotations
@@ -65,6 +87,129 @@ def write_categorical(obs, name: str, values: list[str]) -> None:
     g.attrs["ordered"] = False
     g.create_dataset("categories", data=np.array(cats, dtype=h5py.string_dtype()))
     g.create_dataset("codes", data=codes)
+
+
+def csr_group(h5):
+    """The `X` group, checked to be CSR with a float payload before anything writes to it."""
+    X = h5["X"]
+    enc = X.attrs.get("encoding-type")
+    if enc != "csr_matrix":
+        raise SystemExit(
+            f"X is {enc!r}, not 'csr_matrix'. The streamed rewrite walks indptr/data and has "
+            "nothing to walk on a dense or CSC matrix; convert first, or drop --log1p."
+        )
+    if X["data"].dtype.kind != "f":
+        raise SystemExit(
+            f"X/data is {X['data'].dtype}, an integer type. Writing the shifted logarithm back "
+            "into it would truncate every value to 0 or 1 with no error. Rewrite X as float32 "
+            "first."
+        )
+    return X
+
+
+def row_totals(h5, block_nnz: int = 8_000_000) -> np.ndarray:
+    """Per-cell total counts, read in blocks of nonzeros so nothing dense is ever allocated.
+
+    A block is a whole number of rows spanning about `block_nnz` nonzeros, and the per-row sums
+    come from one cumulative sum over the block -- which handles empty rows without the
+    off-by-one that `np.add.reduceat` has when a row starts at the block's end.
+    """
+    X = csr_group(h5)
+    indptr = X["indptr"][:].astype(np.int64)
+    data = X["data"]
+    n_rows = len(indptr) - 1
+    out = np.zeros(n_rows, dtype=np.float64)
+    i = 0
+    while i < n_rows:
+        lo = int(indptr[i])
+        j = min(max(int(np.searchsorted(indptr, lo + block_nnz, side="right")) - 1, i + 1), n_rows)
+        hi = int(indptr[j])
+        cum = np.concatenate(([0.0], np.cumsum(data[lo:hi], dtype=np.float64)))
+        rel = indptr[i : j + 1] - lo
+        out[i:j] = cum[rel[1:]] - cum[rel[:-1]]
+        i = j
+    return out
+
+
+def write_log1p_uns(h5) -> None:
+    """`uns/log1p = {'base': None}`, in the encoding anndata writes for it.
+
+    `cell_load` looks for the key's presence only (`perturbation_dataloader.py:513`), but
+    anndata has to be able to read the file back, so the shape matches what
+    `sc.pp.log1p` + `adata.write_h5ad` produces: a dict group holding a null-encoded `base`.
+    """
+    import h5py
+
+    uns = h5.require_group("uns")
+    if "encoding-type" not in uns.attrs:
+        uns.attrs["encoding-type"] = "dict"
+        uns.attrs["encoding-version"] = "0.1.0"
+    g = uns.create_group("log1p")
+    g.attrs["encoding-type"] = "dict"
+    g.attrs["encoding-version"] = "0.1.0"
+    base = g.create_dataset("base", data=h5py.Empty("f4"))
+    base.attrs["encoding-type"] = "null"
+    base.attrs["encoding-version"] = "0.1.0"
+
+
+def shifted_log(h5, target_sum: float | None = None, block_nnz: int = 8_000_000) -> dict:
+    """Rewrite X in place as `normalize_total(target_sum)` then `log1p`, and stamp `uns/log1p`.
+
+    Matches scanpy 1.11's CSR path exactly: the size factor is the **median of every cell's
+    total**, each row is divided by `total / target_sum`, and a row totalling zero is divided
+    by 1 rather than by 0 (`allow_divide_by_zero=False`).
+
+    Returns the numbers worth printing and asserting on, so a caller can prove what it wrote
+    without re-reading 726 million values.
+    """
+    if "log1p" in h5.get("uns", {}):
+        raise SystemExit(
+            "uns/log1p is already present, so this file has been logged once. Logging it again "
+            "would be silent and unrecoverable; delete the file and rebuild it from the source."
+        )
+    X = csr_group(h5)
+    data = X["data"]
+    head = data[: min(len(data), 1_000_000)]
+    n_fractional = int((head != np.rint(head)).sum())
+    if n_fractional:
+        raise SystemExit(
+            f"{n_fractional:,} of the first {len(head):,} values in X/data are not integers, so "
+            "this matrix is not raw counts. The median-depth size factor is only meaningful on "
+            "counts; refusing to normalise something already normalised."
+        )
+
+    depths = row_totals(h5, block_nnz)
+    if target_sum is None:
+        target_sum = float(np.median(depths))
+    if not target_sum > 0:
+        raise SystemExit(f"target_sum must be positive, got {target_sum}")
+    factors = (depths / target_sum).astype(np.float32)
+    factors[factors == 0] = 1.0
+
+    indptr = X["indptr"][:].astype(np.int64)
+    n_rows = len(indptr) - 1
+    peak = 0.0
+    i = 0
+    while i < n_rows:
+        lo = int(indptr[i])
+        j = min(max(int(np.searchsorted(indptr, lo + block_nnz, side="right")) - 1, i + 1), n_rows)
+        hi = int(indptr[j])
+        if hi > lo:
+            per_row = np.repeat(factors[i:j], np.diff(indptr[i : j + 1]))
+            block = np.log1p(data[lo:hi] / per_row)
+            data[lo:hi] = block
+            peak = max(peak, float(block.max()))
+        i = j
+
+    write_log1p_uns(h5)
+    return {
+        "n_cells": int(n_rows),
+        "target_sum": target_sum,
+        "depth_min": float(depths.min()),
+        "depth_median": float(np.median(depths)),
+        "depth_max": float(depths.max()),
+        "max_value": peak,
+    }
 
 
 def read_categorical(obs, name: str) -> list[str]:
@@ -103,7 +248,20 @@ def main() -> int:
                          "copy would be a second pass over tens of GB for nothing.")
     ap.add_argument("--out-pert-col", default="gene_target")
     ap.add_argument("--out-cell-type-col", default="cell_type")
+    ap.add_argument("--log1p", action="store_true",
+                    help="also rewrite X as the shifted logarithm -- normalize_total(target_sum) "
+                         "then log1p -- and stamp uns/log1p so cell_load autodetects it. "
+                         "Streamed; a file that already carries uns/log1p is refused.")
+    ap.add_argument("--target-sum", type=float, default=None,
+                    help="size factor for --log1p. Default (and the recommendation) is the "
+                         "dataset's own median raw count depth, which is what scanpy's "
+                         "target_sum=None means. Pass 1e4 only to deliberately do CP10k.")
+    ap.add_argument("--block-nnz", type=int, default=8_000_000,
+                    help="nonzeros per streamed block for --log1p; the RAM knob")
     args = ap.parse_args()
+
+    if args.target_sum is not None and not args.log1p:
+        raise SystemExit("--target-sum only means something with --log1p")
 
     import h5py
 
@@ -117,6 +275,7 @@ def main() -> int:
         out_dir.mkdir(parents=True, exist_ok=True)
     axes: dict[str, set[str]] = {}
     written = []
+    logged: list[bool] = []
 
     for src, ct in zip(args.src, args.cell_type):
         src = src.expanduser()
@@ -175,6 +334,16 @@ def main() -> int:
             axes[src.name] = set(genes)
             print(f"  gene axis: {len(genes):,}")
 
+            if args.log1p:
+                stats = shifted_log(h, args.target_sum, args.block_nnz)
+                print(f"  X -> shifted log: size factor {stats['target_sum']:,.1f} "
+                      f"({'given' if args.target_sum else 'median raw depth'}) | "
+                      f"raw depth min {stats['depth_min']:,.0f} median "
+                      f"{stats['depth_median']:,.0f} max {stats['depth_max']:,.0f} | "
+                      f"max logged value {stats['max_value']:.3f}")
+                print("  wrote uns/log1p — cell_load will report is_log1p ENABLED")
+            logged.append("log1p" in h.get("uns", {}))
+
         written.append(dst)
 
     if len(axes) > 1:
@@ -186,6 +355,12 @@ def main() -> int:
             print("  WARNING: the axes differ. cell_load will happily train on the union of files "
                   "with different var; the model's output space then means different genes in "
                   "different rows. Harmonise before training, or train one axis at a time.")
+
+    if len(set(logged)) > 1:
+        mixed = ", ".join(f"{p.name}={'log1p' if lg else 'counts'}" for p, lg in zip(written, logged))
+        print(f"\n  WARNING: the outputs disagree on uns/log1p ({mixed}). cell_load refuses that "
+              "outright for output_space='all', and it would mean two value scales in one loss "
+              "for anything else. Rebuild the odd one out.")
 
     where = out_dir if out_dir is not None else "each file's own directory"
     print(f"\nready for a cell_load TOML pointing at: {where}")
