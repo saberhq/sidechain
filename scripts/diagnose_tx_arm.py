@@ -6,7 +6,7 @@
         --adata ~/data/sidechain/derived/tx-train-xatlas/loco_hct116_real.h5ad \
         --n-cells 256 --out ~/data/sidechain/runs/tx/phe1_onehot_hct116/diagnose
 
-`sidechain.eval.local_mirror` says *how well* a prediction scores. It cannot say *why* a
+`sidechain.eval.mirror2026` says *how well* a prediction scores. It cannot say *why* a
 bad one is bad, and a random-looking score has several very different causes that call
 for different fixes. This separates them, and it does so without a bundle, without truth
 alignment and without a GPU.
@@ -68,6 +68,19 @@ column at the raw-count file, so the whole report lands where an earlier run's d
         --truth-adata ~/data/sidechain/derived/tx-train-xatlas/loco_hct116_real.h5ad
 
 `profiles.npz` is therefore always in count space, whatever `--x-space` said.
+
+**And one flag asks a different question: what does a NARROWER assay cost?** A model trained
+on a 38,584-gene corpus cannot be fed a 18,533-gene one without deciding what the missing
+20,478 coordinates are, and zero is the only honest answer — but zero is also a value the
+model never saw. `--mask-genes-to gene_names.csv` zeroes exactly those genes in the basal
+input and changes nothing else, so masked and unmasked runs of the same checkpoint on the
+same cells are directly comparable and the difference is what the projection costs:
+
+    uv run python scripts/diagnose_tx_arm.py --balanced-encoders --x-space log1p \
+        --mask-genes-to ~/data/sidechain/vcc2026/gene_names.csv \
+        --model-dir  ~/data/sidechain/runs/tx/<run> \
+        --adata       ~/data/sidechain/derived/tx-train-xatlas-log1p/loco_hct116_real.h5ad \
+        --truth-adata ~/data/sidechain/derived/tx-train-xatlas/loco_hct116_real.h5ad
 """
 from __future__ import annotations
 
@@ -223,6 +236,57 @@ def control_split_null(adata_path: Path, pert_col: str, control_pert: str,
     return np.linalg.norm(log - ref, axis=1) / max(float(np.linalg.norm(ref)), 1e-12)
 
 
+def read_var_symbols(adata_path: Path) -> np.ndarray:
+    """The h5ad's var index as strings, whichever AnnData encoding wrote it."""
+    import h5py
+    from anndata.io import read_elem
+
+    with h5py.File(adata_path, "r") as f:
+        return np.asarray([str(x) for x in read_elem(f["var"]).index])
+
+
+def read_symbol_list(path: Path) -> list[str]:
+    """One gene symbol per line, with or without a header. Order is not used, membership is."""
+    lines = [ln.strip() for ln in Path(path).expanduser().read_text().splitlines() if ln.strip()]
+    if not lines:
+        raise SystemExit(f"{path} is empty")
+    # A header is a line that is not a gene: `gene_name`, `gene`, `symbol`, `target_gene`.
+    if lines[0].lower() in {"gene_name", "gene", "symbol", "gene_symbol", "target_gene", "genes"}:
+        lines = lines[1:]
+    return lines
+
+
+def apply_gene_mask(X: np.ndarray, model_genes: np.ndarray, keep: set[str], x_space: str,
+                    renorm: bool) -> tuple[np.ndarray, dict]:
+    """Zero every model-axis gene the narrower assay does not measure.
+
+    `X` is in the model's own input space. Under ``x_space='log1p'`` the mask has to be
+    applied in COUNT space and taken back, because ``log1p(0) == 0`` makes zeroing correct
+    there too but the optional renormalisation is a multiply on counts, not on logs.
+
+    Returns the masked cells and what the mask cost: how many genes went, and what share of
+    each cell's library they carried. That share is the number that says whether the model is
+    being shown a cell or a fragment of one.
+    """
+    on_axis = np.array([g in keep for g in model_genes], dtype=bool)
+    counts = np.expm1(X) if x_space == "log1p" else X.astype(np.float64, copy=True)
+    total = counts.sum(1)
+    kept = counts[:, on_axis].sum(1)
+    counts[:, ~on_axis] = 0.0
+    if renorm:
+        counts *= (total / np.maximum(kept, 1e-12))[:, None]
+    out = np.log1p(counts).astype(np.float32) if x_space == "log1p" else counts.astype(np.float32)
+    share = kept / np.maximum(total, 1e-12)
+    return out, {
+        "genes_kept": int(on_axis.sum()),
+        "genes_zeroed": int((~on_axis).sum()),
+        "library_share_kept_median": float(np.median(share)),
+        "library_share_kept_min": float(share.min()),
+        "library_share_kept_max": float(share.max()),
+        "renormalised": bool(renorm),
+    }
+
+
 def cp10k_log1p(profiles: np.ndarray) -> np.ndarray:
     """Depth-normalise then log1p. Rows are mean count profiles, not single cells."""
     depth = profiles.sum(axis=1, keepdims=True)
@@ -277,6 +341,20 @@ def main(argv: list[str] | None = None) -> int:
                          "before loading, or torch refuses the state_dict for the extra keys. "
                          "The norms' settings come from the checkpoint's own hparams, so this "
                          "flag says only *that* it is one, never which kind.")
+    ap.add_argument("--mask-genes-to", type=Path,
+                    help="single-column CSV/text of the gene symbols a NARROWER assay measures. "
+                         "Every gene on the model's own axis outside that list is zeroed in the "
+                         "basal input before either encoder sees it, so the run measures what "
+                         "projecting that assay onto this model costs. Symbols for the model's "
+                         "axis are read from --adata's var index; nothing else changes, so a "
+                         "masked run is directly comparable with the unmasked one.")
+    ap.add_argument("--mask-renorm", action="store_true",
+                    help="with --mask-genes-to: give the surviving genes the whole library "
+                         "back — rescale each cell in COUNT space so its masked total equals "
+                         "its pre-mask total, then return to the model's space. Off by default, "
+                         "which leaves each surviving value exactly as the model was trained to "
+                         "see it and lets the missing genes read as absent rather than as a "
+                         "smaller cell.")
     ap.add_argument("--device", default="auto")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, help="directory for report.json + profiles.npz")
@@ -315,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
         _log(f"reusing       {args.from_profiles}/profiles.npz — no forward pass")
         _log(f"              {profiles.shape[0]} perturbations x {profiles.shape[1]} genes")
         return _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc,
-                           device, model_dir, ckpt)
+                           device, model_dir, ckpt, prior.get("gene_mask"))
 
     if args.balanced_encoders:
         from sidechain.models.balanced_encoders import install
@@ -347,6 +425,19 @@ def main(argv: list[str] | None = None) -> int:
          f"median depth {np.median(X.sum(1)):,.0f}")
     if X.shape[1] != int(var_dims["input_dim"]):
         raise SystemExit(f"gene axis {X.shape[1]} != model input_dim {var_dims['input_dim']}")
+
+    mask_info: dict | None = None
+    if args.mask_genes_to:
+        model_genes = read_var_symbols(adata_path)
+        if len(model_genes) != X.shape[1]:
+            raise SystemExit(f"var index has {len(model_genes)} symbols, X has {X.shape[1]} genes")
+        keep = set(read_symbol_list(args.mask_genes_to))
+        X, mask_info = apply_gene_mask(X, model_genes, keep, args.x_space, args.mask_renorm)
+        _log(f"mask          keep {mask_info['genes_kept']:,} genes, zero "
+             f"{mask_info['genes_zeroed']:,} ({mask_info['genes_zeroed'] / len(model_genes):.1%} "
+             f"of the axis); they carried a median "
+             f"{1 - mask_info['library_share_kept_median']:.1%} of each cell's library"
+             + ("; surviving genes renormalised to the pre-mask total" if args.mask_renorm else ""))
 
     with torch.inference_mode():
         basal_emb = model.encode_basal_expression(
@@ -404,11 +495,11 @@ def main(argv: list[str] | None = None) -> int:
         _log("    predictions converted back to counts (expm1) for the statistics below")
 
     return _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc, device,
-                       model_dir, ckpt)
+                       model_dir, ckpt, mask_info)
 
 
 def _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc, device,
-                model_dir, ckpt) -> int:
+                model_dir, ckpt, mask_info: dict | None = None) -> int:
     """Everything downstream of the forward pass: the deltas, the geometry, the truth."""
     ctrl_i = order.index(args.control_pert)
     ctrl_profile = profiles[ctrl_i]
@@ -448,6 +539,7 @@ def _statistics(args, adata_path, truth_path, order, profiles, pert_emb, enc, de
         "device": str(device),
         "reinit_pert_encoder": bool(args.reinit_pert_encoder),
         "balanced_encoders": bool(getattr(args, "balanced_encoders", False)),
+        "gene_mask": mask_info,
         "encoders": enc,
         "predicted": {
             "rel_delta_counts_median": float(np.median(rel)),
