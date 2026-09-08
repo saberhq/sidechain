@@ -37,9 +37,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-import anndata as ad
+import numpy as np
 import pandas as pd
 
+from sidechain.data.stream_pseudobulk import read_elem
+from sidechain.utils.h5ad_stream import (
+    CsrWriter,
+    load_rows_csr,
+    open_anndata_h5,
+    write_frame,
+)
 from sidechain.utils.naming import check_out_leaf
 
 
@@ -94,18 +101,39 @@ def build_bundle(real: Path, out: Path, *, pert_col: str, control: str, de_backe
     return bundle
 
 
-def attach_controls(pred: Path, real: Path, out: Path, *, pert_col: str, control: str) -> Path:
-    """Append the real control cells to a controls-free prediction, as the platform does."""
-    p = ad.read_h5ad(pred)
-    r = ad.read_h5ad(real)
-    ctrl = r[r.obs[pert_col].astype(str) == control].copy()
-    if list(p.var_names) != list(r.var_names):
-        raise ValueError("prediction and real gene axes differ (set or order)")
-    ctrl.obs = pd.DataFrame({pert_col: [control] * ctrl.n_obs}, index=[f"ctrl_{i}" for i in range(ctrl.n_obs)])
-    p.obs = pd.DataFrame({pert_col: p.obs[pert_col].astype(str).to_numpy()}, index=[f"pred_{i}" for i in range(p.n_obs)])
-    merged = ad.concat([p, ctrl], join="inner", index_unique=None)
-    merged.var = pd.DataFrame(index=r.var_names)
-    merged.write_h5ad(out)
+def attach_controls(pred: Path, real: Path, out: Path, *, pert_col: str, control: str,
+                    block_rows: int = 2000) -> Path:
+    """Append the real control cells to a controls-free prediction, as the platform does.
+
+    Streamed row block by row block rather than through `anndata.concat`. On the X-Atlas
+    folds the two sides are ~800 M and ~726 M nonzeros, and a concat peaks at the sum of
+    both plus its own result -- ~12 GB, which is what kept these arms on the box. Here the
+    peak is one block. The written file is byte-for-byte equivalent to what the concat
+    produced: prediction rows first with index `pred_<i>`, then the control rows verbatim
+    with index `ctrl_<i>`, one obs column, and the real file's gene axis.
+    """
+    with open_anndata_h5(pred, "r") as p, open_anndata_h5(real, "r") as r:
+        p_var = read_elem(p["var"]).index.astype(str).to_numpy()
+        r_var = read_elem(r["var"]).index.astype(str).to_numpy()
+        if list(p_var) != list(r_var):
+            raise ValueError("prediction and real gene axes differ (set or order)")
+        p_labels = read_elem(p["obs"])[pert_col].astype(str).to_numpy()
+        r_labels = read_elem(r["obs"])[pert_col].astype(str).to_numpy()
+        ctrl_rows = np.where(r_labels == control)[0]
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open_anndata_h5(out, "w") as o:
+            w = CsrWriter(o, len(r_var))
+            for lo in range(0, len(p_labels), block_rows):
+                w.append(*load_rows_csr(p, np.arange(lo, min(lo + block_rows, len(p_labels)))))
+            for lo in range(0, len(ctrl_rows), block_rows):
+                w.append(*load_rows_csr(r, ctrl_rows[lo:lo + block_rows]))
+            n_rows = w.close()
+            index = np.array([f"pred_{i}" for i in range(len(p_labels))]
+                             + [f"ctrl_{i}" for i in range(len(ctrl_rows))], dtype=object)
+            labels = np.concatenate([p_labels, np.full(len(ctrl_rows), control, dtype=object)])
+            assert n_rows == len(index), f"{n_rows} rows written, {len(index)} labels"
+            write_frame(o, "obs", index, {pert_col: labels.astype(object)})
+            write_frame(o, "var", r_var.astype(object), {})
     return out
 
 

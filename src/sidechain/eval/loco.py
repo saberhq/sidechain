@@ -37,8 +37,7 @@ import json
 from pathlib import Path
 
 import anndata as ad
-import pandas as pd
-import scipy.sparse as sp
+import numpy as np
 
 from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
@@ -51,6 +50,7 @@ from sidechain.submit.build import (
     pooled_delta,
     sources_from_specs,
 )
+from sidechain.utils.h5ad_stream import CsrWriter, open_anndata_h5, write_frame
 from sidechain.utils.logging import log_run
 from sidechain.utils.naming import check_out_leaf
 
@@ -75,20 +75,26 @@ def build_transfer_prediction(
     min_libsize: float = 500.0,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
-    real = ad.read_h5ad(real_path)
+    # Backed, and the control cells are the only rows brought into memory. The X-Atlas
+    # folds are 726 M nonzeros: reading one whole would cost ~6 GB before a single cell
+    # is emitted, and the emitted side costs as much again.
+    real = ad.read_h5ad(real_path, backed="r")
     labels = real.obs[pert_col].astype(str).to_numpy()
     perts = sorted(set(labels) - {control})
     axis = real.var_names.astype(str).to_numpy()
-    ctrl = real[labels == control].copy()
     ctrl_tmp = out_path.parent / f"{out_path.stem}.controls.h5ad"
     ctrl_tmp.parent.mkdir(parents=True, exist_ok=True)
-    ctrl.write_h5ad(ctrl_tmp)
+    real[labels == control].to_memory().write_h5ad(ctrl_tmp)
+    if real.isbacked:
+        real.file.close()
     prof = ContextProfile.from_controls(ctrl_tmp, real_path.stem, min_libsize=min_libsize)
     if dispersion is None and emit_lambda is None:
         dispersion = "even"    # this function's historical default
     em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda)
     gene_pos = {g: i for i, g in enumerate(axis)}
-    blocks, obs_labels, covered = [], [], 0
+    out_h5 = open_anndata_h5(out_path, "w")
+    writer = CsrWriter(out_h5, len(axis))
+    obs_labels, covered = [], 0
     pool_stats: dict = {}
     # The transfer exponent reads the SAME control profile the emitter anchors on
     # (min_libsize-filtered, CPM within this file's own gene universe), so the
@@ -115,17 +121,20 @@ def build_transfer_prediction(
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
-        blocks.append(em.emit(n, d))
+        writer.append_csr(em.emit(n, d))
         obs_labels += [p] * n
-    X = sp.vstack(blocks, format="csr")
-    pred = ad.AnnData(X=X, obs=pd.DataFrame({pert_col: obs_labels}, index=[f"pred_{i}" for i in range(len(obs_labels))]),
-                      var=pd.DataFrame(index=real.var_names))
-    pred.write_h5ad(out_path)
+    n_rows = writer.close()
+    assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
+    write_frame(out_h5, "obs", np.array([f"pred_{i}" for i in range(n_rows)], dtype=object),
+                {pert_col: np.asarray(obs_labels, dtype=object)})
+    write_frame(out_h5, "var", axis.astype(object), {})
+    out_h5.close()
     # `shrinkage` alone under-describes a depth-aware run ('false' while one
     # arm was shrunk), so the per-source overrides are reported beside it,
     # aligned with the source list: None = followed the global flag.
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
-            "cells": int(pred.n_obs), "genes": int(pred.n_vars), "dispersion": em.dispersion,
+            "cells": int(n_rows), "genes": len(axis), "dispersion": em.dispersion,
+            "nonzeros": int(writer.nnz),
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
