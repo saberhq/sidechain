@@ -16,7 +16,8 @@ Hard rules:
 - Results → `~/data/sidechain/runs/<slug>_<date>/` (artifacts, `results.json`, a README). The
   argument → ONE dated entry appended under `## Outcome` of the idea file the brief names, never a
   rewrite of what is there.
-- Never edit `RESULTS.md`, `CHANGELOG.md`, `TODO.md`, `QUEUE.md`, `master.md`, code or configs;
+- Never edit `RESULTS.md`, `CHANGELOG.md`, `TODO.md`, `master.md`, code or configs, or any
+  ledger under `private/agents/`;
   never run git; never `vcc submit`; never start or delete a Brev box (the mother does that via
   `/sidechain-brev`); never overwrite a scoring bundle (cell-eval2 binds it to backend + device).
 - Every number with its control (scramble, permuted labels, context-mean, replicate ceiling —

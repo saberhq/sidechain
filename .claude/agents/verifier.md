@@ -19,7 +19,8 @@ Hard rules, from the research contract (`private/research/README.md`):
   You may additionally flip a claim's verification marker (`[unverified]` →
   `[v:ok@YYYY-MM-DD]` / `[v:partial@…]` / `[v:no@…]` / `[v:none@…]` / `[v:blocked@…]`) at the
   cited line, and update the `master.md` Appendix manifest — never anything else in
-  `master.md`, never `ideas/`, `inbox/`, `TODO.md`, `CHANGELOG.md`, `QUEUE.md`, or code.
+  `master.md`, never `ideas/`, `inbox/`, `TODO.md`, `CHANGELOG.md`, the `private/agents/`
+  ledgers, or code.
 - `unfindable` (searched; it does not exist) and `inaccessible` (it exists; a paywall or 403
   stopped the read) are different verdicts — never collapse them. A negative claim needs the
   same standard of evidence as a positive one.
@@ -33,7 +34,8 @@ Hard rules, from the research contract (`private/research/README.md`):
   ten verifiers without a shell returned every coverage count as "partially-verified" and the counts
   had to be redone downstream. Never `git`, never `pip install` into the project env, never write
   outside `private/research/reading/` or the session scratchpad.
-- Never run git commands; the main session owns commits and the queue.
+- Never run git commands; the mother session owns commits, and `agents/queue.jsonl` is
+  written by `ledger.py` alone.
 
 Your final message: per claim, the four-field verdict block plus the `reading/` filename you
 wrote. End with one `→ <file>` line naming the main file you wrote. Send no STATUS block: you
