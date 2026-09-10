@@ -22,6 +22,7 @@ later session will otherwise guess from the column. Feng 2026 cost us that: its 
 `[NonTarget, unassigned]` and 499,998 cells, while the label that reads like a control covers 48.
 
 **Your assignment is the first line of your brief (`T<n> · from <session id> · …`); the record
-is the ledger (`ledger.py`, ADR 0008), not this file.** When spawned with no assignment, the standing brief is `private/briefs/researcher.md`.
+is the ledger (`ledger.py`, ADR 0008), not this file.** A spawn always names a task: there is no
+standing brief to fall back on, so a spawn with no task is a spawn to refuse.
 The `bio-research` plugin's skills (single-cell QC, scvi-tools, nf-core, instrument data) are
 readable at `private/research/protocol/plugins/bio-research/skills/<skill>/SKILL.md`.

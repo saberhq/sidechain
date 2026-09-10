@@ -24,4 +24,7 @@ defers it. A negative claim needs the same standard of evidence as a positive on
 dated verdict and correct the line that marker sits on. Nothing else in the author's prose.
 
 **Your assignment is the first line of your brief (`T<n> · from <session id> · …`); the record
-is the ledger (`ledger.py`, ADR 0008), not this file.** When spawned with no assignment, the claim backlog is `private/briefs/verifier.md`.
+is the ledger (`ledger.py`, ADR 0008), not this file.** **Your queue is the markers themselves** —
+`grep -n '\[unverified\]' private/research/master.md`, and the same marker in `private/literature.md`
+and `private/research/ideas/*.md`. A claim marked at the line it sits on cannot go stale the way a
+copied list does, which is why there is no separate backlog file.

@@ -170,7 +170,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
 | "what should I work on", `pick up T<n>` | `private/TODO.md` `## Now` | `private/CLAUDE.md` → The mother session |
-| spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | `private/briefs/<role>.md` (a role's standing work when you give none) · write contracts in `private/research/README.md` |
+| spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
 | the GPU box, more RAM, a full-corpus stream | `/sidechain-brev` | — |
