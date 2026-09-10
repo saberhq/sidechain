@@ -87,6 +87,17 @@ def localise(spec: str, fold: str) -> tuple[str | None, str | None]:
     return f"{p}:{ctrl}", None
 
 
+def _num(build: dict, key: str, default: float) -> float:
+    """`build.get(k) or default` is WRONG for a knob whose "off" value is 0.0.
+
+    `gamma: 0.0` is falsy, so `or 1.0` silently rewrites a gamma=0 arm as gamma=1 and
+    the replay reports a confident wrong number. The T59 benchmark caught exactly that
+    on `loco_k562gwps_pdex/ag_a100_g000` (7.5e-03 off), which is what a benchmark is for.
+    """
+    v = build.get(key)
+    return default if v is None else float(v)
+
+
 def recorded_pds(arm: Path) -> float | None:
     f = arm / "run" / "agg_results.csv"
     if not f.exists():
@@ -101,13 +112,17 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
     s = json.loads((arm / "summary.json").read_text())
     b = s.get("build", {})
     out = {"fold": fold_name, "arm": arm.name, "recorded": recorded_pds(arm),
-           "lam": float(b.get("emit_lambda") or 0.0), "alpha": float(b.get("alpha") or 1.0)}
+           "lam": _num(b, "emit_lambda", 0.0), "alpha": _num(b, "alpha", 1.0)}
     if out["recorded"] is None:
         return out | {"status": "skipped", "why": "no agg_results.csv"}
-    if float(b.get("gamma") or 1.0) != 1.0:
+    if _num(b, "gamma", 1.0) != 1.0:
         return out | {"status": "skipped", "why": "gamma != 1 needs ctrl_tgt_cpm"}
-    if float(b.get("similarity_beta") or 0.0) != 0.0:
+    if _num(b, "similarity_beta", 0.0) != 0.0:
         return out | {"status": "skipped", "why": "similarity_beta != 0 needs control profiles"}
+    if any(x is not None for x in (b.get("shrink_overrides") or [])):
+        # depth-aware shrinkage forces shrink ON for named sources only; the replay
+        # threads one global flag, so reconstructing these would be a guess.
+        return out | {"status": "skipped", "why": "shrink_overrides (knob d) not threaded"}
     specs, notes, renamed = [], [], {}
     for spec in (s.get("sources") or {}).get("pseudobulk") or []:
         got, note = localise(spec, fold_name)
