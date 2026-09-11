@@ -66,3 +66,20 @@ def test_transfer_floor_of_all_zeros_is_the_knob_switched_off():
 
 def test_coverage_tiers_render_compactly():
     assert "coverage=3:0.1,10:0.5" in knob_str({"coverage_tiers": [[3.0, 0.1], [10.0, 0.5]]})
+
+
+def test_a_zero_valued_knob_is_not_mistaken_for_an_absent_one():
+    """`0.0 == False` in Python, so a membership test against False drops gamma = 0.
+
+    `loco_k562gwps_pdex/ag_a100_g000` is a real arm at gamma = 0 -- the end of the transfer dial
+    where the absolute CPM change transfers rather than the fold change. Dropped from the knob
+    string it reads as gamma unset, which means gamma = 1: the other end. Found by carrying
+    sidechain-11's own `or 1.0` bug (T59) into this file.
+    """
+    shown = knob_str({"alpha": 1.0, "gamma": 0.0})
+    assert shown == "gamma=0.0", (
+        "gamma = 0 must render; '—' reads as gamma unset, i.e. gamma = 1, the other end")
+    # and the genuinely-off settings still vanish, "—" being this function's empty
+    for off in ({"gamma": 1.0, "alpha": 1.0}, {"shrinkage": False}, {"var_floor": "none"},
+                {"similarity_beta": 0.0}, {"emit_lambda": 0.0}, {"coverage_tiers": None}):
+        assert knob_str(off) == "—", off

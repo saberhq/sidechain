@@ -80,7 +80,13 @@ def knob_str(build: dict) -> str:
     bits = []
     for k in KNOBS:
         v = build.get(k)
-        if v is None or v in ("", [], "none", False):
+        # `v in (..., False)` compares by EQUALITY, and `0.0 == False` is True in Python, so that
+        # form silently drops a knob whose OFF value happens to be falsy. It was dropping the
+        # gamma = 0 arm (`loco_k562gwps_pdex/ag_a100_g000`) -- rendering it as if gamma were unset,
+        # which reads as gamma = 1, the opposite end of the dial. Found 2026-09-10 by carrying
+        # sidechain-11's `build.get("gamma") or 1.0` bug (T59) into our own code; same class, and
+        # the reason a knob's off value must never be tested for falsiness.
+        if v is None or v is False or v == [] or (isinstance(v, str) and v in ("", "none")):
             continue                       # absent is absent, for `dispersion` too
         if k in ("alpha", "gamma") and v == 1.0:
             continue                       # 1.0 is "knob off" for both
