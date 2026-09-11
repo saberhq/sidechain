@@ -173,6 +173,17 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
     deltas, cov = deltas
     targets = [str(p) for p in fold_cache.perts if str(p) != "non-targeting"]
     out["covered"] = int(cov.sum())
+
+    # Cross-check the reconstruction against the field the record already carries.
+    # `covered_by_sources` sat in summary.json the whole time the 4.4e-06 residual went
+    # unexplained -- 802 against 830 on afn_nosib -- and the replay simply never read it.
+    # The lesson (session `271a46a8`, private `5faee4f`): check that your replay consumes
+    # every field the record carries BEFORE suspecting the record. A mismatch here means
+    # the rebuild has diverged from the real run, so the arm is reported, never scored.
+    rec_cov = b.get("covered_by_sources")
+    if rec_cov is not None and int(rec_cov) != int(cov.sum()):
+        return out | {"status": "coverage_mismatch",
+                      "why": f"rebuilt {int(cov.sum())} covered targets, record says {int(rec_cov)}"}
     got = score_delta(deltas, targets, fold_cache, alpha=out["alpha"], covered=cov)
     out |= {"status": "replayed", "analytic": got, "diff": got - out["recorded"],
             "substitutions": notes, "targets": len(targets)}
