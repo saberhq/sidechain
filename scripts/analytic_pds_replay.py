@@ -119,6 +119,15 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
         return out | {"status": "skipped", "why": "gamma != 1 needs ctrl_tgt_cpm"}
     if _num(b, "similarity_beta", 0.0) != 0.0:
         return out | {"status": "skipped", "why": "similarity_beta != 0 needs control profiles"}
+    if b.get("shrinkage") is None:
+        # Same falsy-default class as the gamma bug: `bool(None)` is False while
+        # `pooled_delta` defaults to shrinkage=True, so an absent field would silently
+        # rebuild the arm with the knob OFF. The record does not say, so neither do we.
+        # Checked HERE, with the other record-completeness tests, rather than later with
+        # the environment ones: an arm we cannot reconstruct because the RECORD is
+        # incomplete should say so whether or not its sources happen to be on this machine.
+        return out | {"status": "skipped",
+                      "why": "shrinkage not recorded (pooled_delta defaults to True)"}
     if any(x is not None for x in (b.get("shrink_overrides") or [])):
         # depth-aware shrinkage forces shrink ON for named sources only; the replay
         # threads one global flag, so reconstructing these would be a guess.
@@ -145,7 +154,7 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
     tiers = b.get("coverage_tiers") or None
     if tiers:
         tiers = tuple((float(a), float(c)) for a, c in tiers)
-    shrink = bool(b.get("shrinkage"))
+    shrink = bool(b["shrinkage"])
     vf = b.get("var_floor") or "none"
 
     # alpha is a pure scalar applied in score_delta, so arms that differ only in alpha

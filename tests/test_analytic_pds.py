@@ -131,3 +131,21 @@ def test_covered_mask_of_all_true_is_the_same_as_omitting_it():
     tg = [f"g{i}" for i in range(40)]
     d = np.random.default_rng(8).normal(0, 0.8, (40, 60))
     assert score_delta(d, tg, f) == score_delta(d, tg, f, covered=[True] * 40)
+
+
+def test_replay_refuses_an_arm_whose_shrinkage_is_unrecorded(tmp_path):
+    """`bool(None)` is False but `pooled_delta` defaults to shrinkage=True, so an absent
+    field must not be rebuilt as "off" -- the same falsy-default class as the gamma bug.
+    The record does not say, so the replay does not guess."""
+    import json
+    from scripts.analytic_pds_replay import replay_arm
+
+    arm = tmp_path / "some_arm"
+    (arm / "run").mkdir(parents=True)
+    (arm / "run" / "agg_results.csv").write_text("statistic,pds_cosine\nmean,0.7\n")
+    (arm / "summary.json").write_text(json.dumps(
+        {"build": {"alpha": 1.0, "var_floor": "poisson"},          # shrinkage absent
+         "sources": {"pseudobulk": ["/nowhere/x.npz:non-targeting"]}}))
+    out = replay_arm(arm, "some_fold", None)
+    assert out["status"] == "skipped"
+    assert "shrinkage not recorded" in out["why"]
