@@ -98,3 +98,36 @@ def test_alpha_scales_the_delta_and_therefore_the_emitted_sums():
     two = emitted_sums(d * 2.0, f.frac, f.lib_median, np.array([100]))
     assert two[0, 0] / two[0, 1] == pytest.approx(4.0, rel=1e-3)
     assert one[0, 0] / one[0, 1] == pytest.approx(2.0, rel=1e-3)
+
+
+def test_an_uncovered_target_is_emitted_without_the_knockdown_pin():
+    """`eval.loco` pins the knockdown INSIDE `if d is not None`, so a target no source
+    covers is emitted as the bare control profile with no pin. `score_delta` must honour
+    that, and the difference is real: on `loco_hct116/afn_nosib` (802 of 830 covered) it
+    is the entire 4.4e-06 replay residual -- pinning everything reads +4.359e-06 against
+    the recorded mirror value, honouring coverage reads -7.4e-10.
+
+    The assertion is on the EMITTED PROFILE, not the score, and deliberately so: `pds`
+    uses `exclusion_scope="panel"`, which drops every target gene from the scored vector,
+    so on a small fixture the pin reaches the metric only as a uniform rescale -- and
+    cosine is scale-invariant. The effect is real but only resolves on a real panel, which
+    is what the replay demonstrates. Testing the score here would pass or fail for reasons
+    that have nothing to do with coverage.
+    """
+    f = _fold(n_genes=60, n_targets=40)
+    d = np.random.default_rng(7).normal(0, 0.8, (40, 60))
+    pinned, bare = d.copy(), d.copy()
+    pinned[7, 7] = -2.32
+    n = np.array([100])
+    a = emitted_sums(pinned[7:8], f.frac, f.lib_median, n)
+    b = emitted_sums(bare[7:8], f.frac, f.lib_median, n)
+    assert not np.array_equal(a, b), "the pin must change the emitted profile"
+    # and it moves every gene, because the profile is renormalised after 2**d
+    assert (a != b).sum() == 60
+
+
+def test_covered_mask_of_all_true_is_the_same_as_omitting_it():
+    f = _fold(n_genes=60, n_targets=40)
+    tg = [f"g{i}" for i in range(40)]
+    d = np.random.default_rng(8).normal(0, 0.8, (40, 60))
+    assert score_delta(d, tg, f) == score_delta(d, tg, f, covered=[True] * 40)

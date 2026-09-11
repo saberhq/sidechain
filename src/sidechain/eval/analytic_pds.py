@@ -192,18 +192,28 @@ def pds_cosine(pred_perts, pred_sums, real_perts, real_means, genes):
 
 
 def score_delta(deltas, targets, fold: FoldCache, alpha: float = 1.0,
-                kd_value: float = KNOCKDOWN_LOG2FC, which=None) -> float:
+                kd_value: float = KNOCKDOWN_LOG2FC, which=None, covered=None) -> float:
     """Raw `pds_cosine` for a [P, G] log2FC matrix. `deltas` is never mutated.
 
     `alpha` and the knockdown pin are applied here so a caller passes the pooled delta
     exactly as `submit.build.pooled_delta` returns it. `which` scores a subset of rows
     against the full retrieval pool.
+
+    **`covered` is not optional bookkeeping -- it changes the number.** `eval.loco` pins
+    the knockdown INSIDE `if d is not None`, so a target no source covers is emitted as
+    the bare control profile with NO pin. Pinning it anyway renormalises all G
+    coordinates for that target, not just the pinned gene. On `loco_hct116/afn_nosib`
+    (802 of 830 covered) that one difference is the whole 4.4e-06 replay residual:
+    pinning everything reads +4.359e-06 against the recorded value, honouring coverage
+    reads -7.4e-10. Pass a boolean mask whenever any target may be uncovered; None means
+    every target is covered.
     """
     d = np.asarray(deltas, dtype=np.float64) * alpha
     pos = {g: i for i, g in enumerate(fold.genes)}
+    cov = np.ones(len(targets), dtype=bool) if covered is None else np.asarray(covered, dtype=bool)
     for i, t in enumerate(targets):
         j = pos.get(str(t))
-        if j is not None:
+        if j is not None and cov[i]:
             d[i, j] = kd_value
     idx = np.arange(len(targets)) if which is None else np.asarray(which)
     sums = emitted_sums(d[idx], fold.frac, fold.lib_median, fold.cells_for(targets)[idx])

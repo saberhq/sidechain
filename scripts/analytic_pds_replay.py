@@ -158,16 +158,22 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
             sources = apply_transfer_floors(sources, tf)
         targets_all = [str(p) for p in fold_cache.perts if str(p) != "non-targeting"]
         deltas = np.zeros((len(targets_all), len(fold_cache.genes)))
+        cov = np.zeros(len(targets_all), dtype=bool)
         for i, t in enumerate(targets_all):
             d = pooled_delta(t, sources, fold_cache.genes, shrinkage=shrink,
                              var_floor=vf, coverage_tiers=tiers)
             if d is not None:
                 deltas[i] = d
+                cov[i] = True
+        deltas = (deltas, cov)
         _POOL_MEMO.clear()          # one fold's deltas at a time; these are ~250 MB each
         _POOL_MEMO[key] = deltas
         out["pooled"] = True
+    deltas = _POOL_MEMO[key]
+    deltas, cov = deltas
     targets = [str(p) for p in fold_cache.perts if str(p) != "non-targeting"]
-    got = score_delta(deltas, targets, fold_cache, alpha=out["alpha"])
+    out["covered"] = int(cov.sum())
+    got = score_delta(deltas, targets, fold_cache, alpha=out["alpha"], covered=cov)
     out |= {"status": "replayed", "analytic": got, "diff": got - out["recorded"],
             "substitutions": notes, "targets": len(targets)}
     return out
