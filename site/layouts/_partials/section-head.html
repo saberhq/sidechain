@@ -1,8 +1,14 @@
 {{- /* The brand's section opener: 1.5px ink rule, numbered mono label, number in accent.
-       Context: dict "num" "label" plus optional "aside" (dict "href" "label" "external"). */ -}}
+       Context: dict "num" "label" plus optional "aside" (dict "href" "label" "external"),
+       or "asides" (a slice of those dicts) when a section points at more than one place --
+       they render right-aligned, separated by a mid dot, in the order given. */ -}}
+{{- $asides := or .asides (and .aside (slice .aside)) -}}
 <div class="sq-section-head">
   <span class="sc-section-num">{{ .num }}</span>
   <h2 class="sq-section-label">{{ .label }}</h2>
   <span class="sq-section-fill"></span>
-  {{ with .aside }}<a class="sq-section-aside" href="{{ .href }}"{{ if .external }} target="_blank" rel="noopener"{{ end }}>{{ .label }}</a>{{ end }}
+  {{ range $i, $a := $asides }}
+  {{- if $i }}<span class="sq-section-aside-sep">·</span>{{ end -}}
+  <a class="sq-section-aside" href="{{ $a.href }}"{{ if $a.external }} target="_blank" rel="noopener"{{ end }}>{{ $a.label }}</a>
+  {{- end }}
 </div>

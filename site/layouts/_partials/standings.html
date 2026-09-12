@@ -2,16 +2,31 @@
        each entry's model card — all rendered at build time from data/submissions.json,
        which scripts/standings.py generates from the submission records and the board
        snapshots. Never hand-edited. With no entries yet the section says so instead of
-       failing the build. */ -}}
+       failing the build.
+
+       Each entry carries a `class`, declared when it was submitted and before its score
+       came back: `contender` (aimed at the score) or `probe` (spent to answer a question).
+       NOTHING is hidden on class — every entry is in the table below, as it always was.
+       The class decides only where an entry is DRAWN. Contenders share one 0→ceiling axis;
+       probes get their own strip, because a probe can land anywhere, and one bar far off
+       the axis flattens every other bar into the same stub: PHE-2 scored -0.9807 against a
+       field running 0.0730 to 0.1078 (2026-09-07). A negative width is also invalid CSS,
+       which a browser discards — the bar then falls back to `auto` and fills the whole
+       track, reading as a triumph. Widths are clamped for that reason; anything outside
+       the axis is drawn as no bar at all and says so in words. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
 {{ $n := len $entries }}
+{{ $contenders := where $entries "class" "!=" "probe" }}
+{{ $probes := where $entries "class" "probe" }}
+{{- /* An all-probe board would have nothing to set the axis by; fall back to every entry. */ -}}
+{{ $scale := cond (gt (len $contenders) 0) $contenders $entries }}
 
-{{- /* best overall, best rank */ -}}
-{{ $best := index $entries 0 }}
+{{- /* best overall, best rank — among the entries that were actually competing */ -}}
+{{ $best := index $scale 0 }}
 {{ $bestRank := dict }}
-{{ range $entries }}
+{{ range $scale }}
   {{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}
   {{ if .rank }}
     {{ if or (not $bestRank.rank) (lt .rank $bestRank.rank) }}{{ $bestRank = . }}{{ end }}
@@ -32,7 +47,7 @@
   <div class="sc-stat">
     <div class="sc-stat-label">Scored submissions</div>
     <div class="sc-stat-value">{{ $n }}</div>
-    <div class="sc-stat-sub">since {{ (index $entries 0).date }}</div>
+    <div class="sc-stat-sub">{{ len $contenders }} contending{{ with len $probes }} · {{ . }} probe{{ if gt . 1 }}s{{ end }}{{ end }} · since {{ (index $entries 0).date }}</div>
   </div>
   <div class="sc-stat">
     <div class="sc-stat-label">Deadline</div>
@@ -48,14 +63,43 @@
 <figure class="sc-bars" aria-label="Overall score per scored submission">
   <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
   <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
-  {{ range $entries }}
+  {{ range $contenders }}
+  {{ $w := mul (div .overall $ceil) 100 }}
+  {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
   <div class="sc-bar-row{{ if eq .name $best.name }} sc-bar-row--best{{ end }}">
     <span class="sc-bar-label">{{ .name }}</span>
-    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" (mul (div .overall $ceil) 100) }}%"></span></span>
+    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span></span>
     <span class="sc-bar-value">{{ printf "%.4f" .overall }}</span>
   </div>
   {{ end }}
 </figure>
+
+{{ if $probes }}
+<figure class="sc-bars sc-bars--probes" aria-label="Probes, drawn apart from the contending submissions">
+  <figcaption class="sc-bars-title">Probes · submitted to answer a question, not to climb</figcaption>
+  {{ range $probes }}
+  {{ $off := or (lt .overall 0.0) (gt .overall $ceil) }}
+  {{ $w := mul (div .overall $ceil) 100 }}
+  {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
+  <div class="sc-bar-row sc-bar-row--probe">
+    <span class="sc-bar-label">{{ .name }}</span>
+    <span class="sc-bar-track">
+      {{- if $off -}}
+      <span class="sc-bar-offscale">{{ if lt .overall 0.0 }}below zero · off this scale{{ else }}above this scale{{ end }}</span>
+      {{- else -}}
+      <span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span>
+      {{- end -}}
+    </span>
+    <span class="sc-bar-value">{{ printf "%.4f" .overall }}</span>
+  </div>
+  {{ end }}
+</figure>
+{{ end }}
+
+<p class="sc-footnote">What an entry was <em>for</em> is recorded when it is submitted, before
+Arc returns a score — a label chosen afterwards would be an edit, not a label. The entries
+submitted before 2026-09-11 were classed after the fact, because the field did not exist yet.
+Nothing is filtered: every scored submission is in the table.</p>
 
 <div class="sc-table-wrap" tabindex="0">
 <table class="sc-table sc-table--entries">
@@ -66,9 +110,12 @@
     {{ range $e := $entries }}
     <tr class="sc-row-entry">
       <td class="sc-mono">{{ $e.date }}</td>
-      <td class="sc-mono sc-series">{{ $e.name }}</td>
+      <td class="sc-mono sc-series">{{ $e.name }}{{ if eq $e.class "probe" }} <span class="sc-class-tag">probe</span>{{ end }}</td>
       <td class="sc-mono sc-num">{{ printf "%.4f" $e.overall }}</td>
-      <td class="sc-mono">{{ if $e.rank }}#{{ $e.rank }} of {{ $e.teams }}{{ else }}—{{ end }}</td>
+      {{- /* No board snapshot was taken while the entry was still inside the page's ~50-row
+             embed, so the field size is unknown. Print the rank alone rather than a dangling
+             "of" — scripts/standings.py's rank_label does the same for the README. */ -}}
+      <td class="sc-mono">{{ if $e.rank }}#{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }}{{ else }}—{{ end }}</td>
     </tr>
     <tr class="sc-row-card">
       <td colspan="4">

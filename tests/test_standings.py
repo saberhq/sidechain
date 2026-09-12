@@ -6,6 +6,11 @@ snapshot's full team count (`live.total`) — never the embedded row count, beca
 board page embeds only its top ~50 teams and the two diverged on 2026-08-21. An entry
 ranked below the embed appears in no snapshot and falls back to its status record's
 scoring-time rank, with the board size from the first snapshot after the submission.
+
+Also the `sidechain_class` rule (Saber, 2026-09-11): every record declares what the entry
+was FOR — `contender` or `probe` — when it is logged, before its score is known. Nothing is
+filtered on it; it decides only how an entry is drawn, because PHE-2's -0.9807 on a shared
+axis crushed a field running 0.0730 to 0.1078 into identical stubs.
 """
 import importlib.util
 import json
@@ -26,11 +31,14 @@ def snap(snaps_dir, stamp, ranks, total):
     }))
 
 
-def status(subs_dir, date, stem, entry_id, submission_date, score_avg=0.1, **extra):
-    (subs_dir / f"{date}_{stem}.status.json").write_text(json.dumps({
-        "entry_id": entry_id, "model_name": "Sidechain SER-9", "description": "",
-        "submission_date": submission_date, "score_avg": score_avg, **extra,
-    }))
+def status(subs_dir, date, stem, entry_id, submission_date, score_avg=0.1,
+           klass="contender", **extra):
+    """klass=None writes a record with no `sidechain_class` at all -- the pre-rule shape."""
+    body = {"entry_id": entry_id, "model_name": "Sidechain SER-9", "description": "",
+            "submission_date": submission_date, "score_avg": score_avg}
+    if klass is not None:
+        body["sidechain_class"] = klass
+    (subs_dir / f"{date}_{stem}.status.json").write_text(json.dumps({**body, **extra}))
 
 
 def test_board_size_is_the_total_not_the_embed(tmp_path):
@@ -87,7 +95,7 @@ def test_a_submit_shaped_record_is_flattened_and_dated_from_its_filename(tmp_pat
     snap(snaps, "20260830T1828Z", {"other": 1}, 476)
     (subs / "2026-08-30_probe_v1.status.json").write_text(json.dumps({
         "entry_id": "probe1", "model_name": "Sidechain SER-9", "final_status": "published",
-        "scores": {"rank": 101, "score_avg": 0.0992},
+        "sidechain_class": "contender", "scores": {"rank": 101, "score_avg": 0.0992},
     }))
     rows = standings.load_rows(subs, snaps)
     assert len(rows) == 1
@@ -153,3 +161,66 @@ def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
     retro, live = standings.load_rows(subs, snaps)
     assert (retro["card"], retro["card_retro"]) == ("SER-9 = a retro card.", True)
     assert (live["card"], live["card_retro"]) == ("SER-9 = a live board card.", False)
+
+
+def test_class_is_read_from_the_record_and_nothing_is_filtered(tmp_path):
+    """Both kinds reach the rows. The class travels with the row so the surfaces can draw
+    them apart; it never removes an entry -- hiding a submission after seeing its score is
+    the failure this design exists to avoid (Saber, 2026-09-11)."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
+    status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z",
+           score_avg=-0.9807, klass="probe")
+    rows = standings.load_rows(subs, snaps)
+    assert [r["class"] for r in rows] == ["contender", "probe"]
+    assert standings.CLASS_WARNINGS == []
+
+
+def test_a_record_with_no_class_reads_as_contender_and_warns(tmp_path):
+    """Old data keeps flowing, but --check fails: an unlabelled entry quietly joining the
+    contender axis is exactly what would let a bad probe distort the chart unnoticed."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z", klass=None)
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["class"] == "contender"
+    assert len(standings.CLASS_WARNINGS) == 1 and "a_v1" in standings.CLASS_WARNINGS[0]
+
+
+def test_an_unknown_class_is_not_trusted(tmp_path):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z", klass="benchmark")
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["class"] == "contender"
+    assert len(standings.CLASS_WARNINGS) == 1
+
+
+def test_class_retro_marks_the_entries_that_predate_the_field(tmp_path):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z",
+           sidechain_class_retro=True)
+    status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z")
+    old, new = standings.load_rows(subs, snaps)
+    assert (old["class_retro"], new["class_retro"]) == (True, False)
+
+
+def test_the_readme_marks_probes_and_leaves_contenders_bare(tmp_path):
+    """Ten rows tagged "contender" would be noise for a word true by default; the prose
+    above the table carries the rule, and only the exception is marked."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
+    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
+    status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z",
+           score_avg=-0.9807, klass="probe")
+    contender, probe = standings.readme_block(standings.load_rows(subs, snaps)).splitlines()[2:]
+    assert "probe" not in contender
+    assert "· **probe**" in probe
+    assert "-0.9807" in probe  # the number is never softened, only drawn apart

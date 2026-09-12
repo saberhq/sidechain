@@ -17,9 +17,12 @@
     </section>
 
     <section class="sq-section" id="standings">
-      {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "aside" (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true)) }}
+      {{ $models := .Site.GetPage "/models" }}
+      {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "asides" (slice
+          (dict "href" $models.RelPermalink "label" "what each model is →")
+          (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true))) }}
       <div class="sc-intro">
-        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board.</p>
+        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each name means and what it borrows.</p>
       </div>
       {{ partial "standings.html" . }}
     </section>

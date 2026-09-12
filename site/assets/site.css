@@ -120,6 +120,7 @@ a.sq-btn, a.sq-btn:visited { color: var(--btn-solid-text); }
 .sq-section-label { margin: 0; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: var(--label-track); text-transform: uppercase; color: var(--ink); }
 .sq-section-fill { flex: 1; }
 a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 400; color: var(--link); white-space: nowrap; }
+.sq-section-aside-sep { font-size: 10px; font-weight: 400; color: var(--ink-4); }
 
 /* ---------- Hero ---------- */
 .sq-hero { padding-top: var(--space-9); padding-bottom: var(--space-8); }
@@ -201,7 +202,7 @@ a.sq-card:hover {
 /* ---------- Standings: one thin bar per submission ---------- */
 .sc-bars { margin: var(--space-5) 0 0; }
 .sc-bars-title { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); margin-bottom: 6px; }
-.sc-bar-row { display: grid; grid-template-columns: 72px 1fr 64px; align-items: center; gap: 12px; padding: 4px 0; }
+.sc-bar-row { display: grid; grid-template-columns: 86px 1fr 64px; align-items: center; gap: 12px; padding: 4px 0; }
 .sc-bars-axis { padding: 0 0 2px; }
 .sc-bars-axis-track { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-3); }
 .sc-bar-label { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink-2); }
@@ -211,6 +212,20 @@ a.sq-card:hover {
 .sc-bar-row--best .sc-bar { background: var(--viz-1); }
 .sc-bar-row--bench .sc-bar { background: var(--viz-8); opacity: 0.45; }
 .sc-bar-row--bench .sc-bar-label, .sc-bar-row--bench .sc-bar-value { color: var(--ink-3); }
+/* Probes sit in their own strip under the contenders: same idiom, stepped back, with a rule
+   between the two so nobody reads one scale across both. An off-scale probe gets no bar at
+   all -- a clamped full-width bar would read as a triumph, which is the opposite of true. */
+.sc-bars--probes { margin-top: var(--space-4); padding-top: 10px; border-top: 1px dashed var(--rule); }
+.sc-bar-row--probe .sc-bar { background: var(--viz-8); opacity: 0.45; }
+.sc-bar-row--probe .sc-bar-label, .sc-bar-row--probe .sc-bar-value { color: var(--ink-3); }
+.sc-bar-offscale {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%); white-space: nowrap;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-3);
+}
+.sc-class-tag {
+  text-transform: uppercase; font-size: 9px; letter-spacing: var(--meta-track); color: var(--ink-3);
+  border: 1px solid var(--rule); border-radius: 2px; padding: 0 4px; margin-left: 4px; white-space: nowrap;
+}
 .sc-bar-value { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .sc-bar-row--best .sc-bar-value, .sc-bar-row--best .sc-bar-label { font-weight: 500; color: var(--ink); }
 
@@ -397,6 +412,6 @@ a.sq-card:hover {
 @media (max-width: 600px) {
   .sq-card-grid { grid-template-columns: 1fr; }
   .sq-cover img { height: 200px; }
-  .sc-bar-row { grid-template-columns: 56px 1fr 56px; gap: 8px; }
+  .sc-bar-row { grid-template-columns: 68px 1fr 56px; gap: 8px; }
   .sq-siteheader-in .sq-nav { gap: var(--space-2) 14px; }
 }
