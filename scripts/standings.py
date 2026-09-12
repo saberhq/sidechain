@@ -28,9 +28,14 @@ back (``log_submission.py --class``). Nothing is ever hidden: both kinds appear 
 table and in the site's JSON. The class only decides how an entry is *drawn*, because one
 off-scale probe on a shared axis destroys the resolution of everything else — PHE-2 scored
 -0.9807 against a field running 0.0730 to 0.1078 (2026-09-07). A record with no class is
-read as a contender AND warned about, so ``--check`` fails rather than letting an
-unlabelled entry through. The eleven entries before 2026-09-11 carry
-``sidechain_class_retro``: the field did not exist when they were submitted.
+``contender`` is the default, so ONLY the exception is ever written down — a record with no
+class reads as a contender. Records dated ``CLASS_REQUIRED_SINCE`` or later owe the field and
+warn without it, so ``--check`` fails rather than letting an unlabelled new entry through;
+records that predate it owe nothing. PHE-2 carries ``sidechain_class_retro``, being the one
+entry whose default would have been wrong and whose class was therefore written after its
+score. The class is metadata about intent — it is NOT part of a model's name (ADR 0005 is
+untouched) and NOT a prediction: an entry that set out to compete and failed stays a
+contender, on the main axis, with its real number.
 
 Outputs, both fully generated — never edit them by hand:
 
@@ -61,10 +66,14 @@ SERIES_RE = re.compile(r"\b([A-Z]{3}-\d+[a-z]*)\b")
 # a silent fallback is how a misnamed entry would reach the README and the site unnoticed.
 NAME_WARNINGS: list[str] = []
 
-# A record with no `sidechain_class` reads as a contender so old data keeps flowing, but
-# --check fails: an unlabelled entry silently joining the chart is the failure this guards.
+# `contender` is the default, so only the exception is ever recorded -- a record without a
+# class reads as a contender. From CLASS_REQUIRED_SINCE on, log_submission.py demands the
+# flag, so a record dated after it with no class means the entry was logged some other way:
+# warn, and let --check fail. Records that PREDATE the field owe nothing and say nothing;
+# back-writing "contender" over ten of them would be noise, not provenance (Saber, 2026-09-11).
 CLASS_WARNINGS: list[str] = []
 CLASSES = ("contender", "probe")
+CLASS_REQUIRED_SINCE = "2026-09-11"
 
 DEFAULTS = {"deadline": "2026-11-05", "final_test_set": "2026-10-22"}
 ABOUT = (
@@ -157,10 +166,11 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
                 card, card_retro = side.read_text().strip(), True
         klass = s.get("sidechain_class")
         if klass not in CLASSES:
-            CLASS_WARNINGS.append(
-                f"{f.name}: sidechain_class is {klass!r}, not one of {CLASSES} -- reading it "
-                "as a contender. Record it with log_submission.py --class, which asks before "
-                "the score is known")
+            if (s.get("submission_date") or "")[:10] >= CLASS_REQUIRED_SINCE:
+                CLASS_WARNINGS.append(
+                    f"{f.name}: sidechain_class is {klass!r}, not one of {CLASSES}, on an entry "
+                    f"dated {CLASS_REQUIRED_SINCE} or later -- reading it as a contender. Record "
+                    "it with log_submission.py --class, which asks before the score is known")
             klass = "contender"
         rows.append({
             "_submitted": s.get("submission_date") or "",

@@ -4,16 +4,22 @@
        snapshots. Never hand-edited. With no entries yet the section says so instead of
        failing the build.
 
-       Each entry carries a `class`, declared when it was submitted and before its score
-       came back: `contender` (aimed at the score) or `probe` (spent to answer a question).
-       NOTHING is hidden on class — every entry is in the table below, as it always was.
-       The class decides only where an entry is DRAWN. Contenders share one 0→ceiling axis;
-       probes get their own strip, because a probe can land anywhere, and one bar far off
-       the axis flattens every other bar into the same stub: PHE-2 scored -0.9807 against a
-       field running 0.0730 to 0.1078 (2026-09-07). A negative width is also invalid CSS,
-       which a browser discards — the bar then falls back to `auto` and fills the whole
-       track, reading as a triumph. Widths are clamped for that reason; anything outside
-       the axis is drawn as no bar at all and says so in words. */ -}}
+       TWO SEPARATE THINGS HAPPEN BELOW; they were confused once and it is worth keeping
+       them apart (Saber, 2026-09-11).
+
+       1. Off-scale rendering, which is the actual bug fix and applies to EVERY entry,
+          whatever its class. A score outside the axis produced `width: -490.4%` for PHE-2
+          on 2026-09-07 — invalid CSS, which a browser discards, so the span fell back to
+          `auto` and filled the whole track: a failed entry drawn as the longest bar on the
+          page. Widths are clamped, and anything outside the axis gets no bar at all and
+          says so in words. A contender that flops is drawn exactly the same way, because
+          nobody can know in advance which entries will need this.
+
+       2. `class` — `contender` or `probe` — which is metadata about intent, NOT part of a
+          model's name (ADR 0005 is untouched) and NOT a claim about the score. It decides
+          only GROUPING: contenders set the axis ceiling and share it, probes sit in their
+          own strip. Nothing is ever hidden on it; every entry is in the table below. A
+          contender that scores badly stays a contender and stays on the main axis. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
@@ -64,11 +70,18 @@
   <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
   <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
   {{ range $contenders }}
+  {{ $off := or (lt .overall 0.0) (gt .overall $ceil) }}
   {{ $w := mul (div .overall $ceil) 100 }}
   {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
   <div class="sc-bar-row{{ if eq .name $best.name }} sc-bar-row--best{{ end }}">
     <span class="sc-bar-label">{{ .name }}</span>
-    <span class="sc-bar-track"><span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span></span>
+    <span class="sc-bar-track">
+      {{- if $off -}}
+      <span class="sc-bar-offscale">{{ if lt .overall 0.0 }}below zero · off this scale{{ else }}above this scale{{ end }}</span>
+      {{- else -}}
+      <span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span>
+      {{- end -}}
+    </span>
     <span class="sc-bar-value">{{ printf "%.4f" .overall }}</span>
   </div>
   {{ end }}
@@ -77,6 +90,8 @@
 {{ if $probes }}
 <figure class="sc-bars sc-bars--probes" aria-label="Probes, drawn apart from the contending submissions">
   <figcaption class="sc-bars-title">Probes · submitted to answer a question, not to climb</figcaption>
+  {{- /* Same off-scale rule as the contenders above -- the class changes the grouping,
+         never how a number is drawn. */ -}}
   {{ range $probes }}
   {{ $off := or (lt .overall 0.0) (gt .overall $ceil) }}
   {{ $w := mul (div .overall $ceil) 100 }}
@@ -97,9 +112,11 @@
 {{ end }}
 
 <p class="sc-footnote">What an entry was <em>for</em> is recorded when it is submitted, before
-Arc returns a score — a label chosen afterwards would be an edit, not a label. The entries
-submitted before 2026-09-11 were classed after the fact, because the field did not exist yet.
-Nothing is filtered: every scored submission is in the table.</p>
+Arc returns a score — a label chosen afterwards would be an edit, not a label, and it is not a
+prediction about the result: an entry that set out to compete and then failed is still a
+contender, and is still drawn above. Only the exception is recorded, so PHE-2 is the one entry
+here carrying a class written after the fact, because the field postdates it. Nothing is
+filtered: every scored submission is in the table.</p>
 
 <div class="sc-table-wrap" tabindex="0">
 <table class="sc-table sc-table--entries">

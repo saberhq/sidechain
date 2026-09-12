@@ -7,10 +7,11 @@ board page embeds only its top ~50 teams and the two diverged on 2026-08-21. An 
 ranked below the embed appears in no snapshot and falls back to its status record's
 scoring-time rank, with the board size from the first snapshot after the submission.
 
-Also the `sidechain_class` rule (Saber, 2026-09-11): every record declares what the entry
-was FOR — `contender` or `probe` — when it is logged, before its score is known. Nothing is
-filtered on it; it decides only how an entry is drawn, because PHE-2's -0.9807 on a shared
-axis crushed a field running 0.0730 to 0.1078 into identical stubs.
+Also the `sidechain_class` rule (Saber, 2026-09-11): a record declares what the entry was FOR
+— `contender` or `probe` — when it is logged, before its score is known. `contender` is the
+default, so only the exception is written down, and only entries dated CLASS_REQUIRED_SINCE or
+later owe the field at all. Nothing is filtered on it and it is not part of a model's name: it
+decides only whether an entry shares the main axis or sits in the probe strip.
 """
 import importlib.util
 import json
@@ -178,23 +179,37 @@ def test_class_is_read_from_the_record_and_nothing_is_filtered(tmp_path):
     assert standings.CLASS_WARNINGS == []
 
 
-def test_a_record_with_no_class_reads_as_contender_and_warns(tmp_path):
-    """Old data keeps flowing, but --check fails: an unlabelled entry quietly joining the
-    contender axis is exactly what would let a bad probe distort the chart unnoticed."""
+def test_an_entry_that_owes_a_class_and_has_none_warns(tmp_path):
+    """From CLASS_REQUIRED_SINCE on, log_submission.py demands the flag, so a record dated
+    after it with no class was logged some other way -- read it as a contender, and let
+    --check fail rather than letting an unlabelled entry onto the chart quietly."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260924T2051Z", {"e1": 25}, total=216)
+    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z", klass=None)
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["class"] == "contender"
+    assert len(standings.CLASS_WARNINGS) == 1 and "a_v1" in standings.CLASS_WARNINGS[0]
+
+
+def test_an_entry_predating_the_field_owes_nothing_and_says_nothing(tmp_path):
+    """`contender` is the default, so only the exception is ever written down. Back-writing
+    it over the ten records that predate the field would be noise, not provenance -- and a
+    permanent --check failure if it were demanded of them (Saber, 2026-09-11)."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z", klass=None)
     (row,) = standings.load_rows(subs, snaps)
     assert row["class"] == "contender"
-    assert len(standings.CLASS_WARNINGS) == 1 and "a_v1" in standings.CLASS_WARNINGS[0]
+    assert standings.CLASS_WARNINGS == []
 
 
 def test_an_unknown_class_is_not_trusted(tmp_path):
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
-    snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
-    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z", klass="benchmark")
+    snap(snaps, "20260924T2051Z", {"e1": 25}, total=216)
+    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z", klass="benchmark")
     (row,) = standings.load_rows(subs, snaps)
     assert row["class"] == "contender"
     assert len(standings.CLASS_WARNINGS) == 1

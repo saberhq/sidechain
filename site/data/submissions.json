@@ -13,7 +13,7 @@
       "card": "Rung 1': per-gene log2FC pooled (inverse-variance) over K562 genome-wide + H1 2025 for the targets they cover, gene-wise positive-part shrinkage, re-anchored on each context's control profile; minimum-variance (even-spread) integer cells at control depth; 28 uncovered targets get the H1 mean shift.",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-21",
@@ -25,7 +25,7 @@
       "card": "Same transferred log2FCs as SER-1 (K562 genome-wide + H1, inverse-variance pooled, gene-wise shrinkage, alpha=1), emitted as independent Poisson cells at control depth instead of minimum-variance cells. Controlled experiment on emission dispersion.",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-22",
@@ -37,7 +37,7 @@
       "card": "SER-1 with the transferred log2FCs left unshrunk (no gene-wise positive-part shrinkage); minimum-variance cells. Probe: does shrinkage remove small true signals that cosine-PDS needs?",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-24",
@@ -49,7 +49,7 @@
       "card": "SER-2 = cross-line delta transfer, model 2 (named before the knob letters; shrinkage off, as in SER-1n). Borrows each gene's knockdown effect from K562, H1 and the challenge-panel slice of two genome-wide screens in colon and kidney lines \u2014 the first entry to cover all 300 targets \u2014 and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
       "card_retro": true,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-27",
@@ -61,7 +61,7 @@
       "card": "SER-3n = cross-line delta transfer, model 3 (n = no shrinkage). The same four sources as SER-2, with the two genome-wide screens read in full \u2014 every gene they measured rather than the challenge panel alone \u2014 re-anchored on the new line's resting state. All models: saberhq.com/sidechain/models/",
       "card_retro": true,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-27",
@@ -73,7 +73,7 @@
       "card": "SER-3fn = cross-line delta transfer, model 3 (f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, trusts each source only as far as its cell counts justify, and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-30",
@@ -85,7 +85,7 @@
       "card": "",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-30",
@@ -97,7 +97,7 @@
       "card": "SER-3afn = cross-line delta transfer, model 3 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-08-31",
@@ -109,7 +109,7 @@
       "card": "SER-4afn = cross-line delta transfer, model 4 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-09-01",
@@ -121,7 +121,7 @@
       "card": "SER-5acfnt = weights each source's vote by how well it actually predicts a new cell line, not by how confident it sounds. All models: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "contender",
-      "class_retro": true
+      "class_retro": false
     },
     {
       "date": "2026-09-07",
