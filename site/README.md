@@ -38,6 +38,7 @@ site/
 ## Working on it
 
 ```bash
+../scripts/preview.sh                   # BOTH public surfaces: this site AND the GitHub README
 hugo server --source site --port 1414   # http://localhost:1414/sidechain/  (live reload)
 hugo --source site --minify             # builds into site/public/ (gitignored)
 

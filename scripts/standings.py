@@ -252,6 +252,12 @@ def main() -> int:
     for r in rows:
         print(f"{r['date']}  {r['name']:10s} {r['class']:9s} {r['overall']:8.4f}  "
               f"{rank_label(r['rank'], r['teams'])}")
+    missing = [r["name"] for r in rows if r["rank"] and not r["teams"]]
+    if missing:
+        print(f"note: no field size for {', '.join(missing)} -- no board snapshot was taken "
+              "after they scored, so the row reads '#<rank>' alone. Not recoverable later: a "
+              "newer snapshot ranks them against a bigger field. log_submission.py takes the "
+              "snapshot for every new entry (ensure_snapshot).")
     print(f"wrote README.md + site/data/submissions.json ({len(rows)} rows"
           + (f"; updated: {', '.join(drift)})" if drift else "; no change)"))
     return 0
