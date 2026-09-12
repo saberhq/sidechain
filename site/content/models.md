@@ -13,6 +13,20 @@ attached to.
 An entry marked **probe** was submitted to answer a question rather than to climb the table.
 What an entry is for is decided when it goes in, before its score comes back.
 
+## SER-6aefn — submitted 2026-09-12
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · n = no
+shrinkage.** SER-4afn with one change, and the first new knob since the source weights: `e`
+sets how much cell-to-cell noise the 400 predicted cells carry. At λ 0.5 they are drawn with
+half the spread that Poisson counting would give, instead of every cell sitting at the same
+depth. That lets the differential-expression test call the right genes a little more often,
+at a small cost in fold-change accuracy.
+
+The best entry so far — 0.1091 against SER-4afn's 0.1078 — and the gain landed where the local
+sweep said it would: more of the genes that really changed are reached, with slightly worse
+fold-change accuracy paying for it. The dial was swept on six held-out cell lines before it
+was submitted, and it moved the same way on all six.
+
 ## PHE-2 — submitted 2026-09-07 · probe
 
 **The first entry from a different family, and the first sent in expecting to fail.** Every

@@ -134,6 +134,18 @@
       "card_retro": false,
       "class": "probe",
       "class_retro": true
+    },
+    {
+      "date": "2026-09-12",
+      "name": "SER-6aefn",
+      "board_name": "Sidechain SER-6aefn",
+      "overall": 0.1091,
+      "rank": 245,
+      "teams": 903,
+      "card": "",
+      "card_retro": false,
+      "class": "contender",
+      "class_retro": false
     }
   ]
 }

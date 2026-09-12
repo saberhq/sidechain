@@ -62,13 +62,15 @@ def test_first_containing_snapshot_wins(tmp_path):
 
 
 def test_below_the_embed_falls_back_to_status_rank(tmp_path):
+    """The witness is the first snapshot AFTER the submission, never an earlier one -- and
+    since 2026-09-11 it must also be within TEAMS_MAX_LAG_DAYS, so this fixture's second
+    snapshot sits inside the window (the out-of-window case has its own test below)."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260821T2318Z", {"other": 1}, total=95)
-    snap(snaps, "20260824T2051Z", {"other": 1}, total=216)
+    snap(snaps, "20260823T2051Z", {"other": 1}, total=216)
     status(subs, "2026-08-22", "a_v1", "e1", "2026-08-22T00:05:00Z", rank=77)
     (row,) = standings.load_rows(subs, snaps)
-    # teams from the first snapshot AFTER the submission, not an earlier one
     assert (row["rank"], row["teams"]) == (77, 216)
 
 
@@ -239,3 +241,29 @@ def test_the_readme_marks_probes_and_leaves_contenders_bare(tmp_path):
     assert "probe" not in contender
     assert "· **probe**" in probe
     assert "-0.9807" in probe  # the number is never softened, only drawn apart
+
+
+def test_a_late_snapshot_is_not_a_witness_for_the_field_size(tmp_path):
+    """The real case: PHE-2 scored 2026-09-07 below the page's embed, and the snapshot taken
+    five days later for ANOTHER entry silently handed it a denominator of 903 — a field it
+    never competed in (533 teams eleven days earlier). No denominator beats a flattering one
+    (Saber, 2026-09-11), so the fallback only accepts a contemporary witness."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260903T2329Z", {"other": 1}, total=600)
+    snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
+    status(subs, "2026-09-07", "phe2_v1", "e1", "2026-09-07T22:38:56Z", rank=746, klass="probe")
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"]) == (746, None)
+    assert standings.rank_label(row["rank"], row["teams"]) == "#746"
+
+
+def test_a_same_day_snapshot_still_supplies_the_field_size(tmp_path):
+    """The guard must not break the normal path — log_submission.py takes the snapshot at
+    record time, so the witness is minutes old, not days."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
+    status(subs, "2026-09-12", "ser6_v1", "e1", "2026-09-12T00:10:00Z", rank=245)
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"]) == (245, 903)
