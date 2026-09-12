@@ -142,7 +142,7 @@
       "overall": 0.1091,
       "rank": 245,
       "teams": 903,
-      "card": "",
+      "card": "SER-6aefn = cross-line delta transfer, model 6 (a = amplified transfer, e = emission dial at lambda 0.5, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, scales it to reference strength, and emits cells with half the Poisson spread instead of identical ones -- the one change from SER-4afn. All models: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "contender",
       "class_retro": false

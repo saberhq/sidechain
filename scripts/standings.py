@@ -165,13 +165,19 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             if s["entry_id"] in snap["ranks"]:
                 rank, teams = snap["ranks"][s["entry_id"]], snap["teams"]
                 break
-        if rank is None and s.get("rank") is not None:
+        # The frozen scoring-time rank wins over the record's live `rank`: a re-record
+        # (a live `vcc status` fetch, to recover a missing submission_date) sees a board
+        # that has re-ranked since. SER-6aefn drifted 245 -> 244 that way on 2026-09-12.
+        scored_rank = s.get("sidechain_rank_when_scored")
+        if scored_rank is None:
+            scored_rank = s.get("rank")
+        if rank is None and scored_rank is not None:
             # Ranked below the embed, so no snapshot will ever contain it. The
             # status record carries Arc's rank at fetch time (log_submission.py
             # fetches right after scoring); board size from the first snapshot
             # after the submission — but only if it is within TEAMS_MAX_LAG_DAYS, because a
             # later one measures a field the entry never competed in.
-            rank = s["rank"]
+            rank = scored_rank
             submitted = _snapshot_stamp(s.get("submission_date") or "")
             witness = next((sn for sn in snapshots if sn["stamp"] >= submitted), None)
             lag = _lag_days(witness["stamp"], submitted) if witness else None

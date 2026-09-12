@@ -267,3 +267,26 @@ def test_a_same_day_snapshot_still_supplies_the_field_size(tmp_path):
     status(subs, "2026-09-12", "ser6_v1", "e1", "2026-09-12T00:10:00Z", rank=245)
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"]) == (245, 903)
+
+
+def test_the_frozen_scoring_time_rank_beats_the_records_live_rank(tmp_path):
+    """SER-6aefn, 2026-09-12: re-fetched live hours after scoring to recover its
+    submission_date, and the board had re-ranked it from 245 to 244 in the meantime. "Rank
+    when scored" means when it scored, so the frozen first observation wins."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
+    status(subs, "2026-09-12", "ser6_v1", "e1", "2026-09-12T01:56:42Z",
+           rank=244, sidechain_rank_when_scored=245)
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"]) == (245, 903)
+
+
+def test_without_a_frozen_rank_the_records_own_rank_still_stands(tmp_path):
+    """Nothing is written for the eleven records whose `rank` IS their first observation."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
+    status(subs, "2026-09-12", "a_v1", "e1", "2026-09-12T01:56:42Z", rank=244)
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"]) == (244, 903)
