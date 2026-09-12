@@ -24,20 +24,14 @@ snapshot taken after the submission, **and only if that snapshot is within
 denominator beats a flattering one (Saber, 2026-09-11). ``log_submission.py`` takes the
 snapshot itself at record time, so the window is only ever missed when nobody was there.
 
-Every record carries ``sidechain_class`` — ``contender`` (aimed at the score) or ``probe``
-(spent to answer a question) — declared when the entry is logged, BEFORE its score comes
-back (``log_submission.py --class``). Nothing is ever hidden: both kinds appear in the
-table and in the site's JSON. The class only decides how an entry is *drawn*, because one
-off-scale probe on a shared axis destroys the resolution of everything else — PHE-2 scored
--0.9807 against a field running 0.0730 to 0.1078 (2026-09-07). A record with no class is
-``contender`` is the default, so ONLY the exception is ever written down — a record with no
-class reads as a contender. Records dated ``CLASS_REQUIRED_SINCE`` or later owe the field and
-warn without it, so ``--check`` fails rather than letting an unlabelled new entry through;
-records that predate it owe nothing. PHE-2 carries ``sidechain_class_retro``, being the one
-entry whose default would have been wrong and whose class was therefore written after its
-score. The class is metadata about intent — it is NOT part of a model's name (ADR 0005 is
-untouched) and NOT a prediction: an entry that set out to compete and failed stays a
-contender, on the main axis, with its real number.
+``sidechain_class`` is present on a **calibration run** and absent on everything else: an
+entry known in advance not to be competitive, spent to measure the scoring itself
+(``log_submission.py --calibration``, declared before the score). There is no opposite label,
+because every submission asks a question — Saber, 2026-09-11: "there is nothing like climb
+the ranking ladder, I never submit a model to climb it". Nothing is ever filtered on it; it
+decides only that such an entry is drawn apart, because one off-scale bar on a shared axis
+destroys the resolution of everything else — PHE-2 scored -0.9807 against a field running
+0.0730 to 0.1078. It is metadata, never part of a model's name (ADR 0005 is untouched).
 
 Outputs, both fully generated — never edit them by hand:
 
@@ -69,14 +63,10 @@ SERIES_RE = re.compile(r"\b([A-Z]{3}-\d+[a-z]*)\b")
 # a silent fallback is how a misnamed entry would reach the README and the site unnoticed.
 NAME_WARNINGS: list[str] = []
 
-# `contender` is the default, so only the exception is ever recorded -- a record without a
-# class reads as a contender. From CLASS_REQUIRED_SINCE on, log_submission.py demands the
-# flag, so a record dated after it with no class means the entry was logged some other way:
-# warn, and let --check fail. Records that PREDATE the field owe nothing and say nothing;
-# back-writing "contender" over ten of them would be noise, not provenance (Saber, 2026-09-11).
+# Only the exception is written down, so an absent class is the norm and never a warning.
+# A value that is neither absent nor CALIBRATION is a typo in a record, which --check catches.
 CLASS_WARNINGS: list[str] = []
-CLASSES = ("contender", "probe")
-CLASS_REQUIRED_SINCE = "2026-09-11"
+CALIBRATION = "calibration"
 
 # The fallback's board size must be a CONTEMPORARY witness, not merely a later one. The
 # field grows fast — 533 teams on 2026-09-01, 903 on 2026-09-12, about 34 a day — so a
@@ -85,7 +75,7 @@ CLASS_REQUIRED_SINCE = "2026-09-11"
 # PHE-2 (2026-09-07, rank 746) a denominator of 903. Saber's call is that no denominator
 # beats a flattering one. Two days is generous now that log_submission.py takes a snapshot
 # at record time (`ensure_snapshot`) — anything slower means nobody was there.
-TEAMS_MAX_LAG_DAYS = 2
+TEAMS_MAX_LAG_DAYS = 1
 
 DEFAULTS = {"deadline": "2026-11-05", "final_test_set": "2026-10-22"}
 ABOUT = (
@@ -95,12 +85,12 @@ ABOUT = (
     "that contains the entry (the board re-ranks continuously, so a later look is not the rank "
     "when scored) and teams is that snapshot's full team count, not the ~50 rows the page "
     "embeds; an entry below the embed takes its status record's scoring-time rank. The README "
-    "table between the standings markers is the same rows. class is the entry's declared "
-    "intent -- contender (aimed at the score) or probe (spent to answer a question) -- "
-    "recorded when the entry was logged, before its score was known; class_retro marks the "
-    "entries classed after the fact, because the field postdates them. NOTHING is filtered "
-    "on class: it decides only how an entry is drawn, because one off-scale probe on a "
-    "shared axis destroys the resolution of every other bar."
+    "table between the standings markers is the same rows. class is 'calibration' on an entry "
+    "known in advance not to be competitive and sent to measure the scoring itself, and empty "
+    "on every other entry -- there is no opposite label. class_retro marks one written after "
+    "the fact, the field postdating it. NOTHING is filtered on class: it decides only that "
+    "such an entry is drawn apart, because one off-scale bar on a shared axis destroys the "
+    "resolution of every other bar."
 )
 
 
@@ -196,14 +186,12 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             side = f.with_name(f.name.replace(".status.json", ".card.txt"))
             if side.exists():
                 card, card_retro = side.read_text().strip(), True
-        klass = s.get("sidechain_class")
-        if klass not in CLASSES:
-            if (s.get("submission_date") or "")[:10] >= CLASS_REQUIRED_SINCE:
-                CLASS_WARNINGS.append(
-                    f"{f.name}: sidechain_class is {klass!r}, not one of {CLASSES}, on an entry "
-                    f"dated {CLASS_REQUIRED_SINCE} or later -- reading it as a contender. Record "
-                    "it with log_submission.py --class, which asks before the score is known")
-            klass = "contender"
+        klass = s.get("sidechain_class") or ""
+        if klass not in ("", CALIBRATION):
+            CLASS_WARNINGS.append(
+                f"{f.name}: sidechain_class is {klass!r}; the only value is {CALIBRATION!r}, "
+                "written by log_submission.py --calibration. Fix the record")
+            klass = ""
         rows.append({
             "_submitted": s.get("submission_date") or "",
             "date": (s.get("submission_date") or "")[:10],
@@ -226,15 +214,14 @@ def rank_label(rank, teams) -> str:
 
 
 def readme_block(rows: list[dict]) -> str:
-    # Only probes are marked. Tagging the other ten "contender" would be ten rows of noise
-    # for a word that is true by default; the prose above the table carries the rule.
+    # Only calibration runs are marked -- there is no opposite label to write.
     out = ["| date (UTC) | submission | overall | rank when scored |", "|---|---|---|---|"]
     for r in rows:
         cell = f"`{r['board_name']}`"
         if r["name"] not in r["board_name"]:
             cell += f" (`{r['name']}`)"
-        if r["class"] == "probe":
-            cell += " · **probe**"
+        if r["class"] == CALIBRATION:
+            cell += " · **calibration**"
         out.append(f"| {r['date']} | {cell} | {r['overall']:.4f} | {rank_label(r['rank'], r['teams'])} |")
     return "\n".join(out)
 
@@ -282,7 +269,7 @@ def main() -> int:
     README.write_text(readme)
     SITE_JSON.write_text(site)
     for r in rows:
-        print(f"{r['date']}  {r['name']:10s} {r['class']:9s} {r['overall']:8.4f}  "
+        print(f"{r['date']}  {r['name']:10s} {r['class'] or '-':12s} {r['overall']:8.4f}  "
               f"{rank_label(r['rank'], r['teams'])}")
     missing = [r["name"] for r in rows if r["rank"] and not r["teams"]]
     if missing:

@@ -12,22 +12,25 @@
           on 2026-09-07 — invalid CSS, which a browser discards, so the span fell back to
           `auto` and filled the whole track: a failed entry drawn as the longest bar on the
           page. Widths are clamped, and anything outside the axis gets no bar at all and
-          says so in words. A contender that flops is drawn exactly the same way, because
+          says so in words. An entry that simply scores badly is drawn the same way, because
           nobody can know in advance which entries will need this.
 
-       2. `class` — `contender` or `probe` — which is metadata about intent, NOT part of a
-          model's name (ADR 0005 is untouched) and NOT a claim about the score. It decides
-          only GROUPING: contenders set the axis ceiling and share it, probes sit in their
-          own strip. Nothing is ever hidden on it; every entry is in the table below. A
-          contender that scores badly stays a contender and stays on the main axis. */ -}}
+       2. `class`, which is `calibration` on an entry known in advance not to be competitive
+          and absent on every other one. There is no opposite label: every submission asks a
+          question (Saber, 2026-09-11). It is metadata, never part of a model's name (ADR
+          0005 is untouched), and it decides only GROUPING — the rest set the axis ceiling
+          and share it, a calibration run sits in its own strip. Nothing is hidden on it;
+          every entry is in the table below. The models page carries the one-line
+          explanation, so this page does not repeat it (Saber, 2026-09-12). */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
 {{ $n := len $entries }}
-{{ $contenders := where $entries "class" "!=" "probe" }}
-{{ $probes := where $entries "class" "probe" }}
-{{- /* An all-probe board would have nothing to set the axis by; fall back to every entry. */ -}}
-{{ $scale := cond (gt (len $contenders) 0) $contenders $entries }}
+{{ $models := .Site.GetPage "/models" }}
+{{ $rest := where $entries "class" "!=" "calibration" }}
+{{ $calibration := where $entries "class" "calibration" }}
+{{- /* A board of nothing but calibration runs has nothing to set the axis by; fall back. */ -}}
+{{ $scale := cond (gt (len $rest) 0) $rest $entries }}
 
 {{- /* best overall, best rank — among the entries that were actually competing */ -}}
 {{ $best := index $scale 0 }}
@@ -53,7 +56,7 @@
   <div class="sc-stat">
     <div class="sc-stat-label">Scored submissions</div>
     <div class="sc-stat-value">{{ $n }}</div>
-    <div class="sc-stat-sub">{{ len $contenders }} contending{{ with len $probes }} · {{ . }} probe{{ if gt . 1 }}s{{ end }}{{ end }} · since {{ (index $entries 0).date }}</div>
+    <div class="sc-stat-sub">{{ with len $calibration }}{{ . }} calibration run{{ if gt . 1 }}s{{ end }} · {{ end }}since {{ (index $entries 0).date }}</div>
   </div>
   <div class="sc-stat">
     <div class="sc-stat-label">Deadline</div>
@@ -69,7 +72,7 @@
 <figure class="sc-bars" aria-label="Overall score per scored submission">
   <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
   <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
-  {{ range $contenders }}
+  {{ range $rest }}
   {{ $off := or (lt .overall 0.0) (gt .overall $ceil) }}
   {{ $w := mul (div .overall $ceil) 100 }}
   {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
@@ -87,16 +90,16 @@
   {{ end }}
 </figure>
 
-{{ if $probes }}
-<figure class="sc-bars sc-bars--probes" aria-label="Probes, drawn apart from the contending submissions">
-  <figcaption class="sc-bars-title">Probes · submitted to answer a question, not to climb</figcaption>
-  {{- /* Same off-scale rule as the contenders above -- the class changes the grouping,
-         never how a number is drawn. */ -}}
-  {{ range $probes }}
+{{ if $calibration }}
+<figure class="sc-bars sc-bars--aside" aria-label="Calibration runs, drawn apart from the other submissions">
+  <figcaption class="sc-bars-title">Calibration runs · <a href="{{ $models.RelPermalink }}#calibration-runs">what this means →</a></figcaption>
+  {{- /* Same off-scale rule as the rows above -- the class changes the grouping, never how
+         a number is drawn. */ -}}
+  {{ range $calibration }}
   {{ $off := or (lt .overall 0.0) (gt .overall $ceil) }}
   {{ $w := mul (div .overall $ceil) 100 }}
   {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
-  <div class="sc-bar-row sc-bar-row--probe">
+  <div class="sc-bar-row sc-bar-row--aside">
     <span class="sc-bar-label">{{ .name }}</span>
     <span class="sc-bar-track">
       {{- if $off -}}
@@ -111,13 +114,6 @@
 </figure>
 {{ end }}
 
-<p class="sc-footnote">What an entry was <em>for</em> is recorded when it is submitted, before
-Arc returns a score — a label chosen afterwards would be an edit, not a label, and it is not a
-prediction about the result: an entry that set out to compete and then failed is still a
-contender, and is still drawn above. Only the exception is recorded, so PHE-2 is the one entry
-here carrying a class written after the fact, because the field postdates it. Nothing is
-filtered: every scored submission is in the table.</p>
-
 <div class="sc-table-wrap" tabindex="0">
 <table class="sc-table sc-table--entries">
   <thead>
@@ -127,7 +123,7 @@ filtered: every scored submission is in the table.</p>
     {{ range $e := $entries }}
     <tr class="sc-row-entry">
       <td class="sc-mono">{{ $e.date }}</td>
-      <td class="sc-mono sc-series">{{ $e.name }}{{ if eq $e.class "probe" }} <span class="sc-class-tag">probe</span>{{ end }}</td>
+      <td class="sc-mono sc-series">{{ $e.name }}{{ if eq $e.class "calibration" }} <span class="sc-class-tag">calibration</span>{{ end }}</td>
       <td class="sc-mono sc-num">{{ printf "%.4f" $e.overall }}</td>
       {{- /* No board snapshot was taken while the entry was still inside the page's ~50-row
              embed, so the field size is unknown. Print the rank alone rather than a dangling

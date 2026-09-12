@@ -7,11 +7,11 @@ board page embeds only its top ~50 teams and the two diverged on 2026-08-21. An 
 ranked below the embed appears in no snapshot and falls back to its status record's
 scoring-time rank, with the board size from the first snapshot after the submission.
 
-Also the `sidechain_class` rule (Saber, 2026-09-11): a record declares what the entry was FOR
-— `contender` or `probe` — when it is logged, before its score is known. `contender` is the
-default, so only the exception is written down, and only entries dated CLASS_REQUIRED_SINCE or
-later owe the field at all. Nothing is filtered on it and it is not part of a model's name: it
-decides only whether an entry shares the main axis or sits in the probe strip.
+Also the `sidechain_class` rule (Saber, 2026-09-11, vocabulary settled 2026-09-12): the key is
+present and reads `calibration` on an entry known in advance not to be competitive, and absent
+on every other one. There is no opposite label — every submission asks a question. Nothing is
+filtered on it and it is not part of a model's name: it decides only whether an entry shares
+the main axis or sits in the strip below.
 """
 import importlib.util
 import json
@@ -33,8 +33,9 @@ def snap(snaps_dir, stamp, ranks, total):
 
 
 def status(subs_dir, date, stem, entry_id, submission_date, score_avg=0.1,
-           klass="contender", **extra):
-    """klass=None writes a record with no `sidechain_class` at all -- the pre-rule shape."""
+           klass=None, **extra):
+    """klass defaults to None -- no `sidechain_class` key at all, which is the normal shape.
+    Only a calibration run carries one."""
     body = {"entry_id": entry_id, "model_name": "Sidechain SER-9", "description": "",
             "submission_date": submission_date, "score_avg": score_avg}
     if klass is not None:
@@ -68,7 +69,7 @@ def test_below_the_embed_falls_back_to_status_rank(tmp_path):
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260821T2318Z", {"other": 1}, total=95)
-    snap(snaps, "20260823T2051Z", {"other": 1}, total=216)
+    snap(snaps, "20260822T2051Z", {"other": 1}, total=216)
     status(subs, "2026-08-22", "a_v1", "e1", "2026-08-22T00:05:00Z", rank=77)
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"]) == (77, 216)
@@ -98,7 +99,7 @@ def test_a_submit_shaped_record_is_flattened_and_dated_from_its_filename(tmp_pat
     snap(snaps, "20260830T1828Z", {"other": 1}, 476)
     (subs / "2026-08-30_probe_v1.status.json").write_text(json.dumps({
         "entry_id": "probe1", "model_name": "Sidechain SER-9", "final_status": "published",
-        "sidechain_class": "contender", "scores": {"rank": 101, "score_avg": 0.0992},
+        "scores": {"rank": 101, "score_avg": 0.0992},
     }))
     rows = standings.load_rows(subs, snaps)
     assert len(rows) == 1
@@ -166,8 +167,8 @@ def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
     assert (live["card"], live["card_retro"]) == ("SER-9 = a live board card.", False)
 
 
-def test_class_is_read_from_the_record_and_nothing_is_filtered(tmp_path):
-    """Both kinds reach the rows. The class travels with the row so the surfaces can draw
+def test_a_calibration_run_is_marked_and_nothing_is_filtered(tmp_path):
+    """Both rows reach the output. The class travels with the row so the surfaces can draw
     them apart; it never removes an entry -- hiding a submission after seeing its score is
     the failure this design exists to avoid (Saber, 2026-09-11)."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
@@ -175,46 +176,33 @@ def test_class_is_read_from_the_record_and_nothing_is_filtered(tmp_path):
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
     status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z",
-           score_avg=-0.9807, klass="probe")
+           score_avg=-0.9807, klass="calibration")
     rows = standings.load_rows(subs, snaps)
-    assert [r["class"] for r in rows] == ["contender", "probe"]
+    assert [r["class"] for r in rows] == ["", "calibration"]
     assert standings.CLASS_WARNINGS == []
 
 
-def test_an_entry_that_owes_a_class_and_has_none_warns(tmp_path):
-    """From CLASS_REQUIRED_SINCE on, log_submission.py demands the flag, so a record dated
-    after it with no class was logged some other way -- read it as a contender, and let
-    --check fail rather than letting an unlabelled entry onto the chart quietly."""
+def test_an_absent_class_is_the_norm_and_never_warns(tmp_path):
+    """There is no opposite label to write down, so an absent key is not a missing one --
+    demanding it of every entry would be noise, not provenance (Saber, 2026-09-11)."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260924T2051Z", {"e1": 25}, total=216)
-    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z", klass=None)
+    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z")
     (row,) = standings.load_rows(subs, snaps)
-    assert row["class"] == "contender"
-    assert len(standings.CLASS_WARNINGS) == 1 and "a_v1" in standings.CLASS_WARNINGS[0]
-
-
-def test_an_entry_predating_the_field_owes_nothing_and_says_nothing(tmp_path):
-    """`contender` is the default, so only the exception is ever written down. Back-writing
-    it over the ten records that predate the field would be noise, not provenance -- and a
-    permanent --check failure if it were demanded of them (Saber, 2026-09-11)."""
-    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
-    subs.mkdir(); snaps.mkdir()
-    snap(snaps, "20260824T2051Z", {"e1": 25}, total=216)
-    status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z", klass=None)
-    (row,) = standings.load_rows(subs, snaps)
-    assert row["class"] == "contender"
+    assert row["class"] == ""
     assert standings.CLASS_WARNINGS == []
 
 
 def test_an_unknown_class_is_not_trusted(tmp_path):
+    """A typo in a record must not quietly become a category: --check fails on it."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260924T2051Z", {"e1": 25}, total=216)
-    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z", klass="benchmark")
+    status(subs, "2026-09-24", "a_v1", "e1", "2026-09-24T20:10:41Z", klass="contender")
     (row,) = standings.load_rows(subs, snaps)
-    assert row["class"] == "contender"
-    assert len(standings.CLASS_WARNINGS) == 1
+    assert row["class"] == ""
+    assert len(standings.CLASS_WARNINGS) == 1 and "contender" in standings.CLASS_WARNINGS[0]
 
 
 def test_class_retro_marks_the_entries_that_predate_the_field(tmp_path):
@@ -222,25 +210,24 @@ def test_class_retro_marks_the_entries_that_predate_the_field(tmp_path):
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z",
-           sidechain_class_retro=True)
-    status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z")
+           klass="calibration", sidechain_class_retro=True)
+    status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z", klass="calibration")
     old, new = standings.load_rows(subs, snaps)
     assert (old["class_retro"], new["class_retro"]) == (True, False)
 
 
-def test_the_readme_marks_probes_and_leaves_contenders_bare(tmp_path):
-    """Ten rows tagged "contender" would be noise for a word true by default; the prose
-    above the table carries the rule, and only the exception is marked."""
+def test_the_readme_marks_only_the_calibration_run(tmp_path):
+    """There is no opposite label, so every other row stays bare."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
     status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z",
-           score_avg=-0.9807, klass="probe")
-    contender, probe = standings.readme_block(standings.load_rows(subs, snaps)).splitlines()[2:]
-    assert "probe" not in contender
-    assert "· **probe**" in probe
-    assert "-0.9807" in probe  # the number is never softened, only drawn apart
+           score_avg=-0.9807, klass="calibration")
+    plain, calib = standings.readme_block(standings.load_rows(subs, snaps)).splitlines()[2:]
+    assert "calibration" not in plain
+    assert "· **calibration**" in calib
+    assert "-0.9807" in calib  # the number is never softened, only drawn apart
 
 
 def test_a_late_snapshot_is_not_a_witness_for_the_field_size(tmp_path):
@@ -252,7 +239,8 @@ def test_a_late_snapshot_is_not_a_witness_for_the_field_size(tmp_path):
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260903T2329Z", {"other": 1}, total=600)
     snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
-    status(subs, "2026-09-07", "phe2_v1", "e1", "2026-09-07T22:38:56Z", rank=746, klass="probe")
+    status(subs, "2026-09-07", "phe2_v1", "e1", "2026-09-07T22:38:56Z", rank=746,
+           klass="calibration")
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"]) == (746, None)
     assert standings.rank_label(row["rank"], row["teams"]) == "#746"

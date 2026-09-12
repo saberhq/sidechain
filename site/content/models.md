@@ -10,8 +10,11 @@ moved off the series baseline — so `SER-3fn` reads as "SER model 3, with knobs
 on". Scores live in the [standings table](../#standings) — this page is what the numbers are
 attached to.
 
-An entry marked **probe** was submitted to answer a question rather than to climb the table.
-What an entry is for is decided when it goes in, before its score comes back.
+## Calibration runs
+
+A **calibration run** is an entry we already knew would not be competitive, sent anyway to
+measure something about the scoring itself. Marked as one before it goes in, never after.
+PHE-2 is the only one so far.
 
 ## SER-6aefn — submitted 2026-09-12
 
@@ -27,7 +30,7 @@ sweep said it would: more of the genes that really changed are reached, with sli
 fold-change accuracy paying for it. The dial was swept on six held-out cell lines before it
 was submitted, and it moved the same way on all six.
 
-## PHE-2 — submitted 2026-09-07 · probe
+## PHE-2 — submitted 2026-09-07 · calibration run
 
 **The first entry from a different family, and the first sent in expecting to fail.** Every
 `SER` model borrows a measured knockdown effect from a screen that saw that gene silenced

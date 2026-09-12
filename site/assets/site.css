@@ -212,12 +212,12 @@ a.sq-card:hover {
 .sc-bar-row--best .sc-bar { background: var(--viz-1); }
 .sc-bar-row--bench .sc-bar { background: var(--viz-8); opacity: 0.45; }
 .sc-bar-row--bench .sc-bar-label, .sc-bar-row--bench .sc-bar-value { color: var(--ink-3); }
-/* Probes sit in their own strip under the contenders: same idiom, stepped back, with a rule
-   between the two so nobody reads one scale across both. An off-scale probe gets no bar at
+/* A calibration run sits in its own strip below: same idiom, stepped back, with a rule
+   between the two so nobody reads one scale across both. An off-scale row gets no bar at
    all -- a clamped full-width bar would read as a triumph, which is the opposite of true. */
-.sc-bars--probes { margin-top: var(--space-4); padding-top: 10px; border-top: 1px dashed var(--rule); }
-.sc-bar-row--probe .sc-bar { background: var(--viz-8); opacity: 0.45; }
-.sc-bar-row--probe .sc-bar-label, .sc-bar-row--probe .sc-bar-value { color: var(--ink-3); }
+.sc-bars--aside { margin-top: var(--space-4); padding-top: 10px; border-top: 1px dashed var(--rule); }
+.sc-bar-row--aside .sc-bar { background: var(--viz-8); opacity: 0.45; }
+.sc-bar-row--aside .sc-bar-label, .sc-bar-row--aside .sc-bar-value { color: var(--ink-3); }
 .sc-bar-offscale {
   position: absolute; left: 6px; top: 50%; transform: translateY(-50%); white-space: nowrap;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-3);
