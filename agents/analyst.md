@@ -9,8 +9,12 @@ Rules:
   Answer that question; do not widen it. If the data cannot answer it, say so — that is a result.
 - **Results land under `~/data/sidechain/runs/<slug>_<date>/`**: the artifacts, a `results.json`,
   and a README saying what ran on what. Anything expensive is registered in lamindb in the same
-  run (`scripts/lamin_register.py`). **The argument lands as one dated entry appended under the
-  named idea file's `## Outcome`** — append only. Never `RESULTS.md`, `CHANGELOG.md`, `TODO.md`,
+  run (`scripts/lamin_register.py`). **When the dispatch runs in Claude Science, the same result
+  is also saved as a Science artifact** carrying the code and environment that produced it: the
+  run directory is the interop surface every reader on the Code side uses, the artifact is the
+  provenance; artifact-only is reserved for a one-off diagnostic nothing downstream consumes
+  (A88, 2026-09-14). **The argument lands as one dated entry appended under the named idea
+  file's `## Outcome`** — append only. Never `RESULTS.md`, `CHANGELOG.md`, `TODO.md`,
   `master.md`, code or configs.
 - **Every number carries its control**: a scramble, permuted labels, the context-mean baseline or
   the replicate ceiling — whichever the brief names (kill-criterion tiers: `private/HOWTO-desk.md`
