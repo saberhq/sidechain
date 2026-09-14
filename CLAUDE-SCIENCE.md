@@ -53,9 +53,10 @@ that records how every result was made, approval-gated remote compute, and biolo
   Science's network allowlist (the proxy returns 403), so board snapshots and `vcc submit` are yours.
 - **`saberhq.com` and the site deploy** — same allowlist result.
 - **Writing to the protocol machinery**: hooks, the STATUS block, `ledger.py`, the checkers,
-  `private/TODO.md`. A Science session files no STATUS block and appears on no ledger; **the mother
-  session records what it did**, the same way it records a subagent's work. Reading the board is a
-  different matter — see § The board.
+  `private/TODO.md`. A Science session files no STATUS block; **the mother session records what it
+  did**, the same way it records a subagent's work. The one thing it can put on the board itself
+  is an ask, and it does that without touching the store — § Asks from a Science session. Reading
+  the board is a different matter — see § The board.
 - **The private/public split.** Do not paste `private/` reasoning into a Science session that will
   save it as an artifact. Same rule, new surface: publishing is one save, un-publishing is not.
 
@@ -71,6 +72,40 @@ will not know them otherwise until they are in project memory or a skill.
 `## Outcome` paragraph as text; the mother session appends and commits it, so path discipline and the
 public/private call stay with the agent that has the repo. Default to Science handing back text and
 files — grant it write access into the checkout only when you specifically want that.
+
+## Asks from a Science session (ADR 0009)
+
+A Science session cannot append to `asks.jsonl` — the checkout is read-only to it, and a second
+writer would race `ledger.py` for the same `A<n>`. It writes an **outbox** under the data root
+instead, and a Claude Code session folds it in through the same `ask_open` every other ask uses.
+`ledger.py` stays the only writer; the outbox is transport, not record.
+
+- **Where:** `~/data/sidechain/science/outbox/<frame_id>.jsonl` — one file per Science session,
+  named by that session's own frame id, append-only. The directory exists once ingest has run
+  once; a session may create it.
+- **What a line is** — JSON, one per line, `src_id` minted by the session (any short unique
+  string) and the ask fields the board already knows:
+
+  ```
+  {"src_id": "brief-1", "event": "open", "type": "decision", "tid": "T71",
+   "question": "…?", "recommendation": "…", "options": ["a", "b"], "blocking": false,
+   "pointer": "~/data/sidechain/runs/…", "read_minutes": 2}
+  {"src_id": "brief-1-done", "event": "consume", "id": "A87"}
+  ```
+
+  `type` is `decision` or `fyi` (a `review` needs a `?`). Unknown keys are dropped, strings are
+  capped, a bad line is skipped and named — never a broken store.
+- **How it lands:** `ledger.py science ingest` (`/desk` runs it first thing). The ask appears on
+  the board as `sci-xxxx`, joined to the session's card because `from_id` **is** the frame id.
+  `src_id` makes ingest idempotent: the same line never opens twice, so a session may re-emit.
+- **The answer comes back the way it always did:** Saber answers at the desk, `ledger.py ask
+  answer A87 "b"` writes it, and the session reads its own answer out of
+  `private/agents/asks.jsonl` under the read-only grant. When it has acted, it writes the
+  `consume` line above; a consume is honoured only from the frame that raised the ask.
+- **Discipline:** one open ask per dispatch. A session that would raise a second one returns
+  instead — a Science session is not sitting in Saber's editor, and returning costs less than
+  blocking. If asks average more than one per dispatch over a week, the channel goes back to
+  `fyi` only (the ADR's revisit trigger).
 
 ## The board, from a Science session
 
@@ -108,11 +143,12 @@ authoritative on liveness, this is authoritative on what was written.
 
 ## Setup — five things, in order of payoff
 
-1. **Grant `~/data/sidechain/` read-only.** The repo grant (`~/code/sidechain`, read-only,
+1. **Grant `~/data/sidechain/` read-write.** The repo grant (`~/code/sidechain`, read-only,
    2026-09-12) covers both trees including `private/`, but **the data is not in the repo** — until
-   it is granted a session sees no h5ad, no bundle, no cache. Read-only is enough for profiling,
-   scoring and plotting; grant `derived/`, `cache/` and `vcc2026/` rather than the whole tree if you
-   prefer. Keep the repo grant read-only: commits belong to the agent that owns the path discipline.
+   it is granted a session sees no h5ad, no bundle, no cache. Read-write, not read-only, because
+   the outbox (§ Asks from a Science session) and an Analyst's `runs/<slug>_<date>/` live there
+   (ADR 0009); nothing under it is tracked, so no single-writer rule is at stake. Keep the repo
+   grant read-only: commits belong to the agent that owns the path discipline.
 2. **Add the 64 GB / GPU host as a compute target.** This is the biggest one. Science's sandbox runs
    on the same 16 GB Mac — measured 10 cores, 16 GiB — so it inherits the same ceiling and **cannot
    package a submission either**. With the box configured, `vcc prep`-sized packaging, `gpudge`
