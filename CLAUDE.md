@@ -177,6 +177,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a data download, disk, a new corpus, a licence | this file § Data · `configs/datasets.yaml` | ADR 0003 |
 | the website, a post, LinkedIn | `site/README.md` · `/post` | `private/site/NOTES.md` · `private/site/VOICE.md` |
 | the board, `ledger.py`, asks, status, the queue | `private/HOWTO-desk.md` §1 and §8 (the desk is Saber's own session; §2–§7 are his vocabulary) | `reports/12` |
+| Claude Science: what goes there, the handoff, the grants | `CLAUDE-SCIENCE.md` | `private/HOWTO-science.md` · `/science-brief` |
 | a metric or statistical term | `private/GLOSSARY.md` (grep it) | — |
 | a checker fired: why | that `private/research/protocol/check_<x>.py` (docstring, `--help`) | `reports/11` §8 |
 | wiring hooks, skills, `.claude/settings.local.json` (gitignored; template in `private/research/protocol/machine-local/`) | `private/README.md` § After cloning | — |
