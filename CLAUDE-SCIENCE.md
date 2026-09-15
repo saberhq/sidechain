@@ -73,7 +73,7 @@ will not know them otherwise until they are in project memory or a skill.
 public/private call stay with the agent that has the repo. Default to Science handing back text and
 files — grant it write access into the checkout only when you specifically want that.
 
-## Asks from a Science session (ADR 0009)
+## Asks and results from a Science session (ADR 0009, ADR 0010)
 
 A Science session cannot append to `asks.jsonl` — the checkout is read-only to it, and a second
 writer would race `ledger.py` for the same `A<n>`. It writes an **outbox** under the data root
@@ -106,6 +106,20 @@ instead, and a Claude Code session folds it in through the same `ask_open` every
   instead — a Science session is not sitting in Saber's editor, and returning costs less than
   blocking. If asks average more than one per dispatch over a week, the channel goes back to
   `fyi` only (the ADR's revisit trigger).
+- **A result goes back the same way** (ADR 0010) — the dated `## Outcome` paragraph as `text`,
+  with its evidence beside it, so the Code side verifies instead of trusting prose:
+
+  ```
+  {"src_id": "brief-1-result", "event": "result", "tid": "T71", "idea": "<idea slug>",
+   "text": "2026-09-14 · <the paragraph>", "artifact": "<artifact version id>",
+   "run_dir": "~/data/sidechain/runs/<slug>_<date>/"}
+  ```
+
+  `artifact` or `run_dir` is required — a result with neither is a claim and is skipped. `tid`
+  is the brief's; a session started without a brief leaves it empty and a Code session attaches
+  one at landing. Ingest lists it as `R<n>` under `/desk`'s RESULTS; a Code session appends the
+  paragraph under the idea file's `## Outcome`, commits, and records where it went. The ledger
+  never writes a research file, and ingest never mints a task id.
 
 ## The board, from a Science session
 
