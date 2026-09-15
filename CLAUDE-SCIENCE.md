@@ -188,3 +188,56 @@ repo. Withhold everything from `private/` that is reasoning rather than fact.
 The rung ladder, metric-first, nothing-trusted-until-the-mirror-scores-it, sparse-only, ADR 0005
 naming, two submissions a day. Science is another place to do the measuring. It is not another place
 to decide what counts as a win.
+
+## Project Agent Context — last synced 2026-09-15
+
+This block is canonical; the Claude Science project-settings box holds a copy of it. Edits are
+made here first and re-pasted into that box, and the date on this heading is updated to the day of
+the paste — nothing reads that box but every Claude Science session in the project inherits it, so
+a block that has quietly diverged is invisible until it misleads a session, and worse than no copy.
+Fenced so it copies without reflowing; keep it byte-identical to the box.
+
+```markdown
+## Sidechain — Claude Science side
+
+**The project.** Sidechain is Saber's solo entry to Arc Institute's Virtual Cell Challenge 2026,
+run as a multi-agentic workflow with Saber as the only human in the loop. Two repos, both at
+`~/code/sidechain` (read-only here): the public core, and the gitignored `private/` tree that
+holds the research argument, the protocol and the board.
+
+**The seam.** Claude Code owns state that gets committed or submitted — git, the `vcc` CLI, the
+site, the hooks and ledgers. Claude Science owns measurements and arguments: scoring comparisons,
+diagnostics, literature and corpus sweeps, figures. Read `CLAUDE-SCIENCE.md` (public root) for the
+routing and `private/HOWTO-science.md` for the operating page.
+
+**Read the repo; do not recall it.** Spec numbers, the gene axis, control-arm definitions, the
+rung ladder and the naming rule come from `private/research/protocol/facts.json`,
+`challenges/vcc2026/CLAUDE.md`, `private/ARCHITECTURE.md` and `private/GLOSSARY.md` each session.
+Never mirror them into memory — the git is canonical.
+
+**House rules for anything reported.** Every number carries its null (scramble, permuted labels,
+context-mean, or the replicate ceiling). Check the minimum before writing "every". A control arm
+comes from a paper's methods, never from its labels. Raw integer counts, never log1p. Sparse only:
+never allocate a dense gene-by-gene matrix. Nothing is trusted until the local mirror scores it.
+
+**Where output lands** (A88). Both a `runs/<slug>_<date>/` directory under `~/data/sidechain`
+(read-write; the interop surface the Code side reads) and a saved artifact, which carries the code
+and environment that produced it. Artifact-only is for a one-off diagnostic nothing downstream
+consumes.
+
+**Talking to the Code side.** Append to `~/data/sidechain/science/outbox/<frame_id>.jsonl`:
+`open`/`consume` for asks, `result` for a finished measurement (dated Outcome paragraph as `text`,
+plus the artifact version id or run_dir). `ledger.py science ingest` folds it in; `ledger.py` stays
+the only writer of the ledgers. One open ask per dispatch — a session that would raise a second
+returns instead. Announce every outbox line in the reply that writes it, with its `src_id`, and
+name the `A<n>`/`R<n>` it became once the board shows it.
+
+**Walls.** `virtualcellchallenge.org` and `saberhq.com` are off the network allowlist, and the
+board's `127.0.0.1:7391` is unreachable from the sandbox — read `private/agents/*.jsonl` instead.
+The GPU box is the SSH target `sidechain-gpu`; use it, never create, stop or delete one, and start
+every remote command with `export PATH="$HOME/.local/bin:$PATH"` and `cd ~/code/sidechain`.
+
+**Register.** Saber is a computational biologist, not an ML engineer: biology as technical as it
+needs to be, ML and infrastructure in plain words. Lead with the number, then the pointer, then the
+caveat. One number per sentence.
+```
