@@ -128,6 +128,12 @@ uv run python -m sidechain.eval.leaderboard            # prints top 20, saves JS
 Snapshots land in `~/data/sidechain/vcc2026/leaderboards/`. Day 0 (2026-08-20): six entries,
 leader 0.134 with a cross-line pooled delta-transfer model; `mse` was 0 for everyone.
 
+Two directories, on purpose. `leaderboards/` is the post-submit record: `log_submission.py` fills
+it right after one of our entries scores and `scripts/standings.py` reads it for rank-when-scored.
+`leaderboard_watch/` beside it is a twice-daily series from a launchd timer
+(`private/research/protocol/leaderboard_watch.py`: the page embed, the whole field from the page's
+own JSON endpoint, the raw HTML, and the final board once it opens) that `standings.py` never reads.
+
 ## Building and submitting a prediction
 
 The pipeline is `sidechain.submit` (public). It never holds the 360,000-cell matrix in memory:
