@@ -95,8 +95,9 @@ instead, and a Claude Code session folds it in through the same `ask_open` every
 
   `type` is `decision` or `fyi` (a `review` needs a `?`). Unknown keys are dropped, strings are
   capped, a bad line is skipped and named — never a broken store.
-- **How it lands:** `ledger.py science ingest` (`/desk` runs it first thing). The ask appears on
-  the board as `sci-xxxx`, joined to the session's card because `from_id` **is** the frame id.
+- **How it lands:** `ledger.py science ingest` — a launchd timer runs it every three minutes on
+  the Mac, and `/desk` runs it first thing, so a line is on the board within minutes. The ask
+  appears as `sci-xxxx`, joined to the session's card because `from_id` **is** the frame id.
   `src_id` makes ingest idempotent: the same line never opens twice, so a session may re-emit.
 - **The answer comes back the way it always did:** Saber answers at the desk, `ledger.py ask
   answer A87 "b"` writes it, and the session reads its own answer out of
