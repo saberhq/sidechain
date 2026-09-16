@@ -20,7 +20,7 @@ Two hazards this script exists to remove, both of which fail silently otherwise:
 2. **The keys are HGNC symbols, not Ensembl.** That is a deliberate exception to the project's
    Ensembl rule -- ESM2 was computed against a symbol-keyed proteome, so the symbol is the join
    key upstream. It is contained by doing the bridge once, here, with the assert above and with
-   the retired-alias table below.
+   the shared retired-alias table (``src/sidechain/data/gene_aliases.py``).
 
 Usage::
 
@@ -38,35 +38,18 @@ import json
 import sys
 from pathlib import Path
 
-# Symbols retired by HGNC after the proteome ESM2 was computed against. Every one of these was
-# observed in a corpus we actually train on; the right-hand side is the current symbol, which is
-# the one present in ``protein_embeddings.pt``. Verified 2026-09-03 against the shipped table.
-RETIRED_ALIASES: dict[str, str] = {
-    "GARS": "GARS1",
-    "LARS": "LARS1",
-    "MARS": "MARS1",
-    "NARS": "NARS1",
-    "QARS": "QARS1",
-    "YARS": "YARS1",
-    "FGFR1OP": "CEP43",
-    "HIST1H2BN": "H2BC15",
-    "CCDC130": "YJU2B",
-}
+# Retired HGNC symbols seen in our corpora, old -> current. The table lives in
+# ``src/sidechain/data/gene_aliases.py`` -- ONE source of truth, shared with
+# ``scripts/esm2_geometry_gate.py``; its docstring carries the authority (HGNC), the verification
+# date and the evidence file. Extend it there, never here.
+from sidechain.data.gene_aliases import RETIRED_SYMBOLS as ALIAS
 
-# Every pair above was confirmed against HGNC (rest.genenames.org, prev_symbol lookup) and
-# cross-checked in NCBI Gene, Ensembl and UniProt on 2026-09-03. Two notes worth keeping:
-#
-#   QARS is a retired symbol on TWO genes -- QARS1 (HGNC:9751) and EPRS1 (HGNC:3418). The
-#   mapping above is the correct one, but it is pinned here deliberately rather than resolved
-#   by scanning an alias field, because a generic prev_symbol lookup returns both.
-#
-#   CCDC130 -> YJU2B (HGNC:28118, ENSG00000104957) was renamed 2021-03-26; "YJU2 splicing factor
-#   homolog B" is the same spliceosome NTC protein under a new name, not a different gene.
+RETIRED_ALIASES: dict[str, str] = ALIAS      # the name this script has always used; same object
 
 # Control labels are never perturbations. ``cell_load`` addresses the control arm through
 # ``control_pert``, not through the feature dict, so a control label appearing here would be a
 # bug rather than a gap. Matched case-insensitively.
-CONTROL_LABELS = {"non-targeting", "nontargeting", "ntc", "control", "unassigned", "dmso_tf"}
+CONTROL_LABELS ={"non-targeting", "nontargeting", "ntc", "control", "unassigned", "dmso_tf"}
 
 
 def read_labels(paths: list[Path]) -> list[str]:
@@ -186,7 +169,8 @@ def main() -> int:
         print(
             "\nREFUSING TO WRITE. cell_load fills an unresolved perturbation with a ZERO VECTOR and "
             "logs one INFO line, so these genes would train as if they were all the same gene.\n"
-            "Fix the labels, extend RETIRED_ALIASES, or pass --allow-missing having read the list.",
+            "Fix the labels, extend src/sidechain/data/gene_aliases.py, or pass --allow-missing "
+            "having read the list.",
             file=sys.stderr,
         )
         return 1
