@@ -1,0 +1,10 @@
+a.npz: 40/40 targets resolved by the embedding table (unresolved are DROPPED, never zero-filled)
+the shared mean response is 43.9% of total squared length
+
+mean cosine with the TRUE RESIDUAL (chance 0.000):
+    k   embedding   scrambled   random k    margin
+    1     -0.0518     -0.0674    -0.0213   +0.0155
+    3     -0.0452     -0.0665    -0.0148   +0.0213
+    5     -0.0250     -0.0863    -0.0473   +0.0612
+   10     -0.0667     -0.1231    -0.1023   +0.0564
+   25     -0.1365     -0.2427    -0.2502   +0.1062

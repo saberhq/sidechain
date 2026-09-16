@@ -1,0 +1,50 @@
+A = a.npz
+B = b.npz
+shared gene axis 30 | shared resolved targets 40
+
+mean cosine with B's TRUE residual (chance 0.000):
+  SER arm: same gene in A                -0.0157   median -0.0182
+  embedding arm: k=25 neighbours in A    +0.0216   median +0.0089
+  scrambled-embedding arm                +0.0255   median -0.0042
+  A's mean residual                      -0.0000   median -0.0000
+
+k sweep for the embedding arm:
+  k=   1  embedding +0.0021  scramble -0.0176  margin +0.0197
+  k=   3  embedding +0.0199  scramble -0.0384  margin +0.0584
+  k=   5  embedding +0.0087  scramble -0.0013  margin +0.0100
+  k=  10  embedding +0.0099  scramble +0.0089  margin +0.0010
+  k=  25  embedding +0.0216  scramble +0.0255  margin -0.0040
+
+fusion weight sweep -- SER + w * embedding (unit arms). Equal weight (w=1) gives a
+much weaker arm an equal vote and is NOT the right test:
+     w     fused    vs SER   scramble   geometry
+  0.00   -0.0157   +0.0000    -0.0157    +0.0000
+  0.05   -0.0146   +0.0011    -0.0145    -0.0001
+  0.10   -0.0135   +0.0022    -0.0133    -0.0002
+  0.15   -0.0123   +0.0034    -0.0120    -0.0003
+  0.20   -0.0111   +0.0046    -0.0107    -0.0004
+  0.25   -0.0099   +0.0058    -0.0094    -0.0005
+  0.30   -0.0086   +0.0071    -0.0081    -0.0006
+  0.40   -0.0062   +0.0095    -0.0054    -0.0008
+  0.50   -0.0038   +0.0119    -0.0029    -0.0009
+  0.75   +0.0015   +0.0172    +0.0028    -0.0013
+  1.00   +0.0056   +0.0213    +0.0075    -0.0019
+  1.50   +0.0108   +0.0265    +0.0138    -0.0030
+  2.00   +0.0136   +0.0293    +0.0173    -0.0037
+
+best w = 2.00, fused +0.0136, gain over SER alone +0.0293
+
+PER-TARGET ERROR CORRELATION between the two arms (the pre-registered go/no-go):
+  Spearman -0.3032 (p=5.7e-02)   Pearson -0.3037 (p=5.7e-02)
+  learned-arm-fusion kills the arm above ~0.7. Lower means the arms fail differently,
+  which is the entire case for fusing them.
+
+bootstrap over targets: 50 paired resamples, seed 20260903. The k-NN is NOT re-run per
+resample -- neighbour sets are fixed by the embedding, the scramble permutation by the seed --
+so the interval covers which-targets-were-measured noise only.
+bootstrap (50 paired resamples of targets, fixed neighbours and scramble): k=25 margin -0.0040 [ -0.0840, +0.0614 ] -> indistinguishable from zero
+the raw gain at the best w is >= 0 by construction -- w = 0 is in the sweep and w was
+chosen on these same targets -- so the interval below is on the embedding maximum MINUS
+the scrambled maximum, both re-selected over the same w grid inside every resample:
+bootstrap (50 paired resamples of targets, fixed neighbours and scramble): fusion gain over the scrambled fusion (best w re-selected per resample) -0.0037 [ -0.0724, +0.0503 ] -> indistinguishable from zero
+bootstrap (50 paired resamples of targets, fixed neighbours and scramble): k=10 margin (embedding arm - scrambled arm) +0.0010 [ -0.0872, +0.0721 ] -> indistinguishable from zero
