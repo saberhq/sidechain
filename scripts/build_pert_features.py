@@ -5,9 +5,18 @@
 perturbation label to a feature vector. When it is set, that dict **replaces** the default
 one-hot map entirely, which is what lets a model represent a gene it was never trained on.
 
-The vectors come from ``arcinstitute/SE-600M/protein_embeddings.pt`` -- 19,790 HGNC symbols
-x 5,120 dims, ESM2. Arc ships it beside the SE weights and its own transition configs leave
-the slot ``null``.
+The vectors come, since 2026-09-16 (T90), from the ESM-2 3B gene table shipped inside
+TranscriptFormer's ``tf_sapiens`` checkpoint -- 18,618 HGNC symbols x 2,560 dims, at
+``~/data/sidechain/derived/transcriptformer-esm2-3b/esm2_3b_raw_table.pt`` (``LINEAGE.json``
+beside it carries the bytes' origin and sha256). Before that they came from
+``arcinstitute/SE-600M/protein_embeddings.pt`` -- 19,790 symbols x 5,120 dims, ESM-2 15B --
+which Arc ships beside the SE weights and its own transition configs leave ``null``; pass it
+with ``--embeddings`` to build against it again. Why the swap: on the T89 paired re-read of the
+42-pair geometry sweep the 3B table ties Arc's on the deployment-shaped X-Atlas pairs, leads on
+the four other lines and loses on two K562-ess pairs, at half the width, and no scored entry
+rides on the featurizer (``private/research/ideas/pretrained-scfm-arms.md`` § Outcome T89;
+Saber's call on A129). Both tables resolve every one of the 300 challenge targets and the
+849-target panel union.
 
 Two hazards this script exists to remove, both of which fail silently otherwise:
 
@@ -25,18 +34,31 @@ Two hazards this script exists to remove, both of which fail silently otherwise:
 Usage::
 
     python scripts/build_pert_features.py \
-        --embeddings ~/data/sidechain/external/hf-arcinstitute-SE-600M/protein_embeddings.pt \
         --labels     ~/data/sidechain/vcc2026/panels_union.csv \
         --labels     ~/data/sidechain/vcc2026/pert_counts.csv \
-        --out        ~/data/sidechain/cache/vcc2026/pert_features_esm2.pt
+        --out        ~/data/sidechain/cache/vcc2026/pert_features_esm2_3b.pt
+
+    # the pre-T90 table, explicitly:
+    python scripts/build_pert_features.py \
+        --embeddings ~/data/sidechain/external/hf-arcinstitute-SE-600M/protein_embeddings.pt \
+        --labels ... --out ~/data/sidechain/cache/vcc2026/pert_features_esm2.pt
+
+The sidecar ``<out>.json`` records the table's path and sha256, so a feature file can always be
+traced to the bytes it was built from.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
+
+# The featurizer table: ESM-2 3B from TranscriptFormer's checkpoint (T90, 2026-09-16). One place,
+# so a build without --embeddings and the tests agree on what "the default table" is.
+DEFAULT_EMBEDDINGS = Path("~/data/sidechain/derived/transcriptformer-esm2-3b/esm2_3b_raw_table.pt")
+DEFAULT_EMBEDDINGS_SHA256 = "429d2cfbed0cd817d8eae78efb8cba590137d0dcc2dce84c844fea85b7056328"
 
 # Retired HGNC symbols seen in our corpora, old -> current. The table lives in
 # ``src/sidechain/data/gene_aliases.py`` -- ONE source of truth, shared with
@@ -97,7 +119,10 @@ def read_labels_from_h5ad(paths: list[Path], columns: tuple[str, ...]) -> list[s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--embeddings", required=True, type=Path, help="protein_embeddings.pt from SE-600M")
+    ap.add_argument("--embeddings", type=Path, default=DEFAULT_EMBEDDINGS,
+                    help="a {symbol: vector} .pt table; default the ESM-2 3B table at "
+                         f"{DEFAULT_EMBEDDINGS} (T90). Arc's SE-600M protein_embeddings.pt is the "
+                         "pre-T90 choice and still works here.")
     ap.add_argument("--labels", action="append", default=[], type=Path, help="CSV of perturbation labels (repeatable)")
     ap.add_argument("--labels-h5ad", action="append", default=[], type=Path, help="h5ad whose obs holds the labels (repeatable)")
     ap.add_argument(
@@ -130,10 +155,17 @@ def main() -> int:
     if not args.labels and not args.labels_h5ad:
         raise SystemExit("Give at least one --labels or --labels-h5ad.")
 
-    table = torch.load(args.embeddings.expanduser(), weights_only=False, map_location="cpu")
+    emb_path = args.embeddings.expanduser()
+    if not emb_path.exists():
+        raise SystemExit(f"embedding table not found at {emb_path}"
+                         + (" -- pull it with scripts/lamin_pull.py (key derived/transcriptformer-"
+                            "esm2-3b/esm2_3b_raw_table.pt) or pass --embeddings"
+                            if emb_path == DEFAULT_EMBEDDINGS.expanduser() else ""))
+    table = torch.load(emb_path, weights_only=False, map_location="cpu")
     if not isinstance(table, dict):
         raise SystemExit(f"{args.embeddings}: expected a dict, got {type(table)}")
     dim = next(iter(table.values())).shape[-1]
+    emb_sha = hashlib.sha256(emb_path.read_bytes()).hexdigest()
 
     cols = tuple(args.label_column) or ("gene_target", "gene", "perturbation")
     raw = read_labels([p.expanduser() for p in args.labels])
@@ -156,7 +188,7 @@ def main() -> int:
             continue
         missing.append(sym)
 
-    print(f"embeddings   : {args.embeddings} ({len(table):,} symbols x {dim})")
+    print(f"embeddings   : {emb_path} ({len(table):,} symbols x {dim}; sha256 {emb_sha[:12]}...)")
     print(f"labels wanted: {len(wanted):,} (controls excluded)")
     print(f"resolved     : {len(features):,}  direct {len(features) - len(aliased):,}, via alias {len(aliased):,}")
     if aliased:
@@ -189,7 +221,8 @@ def main() -> int:
     sidecar.write_text(
         json.dumps(
             {
-                "embeddings_source": str(args.embeddings),
+                "embeddings_source": str(emb_path),
+                "embeddings_sha256": emb_sha,
                 "n_symbols_in_source": len(table),
                 "feature_dim": int(dim),
                 "n_features_written": len(features),

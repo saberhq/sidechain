@@ -67,6 +67,44 @@ sources:
     enabled: true
     notes: "Per-gene 3'UTR embedding as a frozen node feature. The modern ntEmbd."
 
+  # ------------ PERTURBATION FEATURIZER: the gene table a learned arm reads ------------
+  # Not a graph prior: these tables are what scripts/build_pert_features.py turns into the
+  # `perturbation_features_file` a STATE transition model reads instead of a one-hot code, so a
+  # model can represent a gene it never saw knocked down. Declared here so the registry knows
+  # which table is current; `enabled: false` because no PriorSource loader consumes a symbol-
+  # keyed table yet (the registry lets a shelved block name an unwritten loader). The choice
+  # between them: private/research/ideas/pretrained-scfm-arms.md § Outcome T89 (paired, 42 pairs).
+  - name: esm2_3b_gene_table
+    kind: node_feature
+    layer: cis
+    relation: gene_embedding
+    entity: gene
+    loader: GeneTableSource        # not written; see T19
+    provider: "ESM-2 3B (Meta) as shipped inside TranscriptFormer tf_sapiens (CZI, MIT)"
+    url: "https://czi-transcriptformer.s3.amazonaws.com/weights/tf_sapiens.tar.gz"
+    path: "~/data/sidechain/derived/transcriptformer-esm2-3b/esm2_3b_raw_table.pt"
+    sha256: "429d2cfbed0cd817d8eae78efb8cba590137d0dcc2dce84c844fea85b7056328"
+    key_type: hgnc_symbol          # 18,618 symbols; retired symbols via sidechain.data.gene_aliases
+    embed_dim: 2560
+    precompute: true
+    enabled: false
+    notes: "The featurizer since 2026-09-16 (T90). Covers 300/300 challenge targets and 849/849 of the panel union. LINEAGE.json beside the file."
+
+  - name: esm2_se600m_gene_table
+    kind: node_feature
+    layer: cis
+    relation: gene_embedding
+    entity: gene
+    loader: GeneTableSource        # not written; see T19
+    provider: "ESM-2 15B (Meta) as shipped by Arc Institute beside SE-600M"
+    url: "https://huggingface.co/arcinstitute/SE-600M"
+    path: "~/data/sidechain/external/hf-arcinstitute-SE-600M/protein_embeddings.pt"
+    key_type: hgnc_symbol          # 19,790 symbols
+    embed_dim: 5120
+    precompute: true
+    enabled: false
+    notes: "The featurizer until 2026-09-16; superseded by esm2_3b_gene_table (T90). Still the geometry gate's default comparator (scripts/esm2_geometry_gate.py EMB)."
+
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
   - name: mirbind2
