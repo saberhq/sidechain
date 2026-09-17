@@ -41,6 +41,7 @@ import numpy as np
 
 from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
+from sidechain.models.basal_slope import MODES as BASAL_MODES, fit_basal_slopes, target_basal
 from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
 from sidechain.submit.build import (
     apply_transfer_floors,
@@ -70,6 +71,8 @@ def build_transfer_prediction(
     var_floor: str = "none",
     coverage_tiers: tuple[tuple[float, float], ...] | None = None,
     similarity_beta: float = 0.0,
+    basal_slope: str = "off",
+    alpha_bulk: float | None = None,
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = 500.0,
@@ -91,6 +94,9 @@ def build_transfer_prediction(
     if dispersion is None and emit_lambda is None:
         dispersion = "even"    # this function's historical default
     em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda)
+    if alpha_bulk is not None and em.lam == 0.0:
+        raise SystemExit("--alpha-bulk needs a depth spread (--emit-lambda > 0 or --dispersion "
+                         "poisson): at lambda 0 the pseudobulk and the per-cell mean coincide")
     gene_pos = {g: i for i, g in enumerate(axis)}
     out_h5 = open_anndata_h5(out_path, "w")
     writer = CsrWriter(out_h5, len(axis))
@@ -105,11 +111,26 @@ def build_transfer_prediction(
     # guard could never be satisfied and every similarity arm died in eight seconds. The guard
     # was right about the requirement and wrong about where the requirement is met.
     ctrl_cpm = None
-    if gamma != 1.0 or similarity_beta != 0.0:
+    if basal_slope not in BASAL_MODES:
+        raise SystemExit(f"basal_slope must be one of {BASAL_MODES}, got {basal_slope!r}")
+    if gamma != 1.0 or similarity_beta != 0.0 or basal_slope != "off":
         if list(prof.genes) != list(axis):
-            need = "gamma != 1" if gamma != 1.0 else "similarity_beta != 0"
+            need = ("gamma != 1" if gamma != 1.0 else
+                    "similarity_beta != 0" if similarity_beta != 0.0 else "basal_slope")
             raise SystemExit(f"{need}: control profile genes differ from the real file's axis")
         ctrl_cpm = prof.fraction * 1e6
+    # T77: Rhaister-O's term. The slope is fitted once over every target (the empirical-Bayes
+    # prior needs all of them), read on this line through its control profile, and ADDED to
+    # the pooled delta before alpha -- so alpha, the knockdown pin and the emitter see one
+    # log2FC vector exactly as before. "off" touches nothing and is bit-identical.
+    basal_mod, basal_stats = None, None
+    if basal_slope != "off":
+        fit = fit_basal_slopes(perts, sources, axis, var_floor=var_floor)
+        basal_mod = fit.modifier(target_basal(ctrl_cpm, axis, fit.common), mode=basal_slope)
+        basal_stats = fit.stats(basal_slope)
+        basal_stats["modifier_mean_abs"] = float(np.abs(basal_mod).mean())
+        basal_stats["modifier_nonzero_frac"] = float((basal_mod != 0).mean())
+        del fit
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
                          gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
@@ -117,11 +138,22 @@ def build_transfer_prediction(
                          similarity_beta=similarity_beta, stats=pool_stats)
         if d is not None:
             covered += 1
+            if basal_mod is not None:
+                d = d + basal_mod[perts.index(p)]
+            d0 = d
             d = d * alpha    # alpha scales the pooled vector; gamma acted per source inside the pool
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
-        writer.append_csr(em.emit(n, d))
+        if alpha_bulk is None or d is None:
+            writer.append_csr(em.emit(n, d))
+        else:
+            # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
+            # the knockdown pin is the same on both, and everything upstream is untouched.
+            d_bulk = d0 * alpha_bulk
+            if p in gene_pos:
+                d_bulk[gene_pos[p]] = -2.32
+            writer.append_csr(em.emit_dual(n, d, d_bulk, on_fail="fallback"))
         obs_labels += [p] * n
     n_rows = writer.close()
     assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
@@ -138,9 +170,13 @@ def build_transfer_prediction(
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
-            "alpha": alpha, "gamma": gamma, "var_floor": var_floor,
+            "alpha": alpha, "alpha_bulk": alpha_bulk,
+            # targets whose two moments were jointly unreachable and carried one amplitude
+            "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if alpha_bulk is not None else None,
+            "gamma": gamma, "var_floor": var_floor,
             "coverage_tiers": coverage_tiers,
             "similarity_beta": similarity_beta,
+            "basal_slope": basal_slope, "basal_slope_stats": basal_stats,
             # Recorded per source and by name, not as a bare list: a floor attached to the
             # wrong arm is the failure mode this knob has, so the run must say which arm got
             # which number rather than leaving it to the command line's order.
@@ -188,6 +224,12 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.submit.build, so a scored arm submits verbatim.")
     ap.add_argument("--no-shrink", action="store_true")
     ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
+                    help="T84: a second amplitude for the pseudobulk channel. The emitted cells' "
+                         "equal-weight per-cell mean follows --alpha (what the four Wilcoxon "
+                         "members read), their depth-weighted column sums follow this value "
+                         "(what pds and mse read); count_emitters.PoissonEmitter.emit_dual. "
+                         "Needs --emit-lambda > 0. Unset = one amplitude, bit-identical")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
@@ -202,6 +244,14 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.submit.build yet: shifts there are pooled once for all "
                          "contexts and gamma makes them context-specific, so a gamma arm "
                          "cannot submit verbatim until that restructure lands")
+    ap.add_argument("--basal-slope", choices=list(BASAL_MODES), default="off",
+                    help="T77, Rhaister-O's term: add a per-(target, gene) slope on basal "
+                         "expression to the pooled delta, fitted across the source lines and "
+                         "read on the held-out line through its controls; 'gene' shrinks each "
+                         "gene's slope by its own empirical-Bayes prior, 'global' by one prior "
+                         "for all genes (models.basal_slope). 'off' is bit-identical to the "
+                         "historical call. NOT wired on sidechain.submit.build yet: like gamma "
+                         "it makes the shifts context-specific")
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
                     help="floor each pseudobulk arm's variance at its Poisson sampling variance "
                          "(same knob as sidechain.submit.build, so a scored arm submits verbatim)")
@@ -244,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
                                      gamma=args.gamma, var_floor=args.var_floor,
                                      coverage_tiers=cov_tiers,
                                      similarity_beta=args.similarity_beta,
+                                     basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
@@ -264,8 +315,10 @@ def main(argv: list[str] | None = None) -> int:
          "lfc_sources": args.lfc_source,
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
-         "alpha": args.alpha, "gamma": args.gamma, "var_floor": args.var_floor,
+         "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "gamma": args.gamma,
+         "var_floor": args.var_floor,
          "similarity_beta": args.similarity_beta,
+         "basal_slope": args.basal_slope,
          "coverage_tiers": args.coverage_tiers,
          "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
