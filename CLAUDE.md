@@ -103,6 +103,8 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
 - **Read the methods for the control definition; never infer it from the labels.** `control_label`
   is a list: Feng 2026's arm is `[NonTarget, unassigned]`, 499,998 cells, not 48.
 - **Check the minimum before writing "every"** (median 48, minimum 22).
+- **Name a local fold by its directory** (`loco_hek293t_ch272`), never by a letter: A–F are the
+  challenge's cell lines, and D/E/F are unreleased until Oct 22 (Saber, 2026-09-16).
 - **Standings numbers are generated** (`scripts/standings.py`): never hand-edit the README table,
   `site/data/submissions.json` or `RESULTS.md` ranks.
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);
