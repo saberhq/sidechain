@@ -662,3 +662,20 @@ def test_the_assay_names_its_three_verdicts(capsys):
     assert "paralogue structure present" in out
     assert "EXTRACTION FAILED" in out and "untrained tensor" in out
     assert "NO PARALOGUE STRUCTURE" in out and "not an initialisation tensor" in out
+
+
+def test_assay_table_runs_the_assay_on_the_unfiltered_table(corpora, capsys, monkeypatch, tmp_path):
+    """A wrapper scores a filtered table on which no paralogue pair survives; --assay-table names
+    the full table and the assay reads that one."""
+    import torch
+
+    g, emb = corpora
+    full = tmp_path / "full.pt"
+    torch.save(paralog_table(g, 8, 4, structured=True), full)
+    out = run_gate(g, cross_argv(emb, 20) + ["--assay-table", str(full)], capsys, monkeypatch)
+    assert "paralogue structure present" in out
+    assert "not run: fewer than" not in out
+    monkeypatch.setattr(sys, "argv", ["gate", *cross_argv(emb, 20), "--assay-table",
+                                      str(tmp_path / "nope.pt")])
+    with pytest.raises(SystemExit, match="assay-table not found"):
+        g.main()

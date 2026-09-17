@@ -74,7 +74,8 @@ z. A table that never left its initialisation reads z ~ 0 with a mean random cos
 reported as EXTRACTION FAILED (three of the 2026-09-14 rows), so a DEAD verdict on it is never
 mistaken for a verdict on the model; a table with z ~ 0 but a strongly non-zero random cosine is
 reported as NO PARALOGUE STRUCTURE, which is a fact about what its neighbourhoods encode, not a
-failed extraction (AIDO.Cell's line tables).
+failed extraction (AIDO.Cell's line tables). A footing wrapper that filters the scored table to a
+few hundred genes passes the unfiltered table as ``--assay-table``, or the assay prints "not run".
 
 ``--dump PATH`` writes the per-target cosines (embedding arm, every scramble draw, and in ``cross``
 the SER arm and the per-w fusion gains) to an ``.npz`` for ``compare``. Every line that existed
@@ -396,7 +397,8 @@ def write_dump(path: Path, **arrays) -> None:
 
 
 def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int = 1,
-               dump: Path | None = None, assay: bool = True) -> None:
+               dump: Path | None = None, assay: bool = True,
+               assay_table: Path | None = None) -> None:
     rng = np.random.default_rng(seed)
     labels, _, d = load_delta(corpus)
     ok, e = embeddings(labels, emb_path)
@@ -460,7 +462,7 @@ def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int =
 
     if assay:
         import torch
-        extraction_print(extraction_assay(torch.load(emb_path, weights_only=False,
+        extraction_print(extraction_assay(torch.load(assay_table or emb_path, weights_only=False,
                                                      map_location="cpu"), seed))
 
     if dump is not None:
@@ -472,7 +474,8 @@ def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int =
 
 
 def run_cross(a_name: str, b_name: str, k: int, seed: int, emb_path: Path, n_boot: int,
-              n_scr: int = 1, dump: Path | None = None, assay: bool = True) -> None:
+              n_scr: int = 1, dump: Path | None = None, assay: bool = True,
+              assay_table: Path | None = None) -> None:
     from scipy.stats import pearsonr, spearmanr
 
     rng = np.random.default_rng(seed)
@@ -620,6 +623,8 @@ def run_cross(a_name: str, b_name: str, k: int, seed: int, emb_path: Path, n_boo
                                float(emb_k[10].mean() - scr_all[10].mean()), lo, hi)
 
     if assay:
+        if assay_table is not None:
+            table = torch.load(assay_table, weights_only=False, map_location="cpu")
         extraction_print(extraction_assay(table, seed))
 
     if dump is not None:
@@ -818,6 +823,10 @@ def main() -> int:
                        help="skip the paralogue-versus-random extraction assay printed after the "
                             "gate (on by default since T89; a failed assay means the table is a "
                             "random tensor and the verdicts are about the extraction)")
+        p.add_argument("--assay-table", type=Path, default=None, metavar="PATH",
+                       help="run the assay on THIS table instead of the one scored: a footing "
+                            "wrapper filters the scored table down to 500-2,000 genes, where "
+                            "few paralogue pairs survive, so it passes the unfiltered table here")
     cp = sub.add_parser("compare", help="two --dump files on one footing: the PAIRED row-minus-"
                                         "row difference, with its interval")
     cp.add_argument("row_a", type=Path)
@@ -843,12 +852,16 @@ def main() -> int:
     if args.scrambles < 1:
         raise SystemExit("--scrambles takes a positive number of permutations (1 = the legacy "
                          "single draw)")
+    if args.assay_table is not None:
+        args.assay_table = Path(args.assay_table).expanduser()
+        if not args.assay_table.exists():
+            raise SystemExit(f"--assay-table not found at {args.assay_table}")
     if args.mode == "within":
         run_within(args.corpus, args.seed, emb_path, args.bootstrap, args.scrambles, args.dump,
-                   not args.no_assay)
+                   not args.no_assay, args.assay_table)
     else:
         run_cross(args.corpus_a, args.corpus_b, args.k, args.seed, emb_path, args.bootstrap,
-                  args.scrambles, args.dump, not args.no_assay)
+                  args.scrambles, args.dump, not args.no_assay, args.assay_table)
     return 0
 
 
