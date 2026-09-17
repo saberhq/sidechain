@@ -68,6 +68,11 @@ null carries, which on the 2026-09-15 batch was up to 0.005 and wider than the p
 then the margin against the MEAN of the M draws, with a two-level bootstrap that redraws the
 permutations with replacement as well as the targets. Ten draws cut the null's noise by sqrt(10).
 
+The **extraction assay** (on by default, ``--no-assay`` to skip) prints, after everything else, the
+mean cosine over forty human paralogue pairs against random pairs of the table's own genes, with a
+z: a table that never left its initialisation (three of the 2026-09-14 rows) reads z ~ 0 and is
+reported as EXTRACTION FAILED, so a DEAD verdict on it is never mistaken for a verdict on the model.
+
 ``--dump PATH`` writes the per-target cosines (embedding arm, every scramble draw, and in ``cross``
 the SER arm and the per-w fusion gains) to an ``.npz`` for ``compare``. Every line that existed
 before these options were added still prints byte for byte the same, for the same inputs and seed.
@@ -96,6 +101,27 @@ KS = (1, 3, 5, 10, 25, 50, 100, 200)
 WS = (0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0)
 BOOT_KS = (10, 25)              # the two fixed k every verdict is read at, never the sweep's best
 SCRAMBLE_STREAM = 0x5C4A        # the rng stream the extra scramble permutations are drawn from
+
+# The pre-gate extraction assay (T89, the T45 critics' third ask): a table that knows what a gene
+# is puts paralogues near each other; a tensor that never left its initialisation does not. Forty
+# human paralogue / close-family pairs, current HGNC symbols, chosen to span kinases, GTPases,
+# cytoskeleton, chaperones, histones, transporters and transcription factors. The assay compares
+# the mean cosine over the pairs the table resolves with that over random pairs of the same genes'
+# universe; a z under EXTRACTION_Z_MIN means "the verdicts below are about the extraction, not the
+# model" -- three T45 rows (scFoundation pos_emb, GREmLN, scLDM-20M) were exactly that.
+PARALOG_PAIRS = (
+    ("MAPK1", "MAPK3"), ("AKT1", "AKT2"), ("KRAS", "NRAS"), ("HRAS", "NRAS"), ("CDK4", "CDK6"),
+    ("RAC1", "RAC2"), ("RHOA", "RHOB"), ("CDC42", "RAC1"), ("ACTB", "ACTG1"), ("TUBA1A", "TUBA1B"),
+    ("TUBB", "TUBB4B"), ("HSPA1A", "HSPA1B"), ("HSPA8", "HSPA1A"), ("HSP90AA1", "HSP90AB1"),
+    ("H2BC12", "H2BC15"), ("H4C1", "H4C2"), ("ATP1A1", "ATP1A2"), ("SLC2A1", "SLC2A3"),
+    ("GAPDH", "GAPDHS"), ("ENO1", "ENO2"), ("PKM", "PKLR"), ("LDHA", "LDHB"), ("MYC", "MYCN"),
+    ("JUN", "JUNB"), ("FOS", "FOSB"), ("STAT1", "STAT3"), ("SMAD2", "SMAD3"), ("CCND1", "CCND2"),
+    ("CDKN1A", "CDKN1B"), ("BCL2", "BCL2L1"), ("CASP3", "CASP7"), ("EIF4A1", "EIF4A2"),
+    ("RPL7", "RPL7A"), ("RPS27", "RPS27A"), ("PSMB5", "PSMB6"), ("PSMA1", "PSMA2"),
+    ("POLR2A", "POLR2B"), ("SRSF1", "SRSF2"), ("HNRNPA1", "HNRNPA2B1"), ("YWHAB", "YWHAZ"),
+)
+EXTRACTION_Z_MIN = 2.0          # below this the table reads as a random tensor
+EXTRACTION_MIN_PAIRS = 10       # fewer resolved pairs than this and the assay is not run
 
 
 def load_delta(name: str):
@@ -202,6 +228,59 @@ def boot_rng(seed: int):
     return np.random.default_rng([seed, 0xB007])
 
 
+# ------------------------------------------------------------------ the extraction assay
+
+def extraction_assay(table: dict, seed: int, n_random: int = 4000) -> dict | None:
+    """Paralogue-versus-random cosine on the raw table: is there any gene geometry to gate?
+
+    Mean cosine over the `PARALOG_PAIRS` the table resolves (through the alias table too) against
+    the mean over `n_random` random pairs of the table's own genes; z is the paralogue mean's
+    distance from the random mean in units of the random pairs' standard error at the paralogue
+    count. Returns None when fewer than EXTRACTION_MIN_PAIRS pairs resolve. Draws from a stream of
+    its own, so nothing else printed moves.
+    """
+    def vec(g):
+        if g in table:
+            return table[g]
+        a = ALIAS.get(g)
+        return table[a] if a is not None and a in table else None
+
+    pairs = [(a, b) for a, b in PARALOG_PAIRS if vec(a) is not None and vec(b) is not None]
+    if len(pairs) < EXTRACTION_MIN_PAIRS:
+        return None
+    par = np.stack([np.concatenate([np.asarray(vec(a), dtype=float).ravel(),
+                                    np.asarray(vec(b), dtype=float).ravel()]) for a, b in pairs])
+    d = par.shape[1] // 2
+    pa, pb = unit(par[:, :d]), unit(par[:, d:])
+    par_cos = (pa * pb).sum(1)
+    keys = list(table)
+    rng = np.random.default_rng([seed, 0xE7A])
+    i = rng.integers(0, len(keys), n_random)
+    j = rng.integers(0, len(keys), n_random)
+    ok = i != j
+    ra = unit(np.stack([np.asarray(table[keys[x]], dtype=float).ravel() for x in i[ok]]))
+    rb = unit(np.stack([np.asarray(table[keys[x]], dtype=float).ravel() for x in j[ok]]))
+    rnd_cos = (ra * rb).sum(1)
+    se = rnd_cos.std(ddof=1) / np.sqrt(len(pairs))
+    z = float((par_cos.mean() - rnd_cos.mean()) / se) if se > 0 else float("inf")
+    return {"n_pairs": len(pairs), "paralog_cos": float(par_cos.mean()),
+            "random_cos": float(rnd_cos.mean()), "n_random": int(ok.sum()), "z": z,
+            "ok": z >= EXTRACTION_Z_MIN}
+
+
+def extraction_print(res: dict | None) -> None:
+    print("\nextraction assay (paralogue pairs against random pairs of the table's own genes):")
+    if res is None:
+        print(f"  not run: fewer than {EXTRACTION_MIN_PAIRS} of the {len(PARALOG_PAIRS)} paralogue "
+              f"pairs resolve in this table")
+        return
+    verdict = ("geometry present" if res["ok"] else
+               f"EXTRACTION FAILED (z < {EXTRACTION_Z_MIN:.0f}): this table is indistinguishable "
+               f"from a random tensor, so every verdict above is about the extraction, not the model")
+    print(f"  {res['n_pairs']} pairs: paralogue cos {res['paralog_cos']:+.4f}  random cos "
+          f"{res['random_cos']:+.4f} ({res['n_random']:,} pairs)  z {res['z']:+.2f} -> {verdict}")
+
+
 # ------------------------------------------------------------------- several scramble draws
 
 def scramble_rng(seed: int, j: int):
@@ -300,7 +379,7 @@ def write_dump(path: Path, **arrays) -> None:
 
 
 def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int = 1,
-               dump: Path | None = None) -> None:
+               dump: Path | None = None, assay: bool = True) -> None:
     rng = np.random.default_rng(seed)
     labels, _, d = load_delta(corpus)
     ok, e = embeddings(labels, emb_path)
@@ -362,6 +441,11 @@ def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int =
                 boot_print_scr(n_boot, n_scr, f"k={k} margin",
                                float(emb_k[k].mean() - scr_all[k].mean()), lo, hi)
 
+    if assay:
+        import torch
+        extraction_print(extraction_assay(torch.load(emb_path, weights_only=False,
+                                                     map_location="cpu"), seed))
+
     if dump is not None:
         write_dump(dump, mode="within", corpus_a=corpus, corpus_b="", table=str(emb_path),
                    seed=seed, k_header=0, n_scrambles=n_scr, targets=labels,
@@ -371,7 +455,7 @@ def run_within(corpus: str, seed: int, emb_path: Path, n_boot: int, n_scr: int =
 
 
 def run_cross(a_name: str, b_name: str, k: int, seed: int, emb_path: Path, n_boot: int,
-              n_scr: int = 1, dump: Path | None = None) -> None:
+              n_scr: int = 1, dump: Path | None = None, assay: bool = True) -> None:
     from scipy.stats import pearsonr, spearmanr
 
     rng = np.random.default_rng(seed)
@@ -517,6 +601,9 @@ def run_cross(a_name: str, b_name: str, k: int, seed: int, emb_path: Path, n_boo
                 lo, hi = boot_ci_scr(emb_k[10], scr_all[10], n_boot, srng)
                 boot_print_scr(n_boot, n_scr, "k=10 margin (embedding arm - scrambled arm)",
                                float(emb_k[10].mean() - scr_all[10].mean()), lo, hi)
+
+    if assay:
+        extraction_print(extraction_assay(table, seed))
 
     if dump is not None:
         write_dump(dump, mode="cross", corpus_a=a_name, corpus_b=b_name, table=str(emb_path),
@@ -710,6 +797,10 @@ def main() -> int:
                             "resamples the permutation too")
         p.add_argument("--dump", type=Path, default=None, metavar="PATH",
                        help="write the per-target cosines to this .npz, for `compare`")
+        p.add_argument("--no-assay", action="store_true",
+                       help="skip the paralogue-versus-random extraction assay printed after the "
+                            "gate (on by default since T89; a failed assay means the table is a "
+                            "random tensor and the verdicts are about the extraction)")
     cp = sub.add_parser("compare", help="two --dump files on one footing: the PAIRED row-minus-"
                                         "row difference, with its interval")
     cp.add_argument("row_a", type=Path)
@@ -736,10 +827,11 @@ def main() -> int:
         raise SystemExit("--scrambles takes a positive number of permutations (1 = the legacy "
                          "single draw)")
     if args.mode == "within":
-        run_within(args.corpus, args.seed, emb_path, args.bootstrap, args.scrambles, args.dump)
+        run_within(args.corpus, args.seed, emb_path, args.bootstrap, args.scrambles, args.dump,
+                   not args.no_assay)
     else:
         run_cross(args.corpus_a, args.corpus_b, args.k, args.seed, emb_path, args.bootstrap,
-                  args.scrambles, args.dump)
+                  args.scrambles, args.dump, not args.no_assay)
     return 0
 
 

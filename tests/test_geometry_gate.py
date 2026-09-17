@@ -236,11 +236,15 @@ def test_the_same_seed_gives_the_same_output_twice(corpora, capsys, monkeypatch,
 
 @pytest.mark.parametrize("argv", ["within", "cross"])
 def test_bootstrap_zero_is_the_pre_change_output(corpora, capsys, monkeypatch, argv):
-    """--bootstrap 0 prints nothing new, and the bootstrap is APPENDED, never woven in."""
+    """--bootstrap 0 prints nothing new, and the bootstrap is APPENDED, never woven in.
+
+    (--no-assay on both sides: the extraction assay is the last block of any run and has its own
+    append test; here the property under test is the bootstrap's.)
+    """
     g, emb = corpora
     build = within_argv if argv == "within" else cross_argv
-    off = run_gate(g, build(emb, 0), capsys, monkeypatch)
-    on = run_gate(g, build(emb, 50), capsys, monkeypatch)
+    off = run_gate(g, build(emb, 0) + ["--no-assay"], capsys, monkeypatch)
+    on = run_gate(g, build(emb, 50) + ["--no-assay"], capsys, monkeypatch)
 
     assert "bootstrap" not in off
     assert on.startswith(off)                    # every legacy line byte-identical, in place
@@ -298,16 +302,19 @@ GOLDEN = ROOT / "tests" / "data"
 def test_one_scramble_is_the_pre_change_output_and_more_draws_only_append(corpora, capsys,
                                                                              monkeypatch, mode,
                                                                              boot):
-    """--scrambles 1 is the default and prints nothing new; M > 1 appends and never rewrites."""
+    """--scrambles 1 is the default and prints nothing new; M > 1 appends and never rewrites.
+
+    (--no-assay on every side: the assay is the last block and is pinned separately.)
+    """
     g, emb = corpora
     build = within_argv_scr if mode == "within" else cross_argv_scr
-    one = run_gate(g, build(emb, boot, 1), capsys, monkeypatch)
-    legacy = run_gate(g, (within_argv if mode == "within" else cross_argv)(emb, boot),
-                      capsys, monkeypatch)
+    one = run_gate(g, build(emb, boot, 1) + ["--no-assay"], capsys, monkeypatch)
+    legacy = run_gate(g, (within_argv if mode == "within" else cross_argv)(emb, boot)
+                      + ["--no-assay"], capsys, monkeypatch)
     assert one == legacy
     assert "scramble draws" not in one
 
-    five = run_gate(g, build(emb, boot, 5), capsys, monkeypatch)
+    five = run_gate(g, build(emb, boot, 5) + ["--no-assay"], capsys, monkeypatch)
     assert five.startswith(one)                  # every fixed-scramble line, byte for byte
     assert "scramble draws: 5 permutations" in five
     if boot == 0:
@@ -581,3 +588,54 @@ def test_cross_refuses_a_header_k_at_or_above_the_footing(corpora, capsys, monke
     monkeypatch.setattr(sys, "argv", ["gate", *cross_argv(emb, 0), "-k", str(N_TARGETS)])
     with pytest.raises(SystemExit, match="needs more than"):
         g.main()
+
+
+# ------------------------------------------------------------- the extraction assay (T89)
+
+def paralog_table(g, dim: int, seed: int, structured: bool):
+    """A table over the gate's own PARALOG_PAIRS plus filler genes. `structured` puts each pair's
+    two genes on nearly the same vector; otherwise every vector is an independent draw."""
+    import torch
+
+    rng = np.random.default_rng(seed)
+    table = {}
+    for a, b in g.PARALOG_PAIRS:
+        base = rng.normal(size=dim)
+        table[a] = torch.tensor(base, dtype=torch.float32)
+        table[b] = torch.tensor(base + 0.1 * rng.normal(size=dim) if structured
+                                else rng.normal(size=dim), dtype=torch.float32)
+    for i in range(200):
+        table[f"FILLER{i:03d}"] = torch.tensor(rng.normal(size=dim), dtype=torch.float32)
+    return table
+
+
+def test_extraction_assay_separates_a_real_table_from_a_random_tensor():
+    g = load_script(GATE, "gate_assay")
+    good = g.extraction_assay(paralog_table(g, 16, 1, structured=True), 20260903)
+    bad = g.extraction_assay(paralog_table(g, 16, 2, structured=False), 20260903)
+    assert good["n_pairs"] == len(g.PARALOG_PAIRS) == bad["n_pairs"]
+    assert good["ok"] and good["z"] > 5.0
+    assert not bad["ok"] and abs(bad["z"]) < 2.0
+    assert g.extraction_assay({"GENEA": np.ones(4), "GENEB": np.ones(4)}, 1) is None   # too few
+
+
+def test_extraction_assay_resolves_a_pair_through_the_alias_table():
+    g = load_script(GATE, "gate_assay_alias")
+    table = paralog_table(g, 8, 3, structured=True)
+    # spell one gene by a retired symbol the alias table maps onto a current one in the table
+    retired = next(k for k, v in g.ALIAS.items() if v in {b for _, b in g.PARALOG_PAIRS})
+    current = g.ALIAS[retired]
+    n_before = g.extraction_assay(table, 1)["n_pairs"]
+    table[retired] = table.pop(current)              # the table now only knows the retired name
+    assert g.extraction_assay(table, 1)["n_pairs"] == n_before - 1       # not resolved that way
+    table[current] = table.pop(retired)              # back: current name resolves directly
+    assert g.extraction_assay(table, 1)["n_pairs"] == n_before
+
+
+def test_the_assay_is_appended_and_can_be_switched_off(corpora, capsys, monkeypatch):
+    g, emb = corpora
+    on = run_gate(g, cross_argv(emb, 20), capsys, monkeypatch)
+    off = run_gate(g, cross_argv(emb, 20) + ["--no-assay"], capsys, monkeypatch)
+    assert on.startswith(off)                        # appended after everything else
+    assert "extraction assay" in on and "extraction assay" not in off
+    assert "not run: fewer than" in on               # the fixture's genes are not paralogues
