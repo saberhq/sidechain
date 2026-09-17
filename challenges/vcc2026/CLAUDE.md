@@ -38,6 +38,12 @@ uv run python -m sidechain.data.profile --challenge-config challenges/vcc2026/co
 The agent skill (`vcc skill install` → `~/.claude/skills/vcc/`) drives download → prep →
 submit; re-run it after every `uv tool upgrade vcc-cli`.
 
+**A wrong upload does not have to cost the slot: `vcc cancel` (0.2.0+).** A team may have only one
+submission in progress, so an interrupted or wrong `vcc submit` blocks the next one until it is
+abandoned. `vcc cancel` frees it, and an abandoned submission does not count against the daily
+allowance — only a scored one does. The command is newer than the bundled agent skill, which does
+not mention it.
+
 **Reinstalling or re-pointing the CLI invalidates the keychain ACL, and macOS then prompts for the
 login password on *every* `vcc` call.** The `vcc` keychain item records the interpreter that created
 it, so when that binary moves — a reinstall, an interpreter swap, or the 2026-09-07 miniconda
