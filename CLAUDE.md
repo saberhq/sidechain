@@ -173,6 +173,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
+| a hand-off to the next session (a context window ending, or Saber's ask) | `private/handoffs/README.md` — the shape, the rules, the index | — |
 | the GPU box, more RAM, a full-corpus stream | `/sidechain-brev` | — |
 | a data download, disk, a new corpus, a licence | this file § Data · `configs/datasets.yaml` | ADR 0003 |
 | the website, a post, LinkedIn | `site/README.md` · `/post` | `private/site/NOTES.md` · `private/site/VOICE.md` |
