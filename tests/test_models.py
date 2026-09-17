@@ -172,6 +172,73 @@ def test_predict_rejects_an_empty_request():
         m.predict({"SYM0": 0})
 
 
+# ------------------------------------------------- the control-draw guardrail --
+#
+# T3. The emitter draws its control cells uniformly from the whole pool, and must
+# keep doing so: a draw matched to a perturbation's batch would import the batch's
+# own offset into the prediction and then score it as biology. Nothing in the code
+# matches today -- `rng.integers(0, pool.shape[0], ...)` -- and these two tests are
+# what stops it from being introduced. The 0.95 batch-effect scare that raised the
+# question was refuted in `private reports/03` §4; the guardrail outlived it.
+
+
+def _tagged_pool(n_ctrl=120, n_pert_each=30, n_genes=12, seed=0):
+    """Controls in two batches, every control cell tagged with its own pool row.
+
+    Gene 0 carries `row + 1` rather than expression, so an emitted cell can be
+    traced back to the control it was drawn from. The perturbed cells sit one
+    batch each, so a batch-matching emitter would have something to match on.
+    """
+    rng = np.random.default_rng(seed)
+    labels = [CONTROL] * n_ctrl + ["SYM1"] * n_pert_each + ["SYM2"] * n_pert_each
+    half = n_ctrl // 2
+    batch = ["A"] * half + ["B"] * (n_ctrl - half) + ["A"] * n_pert_each + ["B"] * n_pert_each
+    X = np.log1p(rng.poisson(3, size=(len(labels), n_genes))).astype(np.float32)
+    X[:n_ctrl, 0] = np.arange(1, n_ctrl + 1, dtype=np.float32)
+    obs = pd.DataFrame(
+        {"target_gene": labels, "batch": batch},
+        index=[f"c{i}" for i in range(len(labels))],
+    )
+    var = pd.DataFrame(index=pd.Index([f"SYM{i}" for i in range(n_genes)]))
+    return ad.AnnData(X=sp.csr_matrix(X), obs=obs, var=var)
+
+
+def _drawn_rows(pred) -> np.ndarray:
+    """The pool row behind each emitted cell, read off the gene-0 tag.
+
+    `PredictControl` shifts by zero and a dense emit skips the assay floor, so the
+    tag survives the round trip exactly.
+    """
+    return np.rint(np.asarray(pred.X)[:, 0]).astype(int) - 1
+
+
+def test_control_draws_cover_the_whole_pool():
+    """Uniform over the pool: every control cell is reachable and none is favoured."""
+    n_ctrl = 120
+    m = PredictControl().fit(_tagged_pool(n_ctrl=n_ctrl))
+    counts = np.bincount(
+        _drawn_rows(m.predict({"SYM1": 6000}, seed=0, sparse_output=False)),
+        minlength=n_ctrl,
+    )
+    assert counts.size == n_ctrl
+    assert counts.min() > 0
+    assert counts.max() < 2 * counts.mean()
+
+
+def test_a_perturbation_does_not_draw_from_its_own_batch():
+    """The guardrail itself. SYM1 is entirely batch A and SYM2 entirely batch B,
+    and both must still be emitted from both halves of the pool in proportion.
+    A batch-matched draw would push one share to 0 and the other to 1."""
+    n_ctrl = 120
+    m = PredictControl().fit(_tagged_pool(n_ctrl=n_ctrl))
+    pred = m.predict({"SYM1": 4000, "SYM2": 4000}, seed=1, sparse_output=False)
+    from_batch_a = _drawn_rows(pred) < n_ctrl // 2
+    labels = pred.obs["target_gene"].to_numpy()
+    for pert in ("SYM1", "SYM2"):
+        share = float(from_batch_a[labels == pert].mean())
+        assert 0.45 < share < 0.55, f"{pert} drew {share:.3f} of its cells from batch A"
+
+
 # ------------------------------------------------------ numerical moments --
 
 
