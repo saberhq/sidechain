@@ -29,6 +29,8 @@ dependencies = [
   "lamindb>=2.9.1,<3", # dataset + run/artifact versioning; floor-pinned -- 2.x releases monthly and the Mac and the box must resolve alike
   "pyyaml",
   "typer", # small CLIs
+  "markdown-it-py>=4.2", # Markdown -> HTML for the local docs reader; was only transitive (rich, jupytext)
+  "mdit-py-plugins>=0.6", # its frontmatter, math and bare-URL plugins
   "zstandard>=0.25.0",
 ]
 
