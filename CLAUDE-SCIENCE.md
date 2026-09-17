@@ -69,9 +69,10 @@ context-mean, replicate ceiling) and **check the minimum before writing "every"*
 will not know them otherwise until they are in project memory or a skill.
 
 **Science → Code** is an artifact plus one line of result. Ask the session for the dated
-`## Outcome` paragraph as text; the mother session appends and commits it, so path discipline and the
-public/private call stay with the agent that has the repo. Default to Science handing back text and
-files — grant it write access into the checkout only when you specifically want that.
+`## Outcome` paragraph as text; the mother session quotes it verbatim and commits it, so path
+discipline and the public/private call stay with the agent that has the repo, and a reader can always
+tell Science's words from Code's (the landing rule, § Asks and results). Default to Science handing
+back text and files — grant it write access into the checkout only when you specifically want that.
 
 ## Asks and results from a Science session (ADR 0009, ADR 0010)
 
@@ -118,9 +119,20 @@ instead, and a Claude Code session folds it in through the same `ask_open` every
 
   `artifact` or `run_dir` is required — a result with neither is a claim and is skipped. `tid`
   is the brief's; a session started without a brief leaves it empty and a Code session attaches
-  one at landing. Ingest lists it as `R<n>` under `/desk`'s RESULTS; a Code session appends the
-  paragraph under the idea file's `## Outcome`, commits, and records where it went. The ledger
-  never writes a research file, and ingest never mints a task id.
+  one at landing. Ingest lists it as `R<n>` under `/desk`'s RESULTS. The ledger never writes a
+  research file, and ingest never mints a task id.
+- **Landing a result keeps the two authors apart** (2026-09-16). It is a Code session's job, in
+  this order:
+  1. Check the paragraph against its evidence.
+  2. **Quote it verbatim** under the destination's `## Outcome` — the idea file's, or wherever
+     Saber sends a result that carries no idea slug — as a `>` block identical to the ledger's
+     `text`, headed `**<date> — R<n>, Claude Science session <frame id, 8 chars> (artifact <id>,
+     run <run_dir>), verbatim:**`. The frame id is the Science session's own (`from_id`
+     in `results.jsonl`), not the Code session that wrote the brief.
+  3. **Anything the Code side adds is its own dated entry**, headed with its session id: the
+     re-derivation, a correction, a reconciliation with another count. Never unheaded text under
+     the quote, and never an edit to the quote — a correction is a new entry naming what it corrects.
+  4. Commit, then `ledger.py science triage R<n> --into <file>`.
 
 ## The board, from a Science session
 
@@ -228,7 +240,10 @@ consumes.
 **Talking to the Code side.** Append to `~/data/sidechain/science/outbox/<frame_id>.jsonl`:
 `open`/`consume` for asks, `result` for a finished measurement (dated Outcome paragraph as `text`,
 plus the artifact version id or run_dir). `ledger.py science ingest` folds it in; `ledger.py` stays
-the only writer of the ledgers. One open ask per dispatch — a session that would raise a second
+the only writer of the ledgers. The Code side lands that paragraph as a verbatim quote and writes
+its own reading in a separate entry, so write it to stand alone: the date, what was measured and
+how, the null, the numbers, the one surprise, the caveat — nothing that needs this conversation
+to make sense. One open ask per dispatch — a session that would raise a second
 returns instead. Announce every outbox line in the reply that writes it, with its `src_id`, and
 name the `A<n>`/`R<n>` it became once the board shows it.
 
