@@ -5,7 +5,7 @@ description: Every model Sidechain has put on the Virtual Cell Challenge 2026 bo
 
 Every submission's board card points here. The name grammar in one line: a **series tag**
 (`SER` — cross-line delta transfer; `PHE` — the deep generative models), a **model number**
-(new sources or structure), and lowercase **knob letters**, each marking exactly one setting
+(new sources or structure; since SER-4afn, every new entry), and lowercase **knob letters**, each marking exactly one setting
 moved off the series baseline — so `SER-3fn` reads as "SER model 3, with knobs `f` and `n`
 on". Scores live in the [standings table](../#standings) — this page is what the numbers are
 attached to.
@@ -16,6 +16,20 @@ A **calibration run** is an entry we already knew would not be competitive, sent
 measure something about the scoring itself. Marked as one before it goes in, never after.
 PHE-2 is the only one so far.
 
+## SER-7abefn — submitted 2026-09-17
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
+f = floored source weights · n = no shrinkage.** SER-6aefn with one change. The scorer reads
+the 400 predicted cells of a knockdown twice: once added up into one profile, once cell by
+cell. Until now both readings carried the borrowed response at one strength, 1.35. `b` lets
+the summed profile carry it at 1.5 while each cell still carries it at 1.35, by moving counts
+between deeper and shallower cells without changing any cell's depth.
+
+The best entry so far — 0.1131 against SER-6aefn's 0.1091. The summed-profile score rose and
+the cell-by-cell scores held, the pattern the local sweep showed on six held-out test sets
+from three cell lines before it was submitted. The gain on the board is smaller than it was
+locally.
+
 ## SER-6aefn — submitted 2026-09-12
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · n = no
@@ -25,7 +39,7 @@ half the spread that Poisson counting would give, instead of every cell sitting 
 depth. That lets the differential-expression test call the right genes a little more often,
 at a small cost in fold-change accuracy.
 
-The best entry so far — 0.1091 against SER-4afn's 0.1078 — and the gain landed where the local
+It scored 0.1091 against SER-4afn's 0.1078, and the gain landed where the local
 sweep said it would: more of the genes that really changed are reached, with slightly worse
 fold-change accuracy paying for it. The dial was swept on six held-out cell lines before it
 was submitted, and it moved the same way on all six.

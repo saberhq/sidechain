@@ -146,6 +146,18 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-09-17",
+      "name": "SER-7abefn",
+      "board_name": "Sidechain SER-7abefn",
+      "overall": 0.1131,
+      "rank": 314,
+      "teams": 1022,
+      "card": "SER-7abefn = cross-line delta transfer, model 7 (a = amplified transfer, b = summed-profile strength set apart, e = emission dial at lambda 0.5, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, as SER-6aefn does; the emitted cells now carry that response at strength 1.5 in their summed profile and 1.35 cell by cell -- the one change from SER-6aefn. All models: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
