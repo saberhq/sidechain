@@ -614,9 +614,18 @@ def test_extraction_assay_separates_a_real_table_from_a_random_tensor():
     good = g.extraction_assay(paralog_table(g, 16, 1, structured=True), 20260903)
     bad = g.extraction_assay(paralog_table(g, 16, 2, structured=False), 20260903)
     assert good["n_pairs"] == len(g.PARALOG_PAIRS) == bad["n_pairs"]
-    assert good["ok"] and good["z"] > 5.0
-    assert not bad["ok"] and abs(bad["z"]) < 2.0
+    assert good["ok"] and good["z"] > 5.0 and not good["untrained"]
+    assert not bad["ok"] and abs(bad["z"]) < 2.0 and bad["untrained"]   # random AND isotropic
     assert g.extraction_assay({"GENEA": np.ones(4), "GENEB": np.ones(4)}, 1) is None   # too few
+
+    # anisotropic but paralogue-blind: every vector shares one big common direction, so random
+    # pairs read a high cosine, paralogues no higher -- the middle tier, not "untrained"
+    rng = np.random.default_rng(5)
+    common = rng.normal(size=16)
+    aniso = {k: (5.0 * common + rng.normal(size=16)).astype(np.float32)
+             for k in paralog_table(g, 16, 2, structured=False)}
+    mid = g.extraction_assay(aniso, 1)
+    assert not mid["ok"] and not mid["untrained"] and mid["random_cos"] > 0.5
 
 
 def test_extraction_assay_resolves_a_pair_through_the_alias_table():
@@ -639,3 +648,17 @@ def test_the_assay_is_appended_and_can_be_switched_off(corpora, capsys, monkeypa
     assert on.startswith(off)                        # appended after everything else
     assert "extraction assay" in on and "extraction assay" not in off
     assert "not run: fewer than" in on               # the fixture's genes are not paralogues
+
+
+def test_the_assay_names_its_three_verdicts(capsys):
+    g = load_script(GATE, "gate_assay_print")
+    g.extraction_print({"n_pairs": 30, "paralog_cos": 0.4, "random_cos": 0.02, "n_random": 4000,
+                        "z": 9.0, "ok": True, "untrained": False})
+    g.extraction_print({"n_pairs": 30, "paralog_cos": 0.0, "random_cos": 0.0, "n_random": 4000,
+                        "z": 0.3, "ok": False, "untrained": True})
+    g.extraction_print({"n_pairs": 30, "paralog_cos": 0.5, "random_cos": 0.57, "n_random": 4000,
+                        "z": -1.5, "ok": False, "untrained": False})
+    out = capsys.readouterr().out
+    assert "paralogue structure present" in out
+    assert "EXTRACTION FAILED" in out and "untrained tensor" in out
+    assert "NO PARALOGUE STRUCTURE" in out and "not an initialisation tensor" in out

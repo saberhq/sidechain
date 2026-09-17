@@ -70,8 +70,11 @@ permutations with replacement as well as the targets. Ten draws cut the null's n
 
 The **extraction assay** (on by default, ``--no-assay`` to skip) prints, after everything else, the
 mean cosine over forty human paralogue pairs against random pairs of the table's own genes, with a
-z: a table that never left its initialisation (three of the 2026-09-14 rows) reads z ~ 0 and is
-reported as EXTRACTION FAILED, so a DEAD verdict on it is never mistaken for a verdict on the model.
+z. A table that never left its initialisation reads z ~ 0 with a mean random cosine at zero and is
+reported as EXTRACTION FAILED (three of the 2026-09-14 rows), so a DEAD verdict on it is never
+mistaken for a verdict on the model; a table with z ~ 0 but a strongly non-zero random cosine is
+reported as NO PARALOGUE STRUCTURE, which is a fact about what its neighbourhoods encode, not a
+failed extraction (AIDO.Cell's line tables).
 
 ``--dump PATH`` writes the per-target cosines (embedding arm, every scramble draw, and in ``cross``
 the SER arm and the per-w fusion gains) to an ``.npz`` for ``compare``. Every line that existed
@@ -120,7 +123,8 @@ PARALOG_PAIRS = (
     ("RPL7", "RPL7A"), ("RPS27", "RPS27A"), ("PSMB5", "PSMB6"), ("PSMA1", "PSMA2"),
     ("POLR2A", "POLR2B"), ("SRSF1", "SRSF2"), ("HNRNPA1", "HNRNPA2B1"), ("YWHAB", "YWHAZ"),
 )
-EXTRACTION_Z_MIN = 2.0          # below this the table reads as a random tensor
+EXTRACTION_Z_MIN = 2.0          # below this the table carries no paralogue structure
+EXTRACTION_ISO_COS = 0.02       # |mean random cosine| under this AND z under the line: untrained
 EXTRACTION_MIN_PAIRS = 10       # fewer resolved pairs than this and the assay is not run
 
 
@@ -263,9 +267,15 @@ def extraction_assay(table: dict, seed: int, n_random: int = 4000) -> dict | Non
     rnd_cos = (ra * rb).sum(1)
     se = rnd_cos.std(ddof=1) / np.sqrt(len(pairs))
     z = float((par_cos.mean() - rnd_cos.mean()) / se) if se > 0 else float("inf")
-    return {"n_pairs": len(pairs), "paralog_cos": float(par_cos.mean()),
-            "random_cos": float(rnd_cos.mean()), "n_random": int(ok.sum()), "z": z,
-            "ok": z >= EXTRACTION_Z_MIN}
+    rc = float(rnd_cos.mean())
+    # Two tiers, because a table built from expression context can carry real neighbourhoods
+    # without putting paralogues together (AIDO.Cell's Jurkat table: z -1.5, mean random cosine
+    # +0.57, yet it beats its scramble on every within arm), while an initialisation tensor has
+    # neither: paralogues at random AND a mean random cosine at zero (GREmLN, scFoundation
+    # pos_emb, AIDO positional: z 0.5 / -0.6 / 0.7 with random cosine 0.000).
+    return {"n_pairs": len(pairs), "paralog_cos": float(par_cos.mean()), "random_cos": rc,
+            "n_random": int(ok.sum()), "z": z, "ok": z >= EXTRACTION_Z_MIN,
+            "untrained": z < EXTRACTION_Z_MIN and abs(rc) < EXTRACTION_ISO_COS}
 
 
 def extraction_print(res: dict | None) -> None:
@@ -274,9 +284,16 @@ def extraction_print(res: dict | None) -> None:
         print(f"  not run: fewer than {EXTRACTION_MIN_PAIRS} of the {len(PARALOG_PAIRS)} paralogue "
               f"pairs resolve in this table")
         return
-    verdict = ("geometry present" if res["ok"] else
-               f"EXTRACTION FAILED (z < {EXTRACTION_Z_MIN:.0f}): this table is indistinguishable "
-               f"from a random tensor, so every verdict above is about the extraction, not the model")
+    if res["ok"]:
+        verdict = "paralogue structure present"
+    elif res["untrained"]:
+        verdict = (f"EXTRACTION FAILED: paralogues at random (z < {EXTRACTION_Z_MIN:.0f}) and a mean "
+                   f"random cosine at zero -- this reads as an untrained tensor, so every verdict "
+                   f"above is about the extraction, not the model")
+    else:
+        verdict = (f"NO PARALOGUE STRUCTURE (z < {EXTRACTION_Z_MIN:.0f}) in an anisotropic table "
+                   f"(mean random cosine {res['random_cos']:+.2f}): not an initialisation tensor; "
+                   f"its neighbourhoods, if any, are not gene-family ones -- read the within arms")
     print(f"  {res['n_pairs']} pairs: paralogue cos {res['paralog_cos']:+.4f}  random cos "
           f"{res['random_cos']:+.4f} ({res['n_random']:,} pairs)  z {res['z']:+.2f} -> {verdict}")
 
