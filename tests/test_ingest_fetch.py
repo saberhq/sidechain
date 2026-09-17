@@ -5,6 +5,7 @@ a spec block that forgets to declare a control label is a bug that would only
 surface much later, as a delta computed against an empty control pool.
 """
 import json
+import shutil
 
 import pytest
 import yaml
@@ -17,6 +18,24 @@ from sidechain.ingest.provenance import (
     gate,
     to_provenance,
 )
+
+# The gate's last check reads the REAL free space on whatever volume the test is
+# running on (`shutil.disk_usage`), so two streamed-route tests below turned red on
+# 2026-09-17 with 21.9 GB free -- a 12 GB output budget plus the gate's 10 GB
+# headroom is 22 GB -- with nothing wrong in the code they cover. A test that
+# passes or fails on how full the machine's disk is cannot gate a push, so every
+# test in this file sees a fixed, roomy volume. The one test that asserts the
+# refusal asks for 10^15 bytes and is refused against this too.
+FAKE_FREE_BYTES = 500 * 10**9
+
+
+@pytest.fixture(autouse=True)
+def _roomy_disk(monkeypatch):
+    usage = shutil._ntuple_diskusage(
+        total=2 * FAKE_FREE_BYTES, used=FAKE_FREE_BYTES, free=FAKE_FREE_BYTES
+    )
+    monkeypatch.setattr(shutil, "disk_usage", lambda _path: usage)
+
 
 # What an EXPRESSION file's spec must declare. A `gene_map` file is a lookup
 # table, not perturbation data: asking it for a control label is meaningless,

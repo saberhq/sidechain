@@ -1,0 +1,48 @@
+# Runs the test suite on every push to main and on pull requests.
+#
+# The suite is hermetic: no test needs the corpora under ~/data/sidechain, and the
+# four that would are guarded by `skipif`. Verified before this workflow landed by
+# running it with HOME pointed at an empty directory -- 679 passed, 4 skipped. If a
+# new test needs data outside the repo, guard it the same way rather than letting
+# this go red on a machine that simply does not hold the file.
+#
+# Python is pinned by .python-version (3.11); pyproject caps below 3.13 so the Mac
+# and a GPU box resolve alike, and CI should resolve the same way. `uv sync
+# --frozen` fails rather than silently re-resolving when uv.lock has drifted from
+# pyproject.toml, which is the drift worth catching here.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "site/**"
+      - "**/*.md"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Test
+        run: uv run pytest -q
