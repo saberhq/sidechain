@@ -627,6 +627,16 @@ def main(argv: list[str] | None = None) -> int:
                          "taken rather than cells (e.g. Feng 2026). Repeatable. Built by "
                          "`python -m sidechain.data.lfc_table`.")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
+    ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
+                    help="a second amplitude for the pseudobulk channel (letter b, ADR 0005): the "
+                         "emitted cells' equal-weight per-cell mean follows --alpha, their "
+                         "depth-weighted column sums follow this value "
+                         "(count_emitters.PoissonEmitter.emit_dual; same knob in "
+                         "sidechain.eval.loco, so a mirror-scored arm submits verbatim). Needs a "
+                         "depth spread (--emit-lambda > 0 or --dispersion poisson) and the "
+                         "delta-transfer emitter; a perturbation whose two moments cannot both be "
+                         "met carries one amplitude and is counted. Unset = one amplitude, "
+                         "bit-identical")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -684,6 +694,13 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"--emit-lambda must be in [0, 1], got {args.emit_lambda}")
     if args.emit_lambda is None and args.dispersion is None:
         args.dispersion = "even"    # the historical default of this entry point
+    if args.alpha_bulk is not None:
+        if args.emitter != "delta-transfer":
+            ap.error("--alpha-bulk splits the amplitude of pooled per-target deltas, so it only "
+                     "applies to delta-transfer")
+        if args.dispersion == "even" or args.emit_lambda == 0.0:
+            ap.error("--alpha-bulk needs a depth spread (--emit-lambda > 0 or --dispersion "
+                     "poisson): at lambda 0 the pseudobulk and the per-cell mean coincide")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -763,11 +780,20 @@ def main(argv: list[str] | None = None) -> int:
 
     def finalize(shift_map):
         # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
+        # With --alpha-bulk the SAME pooled vector is also scaled by the pseudobulk amplitude
+        # (taken before alpha touches it) and pinned identically; the emitter gets both.
+        bulk_map = {} if args.alpha_bulk is not None else None
         for p, vec in shift_map.items():
             if vec is not None:
+                if bulk_map is not None:
+                    b = vec * args.alpha_bulk
+                    if p in gene_pos:
+                        b[gene_pos[p]] = TARGET_SELF_LOG2FC
+                    bulk_map[p] = b
                 vec *= args.alpha
                 if p in gene_pos:
                     vec[gene_pos[p]] = TARGET_SELF_LOG2FC
+        return bulk_map
 
     def pool_line(prefix, fb):
         line = f"{prefix}; fallback-to-generic: {fb}"
@@ -789,6 +815,7 @@ def main(argv: list[str] | None = None) -> int:
         return line
 
     per_context_shifts = None
+    bulk_shifts = None
     if args.emitter == "delta-transfer" and args.gamma != 1.0:
         # gamma re-expresses each source's fold change against THIS context's control
         # profile, so the shifts stop being shareable across contexts: pool once per
@@ -807,14 +834,14 @@ def main(argv: list[str] | None = None) -> int:
                     fb += 1
                 else:
                     local[p] = d
-            finalize(local)
+            local_bulk = finalize(local)
             print(pool_line(f"  {prof.name}: gamma={args.gamma:g} shifts ready", fb), flush=True)
-            return local
+            return local, local_bulk
 
         print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
               "write loop", flush=True)
     else:
-        finalize(shifts)
+        bulk_shifts = finalize(shifts)
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
 
     # -- write
@@ -822,19 +849,37 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit_perts:
         pd.DataFrame({cfg["pert_col"]: perts}).to_csv(out.with_suffix(".pert_counts.csv"), index=False)
     t0 = time.time()
+    dual_fallbacks: dict[str, int] = {}
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
             prof = ContextProfile.from_controls(data_dir / cfg["control_files"][ctx], ctx, min_libsize=args.min_libsize)
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
-            ctx_shifts = shifts if per_context_shifts is None else per_context_shifts(prof)
+            ctx_shifts, ctx_bulk = ((shifts, bulk_shifts) if per_context_shifts is None
+                                    else per_context_shifts(prof))
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda)
             for k, p in enumerate(perts):
-                w.add_block(em.emit(contract.cells_per_pert, ctx_shifts[p]), ctx, p)
+                if ctx_bulk is None or ctx_shifts[p] is None:
+                    block = em.emit(contract.cells_per_pert, ctx_shifts[p])
+                else:
+                    # letter b: two amplitudes in one count matrix; a perturbation whose two
+                    # moments are jointly unreachable carries one amplitude and is counted
+                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
+                                         on_fail="fallback")
+                w.add_block(block, ctx, p)
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
+            if ctx_bulk is not None:
+                dual_fallbacks[ctx] = int(getattr(em, "dual_fallbacks", 0))
+                print(f"  {ctx}: alpha_bulk={args.alpha_bulk:g}: {dual_fallbacks[ctx]} of "
+                      f"{len(perts)} perturbations carried one amplitude", flush=True)
     info = verify_h5ad(h5ad, contract)
+    if dual_fallbacks:
+        info = {**info, "alpha_bulk": args.alpha_bulk, "dual_fallbacks": dual_fallbacks}
+        out.with_suffix(".dual.json").write_text(json.dumps(
+            {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "dual_fallbacks": dual_fallbacks},
+            indent=1) + "\n")
     print(json.dumps({"h5ad": str(h5ad), **info, "write_seconds": round(time.time() - t0)}), flush=True)
     if not args.no_pack:
         t0 = time.time()
