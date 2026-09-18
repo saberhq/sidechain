@@ -255,3 +255,23 @@ def test_drop_one_arm_verify_catches_a_pool_the_shortcut_cannot_reproduce():
     b = _Src(f.genes, targets, fc=1.0, var=0.1)
     with pytest.raises(AssertionError, match="do not reproduce pooled_delta"):
         drop_one_arm(targets, [a, b], f, verify=3)
+
+
+def test_pool_parts_verify_survives_a_target_no_source_covers():
+    """`pooled_delta` abstains with None on an uncovered target, and `None - array` raises.
+
+    Reported by session `66c37b95` on 2026-09-18: their driver passed a target no arm in the
+    pool had, and the crash came from inside the CHECK rather than from the arithmetic being
+    verified. An uncovered target's parts are all zero, so there is nothing to compare.
+    """
+    from sidechain.eval.analytic_pds import pool_parts
+
+    f = _fold(n_genes=6, n_targets=3)
+    covered, uncovered = "g0", "g2"
+    a = _Src(f.genes, [covered], fc=1.0, var=0.1)
+    b = _Src(f.genes, [covered], fc=2.0, var=0.4)
+
+    num, den = pool_parts([covered, uncovered], [a, b], f.genes, verify=2)
+    assert num.shape == (2, 6)
+    assert np.all(den[1] == 0.0)          # the uncovered target got no weight from anyone
+    assert np.any(den[0] > 0.0)

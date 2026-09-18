@@ -257,6 +257,14 @@ def pool_parts(targets, sources, axis, var_floor: str = "poisson", clamp: float 
         for i in sorted(rng.choice(len(targets), size=k, replace=False).tolist()):
             ref = pooled_delta(str(targets[i]), sources, axis, shrinkage=False,
                                var_floor=var_floor)
+            if ref is None:
+                # No source covers this target, so `pooled_delta` abstains rather than
+                # returning a vector -- and `None - array` raises, which turned a
+                # legitimate input into a crash inside a CHECK. Reported by session
+                # `66c37b95`, 2026-09-18, after Step 2's driver hit it on a target no arm
+                # in its pool had. The parts for such a target are all-zero and there is
+                # nothing to compare, so skipping is the whole fix.
+                continue
             mine = np.zeros(G)
             nz = den[i] > 0
             mine[nz] = num[i][nz] / den[i][nz]
