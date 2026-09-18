@@ -4198,6 +4198,26 @@ wheels = [
 ]
 
 [[package]]
+name = "scperturb"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scanpy", version = "1.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scanpy", version = "1.12.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scikit-learn" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "statsmodels" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/76/71/83e24924c6d7bd1c50de71f98248ec7c9e63a405edfdaaf63d7a9dc59af2/scperturb-0.1.0.tar.gz", hash = "sha256:fbd6a6ab7c720809876001fcb6cf3060bb0e929968320b3a6e1479f8f3b15966", size = 7541, upload-time = "2023-12-22T15:10:15.031Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/96/1f1cdce4b007c24cb7171cf368ced8f1e6723f7132bf0e3afb43cee5858d/scperturb-0.1.0-py3-none-any.whl", hash = "sha256:cffccf7bd628bbda840105f57d179af487536649abcbae9e2cddfa118bdd0f86", size = 8492, upload-time = "2023-12-22T15:10:05.747Z" },
+]
+
+[[package]]
 name = "scverse-misc"
 version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -4333,6 +4353,7 @@ dependencies = [
     { name = "scanpy", version = "1.12.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scperturb" },
     { name = "torch", version = "2.13.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torch", version = "2.13.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "sys_platform == 'linux'" },
     { name = "torch-geometric" },
@@ -4374,6 +4395,7 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "scanpy" },
     { name = "scipy" },
+    { name = "scperturb", specifier = ">=0.1.0" },
     { name = "torch", marker = "sys_platform != 'linux'" },
     { name = "torch", marker = "sys_platform == 'linux'", index = "https://download.pytorch.org/whl/cu126" },
     { name = "torch-geometric" },

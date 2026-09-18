@@ -9,7 +9,9 @@ dependencies = [
   # single-cell core
   "scanpy",
   "anndata",
-  "pertpy", # perturbation analysis, Mixscape, E-distance (scverse)
+  "pertpy", # perturbation analysis, Mixscape -- NOT E-distance: measured against 1.0.3,
+            # its Edistance does not reproduce the paper (eval/metrics_extra.py)
+  "scperturb>=0.1.0", # Peidli et al.'s own package -- the real E-distance/E-test (T94)
   "decoupler", # DoRothEA/TRRUST access via OmniPath
   # arc challenge plumbing -- all five publish to PyPI
   "arc-state", # STATE baseline + `state tx`
@@ -36,7 +38,13 @@ dependencies = [
 
 [dependency-groups]
 # uv installs this on a plain `uv sync`.
-dev = ["pytest>=8", "pytest-cov", "ruff", "fonttools", "pillow"]  # the last two: scripts/wordmark.py
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff",
+    "fonttools",
+    "pillow",
+]  # the last two: scripts/wordmark.py
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
