@@ -201,7 +201,7 @@ The rung ladder, metric-first, nothing-trusted-until-the-mirror-scores-it, spars
 naming, two submissions a day. Science is another place to do the measuring. It is not another place
 to decide what counts as a win.
 
-## Project Agent Context — last synced 2026-09-16
+## Project Agent Context — last synced 2026-09-18
 
 This block is canonical; the Claude Science project-settings box holds a copy of it. Edits are
 made here first and re-pasted into that box, and the date on this heading is updated to the day of
