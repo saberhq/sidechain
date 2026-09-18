@@ -40,6 +40,7 @@ dev = ["pytest>=8", "pytest-cov", "ruff", "fonttools", "pillow"]  # the last two
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [project.optional-dependencies]
 # The GPU box only: cell-eval2's CUDA kernels + GPU differential expression
