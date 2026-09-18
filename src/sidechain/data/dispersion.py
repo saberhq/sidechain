@@ -279,18 +279,34 @@ def shrink_quasi_dispersion(theta_ql: np.ndarray, df: float, df0: float,
 
 
 def fit_gene_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
-                        window: int = 301, min_cells: int = MIN_CELLS_PER_GROUP
-                        ) -> GeneDispersion:
+                        window: int = 301, min_cells: int = MIN_CELLS_PER_GROUP,
+                        df0: float | None = None) -> GeneDispersion:
     """The whole of step 8 on one arm: moments, trend, quasi-dispersion, prior, shrinkage.
 
     `exclude` drops label rows before fitting -- pass the control label when the dispersion
     should describe the perturbed groups only. Left empty by default, because the control is
     the deepest group in every arm we hold and it carries real information about the trend.
+
+    **`df0` forces the prior's strength instead of fitting it, and glmGamPoi has no such
+    knob** -- its `overdispersion_shrinkage` is TRUE/FALSE, and the `ridge_penalty` argument
+    people reach for regularizes the COEFFICIENTS, not the dispersion (checked against
+    `glm_gp`'s signature, 2026-09-18). It exists here for one reason: measured on our arms the
+    fitted `df0` lands between 59 and 133 against a residual `df` of 125,183 to 414,393, so the
+    shrinkage does nothing, and a claim like that should be falsifiable rather than merely
+    observed. Pass `df0=df` to weight the prior equally with the data and see what moves.
+
+    Forcing it is no longer empirical Bayes -- it is a hand-set shrinkage wearing the same
+    formula -- so anything found that way is a tuned knob and owes a letter at ADR 0005, not a
+    citation to the paper.
     """
     mean_count, theta_ml, df = moment_dispersion(pb, exclude=exclude, min_cells=min_cells)
     theta_trend = dispersion_trend(mean_count, theta_ml, window=window)
     theta_ql = quasi_dispersion(mean_count, theta_ml, theta_trend)
-    df0, tau0_sq = fit_variance_prior(theta_ql, df)
+    fitted_df0, tau0_sq = fit_variance_prior(theta_ql, df)
+    if df0 is None:
+        df0 = fitted_df0
+    elif df0 < 0:
+        raise ValueError(f"df0 must be non-negative, got {df0}")
     theta_sql = shrink_quasi_dispersion(theta_ql, df, df0, tau0_sq)
     n_used = int(sum(1 for i, lab in enumerate(pb.labels)
                      if lab not in exclude and int(pb.n_cells[i]) >= min_cells))

@@ -218,3 +218,37 @@ def test_excluding_a_label_drops_it_from_the_fit():
     without = fit_gene_dispersion(pb, exclude=("T0",), window=11)
     assert without.n_groups_used == full.n_groups_used - 1
     assert not np.allclose(without.theta_ml, full.theta_ml)
+
+
+def test_df0_can_be_forced_because_the_fitted_one_is_inert_on_our_arms():
+    """Saber, 2026-09-18: can the shrinkage strength be dialled? Not in glmGamPoi; here, yes.
+
+    The point is falsifiability. On every real arm the fitted `df0` is three orders of
+    magnitude under the residual `df`, so `theta_sql` equals `theta_ql` and the empirical-Bayes
+    step is inert. Forcing `df0` is what turns that from an observation into a claim someone
+    can break.
+    """
+    pb, _ = synthetic(n_genes=200, n_groups=60)
+    fitted = fit_gene_dispersion(pb, window=51)
+
+    weak = fit_gene_dispersion(pb, window=51, df0=fitted.df / 100.0)
+    strong = fit_gene_dispersion(pb, window=51, df0=fitted.df * 100.0)
+    moved = lambda g: float(np.abs(g.theta_sql - g.theta_ql).max())
+    assert np.allclose(fitted.theta_ql, weak.theta_ql)            # only the shrinkage differs
+    assert moved(weak) < moved(strong)                            # the knob is monotone
+    # df0 = 0 is the far end: no prior, so shrinkage is the identity.
+    assert np.allclose(fit_gene_dispersion(pb, window=51, df0=0.0).theta_sql, fitted.theta_ql)
+
+    # NOTE the synthetic fit goes the OTHER way from the real arms, and that is the estimator
+    # being right in both cases. Here every gene is drawn from one exact theta(mu) curve, so
+    # they agree with their trend and the prior is correctly strong -- fitted df0 lands ~11x
+    # ABOVE df. Real arms carry genuine gene-to-gene dispersion heterogeneity, so the same fit
+    # puts df0 three orders of magnitude BELOW df and steps aside. df0 is a measurement of how
+    # well the genes agree with their own trend, not a constant of the method.
+    assert fitted.df0 > fitted.df
+
+
+def test_a_negative_prior_strength_is_refused_not_clamped():
+    pb, _ = synthetic(n_genes=40, n_groups=20)
+    with pytest.raises(ValueError, match="df0 must be non-negative"):
+        fit_gene_dispersion(pb, window=11, df0=-1.0)
