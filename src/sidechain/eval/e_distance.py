@@ -114,14 +114,16 @@ def e_test(
     *,
     n_permutations: int = 10_000,
     alpha: float = 0.05,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """Per-group E-test against `control`: columns `edist`, `pvalue`, `pvalue_adj` (Holm-Sidak).
 
     10,000 permutations is the paper's own number (Peidli 2024 Sec. 2: "We repeated this
     process 10,000 times") -- drop it for a cheap first pass, never for the number that decides
-    a real gate. `scperturb.etest` runs one shuffle at a time per `n_jobs`; a genome-wide corpus
-    (thousands of targets x 10,000 permutations) is a box job, not a Mac one --
-    `research/ideas/e-test-source-perturbation-gate.md`.
+    a real gate. `scperturb.etest` parallelizes over permutation runs via `n_jobs`
+    (`joblib`) -- the default of 1 is the safe choice for a laptop; a genome-wide corpus
+    (thousands of targets x 10,000 permutations) is a box job and should pass the box's core
+    count, not stay at 1 -- `research/ideas/e-test-source-perturbation-gate.md`.
     """
     return etest(
         adata,
@@ -131,6 +133,6 @@ def e_test(
         sample_correct=SAMPLE_CORRECT,
         runs=n_permutations,
         alpha=alpha,
-        n_jobs=1,
+        n_jobs=n_jobs,
         verbose=False,
     )
