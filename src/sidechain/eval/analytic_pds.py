@@ -48,7 +48,7 @@ KNOCKDOWN_LOG2FC = -2.32          # what the emitter pins the target's own gene 
 MIN_LIBSIZE = 500.0               # `eval.loco`'s default control-cell floor
 
 __all__ = ["FoldCache", "prep_fold", "emitted_sums", "pds_cosine", "score_delta",
-           "pool_parts", "group_sums"]
+           "pool_parts", "group_sums", "drop_one_arm"]
 
 
 @dataclass(frozen=True)
@@ -273,3 +273,110 @@ def delta_from_parts(num, den):
     nz = den > 0
     d[nz] = num[nz] / den[nz]
     return d
+
+
+def drop_one_arm(targets, sources, fold: FoldCache, *, names=None, alpha: float = 1.0,
+                 var_floor: str = "poisson", clamp: float = 1e-12, kd_value: float = KNOCKDOWN_LOG2FC,
+                 verify: int = 15, seed: int = 0) -> dict:
+    """What is each arm worth? `pds(pool) - pds(pool without that arm)`, one arm at a time.
+
+    **This is the ceiling on any per-arm rule, and that is the point of it.** Dropping an arm
+    entirely is the oracle version of gating it perfectly -- if every one of its votes were
+    noise, a perfect gate would remove all of them -- so anything that gates, down-weights or
+    re-weights arm A can only move the score somewhere between keeping A and dropping it. An
+    arm worth less than the fold's noise bar cannot host a rule worth measuring, and this
+    answers that in one pass instead of after the rule is built.
+
+    Born 2026-09-18 from `T94`: session `66c37b95` built an E-test source gate, measured every
+    threshold at under a ninth of the noise bar, and traced it to the gated arm's small share
+    of the pool. The bound was computable before the gate was
+    (`research/ideas/coverage-tiered-pooling-weights.md`, same date).
+
+    Per-source parts are accumulated once and the complement summed per arm, so the cost is one
+    pooling pass over the sources, not one per arm. Memory is `2 x S x P x G` floats -- fine for
+    the handful of arms a pool ever has, and the reason this does not bother with subtraction
+    tricks that would trade exactness for a few hundred MB.
+
+    **Inherits `pool_parts`' restriction, and it is not a footnote:** the shortcut reproduces
+    `pooled_delta` only at `shrinkage=False` with no `gamma`, no coverage tiers and no
+    `similarity_beta`. Anything else and `verify` will say so rather than let a wrong number
+    out. Set `verify=0` only when you already know why.
+
+    `names` labels the arms in the result; without it they are `source0`, `source1`, ... in the
+    order given. Returns `pds_full`, and per arm `pds_without`, `worth` (full minus without),
+    `n_targets_covered` and `axis_coverage_median` -- the median fraction of the fold's genes on
+    which that arm carries positive weight, which is usually the number that explains `worth`.
+    """
+    from sidechain.models.count_emitters import remap_to_axis
+    from sidechain.submit.build import as_delta_source, pooled_delta
+
+    axis = np.asarray(fold.genes, dtype=str)
+    targets = [str(t) for t in targets]
+    P, G, S = len(targets), len(axis), len(sources)
+    if S < 2:
+        raise ValueError(f"need at least 2 sources to drop one and still have a pool, got {S}")
+    if names is None:
+        names = [f"source{i}" for i in range(S)]
+    elif len(names) != S:
+        raise ValueError(f"{len(names)} names for {S} sources")
+
+    num = np.zeros((S, P, G))
+    den = np.zeros((S, P, G))
+    covered = np.zeros((S, P), dtype=bool)
+    for si, raw in enumerate(sources):
+        src = as_delta_source(raw, var_floor=var_floor)
+        for ti, t in enumerate(targets):
+            got = src.effect(t)
+            if got is None:
+                continue
+            covered[si, ti] = True          # coverage is set by the SOURCE covering the target,
+            fc, var = got                   # not by it ending with usable weight -- `pooled_delta`
+            with np.errstate(divide="ignore"):   # draws the same line, and `score_delta`'s
+                w = 1.0 / np.maximum(var, clamp)  # knockdown pin depends on it.
+            w = np.where(np.isfinite(var), w, 0.0)
+            fc = np.where(np.isfinite(fc), fc, 0.0)
+            num[si, ti] = remap_to_axis(fc * w, src.genes, axis, fill=0.0)
+            den[si, ti] = remap_to_axis(w, src.genes, axis, fill=0.0)
+
+    if verify:
+        rng = np.random.default_rng(seed)
+        k = min(verify, P)
+        worst = 0.0
+        for ti in sorted(rng.choice(P, size=k, replace=False).tolist()):
+            ref = pooled_delta(targets[ti], sources, axis, shrinkage=False, var_floor=var_floor)
+            if ref is None:
+                continue
+            mine = delta_from_parts(num[:, ti].sum(axis=0)[None, :],
+                                    den[:, ti].sum(axis=0)[None, :])[0]
+            worst = max(worst, float(np.abs(ref - mine).max()))
+        if worst != 0.0:
+            raise AssertionError(
+                f"per-source parts do not reproduce pooled_delta (max |diff| {worst}) -- "
+                "drop_one_arm only holds at shrinkage=False with no gamma/tiers/beta")
+
+    def score(keep: list[int]) -> tuple[float, np.ndarray]:
+        cov = covered[keep].any(axis=0)
+        d = delta_from_parts(num[keep].sum(axis=0), den[keep].sum(axis=0))
+        return float(score_delta(d, targets, fold, alpha=alpha, kd_value=kd_value,
+                                 covered=cov)), cov
+
+    full, full_cov = score(list(range(S)))
+    out = {"pds_full": full, "n_targets": P, "n_targets_covered": int(full_cov.sum()),
+           "var_floor": var_floor, "alpha": alpha, "arms": {}}
+    for si, name in enumerate(names):
+        keep = [j for j in range(S) if j != si]
+        without, _ = score(keep)
+        # Coverage is medianed over the targets this arm actually COVERS. Over all targets it
+        # would read 0.000 for any arm that covers few of them -- H1 covers 25 of 272, so its
+        # median would be a structural zero and would look like "reaches no genes" when it in
+        # fact reaches 46 % of the axis on every target it touches. Absent and outvoted are
+        # different facts; `n_targets_covered` beside it carries the first.
+        rows = np.flatnonzero(covered[si])
+        cov_med = float(np.median((den[si][rows] > 0).mean(axis=1))) if rows.size else 0.0
+        out["arms"][name] = {
+            "pds_without": without,
+            "worth": full - without,
+            "n_targets_covered": int(covered[si].sum()),
+            "axis_coverage_median": cov_med,
+        }
+    return out

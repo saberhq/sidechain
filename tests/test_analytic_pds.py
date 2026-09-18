@@ -149,3 +149,109 @@ def test_replay_refuses_an_arm_whose_shrinkage_is_unrecorded(tmp_path):
     out = replay_arm(arm, "some_fold", None)
     assert out["status"] == "skipped"
     assert "shrinkage not recorded" in out["why"]
+
+
+# ---------------------------------------------------------------- drop_one_arm
+
+
+class _Src:
+    """A minimal delta source: `effect(target) -> (log2fc, var)` on its own gene axis.
+
+    `as_delta_source` passes anything that already answers `effect` straight through, so a
+    fake arm needs nothing else. `covers` is the set of targets it speaks for -- an arm that
+    covers few targets is the case the coverage statistic gets wrong if it is careless.
+    """
+
+    def __init__(self, genes, covers, fc, var, shrink=None):
+        self.genes, self._covers, self._fc, self._var = np.asarray(genes), set(covers), fc, var
+        self.shrink = shrink
+
+    def effect(self, target):
+        if target not in self._covers:
+            return None
+        return np.full(len(self.genes), self._fc), np.full(len(self.genes), self._var)
+
+
+def test_drop_one_arm_reports_what_each_arm_is_worth():
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold(n_genes=6, n_targets=3)
+    targets = ["g0", "g1", "g2"]
+    good = _Src(f.genes, targets, fc=1.0, var=0.1)
+    noise = _Src(f.genes, targets, fc=-1.0, var=0.1)
+    r = drop_one_arm(targets, [good, noise], f, names=["good", "noise"], verify=3)
+
+    assert set(r["arms"]) == {"good", "noise"}
+    assert r["n_targets"] == 3 and r["n_targets_covered"] == 3
+    for name in ("good", "noise"):
+        arm = r["arms"][name]
+        # worth is defined as full minus without -- the identity, not an approximation
+        assert arm["worth"] == pytest.approx(r["pds_full"] - arm["pds_without"])
+        assert arm["n_targets_covered"] == 3
+        assert arm["axis_coverage_median"] == pytest.approx(1.0)
+
+
+def test_drop_one_arm_coverage_is_medianed_over_the_targets_an_arm_covers():
+    """The bug this pins: a thin arm must not read as covering zero genes.
+
+    An arm covering 1 of 3 targets has no weight on the other two, so a median over ALL
+    targets is a structural 0.0 and says "reaches nothing" about an arm that reaches every
+    gene where it speaks. Absent and outvoted are different facts.
+    """
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold(n_genes=6, n_targets=3)
+    targets = ["g0", "g1", "g2"]
+    broad = _Src(f.genes, targets, fc=1.0, var=0.1)
+    thin = _Src(f.genes, ["g0"], fc=1.0, var=0.1)
+    r = drop_one_arm(targets, [broad, thin], f, names=["broad", "thin"], verify=0)
+
+    assert r["arms"]["thin"]["n_targets_covered"] == 1
+    assert r["arms"]["thin"]["axis_coverage_median"] == pytest.approx(1.0)
+    assert r["arms"]["broad"]["n_targets_covered"] == 3
+
+
+def test_drop_one_arm_sees_a_half_axis_arm_as_half_covering():
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold(n_genes=6, n_targets=3)
+    targets = ["g0", "g1", "g2"]
+    broad = _Src(f.genes, targets, fc=1.0, var=0.1)
+    half = _Src(f.genes[:3], targets, fc=1.0, var=0.1)     # only the first three genes
+    r = drop_one_arm(targets, [broad, half], f, names=["broad", "half"], verify=0)
+    assert r["arms"]["half"]["axis_coverage_median"] == pytest.approx(0.5)
+
+
+def test_drop_one_arm_refuses_a_pool_it_cannot_drop_from():
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold()
+    one = _Src(f.genes, ["g0"], fc=1.0, var=0.1)
+    with pytest.raises(ValueError, match="at least 2 sources"):
+        drop_one_arm(["g0"], [one], f)
+
+
+def test_drop_one_arm_refuses_mismatched_names():
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold()
+    a = _Src(f.genes, ["g0"], fc=1.0, var=0.1)
+    with pytest.raises(ValueError, match="names for"):
+        drop_one_arm(["g0"], [a, a], f, names=["only-one"])
+
+
+def test_drop_one_arm_verify_catches_a_pool_the_shortcut_cannot_reproduce():
+    """`verify` is the guard that keeps the cached-parts shortcut honest.
+
+    `pooled_delta` with per-source shrinkage on is not a plain inverse-variance average any
+    more, so the parts stop reproducing it -- and the caller must be told, not handed a
+    quietly wrong number.
+    """
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f = _fold(n_genes=6, n_targets=3)
+    targets = ["g0", "g1", "g2"]
+    a = _Src(f.genes, targets, fc=2.0, var=0.5, shrink=True)   # shrinks inside pooled_delta
+    b = _Src(f.genes, targets, fc=1.0, var=0.1)
+    with pytest.raises(AssertionError, match="do not reproduce pooled_delta"):
+        drop_one_arm(targets, [a, b], f, verify=3)
