@@ -288,17 +288,32 @@ def drop_one_arm(targets, sources, fold: FoldCache, *, names=None, alpha: float 
                  verify: int = 15, seed: int = 0) -> dict:
     """What is each arm worth? `pds(pool) - pds(pool without that arm)`, one arm at a time.
 
-    **This is the ceiling on any per-arm rule, and that is the point of it.** Dropping an arm
-    entirely is the oracle version of gating it perfectly -- if every one of its votes were
-    noise, a perfect gate would remove all of them -- so anything that gates, down-weights or
-    re-weights arm A can only move the score somewhere between keeping A and dropping it. An
-    arm worth less than the fold's noise bar cannot host a rule worth measuring, and this
-    answers that in one pass instead of after the rule is built.
+    **This is the SIZE of the arm, not a ceiling on a rule applied to it.** It answers, in one
+    pass and before any rule is built, whether an arm moves the score enough for a rule on it to
+    be measurable at all. It was first written as a ceiling -- "anything that gates,
+    down-weights or re-weights arm A can only move the score somewhere between keeping A and
+    dropping it" -- and that is FALSE: `pds_cosine` is a mean of per-target scores and is not
+    monotone in an arm's weight, so a rule can beat BOTH endpoints. Measured on
+    `loco_jurkat_rule`, four CRISPRi arms + H1 (`T94`, session `94641ce7`, 2026-09-19,
+    `runs/probes/t94_oracle_arm_worth/`): keeping HepG2 scores 0.8267, dropping it 0.8317, ONE
+    global weight of 0.125 on it 0.8329, and a hindsight per-target gate on its vote 0.8412.
+
+    A HARD per-target gate on arm A is bounded by `mean_t max(0, without[t] - full[t])` --
+    per-target scores are row-independent under cell-eval2's `exclusion_scope="panel"` -- and
+    a per-target down-weight, which contains every hard gate, is not. That hindsight number
+    selects on noise: a vote with zero mean effect and the same per-target scatter earns about
+    as much, so never quote it without that null. Pinned by
+    `test_drop_one_arm_worth_is_not_a_ceiling_on_a_rule`.
 
     Born 2026-09-18 from `T94`: session `66c37b95` built an E-test source gate, measured every
     threshold at under a ninth of the noise bar, and traced it to the gated arm's small share
-    of the pool. The bound was computable before the gate was
+    of the pool. The arm's size was computable before the gate was
     (`research/ideas/coverage-tiered-pooling-weights.md`, same date).
+
+    **Read `worth` beside `n_targets_covered` and the pool's other voters.** An arm that is the
+    ONLY voter on some targets is worth what those targets are worth: gwps reads +0.027 on
+    `loco_hct116` in the CRISPRi pool, of which +0.001 is on the 555 targets another arm also
+    covers. That is target coverage, not evidence that the arm disagrees usefully with the rest.
 
     Per-source parts are accumulated once and the complement summed per arm, so the cost is one
     pooling pass over the sources, not one per arm. Memory is `2 x S x P x G` floats -- fine for

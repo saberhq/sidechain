@@ -257,6 +257,68 @@ def test_drop_one_arm_verify_catches_a_pool_the_shortcut_cannot_reproduce():
         drop_one_arm(targets, [a, b], f, verify=3)
 
 
+class _VecSrc:
+    """A delta source with a per-target log2FC VECTOR and a per-target variance, so an arm can
+    be right about one target and wrong about another -- which `_Src`'s constant vector cannot."""
+
+    shrink = None
+
+    def __init__(self, genes, votes):
+        self.genes, self._votes = np.asarray(genes), votes     # target -> (fc vector, var)
+
+    def effect(self, target):
+        if target not in self._votes:
+            return None
+        fc, var = self._votes[target]
+        return np.asarray(fc, dtype=float), np.full(len(self.genes), float(var))
+
+
+def _signed_fold():
+    """Three targets whose real effects are three disjoint gene blocks, off the target genes
+    themselves (cell-eval2's `exclusion_scope="panel"` removes those columns)."""
+    from cell_eval2.prep import bulk_lognorm_means
+
+    genes = np.array([f"g{i}" for i in range(12)])
+    targets = ["g0", "g1", "g2"]
+    E = np.zeros((3, 12))
+    for t in range(3):
+        E[t, 3 + 3 * t: 6 + 3 * t] = 1.0
+    frac = np.full(12, 1.0 / 12)
+    sums = np.vstack([frac * np.exp2(e) for e in E] + [frac]) * 1e5
+    return FoldCache(perts=np.array(targets + ["non-targeting"], dtype=object),
+                     real_means=bulk_lognorm_means(sums, 50_000.0), genes=genes,
+                     n_cells=np.array([100] * 4), frac=frac, lib_median=1000.0,
+                     ctrl_n_cells=100), targets, E
+
+
+def test_drop_one_arm_worth_is_not_a_ceiling_on_a_rule():
+    """The docstring once called `worth` "the ceiling on any per-arm rule". It is not.
+
+    `pds_cosine` is a mean of per-target scores and is not monotone in an arm's weight, so a
+    rule can beat BOTH keeping the arm and dropping it. Measured on real folds by `T94`
+    (session `94641ce7`, 2026-09-19); this is the smallest pool that shows it. `mixed` is
+    right and loud about g0, wrong about g1; `steady` is the reverse.
+    """
+    from sidechain.eval.analytic_pds import drop_one_arm
+
+    f, targets, E = _signed_fold()
+    steady = _VecSrc(f.genes, {"g0": (E[1], 1.0), "g1": (E[1], 1.0), "g2": (E[2], 1.0)})
+
+    def mixed(weight=1.0, covers=("g0", "g1")):
+        votes = {"g0": (E[0], 0.01 / weight), "g1": (E[2], (1 / 3) / weight)}
+        return _VecSrc(f.genes, {t: votes[t] for t in covers})
+
+    r = drop_one_arm(targets, [steady, mixed()], f, names=["steady", "mixed"], verify=3)
+    keep, drop = r["pds_full"], r["arms"]["mixed"]["pds_without"]
+    assert keep < 1.0 and drop < 1.0          # each endpoint gets one target wrong
+
+    def pool(src):
+        return drop_one_arm(targets, [steady, src], f, verify=3)["pds_full"]
+
+    assert pool(mixed(covers=("g0",))) > max(keep, drop)      # a hard per-target gate
+    assert pool(mixed(weight=0.1)) > max(keep, drop)          # ONE scalar weight on the arm
+
+
 def test_pool_parts_verify_survives_a_target_no_source_covers():
     """`pooled_delta` abstains with None on an uncovered target, and `None - array` raises.
 
