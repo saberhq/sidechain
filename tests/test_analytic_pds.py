@@ -337,3 +337,66 @@ def test_pool_parts_verify_survives_a_target_no_source_covers():
     assert num.shape == (2, 6)
     assert np.all(den[1] == 0.0)          # the uncovered target got no weight from anyone
     assert np.any(den[0] > 0.0)
+
+
+# --- the control-cell floor (T18 check 5) -------------------------------------------
+#
+# `submit.build` floored control cells at 1000 UMI and `eval.loco` at 500 between
+# 2026-08 and 2026-09-20, so a mirror-scored arm was not the arm that shipped. The
+# defect was invisible to the mirror -- only two fold control arms on disk hold any
+# cell in the gap, one and three -- and worth 178 cells in context B on the path that
+# ships. These pin the fix so the two cannot drift apart again silently.
+
+
+def test_every_entry_point_floors_control_cells_at_the_same_depth():
+    import inspect
+    import re
+
+    from sidechain.eval import loco
+    from sidechain.eval.analytic_pds import MIN_LIBSIZE
+    from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE
+    from sidechain.submit import build
+
+    # What an in-process caller gets, and what the analytic path prepares a fold at.
+    assert inspect.signature(
+        loco.build_transfer_prediction).parameters["min_libsize"].default == CONTROL_MIN_LIBSIZE
+    assert MIN_LIBSIZE == CONTROL_MIN_LIBSIZE
+
+    # What the two command lines advertise. A literal here is the regression: the
+    # numbers agreed on the day they were typed and then one of them moved.
+    for mod in (build, loco):
+        flag = re.search(r'"--min-libsize".*?default=([^,\s)]+)',
+                         inspect.getsource(mod.main), re.S)
+        assert flag, f"{mod.__name__} lost its --min-libsize flag"
+        assert flag.group(1) == "CONTROL_MIN_LIBSIZE", (
+            f"{mod.__name__} hardcodes its control-cell floor as {flag.group(1)}")
+
+
+def test_a_fold_cache_is_refused_when_its_floor_is_not_the_one_asked_for(tmp_path):
+    from sidechain.eval.analytic_pds import LEGACY_MIN_LIBSIZE, prep_fold
+
+    cache = tmp_path / "fold.npz"
+    f = _fold()
+    np.savez_compressed(cache, perts=f.perts, real_means=f.real_means,
+                        genes=f.genes.astype(object), n_cells=f.n_cells, frac=f.frac,
+                        lib_median=f.lib_median, ctrl_n_cells=f.ctrl_n_cells,
+                        min_libsize=500.0)
+    got = prep_fold(tmp_path / "absent.h5ad", min_libsize=500.0, cache=cache)
+    assert got.ctrl_n_cells == f.ctrl_n_cells        # the floor matches, so the cache is used
+    with pytest.raises(ValueError, match="built at min_libsize=500"):
+        prep_fold(tmp_path / "absent.h5ad", min_libsize=1000.0, cache=cache)
+    assert LEGACY_MIN_LIBSIZE == 500.0
+
+
+def test_a_fold_cache_with_no_recorded_floor_is_read_as_the_legacy_500(tmp_path):
+    """Not a guess: 500 is the only floor this module ever had before 2026-09-20."""
+    from sidechain.eval.analytic_pds import prep_fold
+
+    cache = tmp_path / "old.npz"
+    f = _fold()
+    np.savez_compressed(cache, perts=f.perts, real_means=f.real_means,
+                        genes=f.genes.astype(object), n_cells=f.n_cells, frac=f.frac,
+                        lib_median=f.lib_median, ctrl_n_cells=f.ctrl_n_cells)
+    assert prep_fold(tmp_path / "absent.h5ad", min_libsize=500.0, cache=cache).lib_median == 1000.0
+    with pytest.raises(ValueError, match="built at min_libsize=500"):
+        prep_fold(tmp_path / "absent.h5ad", min_libsize=1000.0, cache=cache)

@@ -90,6 +90,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from diagnose_tx_arm import _allow_numpy_globals, _pick_device, read_var_symbols
 from emit_tx_prediction import emit, to_counts
 
+from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE
 from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify_h5ad
 from sidechain.utils.naming import CLAIMS_RE, check_out_leaf
 from sidechain.utils.paths import resolve_config
@@ -256,8 +257,9 @@ def main(argv: list[str] | None = None) -> int:
                          "docstring -- without it a single gene takes a fifth of a cell")
     ap.add_argument("--fill", choices=("control-mean", "zero"), default="control-mean",
                     help="what the 427 challenge genes the model cannot emit receive")
-    ap.add_argument("--min-libsize", type=float, default=1000.0,
-                    help="control cells below this depth are dropped from the basal pool")
+    ap.add_argument("--min-libsize", type=float, default=CONTROL_MIN_LIBSIZE,
+                    help="control cells below this depth are dropped from the basal pool "
+                         "(same knob and same default as sidechain.submit.build)")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations")
     ap.add_argument("--limit-contexts", help="comma-separated subset of contexts (pipeline tests)")
     ap.add_argument("--device", default="auto")

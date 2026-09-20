@@ -41,11 +41,17 @@ from anndata.io import read_elem
 from cell_eval2.metrics.discrimination import discrimination_score
 from cell_eval2.prep import bulk_lognorm_means
 
+from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE
+
 BULK_TARGET_SUM = 50_000.0
 PERT_COL = "perturbation"
 CONTROL = "non-targeting"
 KNOCKDOWN_LOG2FC = -2.32          # what the emitter pins the target's own gene to
-MIN_LIBSIZE = 500.0               # `eval.loco`'s default control-cell floor
+# The project's one control-cell floor, which `eval.loco` and `submit.build` also read.
+# It was 500 here until 2026-09-20 because that was `eval.loco`'s default; the two are
+# the same number now, and this module follows that constant rather than restating it.
+MIN_LIBSIZE = CONTROL_MIN_LIBSIZE
+LEGACY_MIN_LIBSIZE = 500.0        # what a fold cache written before 2026-09-20 was built at
 
 __all__ = ["FoldCache", "prep_fold", "emitted_sums", "pds_cosine", "score_delta",
            "pool_parts", "group_sums", "drop_one_arm"]
@@ -140,10 +146,24 @@ def prep_fold(path, pert_col: str = PERT_COL, control: str = CONTROL,
     `T58` shipped the scorer without this, which left every caller re-deriving
     `real_means`, the control profile and `n_cells` by hand. Pass `cache` to write an
     `.npz` beside your run and skip the streaming pass next time.
+
+    A cache records the `min_libsize` it was built at and is REFUSED when the caller
+    asks for a different one, rather than quietly returning the other profile. The
+    floor moved from 500 to 1000 on 2026-09-20 (T18 check 5), so every cache written
+    before that date holds a 500-floor profile while the default now says 1000 --
+    exactly the shape of mismatch that returns a plausible wrong number. A cache with
+    no floor recorded is read as 500, which is not a guess: it is the only value this
+    module ever had.
     """
     path = Path(path)
     if cache is not None and Path(cache).exists():
         z = np.load(cache, allow_pickle=True)
+        was = float(z["min_libsize"]) if "min_libsize" in z else LEGACY_MIN_LIBSIZE
+        if was != float(min_libsize):
+            raise ValueError(
+                f"{cache} was built at min_libsize={was:g}, this call asks for "
+                f"{float(min_libsize):g}. Delete the cache to rebuild it, or pass "
+                f"min_libsize={was:g} to reproduce the arms scored against it.")
         return FoldCache(z["perts"], z["real_means"], z["genes"].astype(str), z["n_cells"],
                          z["frac"], float(z["lib_median"]), int(z["ctrl_n_cells"]))
 
@@ -161,6 +181,7 @@ def prep_fold(path, pert_col: str = PERT_COL, control: str = CONTROL,
     if cache is not None:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(cache, perts=fold.perts, real_means=fold.real_means,
+                            min_libsize=float(min_libsize),
                             genes=fold.genes.astype(object), n_cells=fold.n_cells,
                             frac=fold.frac, lib_median=fold.lib_median,
                             ctrl_n_cells=fold.ctrl_n_cells)

@@ -22,6 +22,24 @@ import anndata as ad
 import numpy as np
 import scipy.sparse as sp
 
+# THE control-cell floor, for every path that builds a ContextProfile.
+#
+# One constant because the two paths that matter disagreed for three weeks:
+# `submit.build` floored at 1000 and `eval.loco` at 500, so a mirror-scored arm
+# was not quite the arm that shipped. Measured 2026-09-20 (T18 check 5,
+# runs/probes/t18_check5_libsize_floor): of the nine fold control arms on disk
+# only two hold ANY cell in the 500-1000 band -- one cell and three cells -- and
+# rescoring the shipped delta across the gap moves raw pds_cosine by 2e-4, which
+# is fifty times under the 272-target noise bar. On the SUBMISSION side the same
+# gap drops 178 cells in context B and moves its baseline by 0.78 (L2, the
+# scorer's bulk_lognorm space) with 161 genes past 0.1 log2. So the mirror could
+# never have seen this defect: it lives entirely on the path that ships.
+#
+# The value is 1000 because that is what every submitted build has used.
+# `from_controls` keeps its own default of 0 -- it is a library function, and a
+# caller that wants the project's policy says so by passing this.
+CONTROL_MIN_LIBSIZE = 1000.0
+
 
 @dataclass
 class ContextProfile:
@@ -39,6 +57,14 @@ class ContextProfile:
         X = sp.csr_matrix(a.X, dtype=np.float64)
         lib = np.asarray(X.sum(axis=1)).ravel()
         keep = lib > max(min_libsize, 0)
+        if not keep.any():
+            # Found 2026-09-20 raising the default floor to CONTROL_MIN_LIBSIZE: an
+            # empty pool produced an all-nan profile and a warning, and the emitter
+            # then wrote nan counts for a whole context. `analytic_pds._control_profile`
+            # has always raised here; this is the same refusal on the shipping path.
+            raise ValueError(
+                f"{name}: all {lib.size} control cells fall at or below "
+                f"min_libsize={min_libsize:g} (deepest is {lib.max():.0f} UMI)")
         cpm_mean = np.asarray((sp.diags(1e6 / lib[keep]) @ X[keep]).mean(axis=0)).ravel()
         frac = cpm_mean / cpm_mean.sum()
         return cls(name=name, genes=a.var_names.astype(str).to_numpy(), fraction=frac,

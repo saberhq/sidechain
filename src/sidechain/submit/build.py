@@ -44,6 +44,7 @@ import yaml
 from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.models.count_emitters import (
+    CONTROL_MIN_LIBSIZE,
     ContextProfile,
     PoissonEmitter,
     log2fc_from_cpm,
@@ -679,8 +680,9 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     ap.add_argument("--out", required=True, help="output stem; writes <out>.h5ad and <out>.vcc")
     ap.add_argument("--no-pack", action="store_true")
-    ap.add_argument("--min-libsize", type=float, default=1000.0,
-                    help="drop control cells below this depth from the library-size pool")
+    ap.add_argument("--min-libsize", type=float, default=CONTROL_MIN_LIBSIZE,
+                    help="drop control cells below this depth from the library-size pool "
+                         "(same knob and same default as sidechain.eval.loco)")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     if args.gamma != 1.0 and args.emitter != "delta-transfer":

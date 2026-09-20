@@ -83,15 +83,18 @@ def test_streamed_prediction_matches_the_in_memory_build(tmp_path, monkeypatch):
         return d
 
     monkeypatch.setattr(loco, "pooled_delta", fake_pool)
+    # The toy's control cells are shallower than the project floor, so the floor is
+    # named here rather than inherited: this test is about the streamed writer, and
+    # the two sides below have to keep the same control pool.
     info = loco.build_transfer_prediction(
         real_path, [], tmp_path / "pred.h5ad", pert_col="perturbation", control="non-targeting",
-        dispersion="even", seed=7,
+        dispersion="even", seed=7, min_libsize=0.0,
     )
     got = ad.read_h5ad(tmp_path / "pred.h5ad")
 
     # the same emitter, the same seed, assembled the old way
     from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
-    prof = ContextProfile.from_controls(tmp_path / "pred.controls.h5ad", "real", min_libsize=500.0)
+    prof = ContextProfile.from_controls(tmp_path / "pred.controls.h5ad", "real", min_libsize=0.0)
     em = PoissonEmitter(prof, seed=7, dispersion="even")
     axis = got.var_names.astype(str).to_numpy()
     gene_pos = {g: i for i, g in enumerate(axis)}

@@ -42,7 +42,7 @@ import numpy as np
 from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.basal_slope import MODES as BASAL_MODES, fit_basal_slopes, target_basal
-from sidechain.models.count_emitters import ContextProfile, PoissonEmitter
+from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE, ContextProfile, PoissonEmitter
 from sidechain.submit.build import (
     apply_transfer_floors,
     as_delta_source,
@@ -75,7 +75,7 @@ def build_transfer_prediction(
     alpha_bulk: float | None = None,
     cells_per_pert: int | None = None,
     seed: int = 0,
-    min_libsize: float = 500.0,
+    min_libsize: float = CONTROL_MIN_LIBSIZE,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -174,6 +174,12 @@ def build_transfer_prediction(
             # targets whose two moments were jointly unreachable and carried one amplitude
             "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if alpha_bulk is not None else None,
             "gamma": gamma, "var_floor": var_floor,
+            # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
+            # submission's 1000: an arm scored before that date carries no floor in its
+            # record and was built at 500. Two folds are affected and by under 2e-4 raw
+            # pds (runs/probes/t18_check5_libsize_floor), but a knob that is not in the
+            # record cannot be reproduced, and this one silently was not.
+            "min_libsize": float(min_libsize),
             "coverage_tiers": coverage_tiers,
             "similarity_beta": similarity_beta,
             "basal_slope": basal_slope, "basal_slope_stats": basal_stats,
@@ -256,6 +262,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="floor each pseudobulk arm's variance at its Poisson sampling variance "
                          "(same knob as sidechain.submit.build, so a scored arm submits verbatim)")
     ap.add_argument("--cells-per-pert", type=int)
+    ap.add_argument("--min-libsize", type=float, default=CONTROL_MIN_LIBSIZE,
+                    help="drop control cells below this depth before building the context "
+                         "profile (same knob and same default as sidechain.submit.build, so a "
+                         "scored arm submits verbatim). Arms scored before 2026-09-20 used 500, "
+                         "which this entry point could not even be told to change; pass 500 to "
+                         "reproduce one bit-for-bit.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
@@ -295,7 +307,8 @@ def main(argv: list[str] | None = None) -> int:
                                      coverage_tiers=cov_tiers,
                                      similarity_beta=args.similarity_beta,
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
-                                     cells_per_pert=args.cells_per_pert, seed=args.seed)
+                                     cells_per_pert=args.cells_per_pert, seed=args.seed,
+                                     min_libsize=args.min_libsize)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)

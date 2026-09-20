@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sidechain.eval.analytic_pds import prep_fold, score_delta
+from sidechain.eval.analytic_pds import LEGACY_MIN_LIBSIZE, prep_fold, score_delta
 from sidechain.submit.build import apply_transfer_floors, pooled_delta, sources_from_specs
 
 _POOL_MEMO: dict = {}
@@ -128,6 +128,14 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
         # incomplete should say so whether or not its sources happen to be on this machine.
         return out | {"status": "skipped",
                       "why": "shrinkage not recorded (pooled_delta defaults to True)"}
+    if _num(b, "min_libsize", LEGACY_MIN_LIBSIZE) != LEGACY_MIN_LIBSIZE:
+        # `eval.loco` started recording its control-cell floor on 2026-09-20 and its
+        # default moved to 1000 the same day. The fold is prepared once per fold at the
+        # legacy 500, so an arm built at another floor would be scored against a control
+        # profile that is not its own -- a small, plausible, wrong number.
+        return out | {"status": "skipped",
+                      "why": f"min_libsize {_num(b, 'min_libsize', LEGACY_MIN_LIBSIZE):g}, "
+                             f"this replay prepares folds at {LEGACY_MIN_LIBSIZE:g}"}
     if any(x is not None for x in (b.get("shrink_overrides") or [])):
         # depth-aware shrinkage forces shrink ON for named sources only; the replay
         # threads one global flag, so reconstructing these would be a guess.
@@ -222,7 +230,13 @@ def main() -> None:
             why = "no real h5ad for this fold"
         else:
             try:
+                # Pinned, not defaulted. Every arm on disk was scored before the
+                # control-cell floor moved to 1000 on 2026-09-20 (T18 check 5), so the
+                # arm this script exists to REPRODUCE was built at 500. An arm recorded
+                # at any other floor is refused per-arm below rather than replayed
+                # against the wrong control profile.
                 fold = prep_fold(real, pert_col=PERT_COL.get(d.name, "perturbation"),
+                                 min_libsize=LEGACY_MIN_LIBSIZE,
                                  cache=MIRRORS / d.name / "analytic_fold_cache.npz")
             except Exception as exc:                               # noqa: BLE001
                 why = f"prep_fold failed: {exc}"

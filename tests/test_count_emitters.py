@@ -273,3 +273,24 @@ def test_shrinkage_pulls_noisy_genes_more_than_precise_ones():
     assert abs(out[0]) > abs(out[1])            # same effect, noisier estimate shrinks more
     assert out[2] == 0.0 and np.sign(out[3]) == -1
     assert np.all(np.abs(out) <= np.abs(fc))
+
+
+def test_a_floor_that_empties_the_control_pool_raises_rather_than_going_nan(tmp_path):
+    """T18 check 5: raising the default floor to 1000 turned a shallow toy pool into an
+    all-nan profile and a numpy warning, not an error, and the emitter went on to write
+    nan counts. The analytic path has always refused this; so does the shipping one."""
+    import anndata as ad
+    import numpy as np
+    import pytest
+    import scipy.sparse as sp
+
+    from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE, ContextProfile
+
+    p = tmp_path / "shallow.h5ad"
+    X = sp.csr_matrix(np.full((5, 4), 3.0, dtype=np.float32))     # 12 UMI a cell
+    ad.AnnData(X=X, var=__import__("pandas").DataFrame(index=[f"g{i}" for i in range(4)])
+               ).write_h5ad(p)
+    with pytest.raises(ValueError, match="all 5 control cells fall at or below"):
+        ContextProfile.from_controls(p, "shallow", min_libsize=CONTROL_MIN_LIBSIZE)
+    kept = ContextProfile.from_controls(p, "shallow", min_libsize=0.0)
+    assert kept.n_cells == 5 and np.isfinite(kept.fraction).all()
