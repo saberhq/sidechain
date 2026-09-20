@@ -23,6 +23,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import polars as pl
+
 MIRRORS = Path("~/data/sidechain/runs/mirror").expanduser()
 OUT = Path(__file__).resolve().parents[1] / "private/reports/14_local_mirror_inventory.md"
 
@@ -63,17 +65,38 @@ def raw_mean(arm: Path, metric: str = "pds_cosine") -> float | None:
     return None
 
 
-def anchors(arm: Path, metric: str = "pds_cosine") -> tuple[float | None, float | None]:
-    f = arm / "scored.csv"
-    if not f.exists():
-        return None, None
-    for row in csv.DictReader(f.open()):
-        if row.get("metric") == metric:
-            try:
-                return float(row["from_baseline"]), float(row["from_replicate"])
-            except (ValueError, KeyError):
-                return None, None
-    return None, None
+def anchors(fold: Path, metric: str = "pds_cosine") -> tuple[float | None, float | None]:
+    """The fold's own (baseline, replicate) for `metric`, read from its bundle.
+
+    NOT from an arm's `scored.csv`. That file's `from_baseline` and `from_replicate` are the
+    ARM's own score on two scales -- (u - B)/(1 - B) and (u - B)/(R - B) -- so their difference
+    is proportional to (u - B): a property of whichever arm you read, not a gap. Reading it
+    there printed 0.1242 for `loco_k562gwps_pdex`, whose gap is 0.4079, and 0.2182 for
+    `hepg2_flowtest` off `arm_bootstrap`, a self-referential probe whose `from_baseline` is 1.0.
+    It also drifted with the leaderboard: six mirrors have no arm named `afn` at all, so the
+    reference fell through to today's top-`overall` arm and the printed gap for
+    `loco_k562gwps_pdex` moved 0.1180 -> 0.1242 the day a new sweep arm won. Found 2026-09-20.
+
+    The anchors are a BUNDLE property and every mirror has a bundle, including one with no arms
+    scored against it yet.
+    """
+    b = r = None
+    f = fold / "bundle" / "baseline_agg.csv"
+    if f.exists():
+        for row in csv.DictReader(f.open()):
+            if row.get("statistic") == "mean" and row.get(metric):
+                try:
+                    b = float(row[metric])
+                except ValueError:
+                    b = None
+    f = fold / "bundle" / "anchor_agg.parquet"
+    if f.exists():
+        try:
+            a = pl.read_parquet(f).filter(pl.col("metric") == metric)
+            r = float(a["replicate"][0]) if len(a) else None
+        except Exception:
+            r = None
+    return b, r
 
 
 def knob_str(build: dict) -> str:
@@ -119,14 +142,20 @@ def collect() -> list[dict]:
                          "sources": s.get("sources", {})})
         arms.sort(key=lambda x: (x["overall"] is None, -(x["overall"] or 0)))
         ref = next((a for a in arms if a["name"] == "afn"), arms[0] if arms else None)
-        b, r = anchors(d / ref["name"]) if ref else (None, None)
+        b, r = anchors(d)
+        # The shape columns are the FOLD's, and every arm in a mirror shares them; only
+        # `sources` is genuinely the ref arm's. An arm scored straight through
+        # `mirror2026.score` (a bootstrap or a null probe) records no `build`, so fall back to
+        # an arm that did rather than printing "not on disk" over a fold whose shape is on
+        # disk -- `hepg2_flowtest`, whose top arm is `arm_bootstrap` (2026-09-20).
+        sh = (ref or {}).get("build") or next((a["build"] for a in arms if a.get("build")), {})
         folds.append({
             "name": d.name, "line": held_out(d.name), "shape": shape(d.name),
             "backend": m.get("resolved_de_backend", "?"), "device": m.get("resolved_device", "?"),
             "cell_eval2": m.get("cell_eval2_version", "?"),
-            "targets": (ref or {}).get("build", {}).get("perturbations"),
-            "genes": (ref or {}).get("build", {}).get("genes"),
-            "cells": (ref or {}).get("build", {}).get("cells"),
+            "targets": sh.get("perturbations"),
+            "genes": sh.get("genes"),
+            "cells": sh.get("cells"),
             "baseline": b, "replicate": r,
             "gap": (r - b) if (b is not None and r is not None) else None,
             "arms": arms, "ref": (ref or {}).get("name"),
@@ -167,9 +196,9 @@ def render(folds: list[dict], full: bool) -> str:
     L += ["", f"**{len(folds)} mirrors, {sum(len(f['arms']) for f in folds)} scored arms.** "
           f"cell-eval2 {sorted({f['cell_eval2'] for f in folds})[0]}.", "",
           "`—` in a cell means the value is not on disk, not that it is zero: the earliest arms "
-          "(`loco_k562gwps`'s source comparison) predate the `scored.csv` convention, so they "
-          "carry no anchors and no gap, and a mirror with 0 arms has a bundle and nothing scored "
-          "against it yet.", ""]
+          "(`loco_k562gwps`'s source comparison) predate the `agg_results.csv` convention, so "
+          "they carry no raw pds, and a mirror with 0 arms has a bundle — and so a gap — with "
+          "nothing scored against it yet.", ""]
 
     L += ["## Which lines pool into each mirror", "",
           "| mirror | pooled sources (the arm named in *ref*) |", "|---|---|"]
