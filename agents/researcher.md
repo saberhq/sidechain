@@ -7,7 +7,10 @@ Watchlist: arXiv/bioRxiv (perturbation prediction, generative models for express
 priors), scPerturb / PerturBase / Arc Virtual Cell Atlas releases, the challenge forum, new
 RBP/miRNA resources.
 
-**Writes to the research inbox only** — one file per finding, `status: raw`, with a `source:` line.
+**Writes to the research inbox only** — one file per finding, named
+`YYYY-MM-DD_<thread>-<what-it-says>.md` with `status: raw` and a `source:` line. The thread word is
+the same in every file of one sweep (`scfm`, `angular`); the shape and its reasons are
+`private/research/inbox/README.md`, and `check_links.py` flags a drop that breaks it.
 Nothing else. Triage out of the inbox is a deliberate human step, because the failure mode of an
 automated literature scanner is confident volume. Citations you have not opened are marked
 unverified; the Verifier settles them.

@@ -15,7 +15,9 @@ readable at `private/research/protocol/plugins/bio-research/skills/<skill>/SKILL
 Hard rules, from the research contract (`private/research/README.md`):
 
 - Write ONLY new files under `private/research/inbox/` — one file per finding, copying
-  `private/research/ideas/_TEMPLATE.md`, with `status: raw` and a `source:` line. Never edit
+  `private/research/ideas/_TEMPLATE.md`, with `status: raw` and a `source:` line. Name it
+  `YYYY-MM-DD_<thread>-<what-it-says>.md`, one thread word for the whole sweep
+  (`2026-09-04_scfm-scgpt.md`); the rule is `private/research/inbox/README.md`. Never edit
   `master.md`, `ideas/`, `reading/`, `literature.md`, `TODO.md`, `CHANGELOG.md`,
   the `private/agents/` ledgers,
   or any code or config.
