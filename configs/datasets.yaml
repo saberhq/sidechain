@@ -280,7 +280,7 @@ datasets:
       the HF API. What the HF API confirmed on 2026-08-23 is this block's
       hosting facts only: 332 files, 126.26 GB, the 109/223 split and the
       license. Accumulate PER PERTURBATION, not per (perturbation, batch) --
-      109 batches x 18,330 targets is ~1.7 cells per bucket and a ~290 TB dense
+      109 batches x 18,330 targets is ~1.7 cells per bucket and a ~290 GB dense
       tensor (report 07 §2.3, which overturns ADR 0003 on this point).
 
     files:

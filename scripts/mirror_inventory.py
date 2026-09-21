@@ -127,6 +127,51 @@ def knob_str(build: dict) -> str:
     return " ".join(bits) or "—"
 
 
+def source_sets(arms: list[dict]) -> tuple[list[tuple[int, list[str]]], int]:
+    """Every DISTINCT source list in a mirror, with how many arms carry it.
+
+    Not one arm's. Arms inside a mirror pool different things on purpose -- `afn_nosib` drops the
+    same-corpus sibling, a fold-subset arm reads `hct116_full_fold272` where its neighbour reads
+    the full `hct116_full` -- so printing the reference arm's list and heading the column "pooled
+    sources" said something untrue about up to three arms per mirror (Saber, 2026-09-21).
+    Returns the sets commonest-first, and the count of arms that record no sources at all: an arm
+    scored straight through `mirror2026.score` (a bootstrap, a null, a trained arm's own cells)
+    pools nothing, which is a fact about the arm and not a gap in the record.
+    """
+    seen: dict[tuple[str, ...], int] = {}
+    unrecorded = 0
+    for a in arms:
+        names = []
+        for key in ("pseudobulk", "lfc", "shrink_pseudobulk"):
+            for s in a.get("sources", {}).get(key, []):
+                stem = Path(str(s).split(":")[0]).stem
+                if stem not in names:
+                    names.append(stem)
+        if not names:
+            unrecorded += 1
+            continue
+        seen[tuple(sorted(names))] = seen.get(tuple(sorted(names)), 0) + 1
+    ordered = sorted(seen.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [(n, list(k)) for k, n in ordered], unrecorded
+
+
+def orphan_arms() -> list[tuple[str, int]]:
+    """Directories under `runs/mirror/` holding scored arms but no bundle of their own.
+
+    They are not mirrors and cannot be listed as ones -- nothing there says what the arms were
+    scored against -- but dropping them in silence reads as "everything scored is in this table",
+    which is how the fifth-context sweep arms went missing from it (Saber, 2026-09-21).
+    """
+    out = []
+    for d in sorted(MIRRORS.iterdir()):
+        if not d.is_dir() or (d / "bundle" / "manifest.json").exists():
+            continue
+        n = sum(1 for x in d.iterdir() if (x / "summary.json").exists())
+        if n:
+            out.append((d.name, n))
+    return out
+
+
 def collect() -> list[dict]:
     folds = []
     for d in sorted(MIRRORS.iterdir()):
@@ -149,6 +194,7 @@ def collect() -> list[dict]:
         # an arm that did rather than printing "not on disk" over a fold whose shape is on
         # disk -- `hepg2_flowtest`, whose top arm is `arm_bootstrap` (2026-09-20).
         sh = (ref or {}).get("build") or next((a["build"] for a in arms if a.get("build")), {})
+        sets, unsourced = source_sets(arms)
         folds.append({
             "name": d.name, "line": held_out(d.name), "shape": shape(d.name),
             "backend": m.get("resolved_de_backend", "?"), "device": m.get("resolved_device", "?"),
@@ -159,6 +205,7 @@ def collect() -> list[dict]:
             "baseline": b, "replicate": r,
             "gap": (r - b) if (b is not None and r is not None) else None,
             "arms": arms, "ref": (ref or {}).get("name"),
+            "source_sets": sets, "unsourced": unsourced,
         })
     return folds
 
@@ -193,20 +240,34 @@ def render(folds: list[dict], full: bool) -> str:
             f"{num(f['genes'])} | {num(f['cells'])} | {f['backend']} · {f['device']} | "
             f"{num(f['gap'])} | {len(f['arms'])} |"
         )
+    orphans = orphan_arms()
     L += ["", f"**{len(folds)} mirrors, {sum(len(f['arms']) for f in folds)} scored arms.** "
           f"cell-eval2 {sorted({f['cell_eval2'] for f in folds})[0]}.", "",
           "`—` in a cell means the value is not on disk, not that it is zero: the earliest arms "
           "(`loco_k562gwps`'s source comparison) predate the `agg_results.csv` convention, so "
           "they carry no raw pds, and a mirror with 0 arms has a bundle — and so a gap — with "
           "nothing scored against it yet.", ""]
+    if orphans:
+        L += ["Not in the table, because they hold scored arms but no bundle of their own, so "
+              "nothing on disk says what those arms were scored against: "
+              + ", ".join(f"`{n}` ({k} arm{'s' if k > 1 else ''})" for n, k in orphans) + ".", ""]
 
     L += ["## Which lines pool into each mirror", "",
-          "| mirror | pooled sources (the arm named in *ref*) |", "|---|---|"]
+          "Arms inside one mirror do not all pool the same sources — a `_nosib` arm drops the "
+          "same-corpus sibling, and a fold-subset arm reads a subset artifact where its neighbour "
+          "reads the full one — so every distinct set is a row, with how many arms carry it. "
+          "An arm that pools nothing (a bootstrap, a null, a trained arm emitting its own cells) "
+          "is counted in the last column, not shown as a source set.", "",
+          "| mirror | arms | pooled sources | arms pooling nothing |", "|---|---|---|---|"]
     for f in folds:
-        ref = next((a for a in f["arms"] if a["name"] == f["ref"]), None)
-        src = (ref or {}).get("sources") or {}
-        names = [Path(s.split(":")[0]).stem for s in src.get("pseudobulk", [])]
-        L.append(f"| `{f['name']}` | {', '.join(names) if names else '—'} |")
+        sets = f.get("source_sets") or []
+        unsourced = f.get("unsourced") or "—"
+        if not sets:
+            L.append(f"| `{f['name']}` | — | — | {unsourced} |")
+            continue
+        for i, (n, names) in enumerate(sets):
+            L.append(f"| {'`' + f['name'] + '`' if i == 0 else ''} | {n} | {', '.join(names)} | "
+                     f"{unsourced if i == 0 else ''} |")
     L.append("")
 
     L += ["## Arms, per mirror", "",

@@ -24,7 +24,7 @@ ADR 0003 instructed the opposite -- budget the aggregate at per-(perturbation, b
 resolution because re-streaming is expensive. The arithmetic refutes it and this is a one-way
 door at 126 GB per re-run, so it is stated here rather than left in a report: HCT116 has 109
 GEM batches over 18,330 targets, which is ~1.7 cells per (perturbation, batch) bucket. A
-1.7-cell pseudobulk is not a measurement, and the dense tensor would be ~290 TB. X-Atlas
+1.7-cell pseudobulk is not a measurement, and the dense tensor would be ~290 GB. X-Atlas
 reaches its median 141 cells per perturbation precisely BY pooling across batches.
 What is kept instead is a per-(perturbation, batch) *cell-count* table -- ~8 MB, preserving
 every batch-structure question we might want to ask, for nothing.
@@ -774,7 +774,7 @@ def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str
             # `sgRNA1|sgRNA2` construct strings before loading a multi-GB array.
             "keyed_by": keyed_by,
             "not_per_perturbation_batch": (
-                "109 GEM batches x 18,330 targets is ~1.7 cells per bucket and a ~290 TB "
+                "109 GEM batches x 18,330 targets is ~1.7 cells per bucket and a ~290 GB "
                 "dense tensor; per-(perturbation, batch) CELL COUNTS are kept in the sidecar "
                 "instead (report 07 section 2.3, overturning ADR 0003 on this point)"
             ),
