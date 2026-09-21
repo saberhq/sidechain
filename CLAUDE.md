@@ -144,8 +144,9 @@ outside those five, or a `review` ASK without a question mark; the ASK type is n
 untyped one is filed as `decision` today). A fenced block is documentation. No brief at session
 start means no hooks are wired here. **A subagent (an Agent or Workflow child in your context) sends
 no block; a peer (a separate session you message) files its own. Every brief you hand a child opens
-with `T<n> · from <your session id> · one line`, or `— · throwaway` for work you will discard; no
-T-id yet → mint one first (`check_todo.py` prints the next free, add the line to `private/TODO.md`).**
+with `T<n> · from <your session id> · one line`; a session with no task writes `—` in place of the
+id (Saber, 2026-09-21 — not every session works a pre-determined task), and work you will discard
+is `— · throwaway`. The mother is the part the board cannot do without.**
 **Models:** a mother runs Saber's session model (Fable 5.1, 1M window) — the only place the whole
 picture is held; a child runs Opus by default (`CLAUDE_CODE_SUBAGENT_MODEL`), its wrapper's
 `model:` when wired (Researcher on Sonnet), or the `model` a Workflow stage passes: sweeps and
