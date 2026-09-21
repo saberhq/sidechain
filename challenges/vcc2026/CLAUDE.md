@@ -58,7 +58,12 @@ agent can delete the item; only you can mint or paste the key.
 1. **Context labels are opaque and load-bearing.** A/B/C name held-out datasets, not cell
    lines. Never reorder, relabel or regenerate them; keep the label attached from the moment a
    control file is read. A swap scores like a bad model and nothing says "you swapped them" —
-   `vcc prep` cannot detect it.
+   `vcc prep` cannot detect it. **The letters are reserved** (Saber, 2026-09-21): A–F mean these
+   six contexts and nothing else, so never letter one of our own cell lines, folds, bundles or
+   corpora. Name those (`loco_jurkat_rule`, Jurkat from Nadig 2024); a two-arm `arm A`/`arm B`
+   contrast is exempt. Inferring which real line a context resembles is a measurement we make,
+   never a licence to rename the context after it — context A stays "context A" even on the day
+   we are confident it is T-lymphoblast.
 2. **D/E/F ≠ A/B/C.** The final bundle carries its own labels and its own `pert_counts.csv`;
    carrying validation labels into a final submission is rejected.
 3. **The gene axis is 18,533, not H1's 18,080.** Map the H1 corpus (and every ingested line)

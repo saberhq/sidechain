@@ -103,8 +103,13 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
 - **Read the methods for the control definition; never infer it from the labels.** `control_label`
   is a list: Feng 2026's arm is `[NonTarget, unassigned]`, 499,998 cells, not 48.
 - **Check the minimum before writing "every"** (median 48, minimum 22).
-- **Name a local fold by its directory** (`loco_hek293t_ch272`), never by a letter: A–F are the
-  challenge's cell lines, and D/E/F are unreleased until Oct 22 (Saber, 2026-09-16).
+- **A–F name the challenge's six anonymized contexts and nothing else** (Saber, 2026-09-21): never
+  letter a **cell line, fold, bundle or corpus** of ours. Name it — the fold by its directory
+  (`loco_hek293t_ch272`), the line by its name plus the study where that is ambiguous (Jurkat from
+  Nadig 2024). "A source for context A" is the only shape a letter takes. **A two-arm comparison is
+  exempt** (`arm A` vs `arm B`): that letters a contrast, not a context, and renaming the ~141 lines
+  that use it would rewrite shipped submission records. D/E/F are unreleased until Oct 22, so a
+  letter written today can only mean A, B or C (Saber, 2026-09-16).
 - **Standings numbers are generated** (`scripts/standings.py`): never hand-edit the README table,
   `site/data/submissions.json` or `RESULTS.md` ranks.
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);
