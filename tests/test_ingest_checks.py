@@ -172,3 +172,115 @@ def test_a_declared_label_matching_nothing_raises_even_if_others_match():
 def test_an_empty_control_label_list_raises():
     with pytest.raises(ValueError, match="empty"):
         control_mask(["a", "b"], [])
+
+
+# ── the on-target positive control (T18 check 4) ────────────────────────────────
+
+
+def _screen(n_targets=120, n_genes=200, knockdown_log2=-2.0, seed=0):
+    """A CRISPRi screen in pseudobulk form: every target's own gene is silenced, the rest
+    of the axis is noise. Targets are the first `n_targets` genes, so each is self-measurable."""
+    import numpy as np
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+
+    rng = np.random.default_rng(seed)
+    genes = np.array([f"g{i}" for i in range(n_genes)])
+    labels = [f"g{i}" for i in range(n_targets)] + ["non-targeting"]
+    base = rng.uniform(20, 200, n_genes)
+    mean = np.tile(base, (len(labels), 1)) * rng.lognormal(0, 0.05, (len(labels), n_genes))
+    for i in range(n_targets):
+        mean[i, i] = base[i] * 2.0**knockdown_log2
+    n = np.full(len(labels), 200, dtype=np.int64)
+    return PseudobulkSums(labels=labels, genes=genes, count_sum=mean * n[:, None],
+                          cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2) * n[:, None] * 2,
+                          n_cells=n, libsize_sum=n * 20_000.0, sources=["s"])
+
+
+def test_a_real_screen_passes_the_on_target_control():
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    got = require_on_target_knockdown(_screen(), "non-targeting")
+    assert got["status"] == "ok"
+    assert got["n_self_measurable"] == 120
+    assert got["median_self_log2fc"] < -1.5 and got["frac_positive"] == 0.0
+
+
+def test_a_shuffled_perturbation_column_is_caught():
+    """The failure this exists for: a well-formed aggregate whose labels name the wrong rows.
+    Every other check in this module passes on it."""
+    import numpy as np
+    import pytest
+
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    pb = _screen()
+    rng = np.random.default_rng(1)
+    perts = pb.labels[:-1]
+    pb.labels = list(rng.permutation(perts)) + ["non-targeting"]
+    with pytest.raises(ValueError, match="on-target knockdown check FAILED"):
+        require_on_target_knockdown(pb, "non-targeting")
+
+
+def test_a_gene_axis_off_by_one_is_caught():
+    """A misaligned axis keeps every number and moves every meaning."""
+    import numpy as np
+    import pytest
+
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    pb = _screen()
+    pb.genes = np.roll(pb.genes, 1)
+    with pytest.raises(ValueError, match="on-target knockdown check FAILED"):
+        require_on_target_knockdown(pb, "non-targeting")
+
+
+def test_an_activation_screen_is_caught_by_the_sign():
+    """CRISPRi silences. A positive median is not this screen, whatever else is right."""
+    import pytest
+
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    with pytest.raises(ValueError, match=r"is \+"):
+        require_on_target_knockdown(_screen(knockdown_log2=+2.0), "non-targeting")
+
+
+def test_too_few_measurable_arms_is_not_applicable_rather_than_a_pass():
+    """A pre-filtered axis need not carry the perturbed genes. Three arms cannot support a
+    median, and a check that cannot see must not report agreement."""
+    from sidechain.ingest.checks import NOT_APPLICABLE, require_on_target_knockdown
+
+    got = require_on_target_knockdown(_screen(n_targets=3), "non-targeting")
+    assert got["status"] == NOT_APPLICABLE and got["n_self_measurable"] == 3
+    # and it does not raise even though three arms would have passed on their median
+    assert got["median_self_log2fc"] < 0
+
+
+def test_labels_whose_gene_is_off_the_axis_are_skipped_not_counted():
+    """K562 genome-wide perturbs 272 fold targets and carries the on-target row for 229."""
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    pb = _screen(n_targets=120, n_genes=200)
+    pb.labels = pb.labels[:-1] + ["GENE_NOT_ON_AXIS", "non-targeting"]
+    pb.count_sum = pb.count_sum[[*range(120), 0, 120]]
+    pb.cpm_sum = pb.cpm_sum[[*range(120), 0, 120]]
+    pb.cpm_sq_sum = pb.cpm_sq_sum[[*range(120), 0, 120]]
+    pb.n_cells = pb.n_cells[[*range(120), 0, 120]]
+    pb.libsize_sum = pb.libsize_sum[[*range(120), 0, 120]]
+    assert require_on_target_knockdown(pb, "non-targeting")["n_self_measurable"] == 120
+
+
+def test_the_control_arm_may_be_several_labels():
+    """Same rule as `control_mask`: Feng 2026's arm is two labels."""
+    import numpy as np
+
+    from sidechain.ingest.checks import require_on_target_knockdown
+
+    pb = _screen()
+    pb.labels = pb.labels[:-1] + ["NonTarget"]
+    pb.labels = pb.labels + ["unassigned"]
+    for a in ("count_sum", "cpm_sum", "cpm_sq_sum"):
+        setattr(pb, a, np.vstack([getattr(pb, a), getattr(pb, a)[-1]]))
+    pb.n_cells = np.append(pb.n_cells, pb.n_cells[-1])
+    pb.libsize_sum = np.append(pb.libsize_sum, pb.libsize_sum[-1])
+    assert require_on_target_knockdown(pb, ["NonTarget", "unassigned"])["status"] == "ok"

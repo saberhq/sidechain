@@ -56,3 +56,40 @@ def test_merge_unions_labels_and_control_once(tmp_path):
     back = spb.PseudobulkSums.load(q)
     np.testing.assert_allclose(back.cpm_sum, m.cpm_sum)
     assert back.labels == m.labels
+
+
+def test_the_stream_cli_reports_the_on_target_reading_in_its_meta(tmp_path, capsys):
+    """T18 check 4 is reported where a new corpus is born, not left as a library function
+    nothing calls. Reported rather than raised: the artifact is already on disk by then."""
+    import json
+
+    import anndata as ad
+    import numpy as np
+    import pandas as pd
+    import scipy.sparse as sp
+
+    from sidechain.data import stream_pseudobulk as sp_mod
+
+    genes = [f"g{i}" for i in range(60)]
+    labels = [f"g{i}" for i in range(55)] + ["non-targeting"] * 5
+    rng = np.random.default_rng(0)
+    rows = []
+    for lab in labels:
+        for _ in range(8):
+            x = rng.poisson(40, len(genes)).astype(np.float32)
+            if lab in genes:
+                x[genes.index(lab)] = 2          # silenced
+            rows.append(x)
+    X = sp.csr_matrix(np.vstack(rows))
+    obs = pd.DataFrame({"target_gene": np.repeat(labels, 8)})
+    obs.index = [f"c{i}" for i in range(X.shape[0])]
+    f = tmp_path / "screen.h5ad"
+    ad.AnnData(X=X, obs=obs, var=pd.DataFrame(index=genes)).write_h5ad(f)
+
+    rc = sp_mod.main([str(f), "--label-col", "target_gene", "--control", "non-targeting",
+                      "--out", str(tmp_path / "pb.npz")])
+    assert rc == 0
+    meta = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert meta["on_target"]["status"] == "ok"
+    assert meta["on_target"]["n_self_measurable"] == 55
+    assert meta["on_target"]["median_self_log2fc"] < -2.0

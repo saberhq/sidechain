@@ -291,6 +291,20 @@ def main(argv: list[str] | None = None) -> int:
     total.save(args.out)
     meta = {"labels": len(total.labels), "genes": len(total.genes),
             "cells": int(total.n_cells.sum()), "sources": total.sources}
+    # The one POSITIVE check we have (T18 check 4). Every other guard on this path is
+    # negative space -- it catches a wrong control label or an untransformed matrix. None of
+    # them can say the aggregate just written is arithmetically wrong, and a transposed
+    # matrix, a misaligned gene axis or a shuffled label column all pass them while
+    # destroying the on-target signal. Reported, not raised: this CLI has already done the
+    # expensive part and the artifact is on disk, so the reading belongs in the record where
+    # a later session can see it rather than in an exit code that throws the stream away.
+    if args.control:
+        from sidechain.ingest.checks import require_on_target_knockdown
+        try:
+            meta["on_target"] = require_on_target_knockdown(total, args.control)
+        except ValueError as exc:
+            meta["on_target"] = {"status": "FAILED", "detail": str(exc)}
+            print(f"!! {exc}", flush=True)
     print(json.dumps(meta))
     return 0
 

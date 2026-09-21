@@ -163,3 +163,70 @@ def control_mask(labels, control_label: str | Sequence[str]) -> np.ndarray:
             f"no cells match control_label(s) {missing!r} exactly.{hint}"
         )
     return np.isin(arr, wanted)
+
+
+NOT_APPLICABLE = "not_applicable"
+
+
+def require_on_target_knockdown(pb, control_label: str | Sequence[str], *,
+                                max_median_log2fc: float = -0.20,
+                                min_arms: int = 50,
+                                pseudocount: float = 1.0) -> dict:
+    """Assert that a CRISPRi corpus actually silenced the genes it says it silenced.
+
+    4. EVERY OTHER CHECK HERE IS A NEGATIVE-SPACE GUARD. They catch a wrong control
+       label, a transformed matrix, a substring match -- things that are wrong on their
+       face. None of them can tell you that the aggregate you just built is
+       ARITHMETICALLY wrong. A transposed matrix, a gene axis off by one, a mislabelled
+       perturbation column or the wrong control arm all produce a well-formed
+       `PseudobulkSums` whose numbers mean nothing, and every existing check passes.
+
+       This is the positive control: over the labels whose OWN gene is on the axis, the
+       median self log2 fold change must be at most `max_median_log2fc`. CRISPRi
+       knocks genes DOWN, so the sign is the assertion -- any of the failures above
+       destroys the on-target signal, and none of them can fake it. The margin is
+       large: the weakest corpus we hold reads -0.95 (X-Atlas HEK293T) against a bar of
+       -0.20, a factor of 4.8, and the fraction of arms reading ABOVE zero runs
+       0.0-1.5 % everywhere (`research/ideas/batch-effect-diagnostics.md` § Claim).
+
+    Returns the reading rather than just passing, so a caller can record it:
+    `{"status", "n_self_measurable", "median_self_log2fc", "frac_positive"}`.
+
+    **Fewer than `min_arms` self-measurable labels returns `not_applicable`, it does
+    not pass.** A pre-filtered expression axis need not carry the perturbed genes at
+    all -- K562 genome-wide perturbs 272 fold targets and carries the on-target row for
+    229 -- and a corpus with three measurable arms cannot support a median. Silently
+    passing on three arms would be the same class of bug this module exists to stop:
+    a check that cannot see is not a check that agrees.
+    """
+    labels = np.asarray(pb.labels).astype(str)
+    ctrl = control_mask(labels, control_label)
+    pos = {g: i for i, g in enumerate(np.asarray(pb.genes).astype(str))}
+    n = np.maximum(np.asarray(pb.n_cells), 1)
+    ctrl_mean = pb.cpm_sum[ctrl].sum(axis=0) / max(int(np.asarray(pb.n_cells)[ctrl].sum()), 1)
+
+    lfcs = []
+    for i, lab in enumerate(labels):
+        if ctrl[i]:
+            continue
+        j = pos.get(lab)
+        if j is None:                      # this label's own gene is not on the axis
+            continue
+        m = pb.cpm_sum[i, j] / n[i]
+        lfcs.append(np.log2((m + pseudocount) / (ctrl_mean[j] + pseudocount)))
+
+    out = {"n_self_measurable": len(lfcs),
+           "median_self_log2fc": float(np.median(lfcs)) if lfcs else None,
+           "frac_positive": float(np.mean([x > 0 for x in lfcs])) if lfcs else None,
+           "bar": max_median_log2fc}
+    if len(lfcs) < min_arms:
+        return out | {"status": NOT_APPLICABLE}
+    if out["median_self_log2fc"] > max_median_log2fc:
+        raise ValueError(
+            f"on-target knockdown check FAILED: median self log2FC over "
+            f"{len(lfcs)} self-measurable arms is {out['median_self_log2fc']:+.3f}, "
+            f"which is not at or below {max_median_log2fc:+.2f}. CRISPRi silences, so "
+            f"this aggregate does not look like the screen it claims to be -- check the "
+            f"perturbation column, the control arm, the gene axis and the orientation of "
+            f"the matrix before trusting any delta built from it.")
+    return out | {"status": "ok"}

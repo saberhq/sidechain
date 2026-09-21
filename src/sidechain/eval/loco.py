@@ -73,6 +73,7 @@ def build_transfer_prediction(
     similarity_beta: float = 0.0,
     basal_slope: str = "off",
     alpha_bulk: float | None = None,
+    log_bias_correct: bool = False,
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = CONTROL_MIN_LIBSIZE,
@@ -133,6 +134,7 @@ def build_transfer_prediction(
         del fit
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
+                         log_bias_correct=log_bias_correct,
                          gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
                          coverage_tiers=coverage_tiers,
                          similarity_beta=similarity_beta, stats=pool_stats)
@@ -180,6 +182,7 @@ def build_transfer_prediction(
             # pds (runs/probes/t18_check5_libsize_floor), but a knob that is not in the
             # record cannot be reproduced, and this one silently was not.
             "min_libsize": float(min_libsize),
+            "log_bias_correct": bool(log_bias_correct),
             "coverage_tiers": coverage_tiers,
             "similarity_beta": similarity_beta,
             "basal_slope": basal_slope, "basal_slope_stats": basal_stats,
@@ -268,6 +271,8 @@ def main(argv: list[str] | None = None) -> int:
                          "scored arm submits verbatim). Arms scored before 2026-09-20 used 500, "
                          "which this entry point could not even be told to change; pass 500 to "
                          "reproduce one bit-for-bit.")
+    ap.add_argument("--log-bias-correct", action="store_true",
+                    help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
@@ -308,7 +313,8 @@ def main(argv: list[str] | None = None) -> int:
                                      similarity_beta=args.similarity_beta,
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
-                                     min_libsize=args.min_libsize)
+                                     min_libsize=args.min_libsize,
+                                     log_bias_correct=args.log_bias_correct)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)

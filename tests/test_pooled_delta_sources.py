@@ -767,3 +767,79 @@ def test_a_source_with_no_control_profile_keeps_full_weight_and_is_counted():
                        similarity_beta=8.0, stats=stats)
     assert out is not None
     assert stats["similarity_sources_unweighted"] == 1
+
+
+# ── the log-bias correction (T18 check 6) ───────────────────────────────────────
+
+
+def _two_arm_pb(n_pert: int, n_ctrl: int, mean_cpm: float, var_cpm: float):
+    """A PseudobulkSums whose two arms have a KNOWN mean and per-cell variance, so the
+    correction's size is arithmetic rather than a fit."""
+    import numpy as np
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+
+    g = np.array(["gA", "gB"])
+    m = np.array([mean_cpm, mean_cpm])
+    # cpm_sq_sum / n - m^2 = var  =>  cpm_sq_sum = n (var + m^2)
+    return PseudobulkSums(
+        labels=["tgt", "ctl"], genes=g,
+        count_sum=np.vstack([m, m]),
+        cpm_sum=np.vstack([m * n_pert, m * n_ctrl]),
+        cpm_sq_sum=np.vstack([n_pert * (var_cpm + m * m), n_ctrl * (var_cpm + m * m)]),
+        n_cells=np.array([n_pert, n_ctrl]),
+        libsize_sum=np.array([n_pert * 20_000.0, n_ctrl * 20_000.0]),
+        sources=np.array(["t"]))
+
+
+def test_the_log_bias_correction_is_off_by_default_and_changes_nothing():
+    import numpy as np
+
+    from sidechain.submit.build import _log2fc_with_var
+
+    pb = _two_arm_pb(150, 150_000, 10.0, 400.0)
+    base, _ = _log2fc_with_var(pb, "tgt", "ctl")
+    same, _ = _log2fc_with_var(pb, "tgt", "ctl", log_bias_correct=False)
+    assert np.array_equal(base, same)
+
+
+def test_the_log_bias_correction_lifts_a_shallow_arm_by_the_delta_method_term():
+    """`log2` of a noisy mean sits Var(m_hat)/(2(m+c)^2 ln2) below log2 of the true mean. The
+    perturbed arm is shallow and the control is deep, so the two do not cancel and the
+    correction is positive -- the size is checked against the closed form, not a snapshot."""
+    import numpy as np
+
+    from sidechain.submit.build import LN2, _log2fc_with_var
+
+    n_p, n_c, m, v = 150, 150_000, 10.0, 400.0
+    pb = _two_arm_pb(n_p, n_c, m, v)
+    base, _ = _log2fc_with_var(pb, "tgt", "ctl")
+    fixed, _ = _log2fc_with_var(pb, "tgt", "ctl", log_bias_correct=True)
+    want = ((v / n_p) / (m + 1.0) ** 2 - (v / n_c) / (m + 1.0) ** 2) / (2.0 * LN2)
+    assert np.allclose(fixed - base, want)
+    assert (fixed > base).all()          # the shallow arm was biased DOWN; this lifts it
+
+
+def test_two_equally_deep_arms_need_no_correction():
+    """The bias is a depth asymmetry. Same cells, same spread, nothing left to remove."""
+    import numpy as np
+
+    from sidechain.submit.build import _log2fc_with_var
+
+    pb = _two_arm_pb(500, 500, 10.0, 400.0)
+    base, _ = _log2fc_with_var(pb, "tgt", "ctl")
+    fixed, _ = _log2fc_with_var(pb, "tgt", "ctl", log_bias_correct=True)
+    assert np.allclose(fixed, base)
+
+
+def test_pooled_delta_threads_the_flag_to_its_sources():
+    import numpy as np
+
+    from sidechain.submit.build import pooled_delta
+
+    pb = _two_arm_pb(150, 150_000, 10.0, 400.0)
+    axis = np.array(["gA", "gB"])
+    off = pooled_delta("tgt", [(pb, "ctl")], axis, shrinkage=False, var_floor="poisson")
+    on = pooled_delta("tgt", [(pb, "ctl")], axis, shrinkage=False, var_floor="poisson",
+                      log_bias_correct=True)
+    assert not np.allclose(off, on) and (on > off).all()

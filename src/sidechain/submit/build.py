@@ -54,7 +54,8 @@ from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify
 from sidechain.utils.naming import CLAIMS_RE, check_out_leaf
 from sidechain.utils.paths import resolve_config
 
-LN2_SQ = np.log(2) ** 2
+LN2 = np.log(2)
+LN2_SQ = LN2**2
 TARGET_SELF_LOG2FC = -2.32  # > 80 % knockdown of the target itself; excluded from scoring, kept for realism
 GAMMA_MULT_FLOOR = 2.0 ** -16  # where the gamma family predicts <= 0 expression, emit ~none instead
 
@@ -99,7 +100,7 @@ def gamma_transfer(fc: np.ndarray, ctrl_src_cpm: np.ndarray, ctrl_tgt_cpm: np.nd
 
 
 def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0,
-                     var_floor: str = "none"):
+                     var_floor: str = "none", log_bias_correct: bool = False):
     """Per-gene log2FC of mean CPM and its delta-method variance, for one source.
 
     Computed ROW-WISE, not by slicing `pb.mean_cpm()` / `pb.var_cpm()`. Those build the whole
@@ -119,6 +120,18 @@ def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: 
     max-weight branch. An arm with a single cell has no observed spread at all, so it
     abstains outright (`var = inf`, weight 0) rather than letting the floor pretend one
     cell was a measurement.
+
+    `log_bias_correct` removes the SECOND-ORDER term of the same delta method. `log2` of a
+    noisy mean is not the log2 of the true mean: to second order it sits
+    `Var(m_hat) / (2 (m + c)^2 ln2)` BELOW it. The perturbed arm carries a few hundred cells
+    and the control arm tens of thousands, so the two do not cancel inside the contrast, and
+    what is left is a negative shift on every low-expression gene that every target of that
+    source shares. Measured 2026-09-20 (T18 check 6): 1 % of a median H1 delta at 1,071 cells
+    an arm, 9-12 % on X-Atlas and K562-gwps at 145-198. It uses the SAME `vi`/`vc` the
+    variance does, so with `var_floor="poisson"` the correction inherits the floor -- one
+    variance model, not two. Default off: it costs -0.0027 raw `pds` on `loco_k562gwps_pdex`
+    (the shift is shared across targets, and `pds_cosine` discriminates between them), and it
+    is wired so the magnitude members can be scored too.
     """
     i, c = pb.labels.index(label), pb.labels.index(control)
     ni = max(int(pb.n_cells[i]), 1)
@@ -131,6 +144,10 @@ def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: 
         vi = np.maximum(vi, (mi + pseudocount) * 1e6 / (pb.libsize_sum[i] / ni))
         vc = np.maximum(vc, (mc + pseudocount) * 1e6 / (pb.libsize_sum[c] / nc))
     fc = log2fc_from_cpm(mi, mc, pseudocount)
+    if log_bias_correct:
+        # + the perturbed arm's downward bias, - the control's: what is left of E[log2 m_hat].
+        fc = fc + ((vi / ni) / (mi + pseudocount) ** 2
+                   - (vc / nc) / (mc + pseudocount) ** 2) / (2.0 * LN2)
     var = (vi / ni) / (mi + pseudocount) ** 2 + (vc / nc) / (mc + pseudocount) ** 2
     if var_floor == "poisson" and (ni < 2 or nc < 2):
         var = np.full_like(var, np.inf)
@@ -279,10 +296,10 @@ class _PseudobulkDeltaSource:
     delete.
     """
 
-    __slots__ = ("control", "pb", "shrink", "var_floor")
+    __slots__ = ("control", "log_bias_correct", "pb", "shrink", "var_floor")
 
     def __init__(self, pb: PseudobulkSums, control: str, shrink: bool | None = None,
-                 var_floor: str = "none"):
+                 var_floor: str = "none", log_bias_correct: bool = False):
         # Refused, not coerced: the third tuple slot sits beside var_floor in
         # this signature, and a stray string there ('poisson') would otherwise
         # silently force shrinkage ON -- crash-to-wrong is the bad direction.
@@ -290,7 +307,7 @@ class _PseudobulkDeltaSource:
             raise TypeError(f"shrink must be None, True or False, got {shrink!r} "
                             "-- var_floor is keyword-only in the tuple form")
         self.pb, self.control, self.var_floor = pb, control, var_floor
-        self.shrink = shrink
+        self.shrink, self.log_bias_correct = shrink, log_bias_correct
 
     @property
     def genes(self) -> np.ndarray:
@@ -314,7 +331,8 @@ class _PseudobulkDeltaSource:
     def effect(self, target: str):
         if target not in self.pb.labels:
             return None
-        return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor)
+        return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor,
+                                log_bias_correct=self.log_bias_correct)
 
     def n_eff(self, target: str) -> np.ndarray | None:
         """Cells' worth of evidence behind each gene of this contrast, on this source's axis.
@@ -332,7 +350,7 @@ class _PseudobulkDeltaSource:
         return np.minimum(self.pb.n_eff(i), self.pb.n_eff(c))
 
 
-def as_delta_source(src, var_floor: str = "none"):
+def as_delta_source(src, var_floor: str = "none", log_bias_correct: bool = False):
     """Normalise a source into something with `.genes` and `.effect(target)`.
 
     Accepts the historical `(PseudobulkSums, control_label)` tuple so every
@@ -346,7 +364,8 @@ def as_delta_source(src, var_floor: str = "none"):
     to floor against.
     """
     if isinstance(src, tuple):
-        return _PseudobulkDeltaSource(*src, var_floor=var_floor)
+        return _PseudobulkDeltaSource(*src, var_floor=var_floor,
+                                      log_bias_correct=log_bias_correct)
     if hasattr(src, "effect") and hasattr(src, "genes"):
         return src
     raise TypeError(
@@ -423,7 +442,7 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  *, shrinkage: bool = True, var_floor: str = "none",
                  gamma: float = 1.0, ctrl_tgt_cpm: np.ndarray | None = None,
                  coverage_tiers: tuple[tuple[float, float], ...] | None = None,
-                 similarity_beta: float = 0.0,
+                 similarity_beta: float = 0.0, log_bias_correct: bool = False,
                  stats: dict | None = None) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
 
@@ -501,7 +520,8 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                          "between the TARGET context's control profile and each source's own")
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
-    for src in (as_delta_source(s, var_floor=var_floor) for s in sources):
+    for src in (as_delta_source(s, var_floor=var_floor,
+                                log_bias_correct=log_bias_correct) for s in sources):
         got = src.effect(target)
         if got is None:
             continue
@@ -683,6 +703,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-libsize", type=float, default=CONTROL_MIN_LIBSIZE,
                     help="drop control cells below this depth from the library-size pool "
                          "(same knob and same default as sidechain.eval.loco)")
+    ap.add_argument("--log-bias-correct", action="store_true",
+                    help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     if args.gamma != 1.0 and args.emitter != "delta-transfer":
@@ -772,6 +794,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.gamma == 1.0:
             for p in perts:
                 d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                                 log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  stats=pool_stats)
                 if d is None:
@@ -829,6 +852,7 @@ def main(argv: list[str] | None = None) -> int:
             ctrl_cpm = prof.fraction * 1e6
             for p in perts:
                 d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                                 log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,
                                  stats=pool_stats)
