@@ -22,6 +22,9 @@ deadline: 2026-11-05T23:59:00Z
 # The controls bundle -- fetched with the vcc CLI, which resumes and crc32c-verifies:
 #   vcc datasets download controls -d ~/data/sidechain/vcc2026
 # Everything sits at the zip root (no vcc_data/ directory).
+
+# (final-phase: before) one flat map, A/B/C only: flipping `phase: final` alone dies with
+# KeyError 'D' in submit/build.py after the pooling has run. Key this per phase; fill D/E/F at hour 0.
 control_files:
   A: context_A.h5ad
   B: context_B.h5ad

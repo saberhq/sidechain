@@ -26,6 +26,8 @@ import numpy as np
 
 DATA = Path.home() / "data" / "sidechain"
 CACHE = DATA / "cache" / "vcc2026"
+# (final-phase: before) one panel path for both rounds. Once the final bundle lands, say which
+# panel the site's coverage number is against, and keep the validation file where it is.
 PANEL = DATA / "vcc2026" / "pert_counts.csv"
 OUT = Path(__file__).resolve().parents[3] / "site" / "data" / "coverage.json"
 

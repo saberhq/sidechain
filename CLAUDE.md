@@ -60,7 +60,8 @@ gene **never seen silenced**, in cell lines never seen: six anonymized lines (A/
 **Oct 22**; only D/E/F decide prizes), 300 knockdowns × 400 cells per line, raw counts, 18,533
 genes, six cell-eval2 metrics. Arc ships no training data. `challenges/vcc2026/CLAUDE.md` +
 `config.yaml` are authoritative for the spec and the submission contract — never re-derive it from
-the web; the argument: `reports/05`, `06`, `09`.
+the web; the argument: `reports/05`, `06`, `09`. **What happens on Oct 22 is one document,
+`private/FINAL-PHASE.md`** (T93): only the last final entry counts and no final score is shown (final-phase: none).
 
 ## Where things are
 
@@ -177,6 +178,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | QC on our h5ads, the controls bundle | `challenges/<year>/CLAUDE.md` · `sidechain.data.profile` · `sidechain.ingest.checks` | `reports/06` |
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
+| **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` beside a code comment — and regenerate (final-phase: none) |
 | "what should I work on", `pick up T<n>` | `private/TODO.md` `## Now` | `private/CLAUDE.md` → The mother session |
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |

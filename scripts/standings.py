@@ -124,6 +124,9 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
     snapshots = []
     for f in sorted(snaps_dir.glob("lb_*.json")):
         d = json.loads(f.read_text())
+        # (final-phase: before) the live board only. A final entry finds no snapshot that holds
+        # it and takes the validation field's team count: read the board matching the record's
+        # `scores.partition`, and keep the two rounds apart in the table -- they are not comparable.
         live = d.get("live", {})
         entries = live.get("entries", [])
         snapshots.append({

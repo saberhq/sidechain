@@ -56,6 +56,8 @@ def load_entries(snapshot_dir: Path) -> dict[str, dict]:
     out: dict[str, dict] = {}
     for f in sorted(glob.glob(str(snapshot_dir / "lb_*.json"))):
         doc = json.load(open(f))
+        # (final-phase: before) three boards pooled into one fit, but the scaling is affine per
+        # panel and anchor revision: after Oct 22 fit one board at a time, or refuse to mix them.
         for section in ("live", "final", "generalist"):
             for e in doc.get(section, {}).get("entries", []):
                 out[e["id"]] = e

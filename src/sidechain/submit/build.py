@@ -779,6 +779,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.emitter == "delta-transfer":
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
+        # (final-phase: before) The documented --gwps-cache was streamed with `--keep pert_counts.csv`
+        # and holds the validation panel's 272 targets only: on a new panel this arm stops voting
+        # and nothing says so, because the genome-wide X-Atlas arms keep `fallback 0`. Stream
+        # K562-gwps once with no --keep, then narrow it per panel (scripts/subset_pseudobulk_labels.py).
         gwps = PseudobulkSums.load(args.gwps_cache)
         gwps.sidechain_name = Path(args.gwps_cache).expanduser().stem
         sources = [(gwps, "control"), (h1, cfg["control_label"])]
@@ -897,6 +901,9 @@ def main(argv: list[str] | None = None) -> int:
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
             if ctx_bulk is not None:
+                # (final-phase: knobs) counted, never refused. A/B/C gave 1, 3 and 2 of 300; the
+                # count follows each context's control-depth envelope, so read it on the first
+                # D/E/F build before trusting that letter b is really in the file.
                 dual_fallbacks[ctx] = int(getattr(em, "dual_fallbacks", 0))
                 print(f"  {ctx}: alpha_bulk={args.alpha_bulk:g}: {dual_fallbacks[ctx]} of "
                       f"{len(perts)} perturbations carried one amplitude", flush=True)

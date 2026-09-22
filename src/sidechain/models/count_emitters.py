@@ -36,6 +36,9 @@ import scipy.sparse as sp
 # never have seen this defect: it lives entirely on the path that ships.
 #
 # The value is 1000 because that is what every submitted build has used.
+# (final-phase: controls) 1000 against 3000 is open, and only D/E/F can settle it: read each new
+# context's depth tail first -- context B holds 598 cells under 3,000 UMI, A and C hold none
+# (private/research/ideas/batch-effect-diagnostics.md, T18).
 # `from_controls` keeps its own default of 0 -- it is a library function, and a
 # caller that wants the project's policy says so by passing this.
 CONTROL_MIN_LIBSIZE = 1000.0

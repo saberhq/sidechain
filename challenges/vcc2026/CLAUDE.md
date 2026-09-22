@@ -8,6 +8,11 @@ carries the values, this file carries what will bite you. Verbatim sources:
 
 - **Zero-shot, multi-context.** Six anonymized cell lines: A/B/C now (validation, live board),
   D/E/F on **Oct 22** (final). **Only D/E/F decide the prizes.** Deadline Nov 5, 23:59 UTC.
+  **The final phase has its own plan, `private/FINAL-PHASE.md`** (T93): the steps from the bundle
+  landing to the last upload, the slot budget, and every "revisit on Oct 22" clause the ledgers
+  carry. Its rules, from Arc's rules page: only the **last** final entry counts, no final
+  leaderboard is shown before the winners, the final panel is a **different** 300, two a day
+  (`private/research/reading/vcc-2026-final-phase-rules.md`) (final-phase: none).
 - Per context you get **18,400 non-targeting control cells** (46 guides × 400, guide in
   `obs['ntc_id']`) and a list of **300 genes to knock down**. For each knockdown you return
   **400 predicted cells, each a full 18,533-gene transcriptome**, raw counts — 360,000 cells
@@ -65,7 +70,7 @@ agent can delete the item; only you can mint or paste the key.
    never a licence to rename the context after it — context A stays "context A" even on the day
    we are confident it is T-lymphoblast.
 2. **D/E/F ≠ A/B/C.** The final bundle carries its own labels and its own `pert_counts.csv`;
-   carrying validation labels into a final submission is rejected.
+   carrying validation labels into a final submission is rejected (final-phase: submit).
 3. **The gene axis is 18,533, not H1's 18,080.** Map the H1 corpus (and every ingested line)
    onto `gene_names.csv` by symbol: H1 shares 18,077, 456 genes have no H1 signal. **There is
    no `var['gene_id']` — `var` is empty, symbols only** (measured 2026-08-20). The scPerturb
