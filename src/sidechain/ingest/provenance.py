@@ -25,6 +25,7 @@ import json
 import shutil
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -134,7 +135,7 @@ class RemoteFile:
 class HostRecord:
     """What the host says it has. Verbatim, before any of it is fetched."""
 
-    host: str            # "zenodo" | "figshare" | "huggingface"
+    host: str            # "zenodo" | "figshare" | "huggingface" | "lamin" | "s3"
     record_id: str
     api_url: str
     title: str
@@ -507,6 +508,111 @@ def probe_lamin(record_id: str) -> HostRecord:
         retrieved=datetime.now(UTC).date().isoformat(),
         version=None,
         files=files,
+    )
+
+
+S3_NS = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
+
+
+def _s3_etag_checksum(etag: str | None) -> str | None:
+    """Turn an S3 ETag into a checksum string, or refuse to call it one.
+
+    **A multipart ETag is not an MD5.** S3 computes it as the MD5 of the
+    concatenated part MD5s, then appends `-<n_parts>`; there is no way to
+    recompute it without knowing the exact part size the uploader used. Every
+    large object in the buckets we care about is multipart -- GWCD4i's 16.79 GB
+    DE file carries `...-2002`. Recording that under an `md5:` prefix would put a
+    number in PROVENANCE.json that `fetch --check` can never reproduce, and the
+    failure would look like corruption rather than like a bad label.
+
+    So: a single-part ETag (32 hex, no suffix) is a real MD5 and is recorded as
+    one. A multipart ETag is recorded under `s3-etag:` -- evidence of identity,
+    explicitly not something to verify against. None stays None.
+    """
+    if not etag:
+        return None
+    tag = etag.strip().strip('"')
+    if not tag:
+        return None
+    if "-" in tag:
+        return f"s3-etag:{tag}"
+    if len(tag) == 32 and all(c in "0123456789abcdefABCDEF" for c in tag):
+        return f"md5:{tag.lower()}"
+    return f"s3-etag:{tag}"
+
+
+def probe_s3(record_id: str) -> HostRecord:
+    """A public S3 bucket -> HostRecord. `record_id` is `<bucket>` or `<bucket>/<prefix>`.
+
+    The fourth host, added for GWCD4i (the Marson/Zhu CD4 screen), which the CZI
+    Virtual Cells Platform publishes as plain objects rather than through a
+    record API. `ListObjectsV2` is an anonymous GET and moves no data bytes.
+
+    **License is always "unknown" here, by construction, and that is a finding
+    rather than a shortcut** -- the same shape as `probe_lamin`. An S3 listing
+    carries Key, Size, LastModified, ETag, StorageClass and (sometimes) a
+    checksum ALGORITHM name, and nothing anywhere in it states terms of use. A
+    bucket-hosted dataset therefore reaches the gate only through
+    `license_override_source`, with the terms verified at the publisher's own
+    page and recorded -- which is exactly the visibility ADR 0003 wants from a
+    host that cannot state terms.
+
+    Note there is no version to pin. A bucket has no record version and no DOI,
+    so `version` is None and the guard against upstream drift is the per-file
+    size and ETag recorded in PROVENANCE.json, which `diff_against_recorded`
+    compares on a later run.
+    """
+    bucket, _, prefix = record_id.partition("/")
+    if not bucket:
+        raise GateError(f"s3 record {record_id!r} names no bucket")
+
+    files: list[RemoteFile] = []
+    token: str | None = None
+    for _ in range(1000):                      # pagination guard; 1000 x 1000 keys
+        query = {"list-type": "2", "prefix": prefix}
+        if token:
+            query["continuation-token"] = token
+        url = f"https://{bucket}.s3.amazonaws.com/?{urllib.parse.urlencode(query)}"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            root = ET.fromstring(resp.read())
+
+        for node in root.findall("s3:Contents", S3_NS):
+            key = node.findtext("s3:Key", default="", namespaces=S3_NS)
+            if not key or key.endswith("/"):   # a folder marker is not a file
+                continue
+            size = int(node.findtext("s3:Size", default="0", namespaces=S3_NS) or 0)
+            etag = node.findtext("s3:ETag", namespaces=S3_NS)
+            files.append(RemoteFile(
+                name=key[len(prefix):] if prefix and key.startswith(prefix) else key,
+                size_bytes=size,
+                checksum=_s3_etag_checksum(etag),
+                url=f"https://{bucket}.s3.amazonaws.com/{urllib.parse.quote(key)}",
+            ))
+
+        if (root.findtext("s3:IsTruncated", default="false", namespaces=S3_NS) or
+                "false").strip().lower() != "true":
+            break
+        token = root.findtext("s3:NextContinuationToken", namespaces=S3_NS)
+        if not token:
+            break
+    else:
+        raise GateError(f"s3://{record_id}: listing did not terminate in 1000 pages")
+
+    if not files:
+        raise GateError(f"s3://{record_id}: listing returned no objects -- wrong bucket "
+                        "or prefix, or the bucket is not public")
+
+    return HostRecord(
+        host="s3",
+        record_id=record_id,
+        api_url=f"https://{bucket}.s3.amazonaws.com/?list-type=2&prefix="
+                f"{urllib.parse.quote(prefix)}",
+        title=record_id,
+        license="unknown",                     # by construction; see the docstring
+        retrieved=datetime.now(UTC).date().isoformat(),
+        version=None,
+        files=tuple(sorted(files, key=lambda f: f.name)),
     )
 
 

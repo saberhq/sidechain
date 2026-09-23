@@ -10,6 +10,19 @@
 #   host / record       where it comes from, pinned. Zenodo record ids pin a
 #                       VERSION; the concept DOI resolves to "latest" and would
 #                       change under us, so we never fetch by concept DOI.
+#                       Five hosts are probeable: zenodo, figshare, huggingface,
+#                       lamin and s3 (a plain public bucket; record is
+#                       `<bucket>` or `<bucket>/<prefix>`). TWO OF THEM CANNOT
+#                       STATE TERMS -- lamin has no licence field at all, and an
+#                       S3 listing carries only keys, sizes and ETags -- so both
+#                       reach the gate as `license: unknown` and pass ONLY
+#                       through license_override_source. That is the intended
+#                       friction, not a gap. An S3 record also has no version to
+#                       pin: the guard against upstream drift is the per-file
+#                       size and ETag in PROVENANCE.json, which a later run
+#                       diffs. Note an S3 ETag on any large object is MULTIPART
+#                       and is NOT an md5 -- it is recorded under `s3-etag:` as
+#                       evidence of identity, never as something to verify.
 #   budget_gb           the ceiling this dataset is allowed to occupy. The gate
 #                       refuses a selection that exceeds it, so a fetch can
 #                       never decide for itself how much disk it takes.

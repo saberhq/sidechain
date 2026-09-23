@@ -37,6 +37,7 @@ from sidechain.ingest.provenance import (
     probe_figshare,
     probe_huggingface,
     probe_lamin,
+    probe_s3,
     probe_zenodo,
     read_provenance,
     write_provenance,
@@ -51,6 +52,7 @@ PROBES = {
     "huggingface": probe_huggingface,
     "figshare": probe_figshare,
     "lamin": probe_lamin,
+    "s3": probe_s3,
 }
 
 
