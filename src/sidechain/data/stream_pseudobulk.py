@@ -22,8 +22,12 @@ plus n_cells and libsize_sum per label.
 from __future__ import annotations
 
 import argparse
+import ast
+import io
 import json
 import time
+import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -107,6 +111,120 @@ class PseudobulkSums:
             n_cells=z["n_cells"], libsize_sum=z["libsize_sum"],
             sources=[str(x) for x in z["sources"]],
         )
+
+    @staticmethod
+    def peek(path: str | Path) -> tuple[list[str], list[str]]:
+        """Read only the labels and genes -- the two cheap members.
+
+        Needed before `load_subset`: deciding which genes and labels to keep is a
+        question about the axis, and on a full-corpus artifact you cannot answer it
+        by loading the thing first. These two members are a few hundred KB against
+        5.65 GB for one matrix.
+        """
+        with zipfile.ZipFile(Path(path).expanduser()) as z:
+            def small(name):
+                with z.open(name) as fh:
+                    return np.load(io.BytesIO(fh.read()), allow_pickle=True)
+            return [str(x) for x in small("labels.npy")], [str(x) for x in small("genes.npy")]
+
+    @classmethod
+    def load_subset(cls, path: str | Path, labels: Sequence[str],
+                    genes: Sequence[str]) -> PseudobulkSums:
+        """Load only these labels and genes, without materialising the whole artifact.
+
+        ``load`` reads every array whole. On a full-corpus X-Atlas cache that is
+        18,294 labels x 38,584 genes x float64 = **5.65 GB per array**, and a tau^2
+        fit wants two of them (``cpm_sum``, ``cpm_sq_sum``) from each of two sources
+        -- 22.6 GB on a 16 GB Mac. This reads each member once, sequentially, and
+        keeps only the requested cells: peak memory is the output plus one row.
+
+        The npz members are DEFLATE'd, so rows cannot be seeked to; the whole member
+        is decompressed and discarded as it goes. That is I/O bound and takes a few
+        seconds per GB, which is still far cheaper than not fitting in memory.
+
+        ``count_sum`` is NOT read -- it is zero-filled. Nothing in the log2FC or
+        variance path touches it (``_log2fc_with_var`` reads ``cpm_sum``,
+        ``cpm_sq_sum``, ``n_cells`` and ``libsize_sum`` only), and reading it would
+        add a third full pass for nothing. A caller that needs count-space profiles
+        wants ``load``.
+        """
+        path = Path(path).expanduser()
+        with zipfile.ZipFile(path) as z:
+            def small(name):
+                with z.open(name) as fh:
+                    return np.load(io.BytesIO(fh.read()), allow_pickle=True)
+            labels_all = [str(x) for x in small("labels.npy")]
+            genes_all = small("genes.npy").astype(str)
+            n_cells_all = small("n_cells.npy")
+            libsize_all = small("libsize_sum.npy")
+
+        gpos = {g: i for i, g in enumerate(genes_all)}
+        missing_g = [g for g in genes if g not in gpos]
+        if missing_g:
+            raise KeyError(f"{path.name}: {len(missing_g)} gene(s) not in this artifact, "
+                           f"first few {missing_g[:5]}")
+        cols = np.array([gpos[g] for g in genes], dtype=np.int64)
+
+        lpos = {lab: i for i, lab in enumerate(labels_all)}
+        missing_l = [x for x in labels if x not in lpos]
+        if missing_l:
+            raise KeyError(f"{path.name}: {len(missing_l)} label(s) not in this artifact, "
+                           f"first few {missing_l[:5]}")
+        rows = np.array([lpos[x] for x in labels], dtype=np.int64)
+
+        cpm_sum = _read_npz_rows(path, "cpm_sum.npy", rows, cols)
+        cpm_sq_sum = _read_npz_rows(path, "cpm_sq_sum.npy", rows, cols)
+        return cls(
+            labels=list(labels), genes=np.asarray(list(genes), dtype=object),
+            count_sum=np.zeros_like(cpm_sum), cpm_sum=cpm_sum, cpm_sq_sum=cpm_sq_sum,
+            n_cells=np.asarray(n_cells_all)[rows],
+            libsize_sum=np.asarray(libsize_all)[rows],
+            sources=["subset"],
+        )
+
+
+def _npy_header(fh) -> tuple[np.dtype, tuple, bool]:
+    """Parse a .npy header off a stream. Returns (dtype, shape, fortran_order)."""
+    if fh.read(6) != b"\x93NUMPY":
+        raise ValueError("not a .npy stream")
+    major = fh.read(1)[0]
+    fh.read(1)                                     # minor, unused
+    width = 2 if major == 1 else 4
+    hlen = int.from_bytes(fh.read(width), "little")
+    meta = ast.literal_eval(fh.read(hlen).decode("latin1"))
+    return np.dtype(meta["descr"]), meta["shape"], meta["fortran_order"]
+
+
+def _read_npz_rows(npz_path: Path, member: str, rows: np.ndarray,
+                   cols: np.ndarray) -> np.ndarray:
+    """Return ``rows x cols`` of one (L, G) npz member, in the order `rows` gives.
+
+    Reads the member start to finish exactly once and discards everything it was
+    not asked for; see `PseudobulkSums.load_subset` for why this exists.
+    """
+    order = np.argsort(rows)
+    want = np.asarray(rows)[order]
+    out = np.empty((len(rows), len(cols)), dtype=np.float64)
+    with zipfile.ZipFile(npz_path) as z, z.open(member) as fh:
+        dt, shape, fortran = _npy_header(fh)
+        if fortran:
+            raise ValueError(f"{member}: fortran-order, this reader assumes C order")
+        if len(shape) != 2:
+            raise ValueError(f"{member}: expected a 2-D member, got shape {shape}")
+        rowbytes = shape[1] * dt.itemsize
+        reader = io.BufferedReader(fh, buffer_size=1 << 22)
+        pos = 0
+        for slot, target_row in enumerate(want):
+            while pos < target_row:
+                if len(reader.read(rowbytes)) != rowbytes:
+                    raise EOFError(f"{member}: short read seeking row {target_row}")
+                pos += 1
+            raw = reader.read(rowbytes)
+            if len(raw) != rowbytes:
+                raise EOFError(f"{member}: short read at row {target_row}")
+            out[order[slot]] = np.frombuffer(raw, dtype=dt)[cols]
+            pos += 1
+    return out
 
 
 def _obs_labels(f: h5py.File, label_col: str) -> np.ndarray:
