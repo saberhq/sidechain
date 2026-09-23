@@ -15,7 +15,11 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from sidechain.data.loaders import load_challenge_config
+from sidechain.data.loaders import (
+    challenge_control_files,
+    challenge_data_dir,
+    load_challenge_config,
+)
 from sidechain.utils.paths import resolve_config
 
 
@@ -86,7 +90,7 @@ def main() -> None:
     args = ap.parse_args()
 
     cfg = load_challenge_config(resolve_config(args.challenge_config))
-    data_dir = Path(cfg["data_dir"]).expanduser()
+    data_dir = challenge_data_dir(cfg)
     pert_col = cfg.get("pert_col", "target_gene")
     control = cfg.get("control_label", "non-targeting")
 
@@ -95,7 +99,7 @@ def main() -> None:
     # 2026-style config: one control file per anonymized context, no training file.
     # Profile each as its own dataset; the cross-context comparison is analysis,
     # not profiling, and lives elsewhere.
-    control_files = cfg.get("control_files") or {}
+    control_files = challenge_control_files(cfg) if cfg.get("control_files") else {}
     files = list(control_files.values()) or [
         f for f in (cfg.get("source_file"), cfg.get("dev_file")) if f
     ]

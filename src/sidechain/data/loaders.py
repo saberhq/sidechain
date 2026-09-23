@@ -190,6 +190,46 @@ def load_challenge_config(path: str | Path) -> dict:
     return yaml.safe_load(Path(path).expanduser().read_text())
 
 
+def challenge_phase(cfg: dict) -> str:
+    """The round the config is pointed at (`phase:`), '' for a config with no rounds (2025)."""
+    return str(cfg.get("phase") or "")
+
+
+def challenge_contexts(cfg: dict) -> list[str]:
+    """The contexts of the active round, in the config's order."""
+    phase = challenge_phase(cfg)
+    if not phase:
+        return []
+    return [str(c) for c in (cfg.get("phases") or {})[phase]["contexts"]]
+
+
+def challenge_data_dir(cfg: dict) -> Path:
+    """Where the active round's bundle sits: the phase block's `dir:` when it has one, else the
+    top-level `data_dir`. Two rounds, two directories -- the final bundle is unzipped beside the
+    validation one, never over it, because every panel-keyed cache was built from the validation
+    `pert_counts.csv` and nothing else records which panel a cache was built against."""
+    phase = challenge_phase(cfg)
+    block = (cfg.get("phases") or {}).get(phase) or {}
+    return Path(block.get("dir") or cfg["data_dir"]).expanduser()
+
+
+def challenge_control_files(cfg: dict) -> dict[str, str]:
+    """context -> control file for the active round. `control_files:` is either one flat map
+    (2025-era configs and the tests) or one map per phase; a round with no entry for one of its
+    contexts is refused here, by name, instead of surfacing as a bare KeyError after the pooling
+    has already run (2026-09-21, T93: `phase: final` alone died with KeyError 'D')."""
+    files = cfg.get("control_files") or {}
+    phase = challenge_phase(cfg)
+    if phase and isinstance(files.get(phase), dict):
+        files = files[phase]
+    contexts = challenge_contexts(cfg)
+    missing = [c for c in contexts if c not in files]
+    if missing:
+        raise KeyError(f"config has no control file for context(s) {', '.join(missing)} of phase "
+                       f"'{phase}' -- fill control_files.{phase} (challenges/<year>/config.yaml)")
+    return {str(k): str(v) for k, v in files.items()} if not contexts else {c: str(files[c]) for c in contexts}
+
+
 def load_challenge_split(
     challenge_config: str | Path | dict,
     split: str = "all",

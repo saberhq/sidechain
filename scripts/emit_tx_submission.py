@@ -90,6 +90,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from diagnose_tx_arm import _allow_numpy_globals, _pick_device, read_var_symbols
 from emit_tx_prediction import emit, to_counts
 
+from sidechain.data.loaders import (
+    challenge_contexts,
+    challenge_control_files,
+    challenge_data_dir,
+)
 from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE
 from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify_h5ad
 from sidechain.utils.naming import CLAIMS_RE, check_out_leaf
@@ -276,7 +281,8 @@ def main(argv: list[str] | None = None) -> int:
               flush=True)
 
     cfg = yaml.safe_load(resolve_config(args.challenge_config).read_text())
-    data_dir = Path(cfg["data_dir"]).expanduser()
+    data_dir = challenge_data_dir(cfg)
+    control_files = challenge_control_files(cfg)
     genes = pd.read_csv(data_dir / cfg["gene_names_file"]).iloc[:, 0].astype(str).tolist()
     if len(genes) != cfg["n_genes"]:
         raise SystemExit(f"gene_names.csv read as {len(genes)} genes; config says "
@@ -284,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     perts = pd.read_csv(data_dir / cfg["pert_counts_file"])[cfg["pert_col"]].astype(str).tolist()
     if args.limit_perts:
         perts = perts[: args.limit_perts]
-    contexts = [str(c) for c in cfg["phases"][cfg["phase"]]["contexts"]]
+    contexts = challenge_contexts(cfg)
     if args.limit_contexts:
         want = [c.strip() for c in args.limit_contexts.split(",")]
         contexts = [c for c in contexts if c in want]
@@ -401,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
     n_clipped = n_values = 0
     with SubmissionWriter(h5ad, contract) as w:
         for ctx in contexts:
-            pool, depths, ctx_genes = load_context_controls(data_dir / cfg["control_files"][ctx])
+            pool, depths, ctx_genes = load_context_controls(data_dir / control_files[ctx])
             if ctx_genes != genes:
                 raise SystemExit(f"context {ctx} var_names differ from {cfg['gene_names_file']}")
             keep = depths > max(args.min_libsize, 0.0)

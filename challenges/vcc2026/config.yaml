@@ -8,27 +8,36 @@
 # challenges/vcc2025/config.yaml) plus whatever configs/datasets.yaml ingests.
 
 year: 2026
-data_dir: "~/data/sidechain/vcc2026"
+data_dir: "~/data/sidechain/vcc2026"     # the validation bundle; each phase block below names its own `dir`
 cell_type: null                          # anonymized on purpose. Never guess; never reorder labels.
 
 # Phases. Only the final phase decides the prizes; the two are scored separately
 # and are not comparable (different lines, different perturbation panels).
+# `phase:` selects the round every reader uses (loaders.challenge_contexts / _data_dir /
+# _control_files): its contexts, its directory, its control files. The final bundle is
+# unzipped into its own `dir`, never over the validation one -- every panel-keyed cache
+# on disk was built from the validation pert_counts.csv, and nothing else records that.
 phase: validation                        # validation | final
 phases:
-  validation: {contexts: [A, B, C], released: 2026-08-20, bundle: vcc_2026_controls.zip}
-  final:      {contexts: [D, E, F], released: 2026-10-22, bundle: null}   # fill on Oct 22
+  validation: {contexts: [A, B, C], released: 2026-08-20, bundle: vcc_2026_controls.zip, dir: "~/data/sidechain/vcc2026"}
+  final:      {contexts: [D, E, F], released: 2026-10-22, bundle: null, dir: "~/data/sidechain/vcc2026/final"}   # bundle: fill on Oct 22
 deadline: 2026-11-05T23:59:00Z
 
 # The controls bundle -- fetched with the vcc CLI, which resumes and crc32c-verifies:
 #   vcc datasets download controls -d ~/data/sidechain/vcc2026
 # Everything sits at the zip root (no vcc_data/ directory).
 
-# (final-phase: before) one flat map, A/B/C only: flipping `phase: final` alone dies with
-# KeyError 'D' in submit/build.py after the pooling has run. Key this per phase; fill D/E/F at hour 0.
+# One map per phase (a flat map still works for a single-round config). The final files are
+# named by Arc's own convention; confirm them against the bundle at hour 0.
 control_files:
-  A: context_A.h5ad
-  B: context_B.h5ad
-  C: context_C.h5ad
+  validation:
+    A: context_A.h5ad
+    B: context_B.h5ad
+    C: context_C.h5ad
+  final:
+    D: context_D.h5ad
+    E: context_E.h5ad
+    F: context_F.h5ad
 gene_names_file: gene_names.csv          # HAS a header row (`gene_name`) -- unlike 2025. 18,533 symbols, submission order.
 pert_counts_file: pert_counts.csv        # one column, 300 gene symbols (no counts column)
 manifest_file: manifest.json             # season, partition, panel id, contexts, cell counts

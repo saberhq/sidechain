@@ -42,6 +42,11 @@ import pandas as pd
 import yaml
 
 from sidechain.data.lfc_table import LfcTable
+from sidechain.data.loaders import (
+    challenge_contexts,
+    challenge_control_files,
+    challenge_data_dir,
+)
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.models.count_emitters import (
     CONTROL_MIN_LIBSIZE,
@@ -734,14 +739,15 @@ def main(argv: list[str] | None = None) -> int:
               "e.g. ser-2n_delta4_even_noshrink_v1", flush=True)
 
     cfg = yaml.safe_load(resolve_config(args.challenge_config).read_text())
-    data_dir = Path(cfg["data_dir"]).expanduser()
+    data_dir = challenge_data_dir(cfg)
+    control_files = challenge_control_files(cfg)          # refuses a context with no file, by name
     genes = pd.read_csv(data_dir / cfg["gene_names_file"]).iloc[:, 0].astype(str).tolist()
     if len(genes) != cfg["n_genes"]:
         raise SystemExit(f"gene_names.csv read as {len(genes)} genes; config says {cfg['n_genes']} -- header handling?")
     perts = pd.read_csv(data_dir / cfg["pert_counts_file"])[cfg["pert_col"]].astype(str).tolist()
     if args.limit_perts:
         perts = perts[: args.limit_perts]
-    contexts = [str(c) for c in cfg["phases"][cfg["phase"]]["contexts"]]
+    contexts = challenge_contexts(cfg)
     sub = cfg["submission"]
     contract = Contract(
         genes=genes, perturbations=perts, contexts=contexts, cells_per_pert=int(sub["cells_per_pert"]),
@@ -882,7 +888,7 @@ def main(argv: list[str] | None = None) -> int:
     dual_fallbacks: dict[str, int] = {}
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
-            prof = ContextProfile.from_controls(data_dir / cfg["control_files"][ctx], ctx, min_libsize=args.min_libsize)
+            prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize)
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
             ctx_shifts, ctx_bulk = ((shifts, bulk_shifts) if per_context_shifts is None
