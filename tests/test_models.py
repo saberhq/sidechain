@@ -226,7 +226,7 @@ def test_control_draws_cover_the_whole_pool():
 
 
 def test_a_perturbation_does_not_draw_from_its_own_batch():
-    """The guardrail itself. SYM1 is entirely batch A and SYM2 entirely batch B,
+    """The guardrail itself. SYM1 is entirely the first batch and SYM2 entirely the second,
     and both must still be emitted from both halves of the pool in proportion.
     A batch-matched draw would push one share to 0 and the other to 1."""
     n_ctrl = 120
@@ -236,7 +236,7 @@ def test_a_perturbation_does_not_draw_from_its_own_batch():
     labels = pred.obs["target_gene"].to_numpy()
     for pert in ("SYM1", "SYM2"):
         share = float(from_batch_a[labels == pert].mean())
-        assert 0.45 < share < 0.55, f"{pert} drew {share:.3f} of its cells from batch A"
+        assert 0.45 < share < 0.55, f"{pert} drew {share:.3f} of its cells from the first batch"
 
 
 # ------------------------------------------------------ numerical moments --

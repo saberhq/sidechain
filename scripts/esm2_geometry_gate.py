@@ -18,7 +18,7 @@ Three modes:
           nearest embedding neighbours (t excluded). Upper bound: the neighbours are measured
           in the same line as the truth.
 
-  cross   The deployment shape. Predict t's response in line B from line A only, three ways:
+  cross   The deployment shape. Predict t's response in the target line from the source line only, three ways:
             SER arm   -- t's OWN response in A (what our backbone already does)
             ESM2 arm  -- t's NEIGHBOURS' responses in A, t never read (true gene generalisation)
             fusion    -- SER + w * ESM2, swept over w
@@ -802,7 +802,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="mode", required=True)
     w = sub.add_parser("within", help="neighbours and truth in the same corpus (upper bound)")
     w.add_argument("corpus")
-    c = sub.add_parser("cross", help="predict corpus B from corpus A (the deployment shape)")
+    c = sub.add_parser("cross", help="predict the target corpus from the source corpus (the deployment shape)")
     c.add_argument("corpus_a")
     c.add_argument("corpus_b")
     c.add_argument("-k", type=int, default=25)
