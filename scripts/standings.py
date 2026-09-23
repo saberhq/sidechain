@@ -52,6 +52,9 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 SITE_JSON = ROOT / "site" / "data" / "submissions.json"
 BEGIN, END = "<!-- standings:begin -->", "<!-- standings:end -->"
+# A record's `partition` (Arc's word: `val` for the validation round, `final` for the final one)
+# names the board it was ranked on. Unknown partitions read the live board and say so in the row.
+BOARD_OF = {"val": "live", "final": "final"}
 
 # Board names predating the ADR 0005 naming scheme, keyed by build stem. Entries are
 # never renamed on the board, so this map only ever grows.
@@ -124,18 +127,23 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
     snapshots = []
     for f in sorted(snaps_dir.glob("lb_*.json")):
         d = json.loads(f.read_text())
-        # (final-phase: before) the live board only. A final entry finds no snapshot that holds
-        # it and takes the validation field's team count: read the board matching the record's
-        # `scores.partition`, and keep the two rounds apart in the table -- they are not comparable.
-        live = d.get("live", {})
-        entries = live.get("entries", [])
-        snapshots.append({
-            "stamp": d.get("fetched_utc", ""),
-            "ranks": {e["id"]: e["rank"] for e in entries},
-            # The page embeds only its top ~50 teams; `total` is the whole field.
-            # Old snapshots that predate the divergence have total == len(entries).
-            "teams": live.get("total") or len(entries),
-        })
+        # One rank index and one field size PER BOARD. A record is looked up on the board of
+        # its own round (`partition`: val -> live, final -> final): the two rounds are scored
+        # on different lines and panels and are not comparable, so a final entry must never
+        # take the validation field's rank or size (T93, Step 0) (final-phase: none).
+        boards = {}
+        for board in ("live", "final", "generalist"):
+            sec = d.get(board) or {}
+            entries = sec.get("entries", [])
+            if not entries and not sec.get("total"):
+                continue
+            boards[board] = {
+                "ranks": {e["id"]: e["rank"] for e in entries},
+                # The page embeds only its top ~50 teams; `total` is the whole field.
+                # Old snapshots that predate the divergence have total == len(entries).
+                "teams": sec.get("total") or len(entries),
+            }
+        snapshots.append({"stamp": d.get("fetched_utc", ""), "boards": boards})
 
     rows = []
     for f in sorted(subs_dir.glob("*.status.json")):
@@ -153,10 +161,13 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
         if s.get("score_avg") is None:
             continue  # failed or unscored submissions stay out of the table
         stem = f.name.split("_", 1)[1].removesuffix(".status.json")
+        partition = str(s.get("partition") or "val")
+        board = BOARD_OF.get(partition, "live")
         rank = teams = None
         for snap in snapshots:
-            if s["entry_id"] in snap["ranks"]:
-                rank, teams = snap["ranks"][s["entry_id"]], snap["teams"]
+            b = snap["boards"].get(board)
+            if b and s["entry_id"] in b["ranks"]:
+                rank, teams = b["ranks"][s["entry_id"]], b["teams"]
                 break
         # The frozen scoring-time rank wins over the record's live `rank`: a re-record
         # (a live `vcc status` fetch, to recover a missing submission_date) sees a board
@@ -172,9 +183,9 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             # later one measures a field the entry never competed in.
             rank = scored_rank
             submitted = _snapshot_stamp(s.get("submission_date") or "")
-            witness = next((sn for sn in snapshots if sn["stamp"] >= submitted), None)
+            witness = next((sn for sn in snapshots if sn["stamp"] >= submitted and board in sn["boards"]), None)
             lag = _lag_days(witness["stamp"], submitted) if witness else None
-            teams = witness["teams"] if lag is not None and lag <= TEAMS_MAX_LAG_DAYS else None
+            teams = witness["boards"][board]["teams"] if lag is not None and lag <= TEAMS_MAX_LAG_DAYS else None
         if not SERIES_RE.search(s.get("model_name") or "") and stem not in ALIASES:
             NAME_WARNINGS.append(
                 f"{f.name}: board name {(s.get('model_name') or '(none)')!r} carries no "
@@ -198,6 +209,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
         rows.append({
             "_submitted": s.get("submission_date") or "",
             "date": (s.get("submission_date") or "")[:10],
+            "partition": partition,
             "name": series_name(s.get("model_name", ""), stem),
             "board_name": s.get("model_name") or stem,
             "overall": round(s["score_avg"], 4),
@@ -225,6 +237,8 @@ def readme_block(rows: list[dict]) -> str:
             cell += f" (`{r['name']}`)"
         if r["class"] == CALIBRATION:
             cell += " · **calibration**"
+        if r["partition"] != "val":          # the rounds are not comparable; the final one says so
+            cell += f" · **{r['partition']}**"
         out.append(f"| {r['date']} | {cell} | {r['overall']:.4f} | {rank_label(r['rank'], r['teams'])} |")
     return "\n".join(out)
 

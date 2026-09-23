@@ -24,12 +24,19 @@ from pathlib import Path
 
 import numpy as np
 
+from sidechain.data.loaders import (
+    challenge_data_dir,
+    challenge_phase,
+    load_challenge_config,
+)
+
 DATA = Path.home() / "data" / "sidechain"
 CACHE = DATA / "cache" / "vcc2026"
-# (final-phase: before) one panel path for both rounds. Once the final bundle lands, say which
-# panel the site's coverage number is against, and keep the validation file where it is.
-PANEL = DATA / "vcc2026" / "pert_counts.csv"
-OUT = Path(__file__).resolve().parents[3] / "site" / "data" / "coverage.json"
+ROOT = Path(__file__).resolve().parents[3]
+# The panel is the active round's (`phase:` in the challenge config): the validation and the
+# final rounds use different 300-gene panels, and the JSON says which one it counted against.
+CONFIG = ROOT / "challenges" / "vcc2026" / "config.yaml"
+OUT = ROOT / "site" / "data" / "coverage.json"
 
 # What each cache is, in public terms: the cell line and the screen scale, no more.
 # `role`: "prior" feeds the model's per-gene effects; "eval" is a local mirror panel
@@ -111,15 +118,23 @@ def measure(panel: set[str]) -> dict:
     }
 
 
+def panel_file(cfg: dict) -> Path:
+    """The active round's `pert_counts.csv`, under that round's own directory."""
+    return challenge_data_dir(cfg) / cfg["pert_counts_file"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="exit 1 if site/data/coverage.json is out of date")
+    ap.add_argument("--challenge-config", type=Path, default=CONFIG)
     args = ap.parse_args()
 
-    panel = set(PANEL.read_text().splitlines()[1:])  # 2026 file has a `target_gene` header
+    cfg = load_challenge_config(args.challenge_config)
+    panel_path = panel_file(cfg)
+    panel = set(panel_path.read_text().splitlines()[1:])  # 2026 file has a `target_gene` header
     if len(panel) != 300:
-        sys.exit(f"panel read {len(panel)} targets, expected 300 — check {PANEL}")
-    payload = measure(panel)
+        sys.exit(f"panel read {len(panel)} targets, expected 300 — check {panel_path}")
+    payload = {"phase": challenge_phase(cfg), **measure(panel)}
 
     if args.check:
         if not OUT.exists():

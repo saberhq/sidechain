@@ -27,8 +27,9 @@ Usage::
     python scripts/board_anchors.py --snapshots <dir> --raw pds=0.7124 --raw mse=6.5236
     python scripts/board_anchors.py --snapshots <dir> --scaled pds=0.470
 
-Re-run it after 2026-10-22: the D/E/F bundle revises the anchor set, and every number this
-prints is conditional on ``vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4``.
+Every number it prints is conditional on one board and one anchor version (printed in the header);
+``--board final`` fits the final round once winners are announced and the final board exists
+(final-phase: board).
 """
 
 from __future__ import annotations
@@ -51,16 +52,29 @@ MEMBERS: dict[str, tuple[str, str]] = {
 }
 
 
-def load_entries(snapshot_dir: Path) -> dict[str, dict]:
-    """Every distinct submission across every snapshot, keyed by its board id."""
+BOARDS = ("live", "final", "generalist")
+
+
+def load_entries(snapshot_dir: Path, board: str = "live") -> dict[str, dict]:
+    """Every distinct submission of ONE board across every snapshot, keyed by its board id.
+
+    The scaling is affine per panel and per anchor revision, so a fit mixes nothing: one board
+    at a time, and within it one `anchorVersion` -- a snapshot that carries two revisions of the
+    same board (Arc re-anchoring mid-round) is refused rather than fitted to a mixture, since the
+    trimmed regression would converge on one of them and print a confident number either way.
+    """
+    if board not in BOARDS:
+        raise SystemExit(f"--board must be one of {', '.join(BOARDS)}, not {board!r}")
     out: dict[str, dict] = {}
     for f in sorted(glob.glob(str(snapshot_dir / "lb_*.json"))):
-        doc = json.load(open(f))
-        # (final-phase: before) three boards pooled into one fit, but the scaling is affine per
-        # panel and anchor revision: after Oct 22 fit one board at a time, or refuse to mix them.
-        for section in ("live", "final", "generalist"):
-            for e in doc.get(section, {}).get("entries", []):
-                out[e["id"]] = e
+        with open(f) as fh:
+            doc = json.load(fh)
+        for e in (doc.get(board) or {}).get("entries", []):
+            out[e["id"]] = e
+    versions = sorted({str(e.get("anchorVersion") or "") for e in out.values()} - {""})
+    if len(versions) > 1:
+        raise SystemExit(f"the {board} board carries {len(versions)} anchor versions ({', '.join(versions)}); "
+                         "fit one at a time -- filter the snapshots, or wait for the re-anchoring to settle")
     return out
 
 
@@ -102,12 +116,17 @@ def main() -> int:
                     help="convert a scaled score back to raw (repeatable)")
     ap.add_argument("--shared", action="store_true",
                     help="also list raw pds values posted byte-identically by more than one team")
+    ap.add_argument("--board", default="live", choices=BOARDS,
+                    help="which board to fit: live (the validation round, the default) or final")
     args = ap.parse_args()
 
-    entries = load_entries(args.snapshots.expanduser())
+    entries = load_entries(args.snapshots.expanduser(), args.board)
     anchors: dict[str, tuple[float, float]] = {}
+    versions = {str(e.get("anchorVersion") or "?") for e in entries.values()}
 
-    print(f"{len(entries)} distinct submissions across {len(glob.glob(str(args.snapshots.expanduser() / 'lb_*.json')))} snapshots\n")
+    print(f"{len(entries)} distinct {args.board}-board submissions across "
+          f"{len(glob.glob(str(args.snapshots.expanduser() / 'lb_*.json')))} snapshots; "
+          f"anchor version {', '.join(sorted(versions)) or '?'}\n")
     print(f"{'member':7s} {'n':>5s} {'zero-anchor b':>14s} {'one-anchor r':>14s} {'direction':>10s} {'max resid':>10s}")
     for name, (rk, sk) in MEMBERS.items():
         fit = fit_anchors(entries, rk, sk)

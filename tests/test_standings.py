@@ -24,12 +24,16 @@ standings = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(standings)
 
 
-def snap(snaps_dir, stamp, ranks, total):
-    (snaps_dir / f"lb_{stamp}.json").write_text(json.dumps({
+def snap(snaps_dir, stamp, ranks, total, final=None, final_total=None):
+    doc = {
         "fetched_utc": stamp,
         "live": {"entries": [{"id": i, "rank": r} for i, r in ranks.items()],
                  "total": total},
-    }))
+    }
+    if final is not None:
+        doc["final"] = {"entries": [{"id": i, "rank": r} for i, r in final.items()],
+                        "total": final_total or len(final)}
+    (snaps_dir / f"lb_{stamp}.json").write_text(json.dumps(doc))
 
 
 def status(subs_dir, date, stem, entry_id, submission_date, score_avg=0.1,
@@ -278,3 +282,39 @@ def test_without_a_frozen_rank_the_records_own_rank_still_stands(tmp_path):
     status(subs, "2026-09-12", "a_v1", "e1", "2026-09-12T01:56:42Z", rank=244)
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"]) == (244, 903)
+
+
+def test_a_final_entry_is_ranked_on_the_final_board_never_the_live_one(tmp_path):
+    """The rounds are not comparable (Arc's FAQ): a final record reads the final board's rank
+    and field size, and a validation record never sees the final board (T93, 2026-09-23)."""
+    subs, snaps = tmp_path / "s", tmp_path / "l"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-09-17", "ser-7_v1", "VAL1", "2026-09-17T19:43:00", partition="val",
+           model_name="Sidechain SER-7")
+    status(subs, "2026-10-24", "ser-8_v1", "FIN1", "2026-10-24T18:00:00", partition="final",
+           model_name="Sidechain SER-8")
+    snap(snaps, "20260917T2003Z", {"VAL1": 314}, 1022)
+    snap(snaps, "20261024T1900Z", {"VAL1": 400, "FIN1": 3}, 1300, final={"FIN1": 41}, final_total=650)
+    rows = {r["name"]: r for r in standings.load_rows(subs, snaps)}
+    assert rows["SER-7"]["rank"] == 314 and rows["SER-7"]["teams"] == 1022 and rows["SER-7"]["partition"] == "val"
+    assert rows["SER-8"]["rank"] == 41 and rows["SER-8"]["teams"] == 650 and rows["SER-8"]["partition"] == "final"
+    block = standings.readme_block(list(rows.values()))
+    assert "· **final**" in block.splitlines()[-1] and "**final**" not in block.splitlines()[-2]
+
+
+def test_a_final_entry_below_the_embed_takes_the_final_boards_field_size(tmp_path):
+    subs, snaps = tmp_path / "s", tmp_path / "l"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-10-24", "ser-8_v1", "FIN1", "2026-10-24T18:00:00", partition="final", rank=120)
+    snap(snaps, "20261024T1900Z", {"X": 1}, 1300, final={"Y": 1}, final_total=650)
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"]) == (120, 650)          # never 1300, the validation field
+
+
+def test_a_record_without_a_partition_is_a_validation_entry(tmp_path):
+    subs, snaps = tmp_path / "s", tmp_path / "l"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-08-21", "r1_v1", "OLD", "2026-08-21T08:31:00")
+    snap(snaps, "20260821T0900Z", {"OLD": 2}, 42, final={"Z": 1}, final_total=5)
+    (row,) = standings.load_rows(subs, snaps)
+    assert (row["rank"], row["teams"], row["partition"]) == (2, 42, "val")
