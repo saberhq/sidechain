@@ -151,9 +151,10 @@ where it is not — a box registered something and was deleted before the Mac pu
 **Not exported:** the bytes themselves (that is step 2), and `external/`, which is not
 in the instance at all — its recovery story is the upstream host plus `PROVENANCE.json`.
 
-**Also worth trying, before hand-rolling any of this:** `lamin io snapshot` builds a
-SQLite clone of the instance and reconnects as the root DB user, so it may succeed where
-`lamin io exportdb` fails. Untested on this instance as of the export date.
+**A second route, tested 2026-09-25:** `lamin io snapshot --no-upload --no-track`, run from a
+scratch directory, reconnects as the root DB user and copies every registry record into a local
+SQLite clone (`./<name>-clone/`), checking each table's count. `lamin io exportdb` does not work
+on this instance (`JWT is not set`).
 """
 
 
@@ -170,8 +171,9 @@ def export_registries(out: Path | None = None) -> dict:
 
     Built by ITERATING each queryset, not via `to_dataframe()`. Two reasons, both measured
     2026-08-28 against this instance: `to_dataframe()` truncates to 20 rows unless you pass
-    `limit=None`, and even then it returned 43 of 55 artifacts -- it drops keyless records
-    (lamindb's own source-code snapshots). An export that silently omits rows is worse than
+    `limit=None`, and even then it returned 43 of 55 artifacts -- it excludes
+    `kind__startswith="__lamindb"` (lamindb's own run records; keyless on our instance, which is
+    why we first read it as a keyless filter). An export that silently omits rows is worse than
     no export, because it looks complete.
     """
     import lamindb as ln

@@ -14,9 +14,10 @@ bytes with meaningless names. `manifest.csv` is what turns them back into the tr
 
 lamindb ships `lamin io exportdb` for this and it **does not work on our instance**: its
 Postgres path uses `COPY … TO STDOUT`, which bypasses the wrapper that injects the
-row-level-security JWT, so it dies with `JWT is not set` (that COPY reproduced by hand on
-2026-08-28; the CLI itself not run). `lamin io snapshot` reconnects as the root DB user and is
-the untried alternative. The ORM path used here works fine. When upstream fixes that, this can
+row-level-security JWT, so it dies with `JWT is not set` (confirmed with the CLI on 2026-09-25).
+`lamin io snapshot --no-upload --no-track` does work: it reconnects as the root DB user and copies
+every record into a local SQLite clone (tested 2026-09-25). This export stays because it refreshes
+itself after every registration. The ORM path used here works fine. When upstream fixes that, this can
 shrink to a call.
 
 CSV on purpose. This is the format that outlives the tools that wrote it.
