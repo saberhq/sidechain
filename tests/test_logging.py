@@ -19,6 +19,8 @@ import sidechain.utils.logging as slog
 @pytest.fixture(autouse=True)
 def _reset_warn_once(monkeypatch):
     monkeypatch.setattr(slog, "_WARNED", False)
+    # No test may reach the real exit catalogue; the refresh tests stub their own.
+    monkeypatch.setattr(slog, "export_registries", lambda: None)
 
 
 @pytest.fixture()
@@ -164,3 +166,54 @@ def test_log_run_refuses_to_register_a_directory(fake_lamindb, tmp_path, monkeyp
     ]
     assert any("refusing to register directory" in str(w.message) for w in caught)
     assert fake_lamindb["finish"] == 1   # the rest of the run still logs
+
+
+def test_a_saved_artifact_refreshes_the_exit_catalogue(fake_lamindb, tmp_path, monkeypatch):
+    """`log_run` uploads run summaries, so it must refresh the exit catalogue the way
+    `lamin_register.py` does; 34 artifacts went missing from it before this (2026-09-25)."""
+    monkeypatch.setenv("SIDECHAIN_DATA_ROOT", str(tmp_path))
+    refreshed = []
+    monkeypatch.setattr(slog, "export_registries", lambda: refreshed.append(1))
+    art = tmp_path / "summary.json"
+    art.write_text("{}")
+    slog.log_run({}, {}, artifacts=[str(art)])
+    assert refreshed == [1]
+
+
+def test_no_upload_means_no_catalogue_refresh(fake_lamindb, monkeypatch):
+    refreshed = []
+    monkeypatch.setattr(slog, "export_registries", lambda: refreshed.append(1))
+    slog.log_run({}, {})
+    assert refreshed == []
+
+
+def test_a_failed_catalogue_refresh_warns_and_never_raises(fake_lamindb, tmp_path, monkeypatch):
+    monkeypatch.setenv("SIDECHAIN_DATA_ROOT", str(tmp_path))
+
+    def _boom():
+        raise RuntimeError("hub unreachable")
+
+    monkeypatch.setattr(slog, "export_registries", _boom)
+    art = tmp_path / "summary.json"
+    art.write_text("{}")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        slog.log_run({}, {}, artifacts=[str(art)])
+    assert fake_lamindb["finish"] == 1
+    assert any("exit catalogue was not refreshed" in str(w.message) for w in caught)
+
+
+def test_a_failed_run_log_does_not_refresh_the_catalogue(monkeypatch, tmp_path):
+    mod = types.ModuleType("lamindb")
+
+    def _boom(params=None):
+        raise RuntimeError("no instance connected")
+
+    mod.track = _boom
+    monkeypatch.setitem(sys.modules, "lamindb", mod)
+    refreshed = []
+    monkeypatch.setattr(slog, "export_registries", lambda: refreshed.append(1))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        slog.log_run({}, {}, artifacts=[str(tmp_path / "x.json")])
+    assert refreshed == []

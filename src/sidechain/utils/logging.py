@@ -15,7 +15,7 @@ import subprocess
 import warnings
 from pathlib import Path
 
-from .lamin import DEFAULT_INSTANCE, artifact_key, instance
+from .lamin import DEFAULT_INSTANCE, artifact_key, export_registries, instance
 
 __all__ = ["DEFAULT_INSTANCE", "code_sha", "log_run"]
 
@@ -76,6 +76,7 @@ def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> 
     its numbers already live in the caller's own summary/report JSON.
     """
     global _WARNED
+    saved = 0
     try:
         import lamindb as ln
 
@@ -98,9 +99,29 @@ def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> 
                               RuntimeWarning, stacklevel=2)
                 continue
             ln.Artifact(str(p), key=_key(p)).save()
+            saved += 1
         ln.finish()
     except Exception as exc:  # noqa: BLE001 - see the module docstring: non-fatal by contract
         if not _WARNED:
             warnings.warn(f"log_run: lamindb logging skipped ({exc!r})", RuntimeWarning,
                           stacklevel=2)
             _WARNED = True
+        return
+    if saved:
+        _refresh_catalogue()
+
+
+def _refresh_catalogue() -> None:
+    """Refresh the exit catalogue after an upload (ADR 0007 §7b), as `lamin_register.py` does.
+
+    The catalogue is the only thing that maps lamindb's uid-named S3 objects back to our
+    paths, so it must never be behind the bucket. Until 2026-09-25 only the register script
+    refreshed it, and 34 artifacts saved here since 2026-09-19 were missing from it. About
+    12 s against our instance. Non-fatal, like the rest of `log_run`: the run already
+    succeeded, and a stale catalogue is fixed by `scripts/lamin_export.py`.
+    """
+    try:
+        export_registries()
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        warnings.warn(f"log_run: run logged, but the exit catalogue was not refreshed ({exc!r}); "
+                      "re-run scripts/lamin_export.py", RuntimeWarning, stacklevel=3)
