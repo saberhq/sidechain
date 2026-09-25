@@ -9,8 +9,9 @@ path under ~/data/sidechain so the instance mirrors the local tree.
 
 Uploads go to the instance's default storage (the Lamin-managed us-west-2
 bucket), which is the whole point: a Brev box later runs
-`scripts/lamin_pull.py` and pulls from S3 in-region instead of the Mac uplink
-shipping the same file for the third time that week. That script is the exact
+`scripts/lamin_pull.py` and pulls from S3 over its datacenter link instead of
+the Mac uplink shipping the same file for the third time that week (not
+in-region: Brev cannot pick a region, and egress is billed the same anywhere). That script is the exact
 reciprocal of this one -- key -> path where this is path -> key -- and both take
 the mapping from `sidechain.utils.lamin`, so the two directions cannot drift.
 
