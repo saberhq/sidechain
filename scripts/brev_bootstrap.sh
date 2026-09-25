@@ -108,6 +108,20 @@ if [ -f "$HOME/.lamin_env" ]; then
   if uv run lamin login </dev/null >/dev/null 2>&1; then
     unset LAMIN_API_KEY
     echo "lamin: logged in as $(uv run python -c 'import lamindb as ln; print(ln.setup.settings.user.handle)' 2>/dev/null)"
+    # Uploads fail on this image unless lamindb's cache root is a real path: the image
+    # symlinks ~/.cache -> /ephemeral/cache, and lamindb checks a resolved file path
+    # against the unresolved cache root, then rolls the finished upload back (brev skill
+    # trap 3g). Point it at the resolved location: same big disk, no symlink.
+    # `cache-dir set` persists into ~/.lamin, so every later `brev exec` inherits it; an
+    # exported LAMIN_CACHE_DIR would not (trap 1). The NEW folder name is deliberate:
+    # `cache-dir set` copies the old cache over and then deletes the old folder, and
+    # $(realpath ~/.cache)/lamindb IS the old folder.
+    lamin_cache="$(realpath "$HOME/.cache")/lamindb-real"
+    if mkdir -p "$lamin_cache" && uv run lamin settings cache-dir set "$lamin_cache" >/dev/null 2>&1; then
+      echo "lamin: cache dir $lamin_cache"
+    else
+      echo "lamin: could not move the cache dir -- uploads will fail; see brev skill trap 3g" >&2
+    fi
   else
     unset LAMIN_API_KEY
     echo "lamin: login FAILED (key rejected or hub unreachable) -- pulls fall back to brev copy" >&2
