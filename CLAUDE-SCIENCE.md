@@ -53,7 +53,7 @@ that records how every result was made, approval-gated remote compute, and biolo
   Science's network allowlist (the proxy returns 403), so board snapshots and `vcc submit` are yours.
 - **`saberhq.com` and the site deploy** — same allowlist result.
 - **Writing to the protocol machinery**: hooks, the STATUS block, `ledger.py`, the checkers,
-  `private/TODO.md`. A Science session files no STATUS block; **the mother session records what it
+  `private/tasks/` (and the `TODO.md` generated from it). A Science session files no STATUS block; **the mother session records what it
   did**, the same way it records a subagent's work. The one thing it can put on the board itself
   is an ask, and it does that without touching the store — § Asks from a Science session. Reading
   the board is a different matter — see § The board.

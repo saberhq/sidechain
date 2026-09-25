@@ -14,7 +14,7 @@ Rules:
   run directory is the interop surface every reader on the Code side uses, the artifact is the
   provenance; artifact-only is reserved for a one-off diagnostic nothing downstream consumes
   (A88, 2026-09-14). **The argument lands as one dated entry appended under the named idea
-  file's `## Outcome`** — append only. Never `RESULTS.md`, `CHANGELOG.md`, `TODO.md`,
+  file's `## Outcome`** — append only. Never `RESULTS.md`, `CHANGELOG.md`, `TODO.md`, `tasks/`,
   `master.md`, code or configs.
 - **Every number carries its control**: a scramble, permuted labels, the context-mean baseline or
   the replicate ceiling — whichever the brief names (kill-criterion tiers: `private/HOWTO-desk.md`

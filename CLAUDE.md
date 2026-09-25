@@ -27,7 +27,7 @@ every session counts, so a new rule earns its lines.
   symlinks into the private repo, so a skill edit is **private**; and private docs drop their own
   prefix. Never collapse a file list (`agents/*.md`) while quoting a count.
 - **Shorthand** used here and in private docs: `reports/NN` = `private/reports/NN_*.md`;
-  `ADR NNNN` = `private/research/decisions/NNNN-*.md`; `T<n>` a task in `private/TODO.md`;
+  `ADR NNNN` = `private/research/decisions/NNNN-*.md`; `T<n>` a task, `private/tasks/T<n>.md`;
   `A<n>` an ask on the board; `[[slug]]` = `private/research/ideas/<slug>.md`.
   `private/research/protocol/` holds `ledger.py`, `status_hook.py` and the `check_*.py` checkers;
   run them as `.venv/bin/python <path>`.
@@ -39,7 +39,7 @@ every session counts, so a new rule earns its lines.
 - **Stage by explicit path.** Never `git add -A`, `.`, `-u` or `commit -a`; in private,
   `git -C private add <paths>`. 2026-08-22: one `add -A` swept 44 files of another session's work
   into a pushed commit. Other sessions' uncommitted work is always in this tree.
-- **Shared files** (`private/TODO.md`, `CHANGELOG.md`, `RESULTS.md`): never `git commit <path>`,
+- **Shared files** (`CHANGELOG.md`, `RESULTS.md`): never `git commit <path>`,
   which commits the working tree with other sessions' hunks. Build the blob from HEAD plus your
   edit and run a bare `git commit` (`/sidechain-commit`, step 2). Never `git stash -u`.
 - If `git status` shows changes you did not make, leave them alone and say so.
@@ -179,7 +179,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
 | **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` beside a code comment — and regenerate (final-phase: none) |
-| "what should I work on", `pick up T<n>` | `private/TODO.md` `## Now` | `private/CLAUDE.md` → The mother session |
+| "what should I work on", `pick up T<n>` | `private/TODO.md` `## p1` (generated), then `private/tasks/T<n>.md` | `private/CLAUDE.md` → The mother session |
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
