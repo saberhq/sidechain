@@ -25,6 +25,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval.transfer_tau2 import (
     Tau2Fit,
@@ -378,3 +379,178 @@ def test_common_axis_from_paths_names_a_bad_control(tmp_path):
     pb.save(p2)
     with pytest.raises(KeyError, match="matches no label"):
         common_axis_from_paths({"a": p1, "b": p2}, {"a": CONTROL, "b": "nope"})
+
+
+# ------------------------------------------------ an LfcTable as a source (2026-09-25)
+# A table-type source (Feng; GWCD4i) publishes the contrast already taken and its own
+# variance, which BYPASSES the Poisson floor in the pool. Fitting one against a
+# pseudobulk is the check it needs before it is pooled, so the module takes both.
+
+def _as_table(pb: PseudobulkSums, targets, *, reverse_genes: bool = False) -> LfcTable:
+    """The same contrast as `pb`, repackaged as a table (optionally columns reversed)."""
+    from sidechain.submit.build import _log2fc_with_var
+    genes = [str(g) for g in pb.genes]
+    fcs, vs = [], []
+    for t in targets:
+        fc, v = _log2fc_with_var(pb, t, CONTROL, var_floor="poisson")
+        fcs.append(fc)
+        vs.append(v)
+    lfc, var = np.vstack(fcs), np.vstack(vs)
+    if reverse_genes:
+        genes, lfc, var = genes[::-1], lfc[:, ::-1], var[:, ::-1]
+    return LfcTable(labels=list(targets), genes=np.asarray(genes), lfc=lfc, var=var,
+                    source="synthetic-table")
+
+
+def test_a_table_carrying_the_same_contrast_gives_the_same_tau2():
+    """Repackaging a contrast must not move the number -- the strongest check there is."""
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=51)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=52)
+    ref = fit_pairs({"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}, [("a", "b")],
+                    genes=GENES, targets=TARGETS)[0]
+    tab = _as_table(a, TARGETS)
+    got = fit_pairs({"a": tab, "b": b}, {"a": None, "b": CONTROL}, [("a", "b")],
+                    genes=GENES, targets=TARGETS)[0]
+    assert got.tau2 == pytest.approx(ref.tau2, rel=1e-9)
+    assert got.axis == ref.axis                     # same axis, so comparable
+    got.assert_comparable(ref)
+
+
+def test_a_table_with_its_columns_in_another_order_is_aligned_not_misread(tmp_path):
+    """Elementwise d2 needs one gene order; a table in a different order must be reordered.
+
+    Were it not, every gene would be compared with a different gene and tau^2 would
+    read enormous -- a silent misjoin, which is the failure this guards.
+    """
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=61)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=62)
+    straight = _as_table(a, TARGETS)
+    reversed_ = _as_table(a, TARGETS, reverse_genes=True)
+    pa, pr, pb_ = tmp_path / "t.npz", tmp_path / "r.npz", tmp_path / "b.npz"
+    straight.save(pa)
+    reversed_.save(pr)
+    b.save(pb_)
+    ctrls = {"t": None, "b": CONTROL}
+    g, t = common_axis_from_paths({"t": pa, "b": pb_}, ctrls)
+    one = fit_pairs(load_for_axis({"t": pa, "b": pb_}, ctrls, g, t), ctrls, [("t", "b")],
+                    genes=g, targets=t)[0]
+    ctrls_r = {"t": None, "b": CONTROL}
+    two = fit_pairs(load_for_axis({"t": pr, "b": pb_}, ctrls_r, g, t), ctrls_r, [("t", "b")],
+                    genes=g, targets=t)[0]
+    assert two.tau2 == pytest.approx(one.tau2, rel=1e-9)
+
+
+def test_a_table_given_a_control_label_is_refused():
+    a = _as_table(_synthetic(GENES, TARGETS, tau=0.1, seed=1), TARGETS)
+    b = _synthetic(GENES, TARGETS, tau=0.1, seed=2)
+    with pytest.raises(ValueError, match="no control arm"):
+        fit_pairs({"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}, [("a", "b")],
+                  genes=GENES, targets=TARGETS)
+
+
+def test_a_pseudobulk_without_a_control_label_is_still_refused():
+    a = _as_table(_synthetic(GENES, TARGETS, tau=0.1, seed=1), TARGETS)
+    b = _synthetic(GENES, TARGETS, tau=0.1, seed=2)
+    with pytest.raises(KeyError, match="no control label"):
+        fit_pairs({"a": a, "b": b}, {"a": None, "b": None}, [("a", "b")],
+                  genes=GENES, targets=TARGETS)
+
+
+def test_a_table_that_abstains_everywhere_on_a_target_drops_that_target():
+    """inf variance is abstention; a fully abstaining target contributes no cells."""
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=71)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=72)
+    tab = _as_table(a, TARGETS)
+    tab.var[0, :] = np.inf
+    f = fit_pairs({"a": tab, "b": b}, {"a": None, "b": CONTROL}, [("a", "b")],
+                  genes=GENES, targets=TARGETS)[0]
+    assert f.n_targets == len(TARGETS) - 1
+
+
+def test_lfc_table_subset_is_order_preserving_and_strict():
+    tab = _as_table(_synthetic(GENES, TARGETS, tau=0.1, seed=1), TARGETS)
+    sub = tab.subset([TARGETS[3], TARGETS[0]], [GENES[5], GENES[2]])
+    assert sub.labels == [TARGETS[3], TARGETS[0]]
+    assert list(sub.genes) == [GENES[5], GENES[2]]
+    assert sub.lfc[0, 1] == tab.lfc[3, 2]
+    with pytest.raises(KeyError):
+        tab.subset(["NOPE"], [GENES[0]])
+
+
+# ------------------------------------------ the bootstrap: fast, and position-stable
+# (2026-09-25) The replicate NLL is a sum of per-target profiles on a tau^2 grid, so no
+# replicate refits. And every pair keeps a SLOT per target, None where it has no cells:
+# skipping instead shifted later positions, so one "shared" draw read different targets
+# in different pairs as soon as a table abstained on a whole target.
+
+def _replicate_by_hand(src_a, ctrl_a, src_b, ctrl_b, targets, counts):
+    """The exact fit on a resampled target set, built the slow, obvious way."""
+    from sidechain.eval.transfer_tau2 import _fit_scalar, _per_target_blocks
+    d2s, vs = _per_target_blocks(src_a, ctrl_a, src_b, ctrl_b, targets, "poisson")
+    d2 = np.concatenate([np.tile(d2s[j], c) for j, c in enumerate(counts)
+                         if c and d2s[j] is not None])
+    v = np.concatenate([np.tile(vs[j], c) for j, c in enumerate(counts)
+                        if c and vs[j] is not None])
+    return _fit_scalar(v, d2, "gauss")
+
+
+def test_one_bootstrap_replicate_equals_an_exact_refit_on_its_targets():
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=81)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=82)
+    (f,) = fit_pairs({"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}, [("a", "b")],
+                     genes=GENES, targets=TARGETS, bootstrap=1, seed=7)
+    counts = np.bincount(np.random.default_rng(7).integers(0, len(TARGETS), len(TARGETS)),
+                         minlength=len(TARGETS))
+    exact = _replicate_by_hand(a, CONTROL, b, CONTROL, TARGETS, counts)
+    assert f.extra["draws"][0] == pytest.approx(exact, rel=0.01)
+
+
+def test_the_draw_stays_aligned_when_a_table_abstains_on_whole_targets():
+    """The regression: a table silent on the first 15 targets must not shift the rest."""
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=91)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=92)
+    tab = _as_table(a, TARGETS)
+    tab.var[:15, :] = np.inf                        # abstains entirely on 15 targets
+    (f,) = fit_pairs({"t": tab, "b": b}, {"t": None, "b": CONTROL}, [("t", "b")],
+                     genes=GENES, targets=TARGETS, bootstrap=1, seed=11)
+    assert f.n_targets == len(TARGETS) - 15
+    counts = np.bincount(np.random.default_rng(11).integers(0, len(TARGETS), len(TARGETS)),
+                         minlength=len(TARGETS))
+    exact = _replicate_by_hand(tab, None, b, CONTROL, TARGETS, counts)
+    assert f.extra["draws"][0] == pytest.approx(exact, rel=0.01)
+
+
+def test_the_grid_argmin_matches_the_exact_fit():
+    from sidechain.eval.transfer_tau2 import (
+        _argmin_refined,
+        _fit_scalar,
+        _per_target_blocks,
+        _present,
+        _profile,
+    )
+    a = _synthetic(GENES, TARGETS, tau=0.15, seed=101)
+    b = _synthetic(GENES, TARGETS, tau=0.15, seed=102)
+    d2s, vs = _per_target_blocks(a, CONTROL, b, CONTROL, TARGETS, "poisson")
+    curve = sum(_profile(d, v, "gauss") for d, v in zip(_present(d2s), _present(vs)))
+    exact = _fit_scalar(np.concatenate(_present(vs)), np.concatenate(_present(d2s)), "gauss")
+    assert _argmin_refined(curve) == pytest.approx(exact, rel=0.005)
+
+
+def test_ratio_ci_pairs_the_draws_and_refuses_unpaired_ones():
+    from sidechain.eval.transfer_tau2 import ratio_ci
+    srcs = {"n1": _synthetic(GENES, TARGETS, tau=0.10, seed=111),
+            "n2": _synthetic(GENES, TARGETS, tau=0.10, seed=112),
+            "far": _synthetic(GENES, TARGETS, tau=0.30, seed=113)}
+    ctrls = {k: CONTROL for k in srcs}
+    fits = {f.pair: f for f in fit_pairs(srcs, ctrls, [("n1", "n2"), ("n1", "far")],
+                                         genes=GENES, targets=TARGETS, bootstrap=40, seed=5)}
+    r = ratio_ci(fits[("n1", "far")], fits[("n1", "n2")])
+    assert r["ci"][0] < r["point"] < r["ci"][1]
+    assert r["p_above_1"] == 1.0                    # the far pair is clearly further
+    (other,) = fit_pairs(srcs, ctrls, [("n1", "n2")], genes=GENES, targets=TARGETS,
+                         bootstrap=40, seed=6)
+    with pytest.raises(ValueError, match="different bootstrap seeds"):
+        ratio_ci(fits[("n1", "far")], other)
+    no_boot = fit_pairs(srcs, ctrls, [("n1", "n2")], genes=GENES, targets=TARGETS)[0]
+    with pytest.raises(ValueError, match="bootstrap draws"):
+        ratio_ci(fits[("n1", "far")], no_boot)

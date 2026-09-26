@@ -110,6 +110,29 @@ class LfcTable:
             return None
         return self.lfc[i], self.var[i]
 
+    def subset(self, labels: list[str], genes) -> LfcTable:
+        """A copy restricted to these labels and genes, IN THE ORDER GIVEN.
+
+        Order is the point: anything that compares this table's rows to another
+        source's elementwise (a tau^2 fit, a calibration) needs both on one gene
+        order. A label or gene this table does not carry is an error, not a silent
+        abstention -- a caller asking for it believes it is there, and the shared-axis
+        helpers guarantee it is.
+        """
+        lpos = {x: i for i, x in enumerate(self.labels)}
+        gpos = {str(g): i for i, g in enumerate(self.genes)}
+        miss_l = [x for x in labels if x not in lpos]
+        miss_g = [str(g) for g in genes if str(g) not in gpos]
+        if miss_l or miss_g:
+            raise KeyError(f"{self.source or 'LfcTable'}: {len(miss_l)} label(s) and "
+                           f"{len(miss_g)} gene(s) not present, first few "
+                           f"{miss_l[:3]} {miss_g[:3]}")
+        r = np.array([lpos[x] for x in labels], dtype=np.int64)
+        c = np.array([gpos[str(g)] for g in genes], dtype=np.int64)
+        return LfcTable(labels=list(labels), genes=np.asarray([str(g) for g in genes]),
+                        lfc=self.lfc[np.ix_(r, c)], var=self.var[np.ix_(r, c)],
+                        source=self.source, context=self.context, notes=dict(self.notes))
+
     def save(self, path: str | Path) -> None:
         np.savez_compressed(
             Path(path).expanduser(),

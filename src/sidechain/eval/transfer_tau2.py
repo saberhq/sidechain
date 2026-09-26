@@ -40,6 +40,16 @@ ONE axis across every source in the comparison, stamps each result with that
 axis's fingerprint, and `Tau2Fit.assert_comparable` refuses two fits that do not
 share it. That is the whole reason this file exists.
 
+EITHER SOURCE TYPE (2026-09-25). A source is a `PseudobulkSums` -- cells we
+accumulated, fold change and variance computed here by the production
+`_log2fc_with_var` -- or an `LfcTable`, which publishes the contrast already
+taken with its own variance (Feng; GWCD4i). Pass `None` as the control for an
+LfcTable: it has no control arm, the contrast was divided out upstream. The
+shared-axis guard is identical for both, and a fit between a table and a
+pseudobulk is exactly the check a new table-type source needs before it is
+pooled -- its variance BYPASSES the Poisson floor, so an over-confident one
+wins every gene it touches (Feng, c = 9-17x, 2026-08-31).
+
 Scale, for calibration (poisson floor, Gaussian fit, shared axis):
     HCT116 <-> HEK293T   ~0.005    two lines that agree well
     K562 <-> either      ~0.011
@@ -53,11 +63,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from sidechain.data.lfc_table import LfcTable
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 
 __all__ = [
     "Tau2Fit", "common_axis", "common_axis_from_paths", "axis_fingerprint",
-    "fit_pair", "fit_pairs", "load_for_axis",
+    "fit_pair", "fit_pairs", "load_for_axis", "ratio_ci",
 ]
 
 NU = 4.0            # t-distribution degrees of freedom, matching the 2026-08-31 fit
@@ -81,6 +92,38 @@ def axis_fingerprint(genes: Sequence[str], targets: Sequence[str]) -> str:
     return h.hexdigest()[:16]
 
 
+def _is_table(src) -> bool:
+    """True for a source that publishes its own contrast (no control arm)."""
+    return isinstance(src, LfcTable)
+
+
+def _check_controls(sources: Mapping[str, object], controls: Mapping[str, str | None]) -> None:
+    """A pseudobulk needs its control label; a table must NOT be given one.
+
+    Both directions are refused rather than tolerated. A pseudobulk without one
+    cannot form a contrast at all. A table given one is a caller who believes it
+    has a control arm -- it does not, the contrast was taken upstream -- and a
+    control label silently ignored is the kind of wrong belief that later picks
+    the wrong artifact.
+    """
+    for name, src in sources.items():
+        ctrl = controls.get(name)
+        if _is_table(src):
+            if ctrl is not None:
+                raise ValueError(f"{name} is an LfcTable, which has no control arm; pass "
+                                 f"None, not {ctrl!r}")
+        elif ctrl is None:
+            raise KeyError(f"no control label given for {name!r}")
+
+
+def _effect(src, ctrl: str | None, target: str, var_floor: str):
+    """(log2 fold change, variance) for one target, from either source type."""
+    if _is_table(src):
+        return src.effect(target)
+    from sidechain.submit.build import _log2fc_with_var
+    return _log2fc_with_var(src, target, ctrl, var_floor=var_floor)
+
+
 def common_axis(sources: Mapping[str, PseudobulkSums],
                 controls: Mapping[str, str]) -> tuple[list[str], list[str]]:
     """Genes and targets shared by EVERY source given.
@@ -90,21 +133,20 @@ def common_axis(sources: Mapping[str, PseudobulkSums],
     """
     if len(sources) < 2:
         raise ValueError("need at least two sources to share an axis")
-    missing = [k for k in sources if k not in controls]
-    if missing:
-        raise KeyError(f"no control label given for {missing}")
+    _check_controls(sources, controls)
 
     genes: set[str] | None = None
     labels: set[str] | None = None
     for name, pb in sources.items():
         g = {str(x) for x in pb.genes}
         lab = {str(x) for x in pb.labels}
-        if controls[name] not in lab:
-            raise KeyError(f"{name}: control label {controls[name]!r} matches no label "
+        ctrl = controls.get(name)
+        if ctrl is not None and ctrl not in lab:
+            raise KeyError(f"{name}: control label {ctrl!r} matches no label "
                            f"(have e.g. {sorted(lab)[:3]})")
         genes = g if genes is None else (genes & g)
         labels = lab if labels is None else (labels & lab)
-    targets = sorted(labels - set(controls.values()))
+    targets = sorted(labels - {c for c in controls.values() if c is not None})
     if not genes or not targets:
         raise ValueError(f"empty shared axis: {len(genes or ())} genes, {len(targets)} targets")
     return sorted(genes), targets
@@ -123,26 +165,53 @@ def common_axis_from_paths(paths: Mapping[str, "str | Path"],
     genes: set[str] | None = None
     labels: set[str] | None = None
     for name, path in paths.items():
-        if name not in controls:
+        table = _path_is_table(path)
+        ctrl = controls.get(name)
+        if table and ctrl is not None:
+            raise ValueError(f"{name} is an LfcTable, which has no control arm; pass None")
+        if not table and ctrl is None:
             raise KeyError(f"no control label given for {name!r}")
-        lab_l, gene_l = _PB.peek(path)
+        lab_l, gene_l = _PB.peek(path)       # both formats store labels/genes members
         lab, gene = set(lab_l), set(gene_l)
-        if controls[name] not in lab:
-            raise KeyError(f"{name}: control label {controls[name]!r} matches no label")
+        if ctrl is not None and ctrl not in lab:
+            raise KeyError(f"{name}: control label {ctrl!r} matches no label")
         genes = gene if genes is None else (genes & gene)
         labels = lab if labels is None else (labels & lab)
-    targets = sorted(labels - set(controls.values()))
+    targets = sorted(labels - {c for c in controls.values() if c is not None})
     if not genes or not targets:
         raise ValueError(f"empty shared axis: {len(genes or ())} genes, {len(targets)} targets")
     return sorted(genes), targets
 
 
-def load_for_axis(paths: Mapping[str, "str | Path"], controls: Mapping[str, str],
-                  genes: Sequence[str], targets: Sequence[str]
-                  ) -> dict[str, PseudobulkSums]:
-    """Load every source restricted to one shared axis, control arm included."""
-    return {name: PseudobulkSums.load_subset(path, [controls[name]] + list(targets), genes)
-            for name, path in paths.items()}
+def _path_is_table(path) -> bool:
+    """An LfcTable npz carries `lfc`/`var`; a PseudobulkSums npz carries `cpm_sum`."""
+    import zipfile
+    from pathlib import Path as _P
+    with zipfile.ZipFile(_P(path).expanduser()) as z:
+        names = set(z.namelist())
+    if "lfc.npy" in names and "var.npy" in names:
+        return True
+    if "cpm_sum.npy" in names:
+        return False
+    raise ValueError(f"{path}: neither an LfcTable nor a PseudobulkSums npz "
+                     f"(members {sorted(names)[:6]})")
+
+
+def load_for_axis(paths: Mapping[str, "str | Path"], controls: Mapping[str, str | None],
+                  genes: Sequence[str], targets: Sequence[str]) -> dict:
+    """Load every source restricted to one shared axis.
+
+    A pseudobulk comes back with its control arm prepended (it needs it to form a
+    contrast); a table comes back with just the targets, columns in `genes` order.
+    """
+    out = {}
+    for name, path in paths.items():
+        if _path_is_table(path):
+            out[name] = LfcTable.load(path).subset(list(targets), genes)
+        else:
+            out[name] = PseudobulkSums.load_subset(
+                path, [controls[name]] + list(targets), genes)
+    return out
 
 
 # ---------------------------------------------------------------------- the fit
@@ -229,34 +298,86 @@ def _fit_scalar(v: np.ndarray, d2: np.ndarray, family: str,
     return float(10 ** ((a + b) / 2.0))
 
 
-def _per_target_blocks(pb_a: PseudobulkSums, ctrl_a: str,
-                       pb_b: PseudobulkSums, ctrl_b: str,
+def _per_target_blocks(pb_a, ctrl_a: str | None, pb_b, ctrl_b: str | None,
                        targets: Sequence[str], var_floor: str
-                       ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+                       ) -> tuple[list[np.ndarray | None], list[np.ndarray | None]]:
     """(d2, v) per target, kept blocked so a bootstrap can resample whole targets.
 
     Uses the production estimator, imported not reimplemented, so a tau^2 is on the
     same ruler as the pooling weights it describes.
     """
-    from sidechain.submit.build import _log2fc_with_var
-
-    d2s, vs = [], []
+    # ONE SLOT PER TARGET, None where the pair has nothing to say about it. Skipping
+    # instead of holding a None shifts every later index, so a bootstrap that draws
+    # target POSITIONS would read a different target in each pair -- and the shared-index
+    # guarantee `fit_pairs` promises would break silently the first time a table-type
+    # source abstained on a whole target (GWCD4i's knockdown gate does exactly that).
+    d2s: list[np.ndarray | None] = []
+    vs: list[np.ndarray | None] = []
     for t in targets:
-        fa, va = _log2fc_with_var(pb_a, t, ctrl_a, var_floor=var_floor)
-        fb, vb = _log2fc_with_var(pb_b, t, ctrl_b, var_floor=var_floor)
+        ea = _effect(pb_a, ctrl_a, t, var_floor)
+        eb = _effect(pb_b, ctrl_b, t, var_floor)
+        if ea is None or eb is None:      # a table that does not carry this target
+            d2s.append(None)
+            vs.append(None)
+            continue
+        fa, va = ea
+        fb, vb = eb
         d2 = (fa - fb) ** 2
         v = va + vb
         ok = np.isfinite(d2) & np.isfinite(v) & (v > 0)
-        if not ok.any():
-            continue                      # an arm that abstained on every gene
+        if not ok.any():                  # an arm that abstained on every gene
+            d2s.append(None)
+            vs.append(None)
+            continue
         d2s.append(np.ascontiguousarray(d2[ok]))
         vs.append(np.ascontiguousarray(v[ok]))
-    if not d2s:
+    if all(x is None for x in d2s):
         raise ValueError("no finite (target, gene) cells; check the control labels")
     return d2s, vs
 
 
-def fit_pair(pb_a: PseudobulkSums, ctrl_a: str, pb_b: PseudobulkSums, ctrl_b: str,
+def _present(blocks: list[np.ndarray | None]) -> list[np.ndarray]:
+    return [b for b in blocks if b is not None]
+
+
+# The grid the bootstrap evaluates each target's likelihood on. 801 points over the
+# same [1e-6, 1e2] range the exact fit searches, ~2.3 % apart, refined by a parabola
+# in log(tau^2) -- far finer than any bootstrap interval this produces.
+TAU2_GRID = np.logspace(-6.0, 2.0, 801)
+
+
+def _profile(d2: np.ndarray, v: np.ndarray, family: str) -> np.ndarray:
+    """One target's summed per-cell NLL at every grid tau^2, shape (K,).
+
+    Summing these over a resampled set of targets IS that replicate's NLL curve, so a
+    bootstrap needs no refit: precompute once per target, then each replicate is a sum
+    and an argmin. That is what turns a 40-minute bootstrap into seconds.
+    """
+    s = v[None, :] + TAU2_GRID[:, None]                   # (K, n)
+    if family == "gauss":
+        return (np.log(s) + d2[None, :] / s).sum(axis=1)
+    sp = s * (NU - 2.0) / NU
+    return (np.log(sp) + (NU + 1.0) * np.log1p(d2[None, :] / (NU * sp))).sum(axis=1)
+
+
+def _argmin_refined(curve: np.ndarray) -> float:
+    """Grid argmin, refined by a parabola through the three points around it."""
+    k = int(np.argmin(curve))
+    if 0 < k < curve.size - 1:
+        x = np.log(TAU2_GRID[k - 1:k + 2])
+        y = curve[k - 1:k + 2]
+        den = (x[0] - x[1]) * (x[0] - x[2]) * (x[1] - x[2])
+        a = (x[2] * (y[1] - y[0]) + x[1] * (y[0] - y[2]) + x[0] * (y[2] - y[1])) / den
+        b = (x[2] ** 2 * (y[0] - y[1]) + x[1] ** 2 * (y[2] - y[0])
+             + x[0] ** 2 * (y[1] - y[2])) / den
+        if a > 0:
+            xv = -b / (2 * a)
+            if x[0] <= xv <= x[2]:
+                return float(np.exp(xv))
+    return float(TAU2_GRID[k])
+
+
+def fit_pair(pb_a, ctrl_a: str | None, pb_b, ctrl_b: str | None,
              *, genes: Sequence[str], targets: Sequence[str], name_a: str = "a",
              name_b: str = "b", var_floor: str = "poisson", family: str = "gauss",
              ) -> Tau2Fit:
@@ -276,11 +397,11 @@ def fit_pair(pb_a: PseudobulkSums, ctrl_a: str, pb_b: PseudobulkSums, ctrl_b: st
             raise ValueError(f"{nm}: gene axis does not match the one requested; "
                              "restrict it with PseudobulkSums.load_subset first")
     d2s, vs = _per_target_blocks(pb_a, ctrl_a, pb_b, ctrl_b, targets, var_floor)
-    d2 = np.concatenate(d2s)
-    v = np.concatenate(vs)
+    d2 = np.concatenate(_present(d2s))
+    v = np.concatenate(_present(vs))
     return Tau2Fit(
         pair=(name_a, name_b), tau2=_fit_scalar(v, d2, family), family=family,
-        n_targets=len(d2s), n_genes=len(genes), n_cells=int(d2.size),
+        n_targets=len(_present(d2s)), n_genes=len(genes), n_cells=int(d2.size),
         axis=axis_fingerprint(genes, targets), var_floor=var_floor,
         median_var_sum=float(np.median(v)),
     )
@@ -311,6 +432,7 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
     genes, targets = list(genes), list(targets)
     axis = axis_fingerprint(genes, targets)
 
+    _check_controls(sources, controls)
     for a, b in pairs:
         for nm in (a, b):
             if nm not in sources:
@@ -319,35 +441,66 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
             raise ValueError(f"pair ({a}, {b}) is a line against itself; tau^2 is 0 by "
                              "construction and the fit is meaningless")
 
-    blocks = {(a, b): _per_target_blocks(sources[a], controls[a], sources[b],
-                                         controls[b], targets, var_floor)
+    blocks = {(a, b): _per_target_blocks(sources[a], controls.get(a), sources[b],
+                                         controls.get(b), targets, var_floor)
               for a, b in pairs}
 
     out: list[Tau2Fit] = []
     draws: dict[tuple[str, str], list[float]] = {k: [] for k in blocks}
     if bootstrap:
+        # Per target, its NLL curve over the tau^2 grid (zeros where the pair has no
+        # cells for it, so a resampled absent target contributes nothing).
+        profiles = {}
+        for key, (d2s, vs) in blocks.items():
+            prof = np.zeros((len(targets), TAU2_GRID.size))
+            for j, (d2, v) in enumerate(zip(d2s, vs)):
+                if d2 is not None:
+                    prof[j] = _profile(d2, v, family)
+            profiles[key] = prof
         rng = np.random.default_rng(seed)
         n = len(targets)
         for _ in range(int(bootstrap)):
-            idx = rng.integers(0, n, n)              # ONE index set, every pair
-            for key, (d2s, vs) in blocks.items():
-                k = [j for j in idx if j < len(d2s)]
-                draws[key].append(_fit_scalar(np.concatenate([vs[j] for j in k]),
-                                              np.concatenate([d2s[j] for j in k]),
-                                              family))
+            # ONE draw of target POSITIONS, shared by every pair -- positions are stable
+            # because every pair holds a slot per target (see _per_target_blocks).
+            counts = np.bincount(rng.integers(0, n, n), minlength=n)
+            for key, prof in profiles.items():
+                draws[key].append(_argmin_refined(counts @ prof))
 
     for (a, b), (d2s, vs) in blocks.items():
-        d2 = np.concatenate(d2s)
-        v = np.concatenate(vs)
+        d2 = np.concatenate(_present(d2s))
+        v = np.concatenate(_present(vs))
         ci = None
+        extra: dict = {}
         if bootstrap:
             ci = (float(np.percentile(draws[(a, b)], 2.5)),
                   float(np.percentile(draws[(a, b)], 97.5)))
+            extra = {"bootstrap": int(bootstrap), "seed": int(seed),
+                     "draws": [float(x) for x in draws[(a, b)]]}
         out.append(Tau2Fit(
             pair=(a, b), tau2=_fit_scalar(v, d2, family), family=family,
-            n_targets=len(d2s), n_genes=len(genes), n_cells=int(d2.size),
+            n_targets=len(_present(d2s)), n_genes=len(genes), n_cells=int(d2.size),
             axis=axis, var_floor=var_floor, ci95=ci,
-            median_var_sum=float(np.median(v)),
-            extra={"bootstrap": int(bootstrap)} if bootstrap else {},
+            median_var_sum=float(np.median(v)), extra=extra,
         ))
     return out
+
+
+def ratio_ci(num: Tau2Fit, den: Tau2Fit, *, level: float = 0.95) -> dict:
+    """Interval on ``num.tau2 / den.tau2`` from their SHARED bootstrap draws.
+
+    Only valid for two fits from one `fit_pairs` call with `bootstrap` on: the same
+    seed and the same target positions per replicate, which is what makes the ratio's
+    interval narrower than the two intervals would suggest -- the noise the pairs share
+    cancels. Refused otherwise, rather than dividing two independent draw sets.
+    """
+    num.assert_comparable(den)
+    a, b = num.extra.get("draws"), den.extra.get("draws")
+    if not a or not b or len(a) != len(b):
+        raise ValueError("both fits need bootstrap draws of equal length from one fit_pairs call")
+    if num.extra.get("seed") != den.extra.get("seed"):
+        raise ValueError("draws come from different bootstrap seeds; not paired")
+    r = np.asarray(a) / np.asarray(b)
+    lo, hi = (1 - level) / 2 * 100, (1 + level) / 2 * 100
+    return {"point": float(num.tau2 / den.tau2),
+            "ci": (float(np.percentile(r, lo)), float(np.percentile(r, hi))),
+            "p_above_1": float(np.mean(r > 1.0)), "n": int(r.size)}
