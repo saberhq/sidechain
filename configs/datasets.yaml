@@ -960,3 +960,82 @@ datasets:
       - name: scbasecount/2026-01-12/metadata/Gene/Homo_sapiens/sample_metadata.parquet
         kind: sample_metadata
         spec: {role: reference}
+
+  # ==========================================================================
+  # GWCD4i -- the FIRST s3-hosted dataset, and the second table-type source.
+  #
+  # Zhu, Dann ... Pritchard, Marson (bioRxiv 10.64898/2025.12.23.696273; Cell
+  # 10.1016/j.cell.2026.08.002): genome-scale CRISPRi (ZIM3 dCas9-KRAB) in
+  # primary human CD4+ T cells, 4 donors x 3 culture conditions (Rest, Stim8hr,
+  # Stim48hr), 12,748 targeted genes. The publisher ships its DE results as one
+  # AnnData: a row per (target, condition), a column per measured gene, layers
+  # log_fc / lfcSE / p_value / adj_p_value / baseMean / zscore.
+  #
+  # WHY IT IS A TABLE, NOT EXPRESSION. The contrast is already taken upstream,
+  # so there is no control arm here and declaring one would be fiction -- the
+  # same reason Feng's blocks are kind: lfc_table. What GWCD4i has that Feng did
+  # NOT is a real standard error (`lfcSE`), so the pool's weight is 1/lfcSE^2
+  # with no p-value inversion, which is the step whose saturation the Feng
+  # blocks above have to guard against.
+  #
+  # WHY STREAM. The file is 16.79 GB and never lands. Its layers are contiguous
+  # and UNCOMPRESSED, so the rows we want are plain HTTP range reads: every
+  # covered target in every local fold plus the challenge panel is ~615
+  # targets. `sidechain.data.stream_de_h5ad` writes the aggregate. budget_gb
+  # bounds that OUTPUT (ADR 0003 / the header above), not the 16.79 GB read.
+  #
+  # THE HOST CANNOT STATE TERMS. probe_s3 returns license: unknown for every
+  # bucket (an S3 listing carries keys, sizes and ETags, nothing else), so this
+  # block passes the gate only through license_override_source. The terms are
+  # stated -- MIT, on the publisher's own dataset card -- so this is an
+  # override, not UNSTATED.
+  #
+  # NO VERSION TO PIN. A bucket has no record version or DOI. The guard against
+  # upstream drift is the per-file size and ETag in PROVENANCE.json, which a
+  # later run diffs. The DE file's ETag is MULTIPART (...-2002), so it is
+  # recorded under `s3-etag:` and is NOT an md5.
+  #
+  # Coverage, measured 2026-09-25 from the publisher's obs table, exact symbol
+  # match: 291 of the 300 challenge targets (Rest 283, all three conditions
+  # 276); 267 of 272 on every challenge-shaped fold; readout 10,113 of the
+  # 18,533 challenge genes. 37.6 % of all rows have ontarget_significant ==
+  # False -- the knockdown did not take -- which is why the default view
+  # ABSTAINS on those rows rather than letting them vote toward zero.
+  # research/ideas/gwcd4i-as-a-pool-source.md (private); task T86.
+  # ==========================================================================
+  - name: gwcd4i_de
+    enabled: true
+    host: s3
+    record: "genome-scale-tcell-perturb-seq/marson2025_data/"
+    license: MIT
+    license_override_source: >
+      The CZI Virtual Cells Platform dataset card,
+      https://virtualcellmodels.cziscience.com/dataset/genome-scale-tcell-perturb-seq,
+      states License "MIT License" linking opensource.org/licenses/MIT, and names
+      no registration, embargo or click-through (verified 2026-09-15 and again
+      2026-09-21, private research/reading/zhu-2025-gwcd4i.md). It is the
+      publisher's own page for exactly this bucket. The S3 listing itself can
+      state no terms.
+    route: stream               # the 16.79 GB file never lands
+    budget_gb: 2.0              # OUTPUT ceiling: ~615 targets x 3 conditions x 10,282 genes x 3 float32 layers, plus views
+    dest: external/s3-genome-scale-tcell-perturb-seq-marson2025_data   # PROVENANCE.json only
+    derived: derived/gwcd4i                                            # aggregates + .lineage.json
+    notes: >
+      Genome-scale CRISPRi Perturb-seq in primary human CD4+ T cells, 4 donors,
+      3 culture conditions, 10x Flex. Read with sidechain.data.stream_de_h5ad:
+      `pull` range-reads the kept rows into a per-condition cache, `table`
+      builds an LfcTable view (conditions, error correlation rho, quality gate)
+      for --lfc-source. Which view is honest is measured, not assumed.
+    files:
+      # ONE context, the three conditions a per-row sub-axis within it. The
+      # combine policy (which conditions, and the correlation of their errors)
+      # is a parameter of the reader, not of this block: the rows are the same
+      # whichever is chosen, and the choice is measured against held-out truth.
+      - name: GWCD4i.DE_stats.h5ad
+        kind: lfc_table
+        spec: {context: cd4_tcell, context_col: null,
+               target_col: target_contrast_gene_name, condition_col: culture_condition,
+               gene_id_col: gene_ids, gene_symbol_col: gene_name,
+               effect_col: log_fc, se_col: lfcSE,
+               pvalue_col: adj_p_value, pvalue_adjusted: true,
+               modality: crispri, role: train}
