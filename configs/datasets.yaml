@@ -10,19 +10,25 @@
 #   host / record       where it comes from, pinned. Zenodo record ids pin a
 #                       VERSION; the concept DOI resolves to "latest" and would
 #                       change under us, so we never fetch by concept DOI.
-#                       Five hosts are probeable: zenodo, figshare, huggingface,
-#                       lamin and s3 (a plain public bucket; record is
-#                       `<bucket>` or `<bucket>/<prefix>`). TWO OF THEM CANNOT
-#                       STATE TERMS -- lamin has no licence field at all, and an
-#                       S3 listing carries only keys, sizes and ETags -- so both
-#                       reach the gate as `license: unknown` and pass ONLY
-#                       through license_override_source. That is the intended
-#                       friction, not a gap. An S3 record also has no version to
-#                       pin: the guard against upstream drift is the per-file
-#                       size and ETag in PROVENANCE.json, which a later run
-#                       diffs. Note an S3 ETag on any large object is MULTIPART
-#                       and is NOT an md5 -- it is recorded under `s3-etag:` as
-#                       evidence of identity, never as something to verify.
+#                       Six hosts are probeable: zenodo, figshare, huggingface,
+#                       lamin, s3 (a plain public bucket; record is
+#                       `<bucket>` or `<bucket>/<prefix>`) and https (a plain
+#                       web server; record is the directory URL and the block's
+#                       `files` list IS the listing, each name HEAD-probed --
+#                       first used for TargetScan, a prior, from
+#                       data_sources.yaml). THREE OF THEM CANNOT STATE TERMS --
+#                       lamin has no licence field at all, an S3 listing carries
+#                       only keys, sizes and ETags, a header states nothing --
+#                       so they reach the gate as `license: unknown` and pass
+#                       ONLY through license_override_source. That is the
+#                       intended friction, not a gap. S3 and https records also
+#                       have no version to pin: the guard against upstream drift
+#                       is the per-file size plus ETag or Last-Modified stamp in
+#                       PROVENANCE.json, which a later run diffs. Neither is a
+#                       digest: an S3 ETag on any large object is MULTIPART and
+#                       is NOT an md5 (recorded under `s3-etag:`), and a web
+#                       server publishes no checksum at all (`http-last-modified:`,
+#                       admitted only with `allow_missing_checksum: true`).
 #   budget_gb           the ceiling this dataset is allowed to occupy. The gate
 #                       refuses a selection that exceeds it, so a fetch can
 #                       never decide for itself how much disk it takes.
@@ -1021,6 +1027,12 @@ datasets:
     # per-condition cache plus four views at 0.05-0.08 GB each. 1.0 leaves room for about
     # seven more views (the scrambled controls a scored arm needs) before it trips.
     budget_gb: 1.0
+    # The bucket publishes a MULTIPART ETag for this file (`...-2002`), which is not a
+    # digest: recorded under `s3-etag:` as evidence, never verifiable. Since 2026-09-26 the
+    # gate counts such a file as unchecksummed (it always was; it used to pass silently),
+    # so the admission has to be written here, where it is visible. The per-file size and
+    # ETag in PROVENANCE.json remain the drift guard a later probe diffs.
+    allow_missing_checksum: true
     dest: external/s3-genome-scale-tcell-perturb-seq-marson2025_data   # PROVENANCE.json only
     derived: derived/gwcd4i                                            # aggregates + .lineage.json
     notes: >

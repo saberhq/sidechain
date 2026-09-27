@@ -136,8 +136,41 @@ sources:
     url: "https://www.targetscan.org"
     directed: true
     edge_attr: [context_pp_score, conservation]
-    enabled: false               # alternate/complement to miRBind2
-    notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2."
+    enabled: false               # alternate/complement to miRBind2; the EDGE form is unbuilt
+    notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2. Fetched 2026-09-25 (T102) for its per-gene 3'UTR regulatory load -- MiRNATargetSource.utr_load_table -- which is a node feature read from the parquet under `derived`, not the edge list this block declares."
+    # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
+    # exactly as a corpus block in datasets.yaml is. TargetScan is a lab web
+    # server: no record API, no listing, no checksums, no licence header. So the
+    # file list below IS the listing (each name is HEAD-probed for its size and
+    # Last-Modified date), the checksum absence is admitted in writing, and the
+    # terms come from the FAQ quoted under license_override_source.
+    host: https
+    record: "https://www.targetscan.org/vert_80/vert_80_data_download"
+    dest: external/targetscan-vert_80
+    derived: derived/targetscan-vert_80      # utr_load.parquet + LINEAGE.json (ours)
+    budget_gb: 0.02                          # 11.6 MB selected; a 40 % tripwire above it
+    allow_missing_checksum: true             # the host publishes none; sha256 of what landed is in LINEAGE.json
+    license: Free-for-research-with-citation
+    license_override_source: >
+      A web server states no terms in a header. TargetScan's Release 8 FAQ
+      (targetscan.org/faqs.Release_8.html, "Are there copyright concerns?",
+      read 2026-09-25) says: "You're free to use TargetScan data or code for
+      your research and display TargetScan output in your presentations or
+      papers, as long as you cite at least one TargetScan reference" -- the
+      citation being McGeary et al. 2019 (Science) for Release 8. Recorded in
+      LICENSE_POLICY as Free-for-research-with-citation (ingest/provenance.py).
+    files:
+      # Representative transcript per gene (Species ID 9606 rows), the transcript
+      # every other file's sites are counted on. 0.62 MB.
+      - name: Gene_info.txt.zip
+      # Per (transcript, miRNA family): conserved and nonconserved site counts by
+      # type, cumulative weighted context++ score, aggregate PCT. The default
+      # predictions = conserved sites of conserved families. 10.4 MB.
+      - name: Summary_Counts.default_predictions.txt.zip
+      # hg19 3'UTR exon coordinates of the representative transcripts, GFF with
+      # score = exon width, so a transcript's 3'UTR length is the sum of its
+      # rows. 0.58 MB -- the 795 MB UTR_Sequences file is not needed for length.
+      - name: TSHuman_7_hg19_3UTRs.gff.zip
 
   - name: postar3
     kind: edge

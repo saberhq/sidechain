@@ -23,6 +23,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import shutil
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -51,6 +52,18 @@ LICENSE_POLICY: dict[str, str] = {
     "cc0-1.0": "CC0-1.0",
     "mit": "MIT",
     "apache-2.0": "Apache-2.0",
+    # Not SPDX: a publisher's own stated terms, read on the publisher's page and
+    # accepted deliberately (the gate's message for a stated-but-unlisted licence
+    # says to do exactly this). TargetScan is the case: no LICENSE file, no SPDX
+    # tag, and its Release 8 FAQ answers "Are there copyright concerns?" with
+    # "You're free to use TargetScan data or code for your research and display
+    # TargetScan output in your presentations or papers, as long as you cite at
+    # least one TargetScan reference" (targetscan.org/faqs.Release_8.html, read
+    # 2026-09-25). A plain https host cannot state terms in a header, so a block
+    # reaches this value only through `license_override_source`, which is where
+    # that quote and date are recorded. It is a citation obligation, not a
+    # commercial or redistribution restriction, so neither flag below applies.
+    "free-for-research-with-citation": "Free-for-research-with-citation",
 }
 
 # The accepted set, derived from the policy above so the two cannot drift.
@@ -114,6 +127,19 @@ DOWNLOAD = "download"
 STREAM = "stream"
 ROUTES = (DOWNLOAD, STREAM)
 
+# Checksum-slot prefixes that are identity EVIDENCE, not digests: `probe_s3` records a
+# multipart ETag under the first, `probe_https` a Last-Modified stamp under the second.
+# The gate counts a file carrying one as UNCHECKSUMMED (it is), so such a block passes only
+# with `allow_missing_checksum`; `fetch.verify` reports them and moves on. The first
+# version of the https probe filled the slot and the gate read that as a checksum, so a
+# block without the written exception was admitted (critic pass, 2026-09-26).
+EVIDENCE_PREFIXES = ("s3-etag", "http-last-modified")
+
+
+def is_digest(checksum: str | None) -> bool:
+    """True when the checksum slot holds something `fetch.verify` can recompute."""
+    return bool(checksum) and checksum.partition(":")[0] not in EVIDENCE_PREFIXES
+
 
 class GateError(RuntimeError):
     """A fetch was refused. The message says which rule and what to do."""
@@ -135,7 +161,7 @@ class RemoteFile:
 class HostRecord:
     """What the host says it has. Verbatim, before any of it is fetched."""
 
-    host: str            # "zenodo" | "figshare" | "huggingface" | "lamin" | "s3"
+    host: str            # "zenodo" | "figshare" | "huggingface" | "lamin" | "s3" | "https"
     record_id: str
     api_url: str
     title: str
@@ -616,6 +642,79 @@ def probe_s3(record_id: str) -> HostRecord:
     )
 
 
+def probe_https(base_url: str, names: list[str] | None = None) -> HostRecord:
+    """A plain HTTPS directory -> HostRecord. `base_url` is the directory, `names` the files.
+
+    The sixth host, added for TargetScan (T102): a lab web server with no record
+    API, no listing and no checksums -- just files under one URL. Two things
+    follow from that, and both are recorded rather than papered over:
+
+    **The block's file list IS the listing.** Every other probe asks the host what
+    it has; this one cannot, so `run_gate` hands it the names the block declares
+    and each is probed with a HEAD request (no data bytes move). A name the
+    server does not have is a refusal here, not a 404 mid-download. The HEAD
+    answers with `Content-Length`, which drives the budget exactly as a record
+    API's size field does, and `Last-Modified`, which is the only identity the
+    host offers.
+
+    **No checksum exists, and the Last-Modified date is NOT one.** It is recorded
+    in the checksum slot under `http-last-modified:` -- the same shape `probe_s3`
+    uses for a multipart ETag: evidence that the bytes are the ones we saw, never
+    something `fetch --check` could hash a file into. `diff_against_recorded`
+    compares it on a later run, so a file the publisher replaces in place is
+    caught as a change, which is the drift guard a versionless host needs. A
+    block on this host passes the gate only with `allow_missing_checksum: true`,
+    and the fetch records the sha256 of what actually landed in the LINEAGE.json
+    of whatever is derived from it.
+
+    **Licence is always "unknown", by construction.** A header cannot state
+    terms, so a block reaches the gate only through `license_override_source`,
+    with the terms verified on the publisher's own page and quoted there.
+    """
+    base = base_url.rstrip("/")
+    if not base.startswith("https://"):
+        raise GateError(f"https record {base_url!r} must be an https:// URL")
+    if not names:
+        raise GateError(f"https:{base}: a plain web server cannot list its files, so the "
+                        "block must name them (`files:`); nothing to probe")
+    files: list[RemoteFile] = []
+    for name in names:
+        if any(ch in name for ch in "*?["):
+            raise GateError(f"https:{base}: {name!r} is a glob, and a web server cannot "
+                            "expand one -- name each file")
+        url = f"{base}/{urllib.parse.quote(name)}"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method="HEAD")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                headers = resp.headers
+                status = resp.status
+        except urllib.error.HTTPError as exc:
+            raise GateError(f"https:{base}: HEAD {name} returned {exc.code}; the file is not "
+                            "there under that name") from exc
+        length = headers.get("Content-Length")
+        if status != 200 or length is None:
+            raise GateError(f"https:{base}: HEAD {name} gave status {status} and "
+                            f"Content-Length {length!r}; without a size the budget cannot "
+                            "be checked before the bytes move")
+        modified = headers.get("Last-Modified")
+        files.append(RemoteFile(
+            name=name,
+            size_bytes=int(length),
+            checksum=f"http-last-modified:{modified.strip()}" if modified else None,
+            url=url,
+        ))
+    return HostRecord(
+        host="https",
+        record_id=base,
+        api_url=base,
+        title=base,
+        license="unknown",                     # by construction; see the docstring
+        retrieved=datetime.now(UTC).date().isoformat(),
+        version=None,
+        files=tuple(files),
+    )
+
+
 def gate(
     record: HostRecord,
     *,
@@ -735,7 +834,7 @@ def gate(
             "selection; do not let a fetch decide how much disk it takes."
         )
 
-    unchecksummed = [f.name for f in files if not f.checksum]
+    unchecksummed = [f.name for f in files if not is_digest(f.checksum)]
     if unchecksummed and not allow_missing_checksum:
         raise GateError(
             f"no checksum published for: {', '.join(unchecksummed)}. Pass "

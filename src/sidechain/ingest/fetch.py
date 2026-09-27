@@ -29,12 +29,14 @@ import yaml
 
 from sidechain.ingest.provenance import (
     DOWNLOAD,
+    EVIDENCE_PREFIXES,
     STREAM,
     UNSTATED,
     GateError,
     diff_against_recorded,
     gate,
     probe_figshare,
+    probe_https,
     probe_huggingface,
     probe_lamin,
     probe_s3,
@@ -53,6 +55,7 @@ PROBES = {
     "figshare": probe_figshare,
     "lamin": probe_lamin,
     "s3": probe_s3,
+    "https": probe_https,
 }
 
 
@@ -107,8 +110,15 @@ def block_route(block: dict) -> str:
     return str(block.get("route", DOWNLOAD))
 
 
-def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
+def run_gate(block: dict, root: Path, *, refresh: bool = False,
+             config: str | Path = DEFAULT_CONFIG) -> tuple:
     """probe -> gate -> record provenance. Returns (record, selected, dest).
+
+    `config` names the registry the block came from, for PROVENANCE.json's notes. It
+    defaults to the corpus registry because that is where every block lived until a
+    PRIOR first came through this gate (TargetScan, T102, from `data_sources.yaml`):
+    a prior source's `fetch()` hands its own block here rather than re-implementing
+    the probe -> gate -> record order, and the note should say which file to open.
 
     PROVENANCE.json is written ONCE, on the first fetch, and thereafter only
     compared against. That is the point of it: it is evidence of what we
@@ -124,10 +134,14 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
     if host not in PROBES:
         raise GateError(f"no probe for host {host!r}; known: {', '.join(sorted(PROBES))}")
 
-    record = PROBES[host](block["record"])
     route = block_route(block)
     wanted = [f["name"] for f in block["files"]]
     dest = root / block["dest"]
+    # A plain web server cannot list itself, so the block's file list is the
+    # listing and the probe HEADs each name (probe_https). Every other host is
+    # asked what it has and the selection is checked against that answer.
+    record = (PROBES[host](block["record"], names=wanted) if host == "https"
+              else PROBES[host](block["record"]))
 
     # A stream MUST say where its aggregate goes. Without `derived:` the free-
     # space check would silently measure the wrong tree and the output would
@@ -165,9 +179,15 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
         )
     license_override = (block["license"], str(override_source)) if override_source else None
 
+    # A host that publishes no checksum at all (https) is admitted only when the
+    # block says so in writing; the gate records the exception in PROVENANCE.json
+    # so it stays visible, and the fetch that follows records the sha256 of what
+    # landed in the derived artifact's LINEAGE.json instead.
+    allow_missing = bool(block.get("allow_missing_checksum", False))
     selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,
                     dest=dest, route=route, space_dest=space_dest,
-                    license_override=license_override)
+                    license_override=license_override,
+                    allow_missing_checksum=allow_missing)
 
     declared = block.get("license")
     if license_override:
@@ -182,8 +202,10 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False) -> tuple:
             "agreed -- resolve before fetching."
         )
 
-    notes = {"dataset": block["name"], "config": str(DEFAULT_CONFIG),
+    notes = {"dataset": block["name"], "config": str(config),
              "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
+    if allow_missing:
+        notes["allow_missing_checksum"] = True
     if license_override:
         notes["license_override"] = {
             "host_stated": "unknown",
@@ -233,7 +255,17 @@ def verify(selected, dest: Path) -> int:
         if not f.checksum:
             print(f"  no-sum   {f.name} (host published none)")
             continue
-        algo, _, want = f.checksum.rpartition(":")
+        # The FIRST colon: a Last-Modified stamp carries colons of its own, and
+        # rpartition would read "http-last-modified:Sat, 22 Mar 2025 22:56" as the algo.
+        algo, _, want = f.checksum.partition(":")
+        if algo in EVIDENCE_PREFIXES:
+            # Evidence of identity the host offered -- a multipart ETag, a Last-Modified
+            # stamp -- recorded so a later probe can diff it; not a digest of the bytes,
+            # so there is nothing to recompute. Size was already compared above. Only
+            # these two named prefixes pass: an algorithm hashlib cannot compute is still
+            # a refusal below, because "verify it by hand" beats silently skipping it.
+            print(f"  no-sum   {f.name} (host offers {algo} evidence, not a digest)")
+            continue
         got = digest(path, algo or "md5")
         print(f"  {'ok      ' if got == want else 'MISMATCH'} {f.name}")
         bad += got != want
