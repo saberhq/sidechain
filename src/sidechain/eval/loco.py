@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import anndata as ad
 import numpy as np
@@ -44,8 +45,11 @@ from sidechain.eval.mirror2026 import attach_controls, score
 from sidechain.models.basal_slope import MODES as BASAL_MODES, fit_basal_slopes, target_basal
 from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE, ContextProfile, PoissonEmitter
 from sidechain.submit.build import (
+    add_neighbour_args,
     apply_transfer_floors,
     as_delta_source,
+    check_neighbour_args,
+    neighbour_arm_for,
     parse_coverage_tiers,
     parse_transfer_floor,
     pooled_delta,
@@ -77,6 +81,10 @@ def build_transfer_prediction(
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = CONTROL_MIN_LIBSIZE,
+    neighbour_table: Path | None = None,
+    neighbour_pool: Path | None = None,
+    neighbour_k: int = 25,
+    neighbour_w: float = 0.0,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -132,6 +140,23 @@ def build_transfer_prediction(
         basal_stats["modifier_mean_abs"] = float(np.abs(basal_mod).mean())
         basal_stats["modifier_nonzero_frac"] = float((basal_mod != 0).mean())
         del fit
+    # T103: the neighbour arm. Its pool is pooled with every knob the targets get, so the pool's
+    # residuals and SER's live in one space; off (w = 0) builds nothing and touches nothing.
+    arm, arm_record = None, None
+    if neighbour_w:
+        if gamma != 1.0 or basal_slope != "off":
+            raise SystemExit("the neighbour arm is wired for gamma = 1 and basal_slope off only, "
+                             "as in sidechain.submit.build")
+
+        def delta_of(label):
+            return pooled_delta(label, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
+                                log_bias_correct=log_bias_correct, gamma=gamma,
+                                ctrl_tgt_cpm=ctrl_cpm, coverage_tiers=coverage_tiers,
+                                similarity_beta=similarity_beta)
+
+        arm, arm_record = neighbour_arm_for(
+            SimpleNamespace(neighbour_table=neighbour_table, neighbour_pool=neighbour_pool,
+                            neighbour_k=neighbour_k, neighbour_w=neighbour_w), delta_of, axis)
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
                          log_bias_correct=log_bias_correct,
@@ -140,6 +165,8 @@ def build_transfer_prediction(
                          similarity_beta=similarity_beta, stats=pool_stats)
         if d is not None:
             covered += 1
+            if arm is not None:
+                d = arm.fuse(p, d)
             if basal_mod is not None:
                 d = d + basal_mod[perts.index(p)]
             d0 = d
@@ -194,6 +221,7 @@ def build_transfer_prediction(
                                float(getattr(s[0] if isinstance(s, tuple) else s,
                                              "transfer_floor", 0.0) or 0.0)
                                for i, s in enumerate(sources)},
+            "neighbour": None if arm is None else {**arm_record, **arm.summary()},
             "pool_stats": pool_stats}
 
 
@@ -273,10 +301,15 @@ def main(argv: list[str] | None = None) -> int:
                          "reproduce one bit-for-bit.")
     ap.add_argument("--log-bias-correct", action="store_true",
                     help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
+    add_neighbour_args(ap, twin="sidechain.submit.build")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
+    check_neighbour_args(ap, args)
+    if args.neighbour_w and args.basal_slope != "off":
+        ap.error("--neighbour-w with --basal-slope is not wired (sidechain.submit.build has no "
+                 "basal slope to pair it with)")
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
     if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
@@ -314,7 +347,11 @@ def main(argv: list[str] | None = None) -> int:
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
                                      min_libsize=args.min_libsize,
-                                     log_bias_correct=args.log_bias_correct)
+                                     log_bias_correct=args.log_bias_correct,
+                                     neighbour_table=args.neighbour_table,
+                                     neighbour_pool=args.neighbour_pool,
+                                     neighbour_k=args.neighbour_k,
+                                     neighbour_w=args.neighbour_w)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -339,6 +376,9 @@ def main(argv: list[str] | None = None) -> int:
          "similarity_beta": args.similarity_beta,
          "basal_slope": args.basal_slope,
          "coverage_tiers": args.coverage_tiers,
+         "neighbour_table": None if args.neighbour_table is None else str(args.neighbour_table),
+         "neighbour_pool": None if args.neighbour_pool is None else str(args.neighbour_pool),
+         "neighbour_k": args.neighbour_k, "neighbour_w": args.neighbour_w,
          "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
         artifacts=[str(out / "summary.json")],

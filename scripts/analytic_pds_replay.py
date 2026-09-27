@@ -119,6 +119,10 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
         return out | {"status": "skipped", "why": "gamma != 1 needs ctrl_tgt_cpm"}
     if _num(b, "similarity_beta", 0.0) != 0.0:
         return out | {"status": "skipped", "why": "similarity_beta != 0 needs control profiles"}
+    if b.get("neighbour"):
+        # T103: the arm fuses each pooled delta with its gene-table neighbours'; a replay of
+        # the plain pooled delta would report the arm's own effect as a replay error.
+        return out | {"status": "skipped", "why": "neighbour arm (knob k) not threaded"}
     if b.get("shrinkage") is None:
         # Same falsy-default class as the gamma bug: `bool(None)` is False while
         # `pooled_delta` defaults to shrinkage=True, so an absent field would silently

@@ -27,6 +27,10 @@ contrast already taken instead of cells (Feng 2026), built by
 variance from an adjusted p-value rather than from CPM spread, and abstains (zero weight) on
 genes whose p-value has saturated.
 
+`--neighbour-table`, `--neighbour-pool`, `--neighbour-k` and `--neighbour-w` fuse each target's
+pooled delta with the mean delta of its k nearest neighbours in a gene table (T103; the geometry
+gate's `cross`-mode fusion, `sidechain.models.neighbour_arm`). Off unless `--neighbour-w` > 0.
+
 `--limit-perts N` builds a small panel (first N perturbations) and writes a matching
 pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout locally.
 """
@@ -34,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from pathlib import Path
 
@@ -633,12 +638,121 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     return out
 
 
+def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
+    """The four neighbour-arm flags (T103), shared by `submit.build` and `eval.loco`."""
+    ap.add_argument("--neighbour-table", type=Path, default=None, metavar="PT",
+                    help="symbol-keyed gene table (.pt, {symbol: vector}) whose cosine "
+                         "neighbourhoods pick each target's neighbours, e.g. Tahoe-x1 3B's "
+                         "gene-encoder table (sidechain.models.neighbour_arm). Needs "
+                         f"--neighbour-w > 0 and --neighbour-pool. Same knob in {twin}.")
+    ap.add_argument("--neighbour-pool", type=Path, default=None, metavar="CSV",
+                    help="the targets neighbours are drawn from (column target_gene, else the "
+                         "first). Declared, never inferred from what the sources cover, so a box "
+                         "build on the full X-Atlas files and a Mac build on label subsets are "
+                         "one model. Members no source covers or the table lacks are dropped and "
+                         "counted.")
+    ap.add_argument("--neighbour-k", type=int, default=25, metavar="K",
+                    help="neighbours per target (default 25, the geometry gate's header k)")
+    ap.add_argument("--neighbour-w", type=float, default=0.0, metavar="W",
+                    help="weight of the unit neighbour arm against SER's unit residual: "
+                         "out = m + |r| unit(unit(r) + w unit(n)), the geometry gate's cross-mode "
+                         "fusion term for term, so w is read off the gate's paired sweep, never "
+                         "fitted on the board. 0 = off and bit-identical (nothing is loaded).")
+
+
+def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
+    """Refuse a half-set neighbour arm before any work, in both entry points."""
+    w, table, pool = args.neighbour_w, args.neighbour_table, args.neighbour_pool
+    if not math.isfinite(w) or w < 0:
+        ap.error(f"--neighbour-w must be finite and >= 0, got {w}: a negative weight steers AWAY "
+                 "from the neighbours, which no gate measured, and inf or nan fuse every target "
+                 "into NaN")
+    if w == 0:
+        if table is not None or pool is not None:
+            ap.error("--neighbour-table/--neighbour-pool without --neighbour-w > 0 do nothing; "
+                     "w = 0 is the knob off -- give a weight or drop them")
+        return
+    if table is None or pool is None:
+        ap.error("--neighbour-w > 0 needs both --neighbour-table and --neighbour-pool")
+    for flag, path in (("--neighbour-table", table), ("--neighbour-pool", pool)):
+        if not Path(path).expanduser().exists():
+            ap.error(f"{flag}: no such file {path}")
+    if args.neighbour_k < 1:
+        ap.error(f"--neighbour-k must be >= 1, got {args.neighbour_k}")
+    if args.gamma != 1.0:
+        ap.error("--neighbour-w with --gamma != 1 is not wired: gamma makes the shifts "
+                 "context-specific, and the pool's residuals would have to be re-pooled per "
+                 "context")
+
+
+def neighbour_arm_for(args, delta_of, axis: np.ndarray):
+    """Build the arm from parsed flags; returns ``(arm, record)`` for the run's sidecar."""
+    import hashlib
+
+    from sidechain.models.neighbour_arm import build_neighbour_arm, load_gene_table, read_pool
+
+    def sha256(path: Path) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 24), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    table_path = Path(args.neighbour_table).expanduser()
+    pool_path = Path(args.neighbour_pool).expanduser()
+    arm = build_neighbour_arm(read_pool(pool_path), delta_of, axis, load_gene_table(table_path),
+                              k=args.neighbour_k, w=args.neighbour_w)
+    record = {"table": str(table_path), "table_sha256": sha256(table_path),
+              "pool_file": str(pool_path), "pool_sha256": sha256(pool_path)}
+    return arm, record
+
+
+def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis: np.ndarray,
+                    cov_tiers, record_path: Path) -> dict:
+    """Replace each covered target's pooled delta with its neighbour-fused one, in place.
+
+    The pool is pooled exactly as the targets were (same sources, shrinkage, floor, tiers);
+    a pool member that is also a predicted target reuses its delta rather than re-pooling it.
+    A target no source covers keeps the generic fallback shift unfused: the port fuses SER's
+    residual, and a fallback target has none (final-phase: knobs) -- on a panel where the
+    fallback count is not zero, a neighbour-only prediction for those targets is the build
+    this arm makes possible, and it is not written yet.
+    """
+    t0 = time.time()
+    done = set(covered)
+
+    def delta_of(label):
+        if label in done:
+            return shifts[label]
+        return pooled_delta(label, sources, axis, shrinkage=not args.no_shrink,
+                            log_bias_correct=args.log_bias_correct, var_floor=args.var_floor,
+                            coverage_tiers=cov_tiers)
+
+    arm, record = neighbour_arm_for(args, delta_of, axis)
+    for p in covered:
+        shifts[p] = arm.fuse(p, shifts[p])
+    record.update(arm.summary())
+    record["targets_unfused_fallback"] = len(shifts) - len(covered)
+    record_path.write_text(json.dumps(record, indent=1) + "\n")
+    print(f"neighbour arm: {record.get('targets_fused', 0)} of {len(covered)} targets fused "
+          f"(k={arm.k}, w={arm.w:g}, pool {record['pool_used']} of {record['pool_requested']}, "
+          f"mean SER-vs-neighbour cosine {record.get('arm_cosine_mean', float('nan')):+.4f}) "
+          f"in {time.time() - t0:.0f}s", flush=True)
+    return record
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--challenge-config", default="challenges/vcc2026/config.yaml")
     ap.add_argument("--emitter", choices=["control-null", "h1-mean-shift", "delta-transfer"], required=True)
     ap.add_argument("--h1-cache")
     ap.add_argument("--gwps-cache")
+    ap.add_argument("--gwps-control", default="control", metavar="LABEL",
+                    help="the control label inside --gwps-cache (default 'control', the "
+                         "panel-streamed cache's spelling). k562_gwps_union_pseudobulk.npz spells "
+                         "it 'non-targeting'; its rows for the 272 panel targets pool bit-identically "
+                         "to the panel cache's, and it carries 821 of the neighbour pool's 849 "
+                         "(T103), as eval.loco's folds do")
     ap.add_argument("--source", action="append", default=[], metavar="NPZ:CONTROL",
                     help="additional pseudobulk source for delta-transfer, as .npz:control_label "
                          "(repeatable) -- the syntax sidechain.eval.loco uses, so a mirror-scored "
@@ -693,6 +807,7 @@ def main(argv: list[str] | None = None) -> int:
                          "cannot claim more certainty than its measured error against a "
                          "held-out line supports. Fitted, never tuned. Same knob in "
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
+    add_neighbour_args(ap, twin="sidechain.eval.loco")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -712,6 +827,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
+    check_neighbour_args(ap, args)
+    if args.neighbour_w and args.emitter != "delta-transfer":
+        ap.error("--neighbour-w fuses pooled per-target deltas, so it only applies to "
+                 "delta-transfer")
     if args.gamma != 1.0 and args.emitter != "delta-transfer":
         ap.error("--gamma transforms pooled per-target deltas, so it only applies to "
                  "delta-transfer")
@@ -791,7 +910,7 @@ def main(argv: list[str] | None = None) -> int:
         # K562-gwps once with no --keep, then narrow it per panel (scripts/subset_pseudobulk_labels.py).
         gwps = PseudobulkSums.load(args.gwps_cache)
         gwps.sidechain_name = Path(args.gwps_cache).expanduser().stem
-        sources = [(gwps, "control"), (h1, cfg["control_label"])]
+        sources = [(gwps, args.gwps_control), (h1, cfg["control_label"])]
         sources += sources_from_specs(args.source, args.shrink_source)
         # Appended, not special-cased: `pooled_delta` normalises both forms, so a
         # source with no cells behind it enters the pool exactly like one that has
@@ -802,6 +921,7 @@ def main(argv: list[str] | None = None) -> int:
             sources.append(tab)
         sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
         if args.gamma == 1.0:
+            covered = []
             for p in perts:
                 d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
                                  log_bias_correct=args.log_bias_correct,
@@ -811,6 +931,10 @@ def main(argv: list[str] | None = None) -> int:
                     fallback += 1          # keep the generic shift
                 else:
                     shifts[p] = d
+                    covered.append(p)
+            if args.neighbour_w:
+                fuse_neighbours(args, shifts, covered, sources, axis, cov_tiers,
+                                out.with_suffix(".neighbour.json"))
     gene_pos = {g: i for i, g in enumerate(genes)}
 
     def finalize(shift_map):
