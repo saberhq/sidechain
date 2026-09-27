@@ -200,16 +200,16 @@ def test_rho_one_matches_its_closed_form():
 
 def test_a_failed_knockdown_row_abstains_under_the_knockdown_gate():
     de = _de([[5.0], [1.0]], [[0.1], [0.1]], kd=[False, True])
-    tab = combine(de, gate="knockdown")
+    tab = combine(de, rho=0.0, gate="knockdown")
     assert tab.lfc[0, 0] == pytest.approx(1.0, rel=1e-6)   # only the good row votes
     assert tab.var[0, 0] == pytest.approx(0.01, rel=1e-5)
-    both = combine(de, gate="none")                         # and without the gate, both do
+    both = combine(de, rho=0.0, gate="none")                # and without the gate, both do
     assert both.lfc[0, 0] == pytest.approx(3.0, rel=1e-6)
 
 
 def test_no_usable_row_means_abstain_not_zero():
     de = _de([[5.0], [4.0]], [[0.1], [0.1]], kd=[False, False])
-    tab = combine(de, gate="knockdown")
+    tab = combine(de, rho=0.0, gate="knockdown")
     assert np.isinf(tab.var[0, 0])                          # weight 0 in the pool
     assert tab.lfc[0, 0] == 0.0
     assert tab.notes["targets_abstaining_entirely"] == 1
@@ -247,3 +247,102 @@ def test_every_gate_names_real_flags():
     for name, checks in GATES.items():
         for col, _ in checks:
             assert col in known, f"gate {name!r} names unknown flag {col!r}"
+
+
+
+# --------------------------------------------- hardening after review (2026-09-26)
+
+def test_combining_several_conditions_without_rho_is_refused():
+    """rho = 0 is the over-confident assumption here; nobody inherits it by accident."""
+    de = _de([[1.0], [2.0]], [[0.1], [0.1]])
+    with pytest.raises(ValueError, match="explicit rho"):
+        combine(de)
+    combine(de, conditions=["c0"])                  # one condition needs no rho
+
+
+def test_string_flags_are_mapped_or_refused_never_all_true():
+    from sidechain.data.stream_de_h5ad import _as_bool
+    np.testing.assert_array_equal(_as_bool(np.array(["True", "False"], dtype=object), "f"),
+                                  [True, False])
+    with pytest.raises(ValueError, match="not boolean"):
+        _as_bool(np.array(["yes", "no"], dtype=object), "f")
+    with pytest.raises(ValueError, match="not boolean"):
+        _as_bool(np.array([0.0, 1.0]), "f")
+
+
+def test_a_missing_gene_name_in_a_var_categorical_is_refused(tmp_path):
+    from sidechain.data.stream_de_h5ad import _obs_col_var
+    path = tmp_path / "v.h5"
+    with h5py.File(path, "w") as h:
+        g = h.create_group("var").create_group("gene_name")
+        g.create_dataset("categories", data=np.array(["G0", "G1"], dtype=object),
+                         dtype=h5py.string_dtype())
+        g.create_dataset("codes", data=np.array([0, -1, 1], dtype=np.int8))
+    with h5py.File(path, "r") as h, pytest.raises(ValueError, match="missing value"):
+        _obs_col_var(h, "gene_name")
+
+
+def test_the_registry_block_describes_what_the_reader_reads():
+    """One source of truth: the gwcd4i_de block's spec must supply every reader column."""
+    import yaml
+
+    from sidechain.data.stream_de_h5ad import reader_kwargs
+    from sidechain.utils.paths import resolve_config
+    cfg = yaml.safe_load(resolve_config("configs/datasets.yaml").read_text())
+    block = next(b for b in cfg["datasets"] if b["name"] == "gwcd4i_de")
+    spec = next(f for f in block["files"] if f["kind"] == "lfc_table")["spec"]
+    kw = reader_kwargs(spec)
+    assert kw == {"target_col": "target_contrast_gene_name", "condition_col": "culture_condition",
+                  "gene_col": "gene_name", "effect_layer": "log_fc", "se_layer": "lfcSE",
+                  "padj_layer": "adj_p_value"}
+
+
+def test_a_spec_missing_a_column_is_refused_not_defaulted():
+    from sidechain.data.stream_de_h5ad import reader_kwargs
+    with pytest.raises(KeyError, match="se_col"):
+        reader_kwargs({"target_col": "t", "condition_col": "c", "gene_symbol_col": "g",
+                       "effect_col": "e", "pvalue_col": "p"})
+
+
+def _registry(tmp_path, *, with_provenance=True, size=1000, etag="abc-2"):
+    import json
+
+    import yaml
+    cfg = {"datasets": [{"name": "toy", "host": "s3", "record": "b/p/", "license": "MIT",
+                         "dest": "external/s3-b-p", "derived": "derived/toy",
+                         "files": [{"name": "de.h5ad", "kind": "lfc_table", "spec": {
+                             "target_col": "t", "condition_col": "c", "gene_symbol_col": "g",
+                             "effect_col": "e", "se_col": "s", "pvalue_col": "p"}}]}]}
+    cfg_path = tmp_path / "datasets.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg))
+    if with_provenance:
+        d = tmp_path / "external/s3-b-p"
+        d.mkdir(parents=True)
+        (d / "PROVENANCE.json").write_text(json.dumps({"selected": [{
+            "name": "de.h5ad", "size_bytes": size, "checksum": f"s3-etag:{etag}",
+            "url": "https://b.s3.amazonaws.com/p/de.h5ad"}]}))
+    return cfg_path
+
+
+def test_a_pull_without_the_gate_having_run_is_refused(tmp_path):
+    from sidechain.data.stream_de_h5ad import resolve_pull
+    cfg = _registry(tmp_path, with_provenance=False)
+    with pytest.raises(SystemExit, match="no PROVENANCE.json"):
+        resolve_pull("toy", str(cfg), tmp_path, head=lambda u: {"size_bytes": 1000, "etag": "abc-2"})
+
+
+def test_a_file_that_changed_upstream_since_the_gate_is_refused(tmp_path):
+    from sidechain.data.stream_de_h5ad import resolve_pull
+    cfg = _registry(tmp_path)
+    with pytest.raises(SystemExit, match="changed upstream"):
+        resolve_pull("toy", str(cfg), tmp_path, head=lambda u: {"size_bytes": 1001, "etag": "abc-2"})
+    with pytest.raises(SystemExit, match="changed upstream"):
+        resolve_pull("toy", str(cfg), tmp_path, head=lambda u: {"size_bytes": 1000, "etag": "zzz-9"})
+
+
+def test_an_unchanged_file_resolves_to_the_url_the_gate_admitted(tmp_path):
+    from sidechain.data.stream_de_h5ad import resolve_pull
+    cfg = _registry(tmp_path)
+    r = resolve_pull("toy", str(cfg), tmp_path, head=lambda u: {"size_bytes": 1000, "etag": "abc-2"})
+    assert r["selected"]["url"] == "https://b.s3.amazonaws.com/p/de.h5ad"
+    assert r["reader_kwargs"]["se_layer"] == "s"

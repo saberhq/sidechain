@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -133,6 +134,32 @@ class LfcTable:
                         lfc=self.lfc[np.ix_(r, c)], var=self.var[np.ix_(r, c)],
                         source=self.source, context=self.context, notes=dict(self.notes))
 
+    def scrambled(self, seed: int) -> LfcTable:
+        """The same table with its targets' profiles shuffled among the targets that vote.
+
+        The control every weight-bearing change to the pool now ships with: `c`, `t` and
+        `beta` each moved the score and each lost to its own scramble, because anything
+        that redistributes weight buys `reach` whatever it encodes. A new source has to
+        beat this copy of itself, not just the pool without it.
+
+        The shuffle is among targets with at least one finite variance, so every target
+        that voted still votes and every one that abstained still abstains, with the
+        same weights and coverage -- only which gene's response goes with which target is
+        broken. A permutation over ALL labels would move abstention onto different
+        targets and change coverage, which is a second variable. A derangement is not
+        forced: with hundreds of voters a fixed point is rare and harmless.
+        """
+        voting = np.flatnonzero(np.isfinite(self.var).any(axis=1))
+        if voting.size < 2:
+            raise ValueError("fewer than two voting targets; nothing to scramble")
+        perm = voting.copy()
+        np.random.default_rng(seed).shuffle(perm)
+        lfc, var = self.lfc.copy(), self.var.copy()
+        lfc[voting], var[voting] = self.lfc[perm], self.var[perm]
+        return LfcTable(labels=list(self.labels), genes=np.asarray(self.genes), lfc=lfc,
+                        var=var, source=f"{self.source} [scrambled seed={seed}]",
+                        context=self.context, notes={**self.notes, "scrambled_seed": seed})
+
     def save(self, path: str | Path) -> None:
         np.savez_compressed(
             Path(path).expanduser(),
@@ -141,6 +168,9 @@ class LfcTable:
             lfc=self.lfc, var=self.var,
             source=np.asarray([self.source], dtype=object),
             context=np.asarray([self.context], dtype=object),
+            # How the table was built (a view's conditions, rho and gate; a scramble's
+            # seed). Dropped until 2026-09-26, so a saved view could not say what it was.
+            notes=np.asarray([json.dumps(self.notes, default=str)], dtype=object),
         )
 
     @classmethod
@@ -151,6 +181,7 @@ class LfcTable:
             genes=z["genes"].astype(str),
             lfc=z["lfc"], var=z["var"],
             source=str(z["source"][0]), context=str(z["context"][0]),
+            notes=json.loads(str(z["notes"][0])) if "notes" in z.files else {},
         )
 
 

@@ -237,3 +237,69 @@ def test_no_finite_variance_is_ever_zero(tmp_path):
     fin = np.isfinite(t.var)
     assert fin.any()
     assert (t.var[fin] > 0).all()
+
+
+# ----------------------------------------- the scrambled control (T86, 2026-09-26)
+
+def _voting_table():
+    from sidechain.data.lfc_table import LfcTable
+    rng = np.random.default_rng(0)
+    L, G = 12, 7
+    lfc = rng.normal(size=(L, G))
+    var = rng.uniform(0.01, 0.1, size=(L, G))
+    var[0, :] = np.inf                       # abstains entirely
+    var[1, 3] = np.inf                       # abstains on one gene
+    return LfcTable(labels=[f"T{i}" for i in range(L)], genes=np.array([f"G{j}" for j in range(G)]),
+                    lfc=lfc, var=var, source="t")
+
+
+def test_scramble_keeps_every_abstainer_abstaining_and_every_voter_voting():
+    tab = _voting_table()
+    sc = tab.scrambled(seed=1)
+    assert np.isinf(sc.var[0]).all()                          # the full abstainer is untouched
+    np.testing.assert_array_equal(np.isfinite(sc.var).any(axis=1),
+                                  np.isfinite(tab.var).any(axis=1))
+    assert sc.labels == tab.labels
+
+
+def test_scramble_moves_whole_rows_so_weights_and_values_stay_paired():
+    """A row's lfc and var travel together; the multiset of rows is unchanged."""
+    tab = _voting_table()
+    sc = tab.scrambled(seed=2)
+    rows = {tuple(np.round(r, 12)) for r in np.hstack([tab.lfc, np.nan_to_num(tab.var, posinf=-1)])}
+    rows_sc = {tuple(np.round(r, 12)) for r in np.hstack([sc.lfc, np.nan_to_num(sc.var, posinf=-1)])}
+    assert rows == rows_sc
+    assert not np.array_equal(sc.lfc, tab.lfc)                # something actually moved
+
+
+def test_scramble_is_reproducible_from_its_seed_and_varies_with_it():
+    tab = _voting_table()
+    np.testing.assert_array_equal(tab.scrambled(3).lfc, tab.scrambled(3).lfc)
+    assert not np.array_equal(tab.scrambled(3).lfc, tab.scrambled(4).lfc)
+
+
+def test_scramble_refuses_a_table_with_nothing_to_shuffle():
+    from sidechain.data.lfc_table import LfcTable
+    tab = LfcTable(labels=["A"], genes=np.array(["G"]), lfc=np.zeros((1, 1)),
+                   var=np.full((1, 1), 0.1))
+    with pytest.raises(ValueError, match="nothing to scramble"):
+        tab.scrambled(0)
+
+
+def test_notes_survive_a_save_and_load(tmp_path):
+    """A saved view has to be able to say how it was built (2026-09-26: notes were dropped)."""
+    tab = _voting_table()
+    tab.notes = {"conditions": ["Rest", "Stim8hr"], "rho": 0.1, "gate": "knockdown"}
+    tab.save(tmp_path / "v.npz")
+    from sidechain.data.lfc_table import LfcTable
+    assert LfcTable.load(tmp_path / "v.npz").notes == tab.notes
+
+
+def test_a_table_saved_before_notes_existed_still_loads(tmp_path):
+    tab = _voting_table()
+    np.savez_compressed(tmp_path / "old.npz", labels=np.asarray(tab.labels, dtype=object),
+                        genes=np.asarray(tab.genes, dtype=object), lfc=tab.lfc, var=tab.var,
+                        source=np.asarray(["old"], dtype=object),
+                        context=np.asarray([""], dtype=object))
+    from sidechain.data.lfc_table import LfcTable
+    assert LfcTable.load(tmp_path / "old.npz").notes == {}
