@@ -433,6 +433,17 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
     axis = axis_fingerprint(genes, targets)
 
     _check_controls(sources, controls)
+    # Every source must already BE on the axis being stamped, column for column. Without
+    # this the stamp and the fit could disagree: sources left wider than `genes` fit on all
+    # their columns while the fingerprint claims the narrower list, and two sources of equal
+    # width in different gene order would be differenced gene-against-wrong-gene with no
+    # error at all. `fit_pair` has always refused this; `fit_pairs` did not (found by
+    # mutation testing, 2026-09-26).
+    want = [str(g) for g in genes]
+    for nm in {n for pair in pairs for n in pair}:
+        if nm in sources and [str(g) for g in sources[nm].genes] != want:
+            raise ValueError(f"{nm}: gene axis does not match the one requested ({len(want)} "
+                             "genes); restrict it with load_for_axis / load_subset first")
     for a, b in pairs:
         for nm in (a, b):
             if nm not in sources:

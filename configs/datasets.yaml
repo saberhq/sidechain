@@ -1017,7 +1017,10 @@ datasets:
       publisher's own page for exactly this bucket. The S3 listing itself can
       state no terms.
     route: stream               # the 16.79 GB file never lands
-    budget_gb: 2.0              # OUTPUT ceiling: ~615 targets x 3 conditions x 10,282 genes x 3 float32 layers, plus views
+    # OUTPUT ceiling, set against a measurement: 0.45 GB written 2026-09-26 -- the 0.15 GB
+    # per-condition cache plus four views at 0.05-0.08 GB each. 1.0 leaves room for about
+    # seven more views (the scrambled controls a scored arm needs) before it trips.
+    budget_gb: 1.0
     dest: external/s3-genome-scale-tcell-perturb-seq-marson2025_data   # PROVENANCE.json only
     derived: derived/gwcd4i                                            # aggregates + .lineage.json
     notes: >

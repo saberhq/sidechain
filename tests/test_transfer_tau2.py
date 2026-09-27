@@ -484,14 +484,29 @@ def test_lfc_table_subset_is_order_preserving_and_strict():
 # in different pairs as soon as a table abstained on a whole target.
 
 def _replicate_by_hand(src_a, ctrl_a, src_b, ctrl_b, targets, counts):
-    """The exact fit on a resampled target set, built the slow, obvious way."""
-    from sidechain.eval.transfer_tau2 import _fit_scalar, _per_target_blocks
-    d2s, vs = _per_target_blocks(src_a, ctrl_a, src_b, ctrl_b, targets, "poisson")
-    d2 = np.concatenate([np.tile(d2s[j], c) for j, c in enumerate(counts)
-                         if c and d2s[j] is not None])
-    v = np.concatenate([np.tile(vs[j], c) for j, c in enumerate(counts)
-                        if c and vs[j] is not None])
-    return _fit_scalar(v, d2, "gauss")
+    """The exact fit on a resampled target set, built the slow, obvious way.
+
+    Deliberately does NOT call `_per_target_blocks`: it recomputes each target's cells from
+    `_effect` itself, so a bug that shifts positions inside the module shows up here as a
+    WRONG NUMBER rather than being reproduced by the reference (mutation review, 2026-09-26).
+    """
+    from sidechain.eval.transfer_tau2 import _effect, _fit_scalar
+    d2_all, v_all = [], []
+    for j, (t, c) in enumerate(zip(targets, counts)):
+        if not c:
+            continue
+        ea = _effect(src_a, ctrl_a, t, "poisson")
+        eb = _effect(src_b, ctrl_b, t, "poisson")
+        if ea is None or eb is None:
+            continue
+        d2 = (ea[0] - eb[0]) ** 2
+        v = ea[1] + eb[1]
+        ok = np.isfinite(d2) & np.isfinite(v) & (v > 0)
+        if not ok.any():
+            continue
+        d2_all.append(np.tile(d2[ok], c))
+        v_all.append(np.tile(v[ok], c))
+    return _fit_scalar(np.concatenate(v_all), np.concatenate(d2_all), "gauss")
 
 
 def test_one_bootstrap_replicate_equals_an_exact_refit_on_its_targets():
@@ -554,3 +569,64 @@ def test_ratio_ci_pairs_the_draws_and_refuses_unpaired_ones():
     no_boot = fit_pairs(srcs, ctrls, [("n1", "n2")], genes=GENES, targets=TARGETS)[0]
     with pytest.raises(ValueError, match="bootstrap draws"):
         ratio_ci(fits[("n1", "far")], no_boot)
+
+
+
+# --------------------------------------- mutation-review killers (2026-09-26)
+# M2 (a separate bootstrap draw per pair) and M4 (each fit stamped with its own pair's axis)
+# both SURVIVED the first mutation pass: every earlier test pre-restricted its sources and
+# every bootstrap test used a single pair, so neither could be seen.
+
+def test_every_pair_in_one_replicate_is_resampled_on_the_SAME_targets():
+    """Two pairs that are the same data must land on the same targets in every replicate,
+    so their ratio is exactly 1 in every replicate -- the narrowness ratio_ci promises
+    comes entirely from the shared draw."""
+    from sidechain.eval.transfer_tau2 import ratio_ci
+    a = _synthetic(GENES, TARGETS, tau=0.20, seed=121)
+    b = _synthetic(GENES, TARGETS, tau=0.20, seed=122)
+    srcs = {"a": a, "b": b, "a_again": a, "b_again": b}
+    ctrls = {k: CONTROL for k in srcs}
+    fits = {f.pair: f for f in fit_pairs(
+        srcs, ctrls, [("a", "b"), ("a_again", "b_again")],
+        genes=GENES, targets=TARGETS, bootstrap=15, seed=17)}
+    one, two = fits[("a", "b")], fits[("a_again", "b_again")]
+    assert one.extra["draws"] == two.extra["draws"]
+    assert ratio_ci(one, two)["ci"] == (1.0, 1.0)
+
+
+def test_fit_pairs_stamps_the_axis_it_was_told_to_use():
+    """The fingerprint is of the axis passed in, not one each pair re-derives.
+
+    The sources carry all 60 targets but the fit is told to use 30. A stamp re-derived from
+    a pair's own labels would name 60 and still look self-consistent -- `assert_comparable`
+    compares nothing but stamps, so two fits would then agree about an axis neither used.
+    (The genes half of this is now unreachable: fit_pairs refuses sources not already on
+    the gene list it stamps.)
+    """
+    narrow = GENES[:200]
+    told = TARGETS[:30]
+    srcs = {k: _synthetic(narrow, TARGETS, tau=t, seed=sd)
+            for k, t, sd in (("a", 0.10, 131), ("b", 0.10, 132), ("c", 0.30, 133))}
+    ctrls = {k: CONTROL for k in srcs}
+    fits = fit_pairs(srcs, ctrls, [("a", "b"), ("a", "c")], genes=narrow, targets=told)
+    want = axis_fingerprint(narrow, told)
+    assert [f.axis for f in fits] == [want, want]
+    assert all(f.n_targets == len(told) for f in fits)
+
+
+def test_fit_pairs_refuses_sources_wider_than_the_axis_it_would_stamp():
+    """The live hole behind M4: 400-column sources with genes=200 fit on 400 and stamped 200."""
+    srcs = {"a": _synthetic(GENES, TARGETS, tau=0.1, seed=141),
+            "b": _synthetic(GENES, TARGETS, tau=0.1, seed=142)}
+    with pytest.raises(ValueError, match="does not match"):
+        fit_pairs(srcs, {k: CONTROL for k in srcs}, [("a", "b")],
+                  genes=GENES[:200], targets=TARGETS)
+
+
+def test_fit_pairs_refuses_sources_in_a_different_gene_order():
+    """Equal width, different order: the silent gene-against-wrong-gene misjoin."""
+    a = _synthetic(GENES, TARGETS, tau=0.1, seed=151)
+    b = _synthetic(GENES[::-1], TARGETS, tau=0.1, seed=152)
+    with pytest.raises(ValueError, match="does not match"):
+        fit_pairs({"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}, [("a", "b")],
+                  genes=GENES, targets=TARGETS)
