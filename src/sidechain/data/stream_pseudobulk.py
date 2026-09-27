@@ -158,6 +158,9 @@ class PseudobulkSums:
             n_cells_all = small("n_cells.npy")
             libsize_all = small("libsize_sum.npy")
 
+        if len(set(genes_all)) != len(genes_all):
+            raise ValueError(f"{path.name}: duplicate gene names; a name must identify one "
+                             "column, or load_subset would silently pick the last")
         gpos = {g: i for i, g in enumerate(genes_all)}
         missing_g = [g for g in genes if g not in gpos]
         if missing_g:

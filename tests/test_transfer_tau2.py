@@ -630,3 +630,55 @@ def test_fit_pairs_refuses_sources_in_a_different_gene_order():
     with pytest.raises(ValueError, match="does not match"):
         fit_pairs({"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}, [("a", "b")],
                   genes=GENES, targets=TARGETS)
+
+
+# --------------------------------------- math-review findings (2026-09-26)
+
+def test_ratio_ci_refuses_draws_over_differently_ordered_targets():
+    """Same seed and same target SET, different ORDER: replicate r reads a different target
+    at each position, so the draws are not paired. Before the fix a pair against ITSELF got
+    a 4.8 % wide interval and a coin-flip p_above_1."""
+    from sidechain.eval.transfer_tau2 import ratio_ci
+    a = _synthetic(GENES, TARGETS, tau=0.2, seed=61)
+    b = _synthetic(GENES, TARGETS, tau=0.2, seed=62)
+    srcs, ctrls = {"a": a, "b": b}, {"a": CONTROL, "b": CONTROL}
+    one = fit_pairs(srcs, ctrls, [("a", "b")], genes=GENES, targets=TARGETS,
+                    bootstrap=50, seed=7)[0]
+    shuffled = list(TARGETS)
+    np.random.default_rng(0).shuffle(shuffled)
+    two = fit_pairs(srcs, ctrls, [("a", "b")], genes=GENES, targets=shuffled,
+                    bootstrap=50, seed=7)[0]
+    with pytest.raises(ValueError, match="differently ordered"):
+        ratio_ci(one, two)
+    assert ratio_ci(one, one)["ci"] == (1.0, 1.0)          # truly paired: a point
+
+
+def test_an_empty_bootstrap_replicate_is_dropped_not_scored_as_the_grid_floor():
+    """A table covering 1 of 6 targets: ~33 % of replicates draw none of it. Those have no
+    likelihood; before the fix each reported tau^2 = 1e-6 and set the CI's lower bound."""
+    from sidechain.eval.transfer_tau2 import TAU2_GRID
+    few = [f"T{i:03d}" for i in range(6)]
+    pa = _synthetic(GENES, few, tau=0.2, seed=81)
+    pb = _synthetic(GENES, few, tau=0.2, seed=82)
+    tab = _as_table(pa, few[:1])
+    fit = fit_pairs({"t": tab, "b": pb}, {"t": None, "b": CONTROL}, [("t", "b")],
+                    genes=GENES, targets=few, bootstrap=400, seed=3)[0]
+    draws = np.asarray(fit.extra["draws"])
+    finite = draws[np.isfinite(draws)]
+    assert fit.extra["empty_replicates"] == int(np.isnan(draws).sum()) > 0
+    assert not (finite == float(TAU2_GRID[0])).any()
+    assert fit.ci95[0] > float(TAU2_GRID[0])
+
+
+def test_ratio_ci_skips_replicates_empty_for_either_pair():
+    from sidechain.eval.transfer_tau2 import ratio_ci
+    few = [f"T{i:03d}" for i in range(6)]
+    pa = _synthetic(GENES, few, tau=0.2, seed=91)
+    pb = _synthetic(GENES, few, tau=0.3, seed=92)
+    tab = _as_table(pa, few[:2])
+    fits = {f.pair: f for f in fit_pairs(
+        {"t": tab, "a": pa, "b": pb}, {"t": None, "a": CONTROL, "b": CONTROL},
+        [("t", "b"), ("a", "b")], genes=GENES, targets=few, bootstrap=200, seed=4)}
+    r = ratio_ci(fits[("t", "b")], fits[("a", "b")])
+    assert np.isfinite(r["ci"]).all()
+    assert r["n"] == 200 - fits[("t", "b")].extra["empty_replicates"]

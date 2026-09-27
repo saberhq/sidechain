@@ -346,3 +346,105 @@ def test_an_unchanged_file_resolves_to_the_url_the_gate_admitted(tmp_path):
     r = resolve_pull("toy", str(cfg), tmp_path, head=lambda u: {"size_bytes": 1000, "etag": "abc-2"})
     assert r["selected"]["url"] == "https://b.s3.amazonaws.com/p/de.h5ad"
     assert r["reader_kwargs"]["se_layer"] == "s"
+
+
+# --------------------------------------- math-review findings (2026-09-26)
+
+def test_a_bool_flag_stored_as_strings_is_read_correctly_end_to_end(tmp_path):
+    """A bool column round-tripped through object dtype arrives as a "True"/"False"
+    categorical; astype(bool) made every one True and inverted the gate."""
+    rows = [{"target": "A", "cond": "Rest"}]
+    path = tmp_path / "s.h5ad"
+    str_dt = h5py.string_dtype()
+    with h5py.File(path, "w") as h:
+        obs = h.create_group("obs")
+        for name, vals in (("target_contrast_gene_name", ["A"]), ("culture_condition", ["Rest"]),
+                           ("ontarget_significant", ["True"]), ("distal_offtarget_flag", ["False"]),
+                           ("low_target_gex", ["False"]), ("single_guide_estimate", ["False"])):
+            g = obs.create_group(name)
+            g.attrs["encoding-type"] = "categorical"
+            g.create_dataset("categories", data=np.array(sorted(set(vals)), dtype=object), dtype=str_dt)
+            g.create_dataset("codes", data=np.zeros(1, dtype=np.int8))
+        h.create_group("var").create_dataset("gene_name", data=np.array(GENES, dtype=object),
+                                             dtype=str_dt)
+        lay = h.create_group("layers")
+        for nm, val in (("log_fc", 1.0), ("lfcSE", 0.2), ("adj_p_value", 0.5)):
+            lay.create_dataset(nm, data=np.full((1, len(GENES)), val))
+    with h5py.File(path, "r") as h:
+        de = read_de_h5ad(h, keep={"A"})
+    assert not de.flags["distal_offtarget_flag"][0, 0]
+    assert int(combine(de, gate="knockdown").n_usable[0]) == len(GENES)
+    assert rows  # (fixture parity)
+
+
+def test_duplicate_rows_are_caught_before_any_layer_is_read(tmp_path):
+    """The file has NO layers at all: the refusal must come from the row check, proving it
+    runs before the reads that are the whole cost on the remote object."""
+    str_dt = h5py.string_dtype()
+    path = tmp_path / "dup_nolayers.h5ad"
+    with h5py.File(path, "w") as h:
+        obs = h.create_group("obs")
+        for name, vals in (("target_contrast_gene_name", ["A", "A"]),
+                           ("culture_condition", ["Rest", "Rest"])):
+            g = obs.create_group(name)
+            g.attrs["encoding-type"] = "categorical"
+            g.create_dataset("categories", data=np.array(sorted(set(vals)), dtype=object), dtype=str_dt)
+            g.create_dataset("codes", data=np.zeros(2, dtype=np.int8))
+        h.create_group("var").create_dataset("gene_name", data=np.array(GENES, dtype=object),
+                                             dtype=str_dt)
+    with h5py.File(path, "r") as h, pytest.raises(ValueError, match="two rows"):
+        read_de_h5ad(h, keep={"A"})
+
+
+def test_duplicate_gene_names_are_refused(tmp_path):
+    rows = [{"target": "A", "cond": "Rest"}]
+    m = np.zeros((1, len(GENES)))
+    path = tmp_path / "dupgene.h5ad"
+    _write_h5ad(path, rows, layers={"log_fc": m, "lfcSE": m + 0.1, "adj_p_value": m + 0.5})
+    with h5py.File(path, "r+") as h:
+        del h["var/gene_name"]
+        h["var"].create_dataset("gene_name", data=np.array(["G0", "G1", "G1", "G3", "G4"],
+                                                           dtype=object), dtype=h5py.string_dtype())
+    with h5py.File(path, "r") as h, pytest.raises(ValueError, match="duplicate gene names"):
+        read_de_h5ad(h, keep={"A"})
+    from sidechain.data.lfc_table import LfcTable
+    tab = LfcTable(labels=["A"], genes=np.array(["G0", "G0"]), lfc=np.zeros((1, 2)),
+                   var=np.ones((1, 2)))
+    with pytest.raises(ValueError, match="duplicate gene names"):
+        tab.subset(["A"], ["G0"])
+
+
+# ---- controls: what IS right, pinned so the suite records it (math review, 2026-09-26)
+
+def test_the_combined_variance_is_w_sigma_w_for_any_number_of_conditions():
+    """Brute force: w' Sigma w with Sigma_cd = rho*sqrt(v_c v_d), for 2-5 conditions."""
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        C = int(rng.integers(2, 6))
+        v = rng.uniform(1e-3, 0.5, C)
+        rho = float(rng.uniform(0, 1))
+        w = (1 / v) / (1 / v).sum()
+        sigma = rho * np.sqrt(np.outer(v, v))
+        np.fill_diagonal(sigma, v)
+        de = _de([[0.0]] * C, [[float(np.sqrt(x))] for x in v])
+        got = combine(de, rho=rho).var[0, 0]
+        assert got == pytest.approx(float(w @ sigma @ w), rel=1e-5)   # float32 storage
+
+
+def test_rows_land_in_their_slot_when_kept_rows_are_scattered_and_interleaved(tmp_path):
+    """block[k] is ds[a+k]: three scattered runs, unkept rows between, targets interleaved."""
+    order = [("TP53", "Rest"), ("DROP1", "Rest"), ("MYC", "Stim8hr"), ("TP53", "Stim8hr"),
+             ("DROP2", "Stim8hr"), ("DROP3", "Rest"), ("MYC", "Rest"), ("TP53", "Stim48hr")]
+    rows = [{"target": t, "cond": c, "ontarget_significant": True} for t, c in order]
+    lfc = np.arange(len(rows) * len(GENES), dtype=float).reshape(len(rows), len(GENES)) / 10.0
+    path = tmp_path / "scatter.h5ad"
+    _write_h5ad(path, rows, layers={"log_fc": lfc, "lfcSE": lfc * 0 + 0.2,
+                                    "adj_p_value": lfc * 0 + 0.5})
+    with h5py.File(path, "r") as h:
+        de = read_de_h5ad(h, keep={"TP53", "MYC"})
+    assert de.notes["range_runs"] == 3 and int(de.present.sum()) == 5
+    for r, (t, c) in enumerate(order):
+        if t in ("TP53", "MYC"):
+            np.testing.assert_allclose(de.lfc[de.conditions.index(c), de.targets.index(t)],
+                                       lfc[r], rtol=1e-6)
+    assert np.isnan(de.lfc[~de.present]).all()

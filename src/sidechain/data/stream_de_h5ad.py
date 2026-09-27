@@ -41,10 +41,12 @@ still make it wrong, and both are parameters here rather than decisions:
       w_c = (1/v_c) / sum_d (1/v_d)
       var = (1 - rho) * sum_c w_c^2 v_c  +  rho * (sum_c w_c sqrt(v_c))^2
 
-  rho = 0 is independent IVW, rho = 1 is "no reduction at all". A single-condition
+  rho = 0 is independent IVW; rho = 1 gives no reduction for equal variances (and
+  slightly MORE than the best single arm for unequal ones -- conservative). A single-condition
   view (`conditions=["Rest"]`) sidesteps the question.
-* **Rows whose knockdown did not take.** 37.6 % of GWCD4i's rows have
-  `ontarget_significant = False`. Such a row is evidence about a guide, not about the
+* **Rows whose knockdown did not take.** 37.6 % of all 33,983 published rows have
+  `ontarget_significant = False` (21.8 % of the rows kept for our 615 fold and
+  challenge targets, which lean toward expressed genes). Such a row is evidence about a guide, not about the
   gene: it votes "little change" on a gene whose knockdown elsewhere does change
   things. `gate` names the flags that make a row ABSTAIN (variance inf, weight 0),
   never vote toward zero -- the same reasoning Feng's saturated rows abstain on.
@@ -220,6 +222,18 @@ def read_de_h5ad(h, *, keep: set[str], target_col: str = "target_contrast_gene_n
     padj = np.full((C, T, G), np.nan, dtype=np.float32)
     present = np.zeros((C, T), dtype=bool)
 
+    # Checked BEFORE any layer is read: on the remote object the reads are the cost, and
+    # a second row for a slot would silently overwrite the first.
+    for r in rows:
+        if present[ci[cond[r]], ti[tg[r]]]:
+            raise ValueError(f"two rows for ({tg[r]}, {cond[r]}); the table is not one "
+                             "row per (target, condition) as this reader assumes")
+        present[ci[cond[r]], ti[tg[r]]] = True
+    if len(set(genes)) != genes.size:
+        dup = sorted({g for g in genes if (genes == g).sum() > 1})[:5]
+        raise ValueError(f"duplicate gene names on the readout axis, e.g. {dup}; a name "
+                         "must identify one column")
+
     t0 = time.time()
     runs = _runs(rows)
     for layer, dest in ((effect_layer, lfc), (se_layer, se), (padj_layer, padj)):
@@ -230,11 +244,6 @@ def read_de_h5ad(h, *, keep: set[str], target_col: str = "target_contrast_gene_n
             block = ds[a:b, :]
             for k, r in enumerate(range(a, b)):
                 dest[ci[cond[r]], ti[tg[r]]] = block[k]
-    for r in rows:
-        if present[ci[cond[r]], ti[tg[r]]]:
-            raise ValueError(f"two rows for ({tg[r]}, {cond[r]}); the table is not one "
-                             "row per (target, condition) as this reader assumes")
-        present[ci[cond[r]], ti[tg[r]]] = True
 
     def per_row(values, dtype, fill):
         out = np.full((C, T), fill, dtype=dtype)

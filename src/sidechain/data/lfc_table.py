@@ -120,6 +120,9 @@ class LfcTable:
         abstention -- a caller asking for it believes it is there, and the shared-axis
         helpers guarantee it is.
         """
+        if len(set(map(str, self.genes))) != len(self.genes):
+            raise ValueError(f"{self.source or 'LfcTable'}: duplicate gene names; a name "
+                             "must identify one column")
         lpos = {x: i for i, x in enumerate(self.labels)}
         gpos = {str(g): i for i, g in enumerate(self.genes)}
         miss_l = [x for x in labels if x not in lpos]

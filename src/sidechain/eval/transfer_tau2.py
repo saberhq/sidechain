@@ -416,8 +416,10 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
 
     ``genes``/``targets`` default to the intersection over every source in
     ``sources`` -- not over each pair, which is the error described in the module
-    docstring. Pass them explicitly only to narrow that intersection further; they
-    are still applied identically to every pair.
+    docstring. ``genes`` must be exactly the gene list the sources are ALREADY on
+    (build them with `load_for_axis`); a narrower list with wider sources is refused,
+    not silently ignored. ``targets`` may name a subset of the sources' labels, and is
+    applied identically to every pair.
 
     ``bootstrap`` resamples TARGETS with replacement, using **one shared index set
     per replicate** across all pairs. That is deliberate: pairs sharing a line share
@@ -461,8 +463,9 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
     if bootstrap:
         # Per target, its NLL curve over the tau^2 grid (zeros where the pair has no
         # cells for it, so a resampled absent target contributes nothing).
-        profiles = {}
+        profiles, present_rows = {}, {}
         for key, (d2s, vs) in blocks.items():
+            present_rows[key] = np.array([d is not None for d in d2s])
             prof = np.zeros((len(targets), TAU2_GRID.size))
             for j, (d2, v) in enumerate(zip(d2s, vs)):
                 if d2 is not None:
@@ -475,7 +478,13 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
             # because every pair holds a slot per target (see _per_target_blocks).
             counts = np.bincount(rng.integers(0, n, n), minlength=n)
             for key, prof in profiles.items():
-                draws[key].append(_argmin_refined(counts @ prof))
+                # A replicate that drew none of this pair's targets has NO likelihood --
+                # its curve is all zeros and the argmin would report the grid floor as a
+                # measurement. It is recorded as NaN and left out of the interval.
+                if not counts[present_rows[key]].any():
+                    draws[key].append(float("nan"))
+                else:
+                    draws[key].append(_argmin_refined(counts @ prof))
 
     for (a, b), (d2s, vs) in blocks.items():
         d2 = np.concatenate(_present(d2s))
@@ -483,10 +492,16 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
         ci = None
         extra: dict = {}
         if bootstrap:
-            ci = (float(np.percentile(draws[(a, b)], 2.5)),
-                  float(np.percentile(draws[(a, b)], 97.5)))
+            dr = np.asarray(draws[(a, b)], dtype=float)
+            ok = dr[np.isfinite(dr)]
+            ci = ((float(np.percentile(ok, 2.5)), float(np.percentile(ok, 97.5)))
+                  if ok.size else None)
             extra = {"bootstrap": int(bootstrap), "seed": int(seed),
-                     "draws": [float(x) for x in draws[(a, b)]]}
+                     "draws": [float(x) for x in dr],
+                     "empty_replicates": int((~np.isfinite(dr)).sum()),
+                     # the ORDERED target list the draws index into: two calls pair only
+                     # if this matches, which the order-insensitive axis cannot certify
+                     "targets_order": _order_digest(targets)}
         out.append(Tau2Fit(
             pair=(a, b), tau2=_fit_scalar(v, d2, family), family=family,
             n_targets=len(_present(d2s)), n_genes=len(genes), n_cells=int(d2.size),
@@ -494,6 +509,11 @@ def fit_pairs(sources: Mapping[str, PseudobulkSums], controls: Mapping[str, str]
             median_var_sum=float(np.median(v)), extra=extra,
         ))
     return out
+
+
+def _order_digest(targets: Sequence[str]) -> str:
+    h = hashlib.sha256("\x00".join(map(str, targets)).encode())
+    return h.hexdigest()[:16]
 
 
 def ratio_ci(num: Tau2Fit, den: Tau2Fit, *, level: float = 0.95) -> dict:
@@ -510,8 +530,17 @@ def ratio_ci(num: Tau2Fit, den: Tau2Fit, *, level: float = 0.95) -> dict:
         raise ValueError("both fits need bootstrap draws of equal length from one fit_pairs call")
     if num.extra.get("seed") != den.extra.get("seed"):
         raise ValueError("draws come from different bootstrap seeds; not paired")
-    r = np.asarray(a) / np.asarray(b)
+    # Same seed and same target SET is not enough: replicate r draws POSITIONS, so two
+    # calls with the targets in a different order read different targets at each one.
+    if num.extra.get("targets_order") != den.extra.get("targets_order"):
+        raise ValueError("draws index differently ordered target lists; not paired")
+    r = np.asarray(a, dtype=float) / np.asarray(b, dtype=float)
+    r = r[np.isfinite(r)]                       # replicates empty for either pair
+    if r.size == 0:
+        raise ValueError("no replicate has data for both pairs")
     lo, hi = (1 - level) / 2 * 100, (1 + level) / 2 * 100
+    # `p_above_1` is the bootstrap mass above 1 -- a description of the interval, not a
+    # p-value for "ratio = 1".
     return {"point": float(num.tau2 / den.tau2),
             "ci": (float(np.percentile(r, lo)), float(np.percentile(r, hi))),
             "p_above_1": float(np.mean(r > 1.0)), "n": int(r.size)}
