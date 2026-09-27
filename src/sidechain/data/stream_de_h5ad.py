@@ -514,6 +514,11 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--gate", default="knockdown", choices=sorted(GATES))
     t.add_argument("--out", type=Path, required=True)
     args = ap.parse_args(argv)
+    # The code is loaded NOW. Asking git at the END of a pull names whatever HEAD has become
+    # by then -- a commit made during the run -- not the code that ran (2026-09-26: a pull
+    # launched at 4712738 recorded 522caed, committed while it was reading).
+    from sidechain.data import lfc_table as _lfc
+    code_sha = _git_sha(_lfc.__file__)
 
     if args.cmd == "pull":
         import fsspec
@@ -530,7 +535,7 @@ def main(argv: list[str] | None = None) -> int:
         de.save(out)
         lineage = {
             "produced": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-            "code": {"module": "sidechain.data.stream_de_h5ad", "git_sha": _git_sha(),
+            "code": {"module": "sidechain.data.stream_de_h5ad", "git_sha": code_sha,
                      "versions": _versions(), "block_size": args.block_size},
             "dataset": r["block"]["name"], "host": r["block"]["host"],
             "record": r["block"]["record"], "license": r["block"].get("license"),
@@ -557,11 +562,10 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out.expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     tab.save(out)
-    from sidechain.data import lfc_table as _lfc
     out.with_suffix(".lineage.json").write_text(json.dumps({
         "produced": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "code": {"module": "sidechain.data.stream_de_h5ad table",
-                 "git_sha": _git_sha(_lfc.__file__), "versions": _versions()},
+                 "git_sha": code_sha, "versions": _versions()},
         "from": str(Path(args.de).expanduser()), "from_sha256": _sha256(args.de),
         "view": tab.source, **tab.notes}, indent=1, default=str))
     usable = tab.n_usable
