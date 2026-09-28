@@ -16,22 +16,6 @@ A **calibration run** is an entry we already knew would not be competitive, sent
 measure something about the scoring itself. Marked as one before it goes in, never after.
 PHE-2 is the only one so far.
 
-## SER-9abefkn — submitted 2026-09-27
-
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
-with one change. Each knockdown's borrowed response is nudged toward the responses of the genes
-whose proteins work alongside the silenced one, as a map of protein interactions draws them.
-The nudge turns the response a little; it never changes its size.
-
-## SER-8abefkn — submitted 2026-09-27
-
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
-with one change. Each knockdown's borrowed response is nudged toward the responses of the genes
-most like the silenced one on a gene map learned from single-cell data. The nudge turns the
-response a little; it never changes its size.
-
 ## SER-7abefn — submitted 2026-09-17
 
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
