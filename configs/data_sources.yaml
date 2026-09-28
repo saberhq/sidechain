@@ -136,8 +136,9 @@ sources:
     url: "https://www.targetscan.org"
     directed: true
     edge_attr: [context_pp_score, conservation]
-    enabled: false               # alternate/complement to miRBind2; the EDGE form is unbuilt
-    notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2. Fetched 2026-09-25 (T102) for its per-gene 3'UTR regulatory load -- MiRNATargetSource.utr_load_table -- which is a node feature read from the parquet under `derived`, not the edge list this block declares."
+    enabled: false               # alternate/complement to miRBind2; nothing in the shipping path consumes an edge list yet
+    entity_src: mirna_family     # the edge's SOURCE node is a TargetScan miRNA family, not a gene on the axis (PriorArtifact.src_names)
+    notes: "Seed-based conserved miRNA targets. Toggle on to ensemble with mirbind2. Fetched 2026-09-25 (T102) for its per-gene 3'UTR regulatory load (MiRNATargetSource.utr_load_table); the whole Release 8.0 download streamed 2026-09-28 (T102, session 0fc42275) for the EDGE form (edge_table / build: one row per miRNA family -> gene), the per-site positions (site_table) and the 3'UTR sequence features that Saber's NAR 2016 cooperation/competition analysis needs (utr_sequence_table). All under `derived`, each with a LINEAGE.json entry."
     # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
     # exactly as a corpus block in datasets.yaml is. TargetScan is a lab web
     # server: no record API, no listing, no checksums, no licence header. So the
@@ -148,7 +149,7 @@ sources:
     record: "https://www.targetscan.org/vert_80/vert_80_data_download"
     dest: external/targetscan-vert_80
     derived: derived/targetscan-vert_80      # utr_load.parquet + LINEAGE.json (ours)
-    budget_gb: 0.02                          # 11.6 MB selected; a 40 % tripwire above it
+    budget_gb: 3.5                           # 3.01 GB selected (the whole Release 8.0 download, 2026-09-28); the gate refuses a selection over this
     allow_missing_checksum: true             # the host publishes none; sha256 of what landed is in LINEAGE.json
     license: Free-for-research-with-citation
     license_override_source: >
@@ -160,6 +161,7 @@ sources:
       citation being McGeary et al. 2019 (Science) for Release 8. Recorded in
       LICENSE_POLICY as Free-for-research-with-citation (ingest/provenance.py).
     files:
+      # ---- the three files of 2026-09-25 (the per-gene load) ----
       # Representative transcript per gene (Species ID 9606 rows), the transcript
       # every other file's sites are counted on. 0.62 MB.
       - name: Gene_info.txt.zip
@@ -169,8 +171,59 @@ sources:
       - name: Summary_Counts.default_predictions.txt.zip
       # hg19 3'UTR exon coordinates of the representative transcripts, GFF with
       # score = exon width, so a transcript's 3'UTR length is the sum of its
-      # rows. 0.58 MB -- the 795 MB UTR_Sequences file is not needed for length.
+      # rows. 0.58 MB.
       - name: TSHuman_7_hg19_3UTRs.gff.zip
+      # ---- the rest of Release 8.0, streamed 2026-09-28 (Saber: all of it) ----
+      # Every table below is ALL SPECIES; the human rows (9606) are filtered on
+      # read. Sizes are the zips; the text inside is 5-20x larger.
+      # miRNA families: family name, seed+m8, species, miRBase id, mature
+      # sequence, conservation class. 0.16 MB. The join from an individual
+      # miRNA (context-score files) to its family (site and summary files).
+      - name: miR_Family_Info.txt.zip
+      # One row per conserved SITE of a conserved family on the representative
+      # transcript: family, gene, UTR start/end (1-based, on the ungapped human
+      # UTR), alignment coordinates, seed-match type, PCT. 8.3 MB. The default
+      # predictions with positions -- what the edge form and the cooperation
+      # features are read from.
+      - name: Predicted_Targets_Info.default_predictions.txt.zip
+      # The same sites keyed by individual miRNA with context++ scores, their
+      # percentiles and the predicted relative KD. 17.7 MB. Its UTR coordinates
+      # sit one below the file above (0-based start), see site_table.
+      - name: Predicted_Targets_Context_Scores.default_predictions.txt.zip
+      # Every conserved site (any family) with context++ and KD. 18.6 MB.
+      - name: Conserved_Site_Context_Scores.txt.zip
+      # Every nonconserved site with context++ and KD. 542 MB zipped, 3.8 GB text.
+      - name: Nonconserved_Site_Context_Scores.txt.zip
+      # Conserved AND nonconserved sites of conserved families, with positions
+      # and PCT. 76 MB zipped, 535 MB text. Superset of Predicted_Targets_Info.
+      - name: Conserved_Family_Info.txt.zip
+      # Nonconserved sites of nonconserved families. 347 MB zipped, 2.3 GB text.
+      - name: Nonconserved_Family_Info.txt.zip
+      # Summary counts for EVERY gene:family pair, conserved families or not.
+      # 323 MB zipped, 2.4 GB text. The all-predictions edge form.
+      - name: Summary_Counts.all_predictions.txt.zip
+      # 3'UTR sequences from the 84-way alignments, one row per (transcript,
+      # species), gapped. 795 MB zipped, over 4 GB of text. The human rows are
+      # the 3'UTR sequence the cooperation features (dinucleotides, RBP motif
+      # scans, distances to miRNA sites) are computed on.
+      - name: UTR_Sequences.txt.zip
+      # ORF sequences from the same alignments. 689 MB zipped. Not consumed by
+      # any table yet; streamed because Saber asked for the whole release.
+      - name: ORF_Sequences.txt.zip
+      # 3P-seq tags and Affected Isoform Ratios (the APA evidence behind
+      # TargetScan 7's weighted context++). 8.6 MB. Which cell lines it carries
+      # is a survey question (posttx sweep, 2026-09-28).
+      - name: 3Pseq_tags_AIRs.zip
+      # hg19 BED of the default-prediction sites. 1.9 MB.
+      - name: Predicted_Target_Locations.default_predictions.hg19.bed.zip
+      # hg19 BED of all sites by conservation status. 168 MB.
+      - name: All_Target_Locations.hg19.bed.zip
+      # The Perl scripts that produced the tables: site finder, branch-length
+      # and PCT, context++ scores. 0.04 + 0.07 + 6.6 MB. Kept so a number in
+      # any table can be re-derived from its own code.
+      - name: targetscan_70.zip
+      - name: targetscan_70_BL_PCT.zip
+      - name: TargetScan7_context_scores.zip
 
   - name: postar3
     kind: edge

@@ -21,6 +21,13 @@ class PriorArtifact:
     node_feature:  features (n_genes, dim). Genes without data -> zero rows.
     edge:          edge_index (2, n_edges) COO + optional edge_attr (n_edges, n_attr).
                    NEVER a dense n_genes x n_genes matrix.
+
+    **Bipartite edges** (`src_names` set): the edge's SOURCE nodes are not genes on the
+    master axis -- a miRNA family (TargetScan, T102), an RBP that is also a gene but is
+    scored as a regulator -- so row 0 of `edge_index` indexes `src_names` and only row 1
+    indexes `gene_index`. `build_checked` checks each row against its own vocabulary. A
+    consumer that wants gene-gene edges ("share a regulator") derives them from this form
+    rather than the source emitting a dense family x gene block.
     """
     kind: Kind
     relation: str
@@ -30,6 +37,7 @@ class PriorArtifact:
     edge_attr: np.ndarray | None = None
     directed: bool = True
     meta: dict = field(default_factory=dict)
+    src_names: list[str] | None = None
 
 
 class PriorSource(ABC):
@@ -89,7 +97,19 @@ class PriorSource(ABC):
                 )
             if not np.issubdtype(ei.dtype, np.integer):
                 raise ValueError(f"{self.name}: edge_index must be integer, got {ei.dtype}.")
-            if ei.size and (ei.min() < 0 or ei.max() >= n_genes):
+            if art.src_names is not None:
+                n_src = len(art.src_names)
+                if ei.size and (ei[0].min() < 0 or ei[0].max() >= n_src):
+                    raise ValueError(
+                        f"{self.name}: bipartite edge_index row 0 out of range for "
+                        f"{n_src} source nodes (min={ei[0].min()}, max={ei[0].max()})."
+                    )
+                if ei.size and (ei[1].min() < 0 or ei[1].max() >= n_genes):
+                    raise ValueError(
+                        f"{self.name}: bipartite edge_index row 1 out of range for "
+                        f"{n_genes} genes (min={ei[1].min()}, max={ei[1].max()})."
+                    )
+            elif ei.size and (ei.min() < 0 or ei.max() >= n_genes):
                 raise ValueError(
                     f"{self.name}: edge_index out of range for {n_genes} genes "
                     f"(min={ei.min()}, max={ei.max()})."
@@ -174,6 +194,48 @@ class PriorSource(ABC):
         elif attr is not None:
             attr = attr[keep]
 
+        edge_index = np.vstack([s_pos, d_pos]).astype(np.int64) if s_pos.size else np.zeros(
+            (2, 0), dtype=np.int64
+        )
+        return edge_index, attr
+
+    def to_bipartite_edge_index(
+        self,
+        srcs,
+        dsts,
+        src_index: dict[str, int],
+        edge_attr: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        """(2, n_edges) COO whose row 0 indexes `src_index` and row 1 the master gene space.
+
+        The pair-aware rule of `to_edge_index` for a source vocabulary that is NOT the
+        gene axis (a miRNA family has no position in `gene_index`): ONE mask keeps an
+        edge only when its source is in `src_index` and its destination in `gene_index`,
+        and the same mask is applied to `edge_attr`. Never two `to_positions` calls.
+        """
+        srcs = list(srcs)
+        dsts = list(dsts)
+        if len(srcs) != len(dsts):
+            raise ValueError(
+                f"{self.name}: srcs and dsts must be the same length "
+                f"({len(srcs)} != {len(dsts)})"
+            )
+        attr = None if edge_attr is None else np.asarray(edge_attr)
+        if attr is not None and attr.shape[0] != len(srcs):
+            raise ValueError(
+                f"{self.name}: edge_attr has {attr.shape[0]} rows but there are "
+                f"{len(srcs)} candidate edges."
+            )
+        idx = self.gene_index
+        keep = np.fromiter(
+            ((str(s) in src_index and str(d) in idx) for s, d in zip(srcs, dsts)),
+            dtype=bool,
+            count=len(srcs),
+        )
+        s_pos = np.array([src_index[str(s)] for s, k in zip(srcs, keep) if k], dtype=np.int64)
+        d_pos = np.array([idx[str(d)] for d, k in zip(dsts, keep) if k], dtype=np.int64)
+        if attr is not None:
+            attr = attr[keep]
         edge_index = np.vstack([s_pos, d_pos]).astype(np.int64) if s_pos.size else np.zeros(
             (2, 0), dtype=np.int64
         )

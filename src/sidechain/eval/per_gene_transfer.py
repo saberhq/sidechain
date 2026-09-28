@@ -492,3 +492,87 @@ def amplitude_on_axis(feature_on_axis: np.ndarray, fit: dict, *, default: float 
     out[ok] = np.asarray(fit["factors"], dtype=np.float64)[b]
     return out
 
+
+
+# ------------------------------------------- the universal-per-gene reading (T102, step 1) --
+
+def pair_consistency(a: pd.DataFrame, b: pd.DataFrame, stat: str, *,
+                     covariates: tuple[str, ...] = ("log_ctrl_cpm", "log_truth_se"),
+                     n_perm: int = 2000, seed: int = 0) -> dict:
+    """Is a gene's per-gene error the same gene's error on another fold?
+
+    Spearman of `stat` between two folds' per-gene tables (`per_gene_stats` output joined
+    to the fold's covariates) on their shared genes, raw and partial on BOTH folds'
+    covariates (expression and measurement noise are correlated between lines and would
+    manufacture a consistency of their own), each against a gene shuffle (`correlate`).
+    Two folds of the SAME held-out line share their truth and read near the ceiling; two
+    folds of different lines read the share of the error that belongs to the gene rather
+    than to the receiving line -- the quantity a sequence table could hope to predict.
+    """
+    m = a.merge(b, on="gene", suffixes=("_a", "_b"))
+    if not len(m):
+        return {"n": 0, "rho": float("nan"), "p_perm": float("nan"),
+                "rho_partial": float("nan"), "p_perm_partial": float("nan")}
+    cov = [m[f"{c}_{s}"].to_numpy(dtype=np.float64) for c in covariates for s in ("a", "b")]
+    r = correlate(m[f"{stat}_b"].to_numpy(dtype=np.float64), m[f"{stat}_a"].to_numpy(dtype=np.float64),
+                  covariates=np.vstack(cov) if cov else None, n_perm=n_perm, seed=seed)
+    r["shared_genes"] = int(len(m))
+    return r
+
+
+def decompose_across_lines(tables: dict[str, pd.DataFrame], stat: str, *,
+                           covariates: tuple[str, ...] = ("log_ctrl_cpm", "log_truth_se")
+                           ) -> pd.DataFrame:
+    """Genes scored on EVERY fold given: the across-line mean of `stat` (the universal part),
+    each fold's deviation from it, and the spread of the deviations.
+
+    Returns one row per shared gene: ``gene, mean_<stat>, dev_<fold>_<stat> per fold,
+    sd_<stat>, absdev_<stat>`` (mean |deviation|), plus the across-fold mean of each
+    covariate (``mean_<cov>``) for partialling. The universal part is what a
+    line-invariant table can predict; the spread is what only a line-specific one could.
+    """
+    if len(tables) < 2:
+        raise ValueError("need at least two folds")
+    names = list(tables)
+    m = None
+    for f in names:
+        t = tables[f][["gene", stat, *covariates]].rename(
+            columns={stat: f"{stat}__{f}", **{c: f"{c}__{f}" for c in covariates}})
+        m = t if m is None else m.merge(t, on="gene")
+    vals = np.column_stack([m[f"{stat}__{f}"].to_numpy(dtype=np.float64) for f in names])
+    ok = np.isfinite(vals).all(axis=1)
+    m, vals = m[ok].reset_index(drop=True), vals[ok]
+    out = pd.DataFrame({"gene": m["gene"]})
+    mean = vals.mean(axis=1)
+    out[f"mean_{stat}"] = mean
+    for j, f in enumerate(names):
+        out[f"dev_{f}_{stat}"] = vals[:, j] - mean
+    out[f"sd_{stat}"] = vals.std(axis=1, ddof=1)
+    out[f"absdev_{stat}"] = np.abs(vals - mean[:, None]).mean(axis=1)
+    for c in covariates:
+        out[f"mean_{c}"] = np.column_stack(
+            [m[f"{c}__{f}"].to_numpy(dtype=np.float64) for f in names]).mean(axis=1)
+    return out
+
+
+def knockdown_lfc(pb, label: str, control: str, *, pseudocount: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
+    """One knockdown's log2FC and delta-method variance from a `PseudobulkSums`, the
+    pipeline's own arithmetic (`submit.build._log2fc_with_var`, Poisson floor)."""
+    from sidechain.submit.build import _log2fc_with_var
+    return _log2fc_with_var(pb, label, control, pseudocount=pseudocount, var_floor="poisson")
+
+
+def derepressed(lfc: np.ndarray, var: np.ndarray, expressed: np.ndarray, *,
+                min_lfc: float = 0.25, min_z: float = 2.0) -> np.ndarray:
+    """Genes UP after a knockdown, with evidence: expressed, log2FC above `min_lfc`, and
+    log2FC / sqrt(var) above `min_z`. After DICER1 / DROSHA / DGCR8 this is the line's
+    miRNA-repressed set as the cells reported it (the NAR 2016 note's use (ii))."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = lfc / np.sqrt(var)
+    return expressed & np.isfinite(z) & (lfc > min_lfc) & (z > min_z)
+
+
+def jaccard(a: np.ndarray, b: np.ndarray) -> float:
+    a, b = np.asarray(a, bool), np.asarray(b, bool)
+    u = int((a | b).sum())
+    return (int((a & b).sum()) / u) if u else float("nan")

@@ -189,3 +189,89 @@ def test_binned_amplitude_ties_share_a_bin_and_a_floored_bin_refuses():
     assert a[2] != a[0]
     with pytest.raises(ValueError, match="floor"):
         fit_binned_amplitude(feature, np.full(200, 0.001), n_bins=2, floor=0.01)
+
+
+# ------------------------------------------- the universal-per-gene reading (step 1) --
+
+def _fold_table(rng, genes, base, noise, *, expr=None):
+    """A per-gene table whose stat is `base` plus fold-specific noise, with covariates."""
+    n = len(genes)
+    return pd.DataFrame({
+        "gene": genes, "nmae_g": base + rng.normal(0, noise, n),
+        "log_ctrl_cpm": (rng.normal(1.5, 0.5, n) if expr is None else expr),
+        "log_truth_se": rng.normal(-1.0, 0.3, n),
+    })
+
+
+def test_pair_consistency_reads_a_shared_gene_component_and_a_shuffle_kills_it():
+    from sidechain.eval.per_gene_transfer import pair_consistency
+    rng = np.random.default_rng(0)
+    genes = np.array([f"g{i}" for i in range(400)], dtype=object)
+    base = rng.normal(1.0, 0.3, 400)
+    a = _fold_table(rng, genes, base, 0.2)
+    b = _fold_table(rng, genes[::-1], base[::-1], 0.2)          # row order differs: the join is by gene
+    r = pair_consistency(a, b, "nmae_g", n_perm=300)
+    assert r["shared_genes"] == 400 and r["rho"] > 0.5 and r["p_perm"] < 0.01
+    assert r["rho_partial"] > 0.5 and r["p_perm_partial"] < 0.01
+    # no shared component: inside the shuffle
+    c = _fold_table(rng, genes, rng.normal(1.0, 0.3, 400), 0.2)
+    r0 = pair_consistency(a, c, "nmae_g", n_perm=300)
+    assert abs(r0["rho"]) < 0.15 and r0["p_perm"] > 0.05
+
+
+def test_pair_consistency_partial_removes_an_expression_driven_agreement():
+    from sidechain.eval.per_gene_transfer import pair_consistency
+    rng = np.random.default_rng(1)
+    genes = np.array([f"g{i}" for i in range(400)], dtype=object)
+    expr = rng.normal(1.5, 0.5, 400)
+    # both folds' errors track expression and nothing else; expression is shared by gene
+    a = _fold_table(rng, genes, -expr, 0.15, expr=expr + rng.normal(0, 0.05, 400))
+    b = _fold_table(rng, genes, -expr, 0.15, expr=expr + rng.normal(0, 0.05, 400))
+    r = pair_consistency(a, b, "nmae_g", n_perm=300)
+    assert r["rho"] > 0.7
+    assert abs(r["rho_partial"]) < 0.25                          # what is left after both folds' expression
+
+
+def test_decompose_across_lines_splits_mean_and_deviation():
+    from sidechain.eval.per_gene_transfer import decompose_across_lines
+    rng = np.random.default_rng(2)
+    genes = np.array([f"g{i}" for i in range(50)], dtype=object)
+    base = np.linspace(0.5, 1.5, 50)
+    t = {"f1": _fold_table(rng, genes, base, 0.0), "f2": _fold_table(rng, genes, base + 0.2, 0.0),
+         "f3": _fold_table(rng, genes[:40], base[:40] - 0.2, 0.0)}   # f3 scores 40 genes only
+    d = decompose_across_lines(t, "nmae_g")
+    assert len(d) == 40                                            # genes on every fold
+    assert np.allclose(d["mean_nmae_g"], base[:40])
+    assert np.allclose(d["dev_f2_nmae_g"], 0.2) and np.allclose(d["dev_f3_nmae_g"], -0.2)
+    assert np.allclose(d["dev_f1_nmae_g"], 0.0)
+    assert np.allclose(d["absdev_nmae_g"], 0.4 / 3)
+    assert "mean_log_ctrl_cpm" in d.columns and "mean_log_truth_se" in d.columns
+    with pytest.raises(ValueError, match="two folds"):
+        decompose_across_lines({"f1": t["f1"]}, "nmae_g")
+
+
+def test_derepressed_needs_expression_size_and_evidence_and_jaccard_is_set_overlap():
+    from sidechain.eval.per_gene_transfer import derepressed, jaccard
+    lfc = np.array([1.0, 1.0, 0.1, 1.0, -1.0])
+    var = np.array([0.01, 1.0, 0.01, 0.01, 0.01])                  # gene 1: z = 1, no evidence
+    expressed = np.array([True, True, True, False, True])
+    d = derepressed(lfc, var, expressed)
+    assert d.tolist() == [True, False, False, False, False]
+    assert jaccard([True, True, False], [True, False, True]) == pytest.approx(1 / 3)
+    assert np.isnan(jaccard([False], [False]))
+
+
+def test_knockdown_lfc_is_the_pipeline_arithmetic():
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval.per_gene_transfer import knockdown_lfc
+    from sidechain.submit.build import _log2fc_with_var
+    genes = np.array(["a", "b", "c"], dtype=object)
+    pb = PseudobulkSums(labels=["control", "KD"], genes=genes,
+                        count_sum=np.array([[100., 50., 10.], [20., 40., 5.]]),
+                        cpm_sum=np.array([[1000., 500., 100.], [200., 400., 50.]]),
+                        cpm_sq_sum=np.array([[12000., 3000., 120.], [500., 1800., 30.]]),
+                        n_cells=np.array([100, 10]), libsize_sum=np.array([1e6, 1e5]))
+    fc, var = knockdown_lfc(pb, "KD", "control")
+    fc2, var2 = _log2fc_with_var(pb, "KD", "control", var_floor="poisson")
+    assert np.allclose(fc, fc2) and np.allclose(var, var2)
+    assert fc[1] > 0 and fc[0] > 0.9                               # KD mean 40 vs control 5 on gene b
