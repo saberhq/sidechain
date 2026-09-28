@@ -249,7 +249,7 @@ def test_build_off_never_touches_the_arm(challenge, monkeypatch):
     monkeypatch.setattr(na, "load_gene_table", boom)
     assert build.main(_argv(challenge, "plain")) == 0
     args = json.loads((challenge["out"] / "plain.args.json").read_text())
-    assert args["neighbour_w"] == 0.0 and args["neighbour_table"] is None
+    assert args["neighbour_w"] is None and args["neighbour_table"] is None
     assert not (challenge["out"] / "plain.neighbour.json").exists()
 
 
@@ -257,9 +257,10 @@ def test_build_off_never_touches_the_arm(challenge, monkeypatch):
     (["--neighbour-w", "0.2"], "needs both"),
     (["--neighbour-w", "0.2", "--neighbour-table", "t.pt"], "needs both"),
     (["--neighbour-table", "t.pt"], "do nothing"),
-    (["--neighbour-w", "-0.1"], "finite and >= 0"),
-    (["--neighbour-w", "inf"], "finite and >= 0"),
-    (["--neighbour-w", "nan"], "finite and >= 0"),
+    (["--neighbour-w", "-0.1"], "finite and > 0"),
+    (["--neighbour-w", "inf"], "finite and > 0"),
+    (["--neighbour-w", "nan"], "finite and > 0"),
+    (["--neighbour-w", "0"], "finite and > 0"),
 ])
 def test_build_refuses_a_half_set_arm(challenge, capsys, extra, why):
     with pytest.raises(SystemExit):
@@ -320,9 +321,9 @@ def test_loco_passes_the_flags_through_and_logs_them(monkeypatch, tmp_path, chal
     rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm"),
                     "--source", "x.npz:ctl", *_arm_flags(challenge, w="0.15", k="2")])
     assert rc == 0
-    assert captured["neighbour_w"] == 0.15 and captured["neighbour_k"] == 2
-    assert Path(captured["neighbour_table"]).name == "table.pt"
-    assert logged["neighbour_w"] == 0.15 and logged["neighbour_pool"].endswith("pool.csv")
+    assert captured["neighbour_w"] == [0.15] and captured["neighbour_k"] == 2
+    assert Path(captured["neighbour_table"][0]).name == "table.pt"
+    assert logged["neighbour_w"] == [0.15] and logged["neighbour_pool"].endswith("pool.csv")
 
 
 def test_loco_refuses_the_arm_with_basal_slope(tmp_path, challenge, capsys):
@@ -403,3 +404,51 @@ def test_gwps_control_names_the_cache_control_and_defaults_to_control(challenge)
     assert args["gwps_control"] == "control"
     with pytest.raises(ValueError):                  # the fixture cache has no such label
         build.main(_argv(challenge, "ctl2", ["--gwps-control", "non-targeting"]))
+
+
+# ---------------------------------------------------------------------- two tables at once (mix)
+
+def test_a_one_table_mix_is_the_single_arm_bit_for_bit():
+    targets, axis, deltas, table = _world()
+    one = na.build_neighbour_arms(targets, deltas.get, axis, [table], k=10, ws=[0.3])
+    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3)
+    assert isinstance(one, na.NeighbourArm)
+    for t in targets:
+        assert np.array_equal(one.fuse(t, deltas[t]), ref.fuse(t, deltas[t]))
+
+
+def test_two_tables_sum_their_unit_neighbour_arms_on_one_shared_pool():
+    targets, axis, deltas, t1 = _world(seed=0)
+    _, _, _, t2 = _world(seed=1)
+    t2 = {k: v for k, v in t2.items() if k != targets[7]}          # table 2 lacks one target
+    mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.2, 0.4])
+    assert targets[7] not in mix.arms[0].pool                       # the pool both tables resolve
+    a1 = na.build_neighbour_arm(mix.arms[0].pool, deltas.get, axis, t1, k=5, w=0.2)
+    a2 = na.build_neighbour_arm(mix.arms[0].pool, deltas.get, axis, t2, k=5, w=0.4)
+    for t in targets[10:20]:                                        # off the axis: no pin
+        r = deltas[t] - a1.mean
+        u1, _ = a1.neighbour_unit(t, na.table_vector(t1, t))
+        u2, _ = a2.neighbour_unit(t, na.table_vector(t2, t))
+        want = a1.mean + np.linalg.norm(r) * na.unit(na.unit(r) + 0.2 * u1 + 0.4 * u2)
+        np.testing.assert_allclose(mix.fuse(t, deltas[t]), want, atol=1e-12)
+    out = mix.fuse(targets[7], deltas[targets[7]])                  # only table 1 resolves it
+    assert mix.stats["table1_unresolved"] == 1 and not np.allclose(out, deltas[targets[7]])
+    summ = mix.summary()
+    assert summ["w"] == [0.2, 0.4] and "table0_cosine_mean" in summ
+
+
+def test_build_blends_two_tables_and_refuses_unpaired_weights(challenge, capsys):
+    rng = np.random.default_rng(9)
+    t2 = challenge["data"] / "table2.pt"
+    torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
+                for p in GENES[:N_PERTS]}, t2)
+    flags = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.2",
+             "--neighbour-table", str(t2), "--neighbour-w", "0.1",
+             "--neighbour-pool", str(challenge["data"] / "pool.csv"), "--neighbour-k", "3"]
+    assert build.main(_argv(challenge, "mix", flags)) == 0
+    rec = json.loads((challenge["out"] / "mix.neighbour.json").read_text())
+    assert rec["w"] == [0.2, 0.1] and len(rec["table_sha256"]) == 2 and rec["targets_fused"] == 4
+    with pytest.raises(SystemExit):
+        build.main(_argv(challenge, "bad", flags[:-6] + ["--neighbour-table", str(t2)]
+                         + flags[-4:]))
+    assert "one --neighbour-w per --neighbour-table" in capsys.readouterr().err

@@ -640,11 +640,13 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
 
 def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
     """The four neighbour-arm flags (T103), shared by `submit.build` and `eval.loco`."""
-    ap.add_argument("--neighbour-table", type=Path, default=None, metavar="PT",
+    ap.add_argument("--neighbour-table", type=Path, action="append", default=None, metavar="PT",
                     help="symbol-keyed gene table (.pt, {symbol: vector}) whose cosine "
                          "neighbourhoods pick each target's neighbours, e.g. Tahoe-x1 3B's "
-                         "gene-encoder table (sidechain.models.neighbour_arm). Needs "
-                         f"--neighbour-w > 0 and --neighbour-pool. Same knob in {twin}.")
+                         "gene-encoder table (sidechain.models.neighbour_arm). Repeatable, one "
+                         "--neighbour-w per table in the same order: two tables blend both "
+                         "neighbour sets into SER (NeighbourMix). Needs --neighbour-pool. Same "
+                         f"knob in {twin}.")
     ap.add_argument("--neighbour-pool", type=Path, default=None, metavar="CSV",
                     help="the targets neighbours are drawn from (column target_gene, else the "
                          "first). Declared, never inferred from what the sources cover, so a box "
@@ -653,28 +655,32 @@ def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
                          "counted.")
     ap.add_argument("--neighbour-k", type=int, default=25, metavar="K",
                     help="neighbours per target (default 25, the geometry gate's header k)")
-    ap.add_argument("--neighbour-w", type=float, default=0.0, metavar="W",
+    ap.add_argument("--neighbour-w", type=float, action="append", default=None, metavar="W",
                     help="weight of the unit neighbour arm against SER's unit residual: "
                          "out = m + |r| unit(unit(r) + w unit(n)), the geometry gate's cross-mode "
-                         "fusion term for term, so w is read off the gate's paired sweep, never "
-                         "fitted on the board. 0 = off and bit-identical (nothing is loaded).")
+                         "fusion term for term; repeatable, one per --neighbour-table. Unset = "
+                         "off and bit-identical (nothing is loaded).")
 
 
 def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     """Refuse a half-set neighbour arm before any work, in both entry points."""
-    w, table, pool = args.neighbour_w, args.neighbour_table, args.neighbour_pool
-    if not math.isfinite(w) or w < 0:
-        ap.error(f"--neighbour-w must be finite and >= 0, got {w}: a negative weight steers AWAY "
-                 "from the neighbours, which no gate measured, and inf or nan fuse every target "
-                 "into NaN")
-    if w == 0:
-        if table is not None or pool is not None:
-            ap.error("--neighbour-table/--neighbour-pool without --neighbour-w > 0 do nothing; "
-                     "w = 0 is the knob off -- give a weight or drop them")
+    ws, tables, pool = args.neighbour_w or [], args.neighbour_table or [], args.neighbour_pool
+    for w in ws:
+        if not math.isfinite(w) or w <= 0:
+            ap.error(f"--neighbour-w must be finite and > 0, got {w}: a negative weight steers "
+                     "AWAY from the neighbours, which no gate measured, inf or nan fuse every "
+                     "target into NaN, and 0 is the knob off -- leave the flag out")
+    if not ws:
+        if tables or pool is not None:
+            ap.error("--neighbour-table/--neighbour-pool without --neighbour-w do nothing; "
+                     "give a weight or drop them")
         return
-    if table is None or pool is None:
-        ap.error("--neighbour-w > 0 needs both --neighbour-table and --neighbour-pool")
-    for flag, path in (("--neighbour-table", table), ("--neighbour-pool", pool)):
+    if not tables or pool is None:
+        ap.error("--neighbour-w needs both --neighbour-table and --neighbour-pool")
+    if len(tables) != len(ws):
+        ap.error(f"one --neighbour-w per --neighbour-table, in the same order: got "
+                 f"{len(tables)} tables and {len(ws)} weights")
+    for flag, path in [("--neighbour-table", t) for t in tables] + [("--neighbour-pool", pool)]:
         if not Path(path).expanduser().exists():
             ap.error(f"{flag}: no such file {path}")
     if args.neighbour_k < 1:
@@ -689,7 +695,7 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
     """Build the arm from parsed flags; returns ``(arm, record)`` for the run's sidecar."""
     import hashlib
 
-    from sidechain.models.neighbour_arm import build_neighbour_arm, load_gene_table, read_pool
+    from sidechain.models.neighbour_arm import build_neighbour_arms, load_gene_table, read_pool
 
     def sha256(path: Path) -> str:
         h = hashlib.sha256()
@@ -698,11 +704,20 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
                 h.update(chunk)
         return h.hexdigest()
 
-    table_path = Path(args.neighbour_table).expanduser()
+    def as_list(x):
+        return list(x) if isinstance(x, (list, tuple)) else [x]
+
+    table_paths = [Path(t).expanduser() for t in as_list(args.neighbour_table)]
+    ws = [float(w) for w in as_list(args.neighbour_w)]
     pool_path = Path(args.neighbour_pool).expanduser()
-    arm = build_neighbour_arm(read_pool(pool_path), delta_of, axis, load_gene_table(table_path),
-                              k=args.neighbour_k, w=args.neighbour_w)
-    record = {"table": str(table_path), "table_sha256": sha256(table_path),
+    arm = build_neighbour_arms(read_pool(pool_path), delta_of, axis,
+                               [load_gene_table(t) for t in table_paths],
+                               k=args.neighbour_k, ws=ws)
+    # One table records the scalar shape the first two bundles were built with; a mix, lists.
+    one = len(table_paths) == 1
+    record = {"table": str(table_paths[0]) if one else [str(t) for t in table_paths],
+              "table_sha256": (sha256(table_paths[0]) if one
+                               else [sha256(t) for t in table_paths]),
               "pool_file": str(pool_path), "pool_sha256": sha256(pool_path)}
     return arm, record
 
@@ -735,9 +750,8 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
     record["targets_unfused_fallback"] = len(shifts) - len(covered)
     record_path.write_text(json.dumps(record, indent=1) + "\n")
     print(f"neighbour arm: {record.get('targets_fused', 0)} of {len(covered)} targets fused "
-          f"(k={arm.k}, w={arm.w:g}, pool {record['pool_used']} of {record['pool_requested']}, "
-          f"mean SER-vs-neighbour cosine {record.get('arm_cosine_mean', float('nan')):+.4f}) "
-          f"in {time.time() - t0:.0f}s", flush=True)
+          f"(k={record['k']}, w={record['w']}, pool {record['pool_used']} of "
+          f"{record['pool_requested']}) in {time.time() - t0:.0f}s", flush=True)
     return record
 
 

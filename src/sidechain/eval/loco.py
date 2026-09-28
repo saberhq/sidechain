@@ -81,10 +81,10 @@ def build_transfer_prediction(
     cells_per_pert: int | None = None,
     seed: int = 0,
     min_libsize: float = CONTROL_MIN_LIBSIZE,
-    neighbour_table: Path | None = None,
+    neighbour_table: Path | list[Path] | None = None,
     neighbour_pool: Path | None = None,
     neighbour_k: int = 25,
-    neighbour_w: float = 0.0,
+    neighbour_w: float | list[float] | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -376,7 +376,8 @@ def main(argv: list[str] | None = None) -> int:
          "similarity_beta": args.similarity_beta,
          "basal_slope": args.basal_slope,
          "coverage_tiers": args.coverage_tiers,
-         "neighbour_table": None if args.neighbour_table is None else str(args.neighbour_table),
+         "neighbour_table": None if args.neighbour_table is None else [
+             str(t) for t in args.neighbour_table],
          "neighbour_pool": None if args.neighbour_pool is None else str(args.neighbour_pool),
          "neighbour_k": args.neighbour_k, "neighbour_w": args.neighbour_w,
          "seed": args.seed, "de_backend": args.de_backend},

@@ -125,18 +125,23 @@ class NeighbourArm:
         if r_norm == 0.0:
             s["targets_zero_residual"] = s.get("targets_zero_residual", 0) + 1
             return delta
-        sim = self.pool_unit @ unit(e)
-        own = self._pool_pos.get(target)
-        if own is not None:
-            sim[own] = -np.inf               # a target is never its own neighbour
-        idx = np.argsort(-sim)[: self.k]
-        n = self.resid[idx].mean(0)
-        ur, un = unit(r), unit(n)
+        un, own = self.neighbour_unit(target, e)
+        ur = unit(r)
         fused = self.mean + r_norm * unit(ur + self.w * un)
         s["targets_fused"] = s.get("targets_fused", 0) + 1
         s["arm_cosine_sum"] = s.get("arm_cosine_sum", 0.0) + float(ur @ un)
         s["own_in_pool"] = s.get("own_in_pool", 0) + int(own is not None)
         return fused
+
+    def neighbour_unit(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
+        """``unit(n_t)``, the mean residual of the k pool members nearest ``e``, t excluded;
+        and t's pool index (None when t is not in the pool)."""
+        sim = self.pool_unit @ unit(e)
+        own = self._pool_pos.get(target)
+        if own is not None:
+            sim[own] = -np.inf               # a target is never its own neighbour
+        idx = np.argsort(-sim)[: self.k]
+        return unit(self.resid[idx].mean(0)), own
 
     def summary(self) -> dict:
         """What a run records: the knobs, the pool, and how the targets fared."""
@@ -194,3 +199,87 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
     return NeighbourArm(k=k, w=float(w), table=table, pool=labels, mean=m,
                         resid=np.ascontiguousarray(D - m), pool_unit=unit(np.stack(vecs)),
                         gene_pos=gene_pos, stats=stats)
+
+
+@dataclass
+class NeighbourMix:
+    """Several gene tables at once: ``out = m + |r| unit(unit(r) + sum_i w_i unit(n_i))``.
+
+    Each table picks its own k nearest neighbours; all of them share one pool (the members
+    every table resolves), so they share one ``m`` and one set of residuals, and SER's own
+    residual enters once. A target a table cannot resolve simply gets no term from that
+    table; one no table resolves keeps SER's delta, counted, as in `NeighbourArm`.
+    """
+
+    arms: list[NeighbourArm]
+    stats: dict = field(default_factory=dict)
+
+    @property
+    def k(self) -> int:
+        return self.arms[0].k
+
+    @property
+    def ws(self) -> list[float]:
+        return [a.w for a in self.arms]
+
+    def fuse(self, target: str, delta: np.ndarray) -> np.ndarray:
+        s, a0 = self.stats, self.arms[0]
+        es = [table_vector(a.table, target) for a in self.arms]
+        if all(e is None for e in es):
+            s["targets_unresolved"] = s.get("targets_unresolved", 0) + 1
+            return delta
+        d = np.array(delta, dtype=float)
+        if target in a0.gene_pos:
+            d[a0.gene_pos[target]] = 0.0
+        r = d - a0.mean
+        r_norm = float(np.linalg.norm(r))
+        if r_norm == 0.0:
+            s["targets_zero_residual"] = s.get("targets_zero_residual", 0) + 1
+            return delta
+        ur = unit(r)
+        acc = ur.copy()
+        for i, (a, e) in enumerate(zip(self.arms, es)):
+            if e is None:
+                s[f"table{i}_unresolved"] = s.get(f"table{i}_unresolved", 0) + 1
+                continue
+            un, _own = a.neighbour_unit(target, e)
+            acc += a.w * un
+            s[f"table{i}_cosine_sum"] = s.get(f"table{i}_cosine_sum", 0.0) + float(ur @ un)
+        s["targets_fused"] = s.get("targets_fused", 0) + 1
+        return a0.mean + r_norm * unit(acc)
+
+    def summary(self) -> dict:
+        s = dict(self.stats)
+        n = s.get("targets_fused", 0)
+        for i in range(len(self.arms)):
+            c = s.pop(f"table{i}_cosine_sum", None)
+            if c is not None and n:
+                s[f"table{i}_cosine_mean"] = round(c / n, 6)
+        return {"k": self.k, "w": self.ws, "pool_used": len(self.arms[0].pool),
+                "pool_requested": self.arms[0].stats.get("pool_requested"), **s}
+
+
+def build_neighbour_arms(pool: Sequence[str], delta_of: Callable[[str], np.ndarray | None],
+                         axis: np.ndarray, tables: Sequence[Mapping], *, k: int,
+                         ws: Sequence[float]) -> NeighbourArm | NeighbourMix:
+    """One table: exactly `build_neighbour_arm`. Several: a `NeighbourMix` whose arms share the
+    pool members every table resolves, pooled once."""
+    if len(tables) != len(ws) or not tables:
+        raise ValueError(f"one w per table: got {len(tables)} tables and {len(ws)} weights")
+    if len(tables) == 1:
+        return build_neighbour_arm(pool, delta_of, axis, tables[0], k=k, w=ws[0])
+    labels = list(dict.fromkeys(str(x) for x in pool))
+    shared = [lab for lab in labels if all(table_vector(t, lab) is not None for t in tables)]
+    memo: dict = {}
+
+    def once(lab):
+        if lab not in memo:
+            memo[lab] = delta_of(lab)
+        return memo[lab]
+
+    arms = [build_neighbour_arm(shared, once, axis, t, k=k, w=w) for t, w in zip(tables, ws)]
+    for a in arms[1:]:
+        assert a.pool == arms[0].pool and np.array_equal(a.mean, arms[0].mean)
+    arms[0].stats["pool_requested"] = len(labels)
+    arms[0].stats["pool_unresolved"] = len(labels) - len(shared)
+    return NeighbourMix(arms=arms)
