@@ -12,7 +12,8 @@ The parsers are pinned on the properties that decide the numbers:
 * the Summary_Counts files key a family by its SEED, the site files by its NAME, and the
   edge table maps one onto the other through miR_Family_Info;
 * the site table flags default predictions, keeps nonconserved sites of conserved families,
-  and joins the context-score file whose coordinates sit one below (both ends);
+  and joins the context-score file's human rows at the same coordinates (a foreign species'
+  row of the same site sits elsewhere and must not join);
 * the sequence table verifies the site coordinate convention against the seed complement,
   then counts the NAR 2016 co-occurrence (within 200 nt) and competition (overlap) events;
 * `build()` is a bipartite artifact: row 0 indexes the families, row 1 the gene space, one
@@ -106,9 +107,10 @@ CONTEXT = (
     "Gene ID\tGene Symbol\tTranscript ID\tGene Tax ID\tmiRNA\tSite Type\tUTR_start\tUTR end\t"
     "context++ score\tcontext++ score percentile\tweighted context++ score\t"
     "weighted context++ score percentile\tPredicted relative KD\n"
-    # coordinates one BELOW the family files' (both ends), as in the real release
-    "ENSG1.7\tA1BG\tENST1.3\t9606\thsa-miR-1-3p\t3\t20\t27\t-0.50\t98\t-0.45\t97\tNULL\n"
-    "ENSG1.7\tA1BG\tENST1.3\t9606\thsa-miR-2-5p\t2\t99\t105\t-0.25\t90\t-0.20\t88\tNULL\n"
+    # human rows share the family files' coordinates; the mouse row sits at its own position
+    # (as the real release's macaque rows do), so it must neither join nor shift anything
+    "ENSG1.7\tA1BG\tENST1.3\t9606\thsa-miR-1-3p\t3\t21\t28\t-0.50\t98\t-0.45\t97\tNULL\n"
+    "ENSG1.7\tA1BG\tENST1.3\t9606\thsa-miR-2-5p\t2\t100\t106\t-0.25\t90\t-0.20\t88\tNULL\n"
     "ENSG1.7\tA1BG\tENST1.3\t10090\tmmu-miR-1a-3p\t3\t20\t27\t-0.50\t98\t-0.99\t97\tNULL\n"  # mouse row
 )
 
@@ -277,7 +279,7 @@ def test_site_table_flags_default_predictions_dedupes_and_joins_context_one_belo
     assert list(a1bg["conserved_site"]) == [True, True, False]
     assert list(a1bg["site_type"]) == ["8mer", "7mer-m8", "7mer-a1"]
     assert a1bg["pct"].tolist()[:2] == pytest.approx([0.85, 0.50]) and np.isnan(a1bg["pct"].iloc[2])
-    # context++ joined at (start - 1, end - 1); the nonconserved site has no row
+    # context++ joined at the same coordinates; the nonconserved site has no row
     assert a1bg["context_pp"].tolist()[:2] == pytest.approx([-0.45, -0.20])
     assert np.isnan(a1bg["context_pp"].iloc[2])
     assert bool(s["representative"].all())

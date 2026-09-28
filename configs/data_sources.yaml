@@ -187,8 +187,8 @@ sources:
       # features are read from.
       - name: Predicted_Targets_Info.default_predictions.txt.zip
       # The same sites keyed by individual miRNA with context++ scores, their
-      # percentiles and the predicted relative KD. 17.7 MB. Its UTR coordinates
-      # sit one below the file above (0-based start), see site_table.
+      # percentiles and the predicted relative KD. 17.7 MB. Human rows share the
+      # file above's UTR coordinates; other species' rows sit at their own.
       - name: Predicted_Targets_Context_Scores.default_predictions.txt.zip
       # Every conserved site (any family) with context++ and KD. 18.6 MB.
       - name: Conserved_Site_Context_Scores.txt.zip

@@ -105,8 +105,8 @@ SITE_COLUMNS = {
                       "conserved site of a conserved family); False for the nonconserved sites "
                       "of conserved families that Conserved_Family_Info adds",
     "context_pp": "weighted context++ of the site, the most negative over the family's member "
-                  "miRNAs in Conserved_Site_Context_Scores (whose coordinates sit one below the "
-                  "family files'); NaN where no member row joined",
+                  "miRNAs in Conserved_Site_Context_Scores, joined at the same human UTR "
+                  "coordinates; NaN where no member row joined",
     "representative": "the transcript is the gene's representative one (Gene_info)",
 }
 
@@ -677,11 +677,11 @@ class MiRNATargetSource(PriorSource):
         families, with positions and PCT) flagged by membership in
         ``Predicted_Targets_Info.default_predictions`` (``conserved_site``). The weighted
         context++ of a site is attached from ``Conserved_Site_Context_Scores``, whose rows
-        are per member miRNA and whose UTR coordinates sit ONE BELOW the family files'
-        (``UTR_start`` 142 where the family file says 143, both ends): the join key is
-        (transcript, family, start - 1, end - 1) and the most negative member score is
-        kept. The join rate is recorded in LINEAGE.json; an unjoined site keeps NaN.
-        Cached at ``<derived>/sites.parquet``.
+        are per member miRNA (mapped to the family through miR_Family_Info) at the same UTR
+        coordinates as the family files for human rows: the join key is (transcript,
+        family, start, end) and the most negative member score is kept. The join rate is
+        recorded in LINEAGE.json; an unjoined site keeps NaN. Cached at
+        ``<derived>/sites.parquet``.
         """
         out_path = self.derived / "sites.parquet"
         if out_path.exists() and not rebuild:
@@ -753,9 +753,13 @@ class MiRNATargetSource(PriorSource):
         mir2fam = dict(zip(fam["mirbase_id"], fam["family"]))
         cs["family"] = cs["mirna"].str.strip().map(mir2fam)
         cs = cs.dropna(subset=["family", "wctx"])
-        # the family files' coordinates sit one above the context-score files' (both ends)
-        cs["utr_start"] = cs["cs_start"] + 1
-        cs["utr_end"] = cs["cs_end"] + 1
+        # The HUMAN rows of the context-score file carry the same UTR coordinates as the
+        # family files (A1BG miR-23-3p: 143-150 in both). Other species' rows sit at that
+        # species' own position (the macaque row of the same site reads 142-149), which is
+        # what a first read of the file's head mistook for a global off-by-one; the join
+        # rate recorded in LINEAGE.json is the check (0.0 under the shifted join, 2026-09-28).
+        cs["utr_start"] = cs["cs_start"]
+        cs["utr_end"] = cs["cs_end"]
         best = (cs.groupby(["transcript_id", "family", "utr_start", "utr_end"])["wctx"].min()
                   .rename("context_pp").reset_index())
         merged = sites[["transcript_id", "family", "utr_start", "utr_end"]].merge(
