@@ -227,7 +227,11 @@ def run_corpus(n_reference: int, n_perm: int, log) -> dict:
     if len(labels_by_panel) < 2:
         return {"skipped": "fewer than two panels on disk"}
     shared = sorted(set.intersection(*labels_by_panel.values()))
-    named = [k for k in MIRNA_PATHWAY + RBP_DECAY if k in shared]
+    # a named knockdown counts when two or more panels carry it (DROSHA, DGCR8, TNRC6A and PUM1
+    # are in HepG2, Jurkat and RPE1 but not in the K562 essential panel); the reference draw
+    # stays on the knockdowns every panel shares
+    named = [k for k in MIRNA_PATHWAY + RBP_DECAY
+             if sum(k in labs for labs in labels_by_panel.values()) >= 2]
     pool = [k for k in shared if k not in named]
     reference = sorted(rng.choice(pool, size=min(n_reference, len(pool)), replace=False).tolist())
     kds = named + reference
