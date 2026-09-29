@@ -88,6 +88,20 @@ COVARIATES = ("log_ctrl_cpm", "log_truth_se")
 #: predictions; mean_abs_pred may be a mediator rather than a confounder, so it is reported as a
 #: named sensitivity beside the pre-registered set, never swapped in silently.
 COVARIATES_SENS = ("log_ctrl_cpm", "log_truth_se", "log_mean_abs_truth", "log_mean_abs_pred", "log_n_targets")
+N_BOOT = 500                  # gene bootstrap behind |rho_spread| - |rho_mean| (review of 2026-09-28, S4)
+
+
+#: A statistic's algebraic parts, never among its covariates: `mean_abs_truth` against
+#: `log_mean_abs_truth` (the first run did that, and its rows in decompose.json read a variable
+#: against itself), and `log_ratio`, which IS log_mean_abs_pred - log_mean_abs_truth (pre-launch
+#: review of the closing run, 2026-09-28). `scripts/t102_close.py` keeps the same table.
+COMPONENTS = {"mean_abs_truth": ("log_mean_abs_truth",),
+              "log_ratio": ("log_mean_abs_pred", "log_mean_abs_truth")}
+
+
+def sens_for(stat: str) -> tuple[str, ...]:
+    """The sensitivity set minus the statistic's own parts (`COMPONENTS`)."""
+    return tuple(c for c in COVARIATES_SENS if c not in COMPONENTS.get(stat, ()))
 MIN_CELLS_PER_ARM = 20        # a knockdown arm below this is reported but not read (5-cell arms drove two medians)
 
 PANELS = {"HepG2": "hepg2_all_pseudobulk.npz", "Jurkat": "jurkat_all_pseudobulk.npz",
@@ -151,7 +165,7 @@ def run_pairs(tables: dict[str, pd.DataFrame], n_perm: int, log) -> dict:
         same = HELD_OUT_LINE[a] == HELD_OUT_LINE[b]
         for stat in STATS:
             r = pair_consistency(tables[a], tables[b], stat, covariates=COVARIATES, n_perm=n_perm, seed=0)
-            rs = pair_consistency(tables[a], tables[b], stat, covariates=COVARIATES_SENS, n_perm=n_perm, seed=0)
+            rs = pair_consistency(tables[a], tables[b], stat, covariates=sens_for(stat), n_perm=n_perm, seed=0)
             rows.append({"fold_a": a, "fold_b": b, "line_a": HELD_OUT_LINE[a], "line_b": HELD_OUT_LINE[b],
                          "same_line": same, "stat": stat, **r,
                          "rho_partial_sens": rs.get("rho_partial", float("nan")),
@@ -188,13 +202,31 @@ def run_decompose(tables: dict[str, pd.DataFrame], n_perm: int, log) -> dict:
     # the features are per gene and identical across folds (one UTR table): take them from
     # the first fold's table by gene
     feat = joined[have[0]][["gene", *[c for c in features if c in joined[have[0]].columns]]].drop_duplicates("gene")
-    out = {"folds": have, "n_perm": n_perm, "features": features, "stats": {}}
+    out = {"folds": have, "n_perm": n_perm, "n_boot": N_BOOT, "features": features, "stats": {},
+           "spread_covariates": "the sensitivity set's across-line means plus sd(log_mean_abs_truth), "
+                                "sd(log_truth_se) and min(log_n_targets) across the folds (review of 2026-09-28, S4); "
+                                "a statistic's own column is never among its covariates"}
+    # the spread side's own confounders, per gene: how much the truth's size and noise vary across
+    # the lines, and the fewest targets that score the gene on any fold
+    per_fold = None
+    for f in have:
+        t = joined[f][["gene", "log_mean_abs_truth", "log_truth_se", "log_n_targets"]].rename(
+            columns={c: f"{c}__{f}" for c in ("log_mean_abs_truth", "log_truth_se", "log_n_targets")})
+        per_fold = t if per_fold is None else per_fold.merge(t, on="gene")
+    spread = pd.DataFrame({"gene": per_fold["gene"]})
+    for c, how in (("log_mean_abs_truth", "sd"), ("log_truth_se", "sd"), ("log_n_targets", "min")):
+        m = np.column_stack([per_fold[f"{c}__{f}"].to_numpy(dtype=np.float64) for f in have])
+        spread[f"{how}_{c}"] = m.std(axis=1, ddof=1) if how == "sd" else m.min(axis=1)
     for stat in STATS:
+        own = sens_for(stat)
         d = decompose_across_lines(joined, stat, covariates=COVARIATES_SENS)
-        d = d.merge(feat, on="gene", how="left")
+        d = d.merge(feat, on="gene", how="left").merge(spread, on="gene", how="left")
         d.to_parquet(OUT / f"decompose_{stat}.parquet", index=False)
         cov = np.vstack([d[f"mean_{c}"].to_numpy(dtype=np.float64) for c in COVARIATES])
-        cov_s = np.vstack([d[f"mean_{c}"].to_numpy(dtype=np.float64) for c in COVARIATES_SENS])
+        cov_s = np.vstack([d[f"mean_{c}"].to_numpy(dtype=np.float64) for c in own])
+        spread_cols = [c for c in ("sd_log_mean_abs_truth", "sd_log_truth_se", "min_log_n_targets")
+                       if c.split("_", 1)[1] not in COMPONENTS.get(stat, ())]
+        cov_sp = np.vstack([cov_s, *[d[c].to_numpy(dtype=np.float64) for c in spread_cols]])
         # how much of the gene's error belongs to the gene: the naive share of variance in the
         # across-line mean floors near 1/k with no gene effect, so it is read next to its
         # within-fold gene-shuffle floor; ICC(1) on fold-centred values is the statistic with a zero
@@ -205,29 +237,84 @@ def run_decompose(tables: dict[str, pd.DataFrame], n_perm: int, log) -> dict:
                           for _ in range(200)])
         ranks = np.column_stack([pd.Series(vals[:, j]).rank().to_numpy() for j in range(vals.shape[1])])
         table = []
+        brng = np.random.default_rng(1)
+        boot_idx = [brng.integers(0, len(d), len(d)) for _ in range(N_BOOT)]
         for target in (f"mean_{stat}", f"absdev_{stat}"):
             for c in features:
                 if c not in d.columns:
                     continue
-                r = correlate(d[target].to_numpy(dtype=np.float64), d[c].to_numpy(dtype=np.float64),
-                              covariates=cov, n_perm=n_perm, seed=0)
-                rs = correlate(d[target].to_numpy(dtype=np.float64), d[c].to_numpy(dtype=np.float64),
-                               covariates=cov_s, n_perm=n_perm, seed=0)
-                table.append({"target": target, "feature": c, **r,
-                              "rho_partial_sens": rs.get("rho_partial", float("nan")),
-                              "p_perm_partial_sens": rs.get("p_perm_partial", float("nan"))})
+                y = d[target].to_numpy(dtype=np.float64)
+                x = d[c].to_numpy(dtype=np.float64)
+                r = correlate(y, x, covariates=cov, n_perm=n_perm, seed=0)
+                rs = correlate(y, x, covariates=cov_s, n_perm=n_perm, seed=0)
+                row = {"target": target, "feature": c, **r,
+                       "rho_partial_sens": rs.get("rho_partial", float("nan")),
+                       "p_perm_partial_sens": rs.get("p_perm_partial", float("nan"))}
+                if target.startswith("absdev_"):
+                    rsp = correlate(y, x, covariates=cov_sp, n_perm=n_perm, seed=0)
+                    row |= {"rho_partial_spread": rsp.get("rho_partial", float("nan")),
+                            "p_perm_partial_spread": rsp.get("p_perm_partial", float("nan"))}
+                    # is the feature's grip on the SPREAD larger than on the MEAN? A gene bootstrap
+                    # on |rho_spread| - |rho_mean|, each with its own covariate set
+                    ym = d[f"mean_{stat}"].to_numpy(dtype=np.float64)
+                    diffs = np.array([abs(_partial_rho(y[b], x[b], cov_sp[:, b])) - abs(_partial_rho(ym[b], x[b], cov_s[:, b]))
+                                      for b in boot_idx])
+                    diffs = diffs[np.isfinite(diffs)]
+                    row["spread_minus_mean"] = {
+                        "point": abs(row["rho_partial_spread"]) - abs(_partial_rho(ym, x, cov_s)),
+                        "boot_q025": float(np.quantile(diffs, 0.025)) if diffs.size else float("nan"),
+                        "boot_q975": float(np.quantile(diffs, 0.975)) if diffs.size else float("nan")}
+                table.append(row)
                 log(f"   {stat:14s} {target:22s} x {c:24s} n {r['n']:5d} rho {r['rho']:+.3f} (p {r['p_perm']:.3f}) "
                     f"|cov {r.get('rho_partial', float('nan')):+.3f} (p {r.get('p_perm_partial', float('nan')):.3f}) "
-                    f"|sens {rs.get('rho_partial', float('nan')):+.3f} (p {rs.get('p_perm_partial', float('nan')):.3f})")
+                    f"|sens {rs.get('rho_partial', float('nan')):+.3f} (p {rs.get('p_perm_partial', float('nan')):.3f})"
+                    + (f" |spread {row['rho_partial_spread']:+.3f} (p {row['p_perm_partial_spread']:.3f}); "
+                       f"|spread|-|mean| {row['spread_minus_mean']['point']:+.3f} "
+                       f"[{row['spread_minus_mean']['boot_q025']:+.3f}, {row['spread_minus_mean']['boot_q975']:+.3f}]"
+                       if target.startswith("absdev_") else ""))
         out["stats"][stat] = {"genes": int(len(d)),
                               "share_in_mean": share,
                               "share_in_mean_shuffle_floor": {"mean": float(floor.mean()), "q975": float(np.quantile(floor, 0.975))},
                               "icc1": icc1(vals), "icc1_ranks": icc1(ranks),
                               "median_absdev": float(d[f"absdev_{stat}"].median()),
                               "median_mean": float(d[f"mean_{stat}"].median()),
+                              # the lists actually used: a statistic's own parts are never among them
+                              "covariates_pre": list(COVARIATES), "covariates_sens": list(own),
+                              "covariates_spread": [*own, *spread_cols],
                               "correlations": table}
         log(f"   {stat}: {len(d)} genes on all {len(have)} folds; share in the across-line mean {share:.2f} "
             f"(shuffle floor {floor.mean():.2f}); ICC(1) {out['stats'][stat]['icc1']:.2f}, on ranks {out['stats'][stat]['icc1_ranks']:.2f}")
+    # which side of the log size ratio moves between folds -- the truth (the line) or our
+    # prediction (the pool)? Each spread against the features, on the spread covariates
+    # (results review, 2026-09-29: 'line-specific' needs this before it is written)
+    if "log_ratio" in out["stats"]:
+        sides = None
+        for f in have:
+            t = joined[f][["gene", "log_mean_abs_truth", "log_mean_abs_pred"]].rename(
+                columns={"log_mean_abs_truth": f"t__{f}", "log_mean_abs_pred": f"p__{f}"})
+            sides = t if sides is None else sides.merge(t, on="gene")
+        d = decompose_across_lines(joined, "log_ratio", covariates=COVARIATES_SENS).merge(feat, on="gene", how="left") \
+            .merge(spread, on="gene", how="left").merge(sides, on="gene", how="left")
+        d["sd_truth_side"] = np.column_stack([d[f"t__{f}"] for f in have]).std(axis=1, ddof=1)
+        d["sd_pred_side"] = np.column_stack([d[f"p__{f}"] for f in have]).std(axis=1, ddof=1)
+        own = sens_for("log_ratio")
+        cov_sp = np.vstack([*[d[f"mean_{c}"].to_numpy(dtype=np.float64) for c in own],
+                            d["sd_log_truth_se"].to_numpy(dtype=np.float64), d["min_log_n_targets"].to_numpy(dtype=np.float64)])
+        rows = []
+        for c in features:
+            if c not in d.columns:
+                continue
+            x = d[c].to_numpy(dtype=np.float64)
+            rt = correlate(d["sd_truth_side"].to_numpy(dtype=np.float64), x, covariates=cov_sp, n_perm=n_perm, seed=0)
+            rp = correlate(d["sd_pred_side"].to_numpy(dtype=np.float64), x, covariates=cov_sp, n_perm=n_perm, seed=0)
+            ra = correlate(d["absdev_log_ratio"].to_numpy(dtype=np.float64), x, covariates=cov_sp, n_perm=n_perm, seed=0)
+            rows.append({"feature": c, "absdev_log_ratio": ra.get("rho_partial"), "truth_side": rt.get("rho_partial"),
+                         "truth_side_p": rt.get("p_perm_partial"), "pred_side": rp.get("rho_partial"),
+                         "pred_side_p": rp.get("p_perm_partial")})
+            log(f"   log_ratio spread x {c:24s} |d| {ra.get('rho_partial', float('nan')):+.3f}; truth side "
+                f"{rt.get('rho_partial', float('nan')):+.3f} (p {rt.get('p_perm_partial', float('nan')):.3f}); prediction side "
+                f"{rp.get('rho_partial', float('nan')):+.3f} (p {rp.get('p_perm_partial', float('nan')):.3f})")
+        out["log_ratio_spread_sides"] = {"covariates": [*own, "sd_log_truth_se", "min_log_n_targets"], "rows": rows}
     return out
 
 
@@ -429,6 +516,11 @@ def run_corpus(n_reference: int, n_perm: int, log) -> dict:
     cov_line = {name: np.vstack([np.log10(np.clip(ctrl_cpm[name], 1e-3, None))]) for name in names}
     ref_site = {name: np.array([_partial_rho(np.where(expressed[name], lfc[(name, kd)], np.nan), feat["n_cons_sites"], cov_line[name])
                                 for kd in reference if (name, kd) in lfc and (name, kd) not in thin]) for name in names}
+    # the same references on the matched instrument (expression AND 3'UTR length held), with each
+    # one's strength, so a named knockdown is ranked like with like (results review, 2026-09-29)
+    ref_len = {name: [(kd, _partial_rho(np.where(expressed[name], lfc[(name, kd)], np.nan), feat["n_cons_sites"],
+                                        np.vstack([cov_line[name], feat["log_utr_len"]])), nde[(name, kd)])
+                      for kd in reference if (name, kd) in lfc and (name, kd) not in thin] for name in names}
     load_vs = []
     for kd in DEREPRESSION_KDS:
         stack, lines_used = [], []
@@ -445,6 +537,14 @@ def run_corpus(n_reference: int, n_perm: int, log) -> dict:
                     row["rho_partial_expr_len"] = _partial_rho(y, feat[c], cov_len)
                     row["percentile_in_reference_line"] = _percentile(r.get("rho_partial", float("nan")), ref_site[name])
                     row["reference_line_median"] = float(np.nanmedian(ref_site[name])) if ref_site[name].size else float("nan")
+                    rl = [(v, st) for _, v, st in ref_len[name] if np.isfinite(v)]
+                    vals = np.array([v for v, _ in rl])
+                    row["percentile_in_reference_line_expr_len"] = _percentile(row["rho_partial_expr_len"], vals)
+                    if rl:
+                        lg = np.log10(np.maximum(np.array([st for _, st in rl], dtype=float), 1.0))
+                        near = np.argsort(np.abs(lg - np.log10(max(nde[(name, kd)], 1))))[:50]
+                        row["percentile_expr_len_strength_matched"] = _percentile(row["rho_partial_expr_len"], vals[near])
+                        row["strength_vs_site_rho_spearman"] = float(pd.Series(vals).corr(pd.Series(lg), method="spearman"))
                 load_vs.append(row)
                 log(f"   {kd:7s} {name:6s} lfc x {c:14s} n {r['n']:5d} rho {r['rho']:+.3f} (p {r['p_perm']:.3f}) "
                     f"|expr {r.get('rho_partial', float('nan')):+.3f} (p {r.get('p_perm_partial', float('nan')):.3f})"
