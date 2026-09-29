@@ -18,3 +18,7 @@ and defaults to "refuted" when the evidence does not hold up as stated.
 is the ledger (`ledger.py`, ADR 0008), not this file.** Final message: the verdict first
 (`approve` | `block` | `needs <what>`), then the findings most severe first, each with `file:line`
 or the run directory, ending with one `→ <file>` line. Send no STATUS block.
+
+**In Claude Science, a session told `pick up T<n>` is that task's mother** (ADR 0011): it still
+changes no code or arm, and records its verdict where the task says — the task file's log and
+the idea file's `## Outcome` — and commits that record through the `sidechain-pickup` skill.

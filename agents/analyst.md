@@ -27,3 +27,8 @@ Rules:
 **Your assignment is the first line of your brief (`T<n> · from <session id> · …`); the record
 is the ledger (`ledger.py`, ADR 0008), not this file.** Final message: the numbers first, then the
 pointers, ending with one `→ <results dir or idea file>` line. Send no STATUS block.
+
+**In Claude Science, a session told `pick up T<n>` is that task's mother, not a subagent** (ADR
+0011): it keeps every measurement rule above and also does the mother's recording — the task
+file's log, `CHANGELOG.md`, the commits — through the `sidechain-pickup` skill. As a subagent, the
+limits above stand.
