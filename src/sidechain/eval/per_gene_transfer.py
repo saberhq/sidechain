@@ -69,6 +69,8 @@ __all__ = [
     "FoldTruth", "fold_truth", "lfc_ce2", "pred_lfc", "gate_from_de_real", "gate_wald",
     "per_gene_stats", "correlate", "residualize_ranks", "gate_agreement",
     "nmae_closed_form", "fit_binned_amplitude", "amplitude_on_axis",
+    "pair_consistency", "decompose_across_lines", "knockdown_lfc", "derepressed", "jaccard",
+    "icc1", "share_in_mean",
 ]
 
 CE2_EPS = 1e-9                 # cell-eval2 `de.epsilon` under the vcc2026 preset
@@ -563,13 +565,55 @@ def knockdown_lfc(pb, label: str, control: str, *, pseudocount: float = 1.0) -> 
 
 
 def derepressed(lfc: np.ndarray, var: np.ndarray, expressed: np.ndarray, *,
-                min_lfc: float = 0.25, min_z: float = 2.0) -> np.ndarray:
+                min_lfc: float = 0.25, min_z: float = 2.0, center: bool = True) -> np.ndarray:
     """Genes UP after a knockdown, with evidence: expressed, log2FC above `min_lfc`, and
     log2FC / sqrt(var) above `min_z`. After DICER1 / DROSHA / DGCR8 this is the line's
-    miRNA-repressed set as the cells reported it (the NAR 2016 note's use (ii))."""
+    miRNA-repressed set as the cells reported it (the NAR 2016 note's use (ii)).
+
+    `center` subtracts the expressed genes' median log2FC first: each knockdown in each line
+    carries its own global offset (a composition shift of the pseudobulk), so an uncentred
+    threshold means a different thing per line (review of 2026-09-28: one sub-random overlap
+    came from exactly that).
+    """
+    lfc = np.asarray(lfc, dtype=np.float64)
+    if center:
+        med = np.nanmedian(lfc[expressed]) if expressed.any() else 0.0
+        lfc = lfc - med
     with np.errstate(divide="ignore", invalid="ignore"):
         z = lfc / np.sqrt(var)
     return expressed & np.isfinite(z) & (lfc > min_lfc) & (z > min_z)
+
+
+def icc1(values: np.ndarray) -> float:
+    """One-way random-effects ICC(1) of a [genes, folds] matrix: the share of variance that
+    belongs to the gene, on values centred per fold.
+
+    The naive `var(row means) / var(all values)` floors near 1/k for k folds even when genes
+    carry nothing (review of 2026-09-28: 0.30 for three folds), so it cannot be read as a
+    universal share. ICC(1) = (MS_between - MS_within) / (MS_between + (k - 1) MS_within),
+    which is 0 in expectation under no gene effect and 1 when every fold repeats the gene.
+    """
+    x = np.asarray(values, dtype=np.float64)
+    ok = np.isfinite(x).all(axis=1)
+    x = x[ok]
+    n, k = x.shape
+    if n < 3 or k < 2:
+        return float("nan")
+    x = x - x.mean(axis=0, keepdims=True)
+    grand = x.mean()
+    row = x.mean(axis=1)
+    ms_between = k * ((row - grand) ** 2).sum() / (n - 1)
+    ms_within = ((x - row[:, None]) ** 2).sum() / (n * (k - 1))
+    return float((ms_between - ms_within) / (ms_between + (k - 1) * ms_within))
+
+
+def share_in_mean(values: np.ndarray) -> float:
+    """var(row mean) / var(all values) on a [genes, folds] matrix -- kept only to be read next
+    to its shuffle floor (`icc1` is the statistic that has a zero)."""
+    x = np.asarray(values, dtype=np.float64)
+    x = x[np.isfinite(x).all(axis=1)]
+    tot = float(np.var(x, ddof=1))
+    return float(np.var(x.mean(axis=1), ddof=1) / tot) if tot > 0 else float("nan")
 
 
 def jaccard(a: np.ndarray, b: np.ndarray) -> float:

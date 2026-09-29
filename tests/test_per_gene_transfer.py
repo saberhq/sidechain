@@ -275,3 +275,28 @@ def test_knockdown_lfc_is_the_pipeline_arithmetic():
     fc2, var2 = _log2fc_with_var(pb, "KD", "control", var_floor="poisson")
     assert np.allclose(fc, fc2) and np.allclose(var, var2)
     assert fc[1] > 0 and fc[0] > 0.9                               # KD mean 40 vs control 5 on gene b
+
+
+def test_icc1_is_zero_without_a_gene_effect_and_one_with_a_perfect_one():
+    from sidechain.eval.per_gene_transfer import icc1, share_in_mean
+    rng = np.random.default_rng(3)
+    noise = rng.normal(size=(2000, 3))
+    assert abs(icc1(noise)) < 0.05                                   # no gene effect: about 0
+    assert 0.28 < share_in_mean(noise) < 0.40                         # the naive share floors near 1/3
+    gene = rng.normal(size=(2000, 1))
+    assert icc1(np.repeat(gene, 3, axis=1)) > 0.999                   # every fold repeats the gene
+    mixed = gene + 0.5 * noise
+    assert 0.7 < icc1(mixed) < 0.9
+    # per-fold offsets do not count as a gene effect
+    assert abs(icc1(noise + np.array([[0.0, 5.0, -5.0]]))) < 0.05
+    assert np.isnan(icc1(noise[:2]))
+
+
+def test_derepressed_centres_on_the_expressed_median_by_default():
+    from sidechain.eval.per_gene_transfer import derepressed
+    lfc = np.array([0.3, 0.3, 0.3, 0.9, -0.3])
+    var = np.full(5, 0.01)
+    expressed = np.ones(5, bool)
+    # uncentred: the first four clear 0.25; centred on the median 0.3 only the 0.9 gene does
+    assert derepressed(lfc, var, expressed, center=False).sum() == 4
+    assert derepressed(lfc, var, expressed).tolist() == [False, False, False, True, False]

@@ -3,9 +3,9 @@
 The parsers are pinned on the properties that decide the numbers:
 
 * only human (9606) rows and only REPRESENTATIVE transcripts make a gene row;
-* the 3'UTR length is the sum of the transcript's GFF exon widths, read from the publisher's
-  score column (which equals ``end - start``: the coordinates are half-open despite the
-  extension) -- an off-by-one per exon is the failure this guards;
+* the 3'UTR length is the sum of the transcript's GFF exon widths, ``end - start + 1`` per exon
+  (the coordinates are 1-based inclusive; the publisher's score column is one short, and the
+  first build read it as the width) -- an off-by-one per exon is the failure this guards;
 * a gene with no row in the site table has ZERO sites and a zero context score, not NaN;
 * two representative transcripts sharing a symbol collapse to one row (the longer UTR) and
   the collapse is counted in LINEAGE.json;
@@ -51,12 +51,12 @@ GENE_INFO = (
 GFF = (
     "browser pack wgEncodeGencodeBasicV19\n"
     'track name="Reference 3-prime UTRs" description="x" visibility=2\n'
-    "chr1\tTS7\tUTR\t100\t200\t100\t+\t.\tENST1.3\n"       # score == end - start
-    "chr1\tTS7\tUTR\t300\t350\t50\t+\t.\tENST1.3\n"        # second exon of the same UTR
-    "chr2\tTS7\tUTR\t10\t1010\t1000\t-\t.\tENST2.2\n"
-    "chr3\tTS7\tUTR\t10\t510\t500\t-\t.\tENST4.1\n"
-    "chr4\tTS7\tUTR\t10\t110\t100\t-\t.\tENST5.1\n"
-    "chr4\tTS7\tUTR\t10\t2010\t2000\t-\t.\tENST6.1\n"
+    "chr1\tTS7\tUTR\t100\t199\t99\t+\t.\tENST1.3\n"        # 100 nt; the score column is end - start
+    "chr1\tTS7\tUTR\t300\t349\t49\t+\t.\tENST1.3\n"        # second exon, 50 nt
+    "chr2\tTS7\tUTR\t10\t1009\t999\t-\t.\tENST2.2\n"
+    "chr3\tTS7\tUTR\t10\t509\t499\t-\t.\tENST4.1\n"
+    "chr4\tTS7\tUTR\t10\t109\t99\t-\t.\tENST5.1\n"
+    "chr4\tTS7\tUTR\t10\t2009\t1999\t-\t.\tENST6.1\n"
 )
 
 COUNTS_HEADER = ("Transcript ID\tGene Symbol\tmiRNA family\tSpecies ID\tTotal num conserved sites\t"
@@ -171,7 +171,7 @@ def test_table_rows_lengths_counts_and_zeros(source):
     t = source.utr_load_table(rebuild=True).set_index("symbol")
     assert list(t.reset_index().columns) == list(UTR_LOAD_COLUMNS)
     assert set(t.index) == {"A1BG", "A1CF", "NOSITES", "DUP"}        # NOUTR dropped, mouse ignored
-    assert t.loc["A1BG", "utr_len"] == 150                             # 100 + 50, the score column
+    assert t.loc["A1BG", "utr_len"] == 150                             # 100 + 50, end - start + 1 per exon
     assert t.loc["A1BG", "n_cons_sites"] == 5 and t.loc["A1BG", "n_cons_8mer"] == 3
     assert t.loc["A1BG", "n_cons_7mer"] == 2 and t.loc["A1BG", "n_families"] == 2
     assert t.loc["A1BG", "context_score"] == pytest.approx(-0.7)      # -0.5 + -0.2, mouse row excluded
@@ -312,7 +312,11 @@ def test_sequence_features_composition_and_motifs():
     assert sum(f[f"dn_{d}"] for d in DINUCLEOTIDES) == pytest.approx(1.0)
     assert f["frac_A"] + f["frac_C"] + f["frac_G"] + f["frac_U"] == pytest.approx(1.0)
     assert f["au_content"] == pytest.approx(f["frac_A"] + f["frac_U"])
-    assert f["m_pum"] == 1 and f["m_are_auuua"] == 1 and f["m_are_nonamer"] == 0
+    assert f["m_pum"] == 1 and f["m_are_auuua"] == 1 and f["m_are_heptamer"] == 0
+    # overlapping copies of a fixed-length motif each count (a class II ARE)
+    g = MiRNATargetSource.sequence_features("CCAUUUAUUUAUUUACC")
+    assert g["m_are_auuua"] == 3 and g["m_are_heptamer"] == 1                  # UAUUUAU sits at 6-12 only
+    assert MiRNATargetSource.motif_intervals("CCAUUUAUUUAUUUACC")["are_auuua"] == [(3, 7), (7, 11), (11, 15)]
     assert f["m_polyu"] == 0 and f["m_msi"] == 0 and f["m_qki"] == 0 and f["m_ca_repeat"] == 0
     empty = MiRNATargetSource.sequence_features("")
     assert empty["seq_len"] == 0 and np.isnan(empty["au_content"]) and empty["m_pum"] == 0
@@ -353,6 +357,7 @@ def test_utr_features_table_joins_load_and_sequence(source):
     t = source.utr_features_table(rebuild=True).set_index("symbol")
     assert t.loc["A1BG", "utr_len"] == 150 and t.loc["A1BG", "seq_len"] == 150
     assert t.loc["A1BG", "n_sites_rbp_overlap"] == 1
+    assert t.loc["A1BG", "n_noncons_sites_all"] == 1 and t.loc["NOSITES", "n_noncons_sites_all"] == 0
     assert np.isnan(t.loc["NOSITES", "seq_len"])                        # no sequence row: left join keeps the gene
 
 

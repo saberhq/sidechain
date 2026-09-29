@@ -76,12 +76,16 @@ UTR_LOAD_COLUMNS = {
     "symbol": "TargetScan's gene symbol (GENCODE-era, ~2018)",
     "gene_id": "Ensembl gene id, version stripped",
     "transcript_id": "the representative transcript the sites are counted on",
-    "utr_len": "3'UTR length in nt: sum of the transcript's 3'UTR exon widths (hg19 GFF)",
+    "utr_len": "3'UTR length in nt: sum of the transcript's 3'UTR exon widths, end - start + 1 "
+               "per exon (hg19 GFF, 1-based inclusive; one short per exon before 2026-09-28)",
     "n_cons_sites": "conserved sites of conserved miRNA families, all types, summed over families",
     "n_cons_8mer": "of those, 8mer sites",
     "n_cons_7mer": "of those, 7mer-m8 plus 7mer-1a sites",
     "n_families": "conserved miRNA families with at least one conserved site",
-    "n_noncons_sites": "nonconserved sites of conserved families (the default file carries them too)",
+    "n_noncons_sites": "nonconserved sites of conserved families that ALSO have a conserved site on "
+                       "this gene: the default-predictions file has no row for a (transcript, "
+                       "family) pair without one, so this is about 6 % of such sites; the full "
+                       "count is `n_noncons_sites_all` in utr_features (from sites.parquet)",
     "context_score": "sum over families of TargetScan's cumulative weighted context++ score "
                      "(negative; more negative = stronger predicted repression)",
     "aggregate_pct_max": "the largest aggregate PCT over the gene's families",
@@ -136,15 +140,17 @@ EDGE_COLUMNS = {
 #: TargetScan's UTR sequences. name -> (regex, what it stands in for, where the consensus
 #: comes from). These are sequence-only stand-ins for the paper's RNAcompete / RBPDB PFMs;
 #: a proper catalogue (CisBP-RNA, RBNS) is the posttx survey's question (2026-09-28).
+#: Fixed-length motifs are matched with a lookahead so overlapping copies count (the class II
+#: ARE is overlapping AUUUA repeats); the tract motifs (poly-U, CA repeats) count maximal runs.
 MOTIFS: dict[str, tuple[str, str, str]] = {
-    "pum": ("UGUA[ACU]AUA", "Pumilio response element (PUM1/PUM2)",
+    "pum": ("(?=UGUA[ACU]AUA)", "Pumilio response element (PUM1/PUM2)",
             "Kedde 2010 Nat Cell Biol; the NAR 2016 PUM1(2) site set"),
-    "are_auuua": ("AUUUA", "AU-rich element pentamer (ZFP36, AUF1, KHSRP, TIA1)", "Chen & Shyu 1995"),
-    "are_nonamer": ("UAUUUAU", "the ARE nonamer core", "Zubiaga 1995"),
+    "are_auuua": ("(?=AUUUA)", "AU-rich element pentamer (ZFP36, AUF1, KHSRP, TIA1)", "Chen & Shyu 1995"),
+    "are_heptamer": ("(?=UAUUUAU)", "the ARE heptamer core (UAUUUAU)", "Zubiaga 1995"),
     "polyu": ("U{5,}", "U-rich tract (hnRNP C, HuR, TIA1)", "Konig 2010; Mukherjee 2011"),
-    "msi": ("[GA]U{1,3}AGU", "Musashi element (MSI1/MSI2)", "Zearfoss 2014"),
-    "qki": ("ACUAA[CU]", "QKI response element core", "Galarneau & Richard 2005"),
-    "gre": ("UGU[UG]UGU", "GU-rich element (CELF1)", "Vlasova 2008"),
+    "msi": ("(?=[GA]U{1,3}AGU)", "Musashi element (MSI1/MSI2)", "Zearfoss 2014"),
+    "qki": ("(?=ACUAA[CU])", "QKI response element core", "Galarneau & Richard 2005"),
+    "gre": ("(?=UGU[UG]UGU)", "GU-rich element (CELF1)", "Vlasova 2008"),
     "ca_repeat": ("(?:CA){4,}", "CA repeats (hnRNP L)", "Hui 2005"),
 }
 COOP_WINDOW_NT = 200          # the NAR 2016 paper's co-occurrence distance
@@ -456,11 +462,12 @@ class MiRNATargetSource(PriorSource):
         genes = self._representative()
         n_info = int(len(self._read_zipped_table("Gene_info.txt.zip", dtype=str)))
 
-        # 3'UTR length: the GFF's score column is the exon width (the download page says
-        # so, and on 42,426 of 42,427 rows it equals end - start: the coordinates are
-        # BED-style half-open despite the .gff name, so end - start + 1 would overcount
-        # every exon by one). A transcript's 3'UTR is the sum of its exon rows. The
-        # publisher's width is used where present, end - start where it is not.
+        # 3'UTR length: the GFF's coordinates are 1-based INCLUSIVE, as a GFF's are, so an
+        # exon's width is end - start + 1. The publisher's score column equals end - start
+        # (one short per exon) and the first build of 2026-09-25 took it as the width; the
+        # 2026-09-28 review measured the ungapped UTR sequence one nucleotide longer than
+        # that per exon on 19,426 of 19,426 genes, which settles it. The agreement count
+        # of the score column with end - start is still recorded, as evidence of the file.
         gff = self._read_zipped_table("TSHuman_7_hg19_3UTRs.gff.zip", header=None,
                                       comment="#", dtype=str,
                                       skip_prefixes=("browser", "track"))
@@ -472,10 +479,9 @@ class MiRNATargetSource(PriorSource):
             raise ValueError("3'UTR GFF: no ENST ids in the attribute column")
         start = gff.iloc[:, 3].astype(int)
         end = gff.iloc[:, 4].astype(int)
-        width_from_coords = (end - start)
         score = pd.to_numeric(gff.iloc[:, 5], errors="coerce")
-        agree = np.isfinite(score) & (score == width_from_coords)
-        width = np.where(np.isfinite(score), score, width_from_coords).astype(np.int64)
+        agree = np.isfinite(score) & (score == (end - start))
+        width = (end - start + 1).to_numpy().astype(np.int64)
         utr = pd.DataFrame({"transcript_id": tid, "width": width}).dropna()
         utr_len = utr.groupby("transcript_id")["width"].sum().rename("utr_len")
 
@@ -849,9 +855,19 @@ class MiRNATargetSource(PriorSource):
 
     @staticmethod
     def motif_intervals(seq: str) -> dict[str, list[tuple[int, int]]]:
-        """1-based inclusive [start, end] of every non-overlapping match, per motif."""
-        return {m: [(mt.start() + 1, mt.end()) for mt in re.finditer(pat, seq)]
-                for m, (pat, _, _) in MOTIFS.items()}
+        """1-based inclusive [start, end] of every match, per motif; overlapping copies of a
+        fixed-length motif each count (lookahead), a tract is its maximal run."""
+        out: dict[str, list[tuple[int, int]]] = {}
+        for m, (pat, _, _) in MOTIFS.items():
+            ivs = []
+            for mt in re.finditer(pat, seq):
+                if mt.end() > mt.start():                       # a tract: the run itself
+                    ivs.append((mt.start() + 1, mt.end()))
+                else:                                           # a lookahead: re-match the body
+                    body = re.match(pat[3:-1], seq[mt.start():])
+                    ivs.append((mt.start() + 1, mt.start() + body.end()))
+            out[m] = ivs
+        return out
 
     @staticmethod
     def cooperation_counts(site_iv: list[tuple[int, int]], motifs: dict[str, list[tuple[int, int]]],
@@ -955,20 +971,30 @@ class MiRNATargetSource(PriorSource):
         return table
 
     def utr_features_table(self, *, rebuild: bool = False) -> pd.DataFrame:
-        """The widened per-gene table: `utr_load_table` joined with `utr_sequence_table`
-        on the representative transcript. Cached at ``<derived>/utr_features.parquet``."""
+        """The widened per-gene table: `utr_load_table` joined with `utr_sequence_table` on the
+        representative transcript, plus `n_noncons_sites_all`, the full count of nonconserved
+        sites of conserved families on that transcript from `site_table` (the load table's
+        `n_noncons_sites` only counts families that also have a conserved site). Cached at
+        ``<derived>/utr_features.parquet``."""
         out_path = self.derived / "utr_features.parquet"
         if out_path.exists() and not rebuild:
             return pd.read_parquet(out_path)
         load = self.utr_load_table()
         seq = self.utr_sequence_table().drop(columns=["gene_id", "symbol"])
-        table = load.merge(seq, on="transcript_id", how="left")
+        sites = self.site_table()
+        noncons = (sites[~sites["conserved_site"]].groupby("transcript_id").size()
+                   .rename("n_noncons_sites_all").reset_index())
+        table = (load.merge(seq, on="transcript_id", how="left")
+                     .merge(noncons, on="transcript_id", how="left"))
+        table["n_noncons_sites_all"] = table["n_noncons_sites_all"].fillna(0).astype(int)
         table.to_parquet(out_path, index=False)
         self._record_lineage(
             "targetscan-vert_80/utr_features",
-            what="utr_load joined with utr_seq_features on the representative transcript (T102)",
-            inputs=["Gene_info.txt.zip"],
+            what="utr_load joined with utr_seq_features on the representative transcript, plus "
+                 "the full nonconserved-site count from sites.parquet (T102)",
+            inputs=["Gene_info.txt.zip", "UTR_Sequences.txt.zip", "Conserved_Family_Info.txt.zip"],
             code="src/sidechain/priors/posttx_mirna.py::MiRNATargetSource.utr_features_table",
-            counts={"genes": int(len(table)), "genes_with_sequence": int(table["seq_len"].notna().sum())},
+            counts={"genes": int(len(table)), "genes_with_sequence": int(table["seq_len"].notna().sum()),
+                    "genes_with_nonconserved_sites": int((table["n_noncons_sites_all"] > 0).sum())},
             out_path=out_path)
         return table
