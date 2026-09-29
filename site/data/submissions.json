@@ -171,6 +171,19 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-09-29",
+      "partition": "val",
+      "name": "SER-8abefkn",
+      "board_name": "Sidechain SER-8abefkn",
+      "overall": 0.1132,
+      "rank": 486,
+      "teams": 1225,
+      "card": "Tests whether a knockdown's predicted response improves when it is blended with the responses of the genes nearest to it in Tahoe-x1's gene embedding. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "calibration",
+      "class_retro": false
     }
   ]
 }
