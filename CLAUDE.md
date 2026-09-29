@@ -47,7 +47,8 @@ every session counts, so a new rule earns its lines.
   `git log --oneline origin/main..HEAD`, and say whose commits ride along.
 - Messages: `<scope>: <what>` plus a pointer to the doc that explains it; public short, private
   may narrate briefly. Reasoning lives in editable files, never in a message.
-- **Never delegated:** `vcc submit`, pushes, history rewrites, Saber's prose in `private/research/master.md`.
+- **Never delegated to a child agent:** `vcc submit` (a session runs it only on Saber's GO for that entry —
+  `private/SUBMISSION-QUEUE.md` rule 3), pushes, history rewrites, Saber's prose in `private/research/master.md`.
 - **In files, commit messages and prose, name a session by its session id**, written
   ``session `0badcafe` `` (8 chars), never by its auto-name (`sidechain-xx`, which changes on
   restart). The auto-name is the *address* — `SendMessage`, `--name`, the STATUS line — and
@@ -174,7 +175,8 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | code: a module, a test, a config | this file + the module you are in | — |
 | model or prior design, the rung ladder | `private/ARCHITECTURE.md` | — |
 | score a prediction, build a bundle | `src/sidechain/eval/mirror2026.py` (docstring: `bundle` → `score`; Mac vs box) | `/sidechain-brev` |
-| a challenge year's data, packaging, `vcc submit` | `challenges/<year>/CLAUDE.md` | `check_modelname.py --propose`; a submit is Saber's |
+| a challenge year's data, packaging, `vcc submit` | `challenges/<year>/CLAUDE.md` | `check_modelname.py --propose`; a submit goes up on Saber's GO |
+| what goes up on the board next — approved and proposed entries | `private/SUBMISSION-QUEUE.md` | `private/submissions/` records what went up |
 | QC on our h5ads, the controls bundle | `challenges/<year>/CLAUDE.md` · `sidechain.data.profile` · `sidechain.ingest.checks` | `reports/06` |
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
