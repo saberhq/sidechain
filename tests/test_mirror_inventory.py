@@ -83,3 +83,21 @@ def test_a_zero_valued_knob_is_not_mistaken_for_an_absent_one():
     for off in ({"gamma": 1.0, "alpha": 1.0}, {"shrinkage": False}, {"var_floor": "none"},
                 {"similarity_beta": 0.0}, {"emit_lambda": 0.0}, {"coverage_tiers": None}):
         assert knob_str(off) == "—", off
+
+
+def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
+    """T84 round 2: an arm's pseudobulk anchor and cell count decide whether it may be compared
+    with another at all, so both must be visible; the default anchor stays hidden, since every
+    arm scored before the flag existed carries no key for it."""
+    base = {"alpha": 1.35, "alpha_bulk": 1.5, "emit_lambda": 0.5, "min_libsize": 1000.0,
+            "cells": 50128, "perturbations": 272}
+    out = knob_str(base)
+    assert "ab=1.5" in out and "alpha=1.35" in out and "floor=1000" in out
+    assert "anchor" not in out and "cells=" not in out            # mean_cpm default, real-side cells
+    assert "anchor" not in knob_str({**base, "bulk_anchor": "mean_cpm"})
+    pooled = knob_str({**base, "bulk_anchor": "pooled", "cells": 400 * 272})
+    assert "anchor=pooled" in pooled and "cells=400/target" in pooled
+    nb = {"table": ["/x/tahoex1_3b_gene_encoder_table.pt", "/y/string_node2vec_table.pt"],
+          "w": [0.05, 0.3], "k": 25}
+    assert "nb=tahoex1·0.05+string·0.3·k25" in knob_str({**base, "neighbour": nb})
+    assert "nb=" not in knob_str({**base, "neighbour": None})

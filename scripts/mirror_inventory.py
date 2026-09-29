@@ -37,8 +37,11 @@ LINE = {
 }
 SUFFIX = {"_pdex": "CPU/pdex", "_ch272": "challenge 272", "_union": "union panel",
           "_d3": "depth probe", "_rule": "rule probe"}
-KNOBS = ("alpha", "gamma", "var_floor", "coverage_tiers", "similarity_beta",
-         "transfer_floor", "dispersion", "emit_lambda", "shrinkage")
+KNOBS = ("alpha", "alpha_bulk", "bulk_anchor", "gamma", "var_floor", "coverage_tiers",
+         "similarity_beta", "transfer_floor", "dispersion", "emit_lambda", "shrinkage",
+         "neighbour", "min_libsize")
+# Knobs whose name's first word would collide or mislead (`alpha_bulk` is not `alpha`).
+LABEL = {"alpha_bulk": "ab", "bulk_anchor": "anchor", "min_libsize": "floor", "neighbour": "nb"}
 
 
 def held_out(name: str) -> str:
@@ -123,7 +126,22 @@ def knob_str(build: dict) -> str:
             v = "/".join(f"{x:g}" for x in v.values())
         if k == "coverage_tiers" and isinstance(v, list):
             v = ",".join(f"{int(a)}:{b:g}" for a, b in v)
-        bits.append(f"{k.split('_')[0]}={v}")
+        if k == "bulk_anchor" and v == "mean_cpm":
+            continue                       # the default; an arm scored before the flag has no key
+        if k == "min_libsize":
+            v = f"{v:g}"
+        if k == "neighbour" and isinstance(v, dict):
+            tables = v.get("table") or []
+            tables = [tables] if isinstance(tables, str) else tables
+            w = v.get("w")
+            w = w if isinstance(w, list) else [w]
+            v = "+".join(f"{Path(t).stem.split('_')[0]}·{x:g}" for t, x in zip(tables, w)) + f"·k{v.get('k')}"
+        bits.append(f"{LABEL.get(k, k.split('_')[0])}={v}")
+    # Cells per target: the mirror's default is the real side's count, the board takes 400
+    # (T84 round 2: the #348 mse refund depends on it). Shown only when it was set to a round number.
+    n, p = build.get("cells"), build.get("perturbations")
+    if n and p and n % p == 0 and n // p in (100, 200, 400, 800):
+        bits.append(f"cells={n // p}/target")
     return " ".join(bits) or "—"
 
 
@@ -228,6 +246,12 @@ def render(folds: list[dict], full: bool) -> str:
         "(replicate − baseline) gap — so the gap is given as the converter:",
         "`raw_delta = scaled_delta × gap`. Corpus and dataset facts live in `reports/07`;",
         "this file is only about what has been *built and scored* locally.",
+        "",
+        "**Two knobs decide whether two arms may be compared at all** (T84, 2026-09-29):",
+        "`anchor=pooled` puts the emitted pseudobulk on the scorer's own control profile, and an",
+        "arm without it (every arm before 2026-09-29) carries a shared offset that moves raw pds",
+        "by 0.02–0.08; `cells=400/target` emits the board's cell count, and an arm without it",
+        "emits the real side's (147–220), which inflates `mse`'s refund. Compare within a setting.",
         "",
         "## The mirrors",
         "",
