@@ -17,15 +17,32 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-9abefkn — submitted 2026-09-29
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
+f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
+with one change of the kind SER-8abefkn made, with a different map, fewer neighbours and a
+stronger nudge. Each knockdown's borrowed response is nudged toward the average borrowed response
+of the 25 genes nearest to it, chosen from the same fixed list of 842 knockdowns, in an embedding
+of the STRING protein-interaction network: a map that places genes whose proteins work together
+close to each other. As there, the nudge turns the part of the response specific to this
+knockdown and keeps its size.
+
+The best entry so far — 0.1144 against its parent SER-7abefn's 0.1131. The summed-profile score
+rose most, the differential-expression test reached more of the genes that really changed, and
+fold-change accuracy fell by about half of what those two gained. Locally, on the five held-out
+test sets from three cell lines its settings were picked on, the gain was about six times as
+large.
+
 ## SER-8abefkn — submitted 2026-09-29 · calibration run
 
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
 f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
 with one change. Each knockdown's borrowed response is nudged toward the average borrowed
 response of the 50 genes nearest to it in Tahoe-x1's gene embedding, a map of genes learned
-from single-cell data, chosen from a fixed list of 842 knockdowns. The nudge turns the part of the response specific to this knockdown a little, and keeps
-its size. Sent to measure how much of a gain on our own held-out tests carries over to the
-challenge's cell contexts.
+from single-cell data, chosen from a fixed list of 842 knockdowns. The nudge turns the part of
+the response specific to this knockdown a little, and keeps its size. Sent to measure how much
+of a gain on our own held-out tests carries over to the challenge's cell contexts.
 
 It scored level with SER-7abefn, 0.1132 against 0.1131. The summed-profile score rose, and two
 of the cell-by-cell scores together fell by most of that gain. On five held-out test sets from

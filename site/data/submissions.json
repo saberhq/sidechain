@@ -184,6 +184,19 @@
       "card_retro": false,
       "class": "calibration",
       "class_retro": false
+    },
+    {
+      "date": "2026-09-29",
+      "partition": "val",
+      "name": "SER-9abefkn",
+      "board_name": "Sidechain SER-9abefkn",
+      "overall": 0.1144,
+      "rank": 478,
+      "teams": 1224,
+      "card": "Tests whether a knockdown's predicted response improves when it is blended with the responses of its nearest genes in the STRING protein-interaction network. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
