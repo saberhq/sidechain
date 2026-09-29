@@ -76,8 +76,8 @@ PostToolUse, UserPromptSubmit or Stop hooks fire there. `science_session.py` is 
 - `return T<n>` — hands the task back; its claim closes.
 - `ledger -- <args>` — any `ledger.py` command.
 
-Each exports the Science frame id as `CLAUDE_CODE_SESSION_ID`, the variable `ledger.py` falls back
-to, so claims and asks carry the Science session's id. There is no STATUS block: the board draws a
+The commands that run `ledger.py` or the checkers export the Science frame id as
+`CLAUDE_CODE_SESSION_ID`, the variable `ledger.py` falls back to, so claims and asks carry the Science session's id. There is no STATUS block: the board draws a
 Science card from Science's own database (`science_panel.py`), and a claim stays live while the
 frame is running or has been active within a day (`dashboard.science_live`). Run everything with the
 repo's `.venv/bin/python`; the sandbox refuses joblib's worker processes, so set
