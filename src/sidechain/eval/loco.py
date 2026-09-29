@@ -77,6 +77,7 @@ def build_transfer_prediction(
     similarity_beta: float = 0.0,
     basal_slope: str = "off",
     alpha_bulk: float | None = None,
+    bulk_anchor: str = "mean_cpm",
     log_bias_correct: bool = False,
     cells_per_pert: int | None = None,
     seed: int = 0,
@@ -102,10 +103,15 @@ def build_transfer_prediction(
     prof = ContextProfile.from_controls(ctrl_tmp, real_path.stem, min_libsize=min_libsize)
     if dispersion is None and emit_lambda is None:
         dispersion = "even"    # this function's historical default
-    em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda)
-    if alpha_bulk is not None and em.lam == 0.0:
-        raise SystemExit("--alpha-bulk needs a depth spread (--emit-lambda > 0 or --dispersion "
-                         "poisson): at lambda 0 the pseudobulk and the per-cell mean coincide")
+    em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda,
+                        bulk_anchor=bulk_anchor)
+    # T84 round 2: a pooled anchor is a two-channel emission even at one amplitude -- the
+    # pseudobulk moves onto the depth-weighted control profile, the per-cell mean stays put.
+    dual = alpha_bulk is not None or bulk_anchor != "mean_cpm"
+    if dual and em.lam == 0.0:
+        raise SystemExit("--alpha-bulk / --bulk-anchor pooled need a depth spread (--emit-lambda "
+                         "> 0 or --dispersion poisson): at lambda 0 the pseudobulk and the "
+                         "per-cell mean coincide")
     gene_pos = {g: i for i, g in enumerate(axis)}
     out_h5 = open_anndata_h5(out_path, "w")
     writer = CsrWriter(out_h5, len(axis))
@@ -174,12 +180,15 @@ def build_transfer_prediction(
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
-        if alpha_bulk is None or d is None:
+        if not dual or (d is None and bulk_anchor == "mean_cpm"):
             writer.append_csr(em.emit(n, d))
+        elif d is None:
+            # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile
+            writer.append_csr(em.emit_dual(n, None, None, on_fail="fallback"))
         else:
             # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
             # the knockdown pin is the same on both, and everything upstream is untouched.
-            d_bulk = d0 * alpha_bulk
+            d_bulk = d0 * (alpha_bulk if alpha_bulk is not None else alpha)
             if p in gene_pos:
                 d_bulk[gene_pos[p]] = -2.32
             writer.append_csr(em.emit_dual(n, d, d_bulk, on_fail="fallback"))
@@ -199,9 +208,9 @@ def build_transfer_prediction(
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
-            "alpha": alpha, "alpha_bulk": alpha_bulk,
+            "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             # targets whose two moments were jointly unreachable and carried one amplitude
-            "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if alpha_bulk is not None else None,
+            "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if dual else None,
             "gamma": gamma, "var_floor": var_floor,
             # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
             # submission's 1000: an arm scored before that date carries no floor in its
@@ -267,6 +276,13 @@ def main(argv: list[str] | None = None) -> int:
                          "members read), their depth-weighted column sums follow this value "
                          "(what pds and mse read); count_emitters.PoissonEmitter.emit_dual. "
                          "Needs --emit-lambda > 0. Unset = one amplitude, bit-identical")
+    ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
+                    help="T84 round 2: which control profile the pseudobulk channel is built on. "
+                         "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
+                         "the mean of per-cell CPM; 'pooled' is sum of counts / sum of depths, "
+                         "the profile cell-eval2's control pseudobulk actually is. The per-cell "
+                         "channel stays on mean_cpm either way. Needs --emit-lambda > 0 "
+                         "(count_emitters.PoissonEmitter.bulk_anchor)")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
@@ -345,6 +361,7 @@ def main(argv: list[str] | None = None) -> int:
                                      coverage_tiers=cov_tiers,
                                      similarity_beta=args.similarity_beta,
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
+                                     bulk_anchor=args.bulk_anchor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
                                      min_libsize=args.min_libsize,
                                      log_bias_correct=args.log_bias_correct,
@@ -371,7 +388,8 @@ def main(argv: list[str] | None = None) -> int:
          "lfc_sources": args.lfc_source,
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
-         "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "gamma": args.gamma,
+         "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
+         "gamma": args.gamma,
          "var_floor": args.var_floor,
          "similarity_beta": args.similarity_beta,
          "basal_slope": args.basal_slope,

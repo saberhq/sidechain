@@ -53,6 +53,13 @@ class ContextProfile:
     fraction: np.ndarray       # (G,) mean CPM / 1e6, sums to ~1
     libsizes: np.ndarray       # (n_cells,) UMI per control cell
     n_cells: int
+    # (G,) the POOLED profile, sum of counts / sum of depths over the same cells: what cell-eval2's
+    # control pseudobulk is (`bulk_lognorm` reads group sums, so a deep cell weighs more). It
+    # differs from `fraction` wherever composition tracks depth -- on the 2026 controls the G2/M
+    # genes sit 12-20 % higher in it, because deep cells are cycling cells -- and a pseudobulk
+    # anchored to `fraction` carries that difference on every perturbation (T84 round 2,
+    # private research/ideas/board-methods-survey.md D9). None for a hand-built profile.
+    bulk_fraction: np.ndarray | None = None
 
     @classmethod
     def from_controls(cls, path, name: str, *, min_libsize: float = 0.0) -> ContextProfile:
@@ -70,8 +77,9 @@ class ContextProfile:
                 f"min_libsize={min_libsize:g} (deepest is {lib.max():.0f} UMI)")
         cpm_mean = np.asarray((sp.diags(1e6 / lib[keep]) @ X[keep]).mean(axis=0)).ravel()
         frac = cpm_mean / cpm_mean.sum()
+        pooled = np.asarray(X[keep].sum(axis=0)).ravel()
         return cls(name=name, genes=a.var_names.astype(str).to_numpy(), fraction=frac,
-                   libsizes=lib[keep], n_cells=int(keep.sum()))
+                   libsizes=lib[keep], n_cells=int(keep.sum()), bulk_fraction=pooled / pooled.sum())
 
 
 class PoissonEmitter:
@@ -117,10 +125,25 @@ class PoissonEmitter:
 
     Exactly one of `dispersion` / `lam` may be passed: the modes are sugar for
     the endpoints, and accepting both would let them disagree silently.
+
+    `bulk_anchor` says which control profile `emit_dual`'s pseudobulk channel is built on:
+    "mean_cpm" (the default, every shipped entry through SER-7abefn) is `profile.fraction`,
+    the same profile as the per-cell channel; "pooled" is `profile.bulk_fraction`, the
+    depth-weighted profile the scorer's control pseudobulk actually is. Only the pseudobulk
+    moves: the per-cell channel stays on `fraction`, because that is where the real controls'
+    per-cell mean sits, and moving it would read to the Wilcoxon members as DE on every
+    perturbation. `emit` has one channel and ignores the anchor.
     """
 
     def __init__(self, profile: ContextProfile, seed: int = 0, *, dispersion: str | None = None,
-                 lam: float | None = None, libsize_quantiles: tuple[float, float] = (0.0, 1.0)):
+                 lam: float | None = None, libsize_quantiles: tuple[float, float] = (0.0, 1.0),
+                 bulk_anchor: str = "mean_cpm"):
+        if bulk_anchor not in ("mean_cpm", "pooled"):
+            raise ValueError(f"bulk_anchor must be 'mean_cpm' or 'pooled', got {bulk_anchor!r}")
+        if bulk_anchor == "pooled" and profile.bulk_fraction is None:
+            raise ValueError("bulk_anchor='pooled' needs a profile with bulk_fraction "
+                             "(ContextProfile.from_controls computes it)")
+        self.bulk_anchor = bulk_anchor
         if lam is not None and dispersion is not None:
             raise ValueError("pass dispersion or lam, not both -- the modes are the dial's "
                              "endpoints (even is lam=0, poisson is lam=1)")
@@ -141,8 +164,8 @@ class PoissonEmitter:
         self._lib_pool = profile.libsizes[(profile.libsizes >= lo) & (profile.libsizes <= hi)]
         self._lib_median = float(np.median(self._lib_pool))
 
-    def _fraction(self, log2fc: np.ndarray | None) -> np.ndarray:
-        frac = self.p.fraction
+    def _fraction(self, log2fc: np.ndarray | None, *, bulk: bool = False) -> np.ndarray:
+        frac = self.p.bulk_fraction if (bulk and self.bulk_anchor == "pooled") else self.p.fraction
         if log2fc is not None:
             if log2fc.shape != frac.shape:
                 raise ValueError("log2fc must be per gene on the submission axis")
@@ -188,7 +211,9 @@ class PoissonEmitter:
         depth) cannot decouple anything and is refused, and a bulk profile whose L1 projection onto
         that envelope exceeds `max_projection` is refused rather than silently clipped.
         `log2fc_cell == log2fc_bulk` is the pin's own control: same profile on both channels, the
-        template's column sums re-pinned to their expectation.
+        template's column sums re-pinned to their expectation -- under the default anchor. With
+        `bulk_anchor="pooled"` the same call moves only the anchor: the column sums go to the
+        pooled profile times the shift while the per-cell mean stays on `fraction` times it.
 
         The two moments can also be JOINTLY unreachable when many strong genes sit at the
         envelope's edge at once (measured 2026-09-16: at lambda 0.5 alpha_bulk 2.0 against
@@ -203,7 +228,7 @@ class PoissonEmitter:
             raise ValueError("emit_dual needs a depth spread: at lam=0 every cell has the same "
                              "depth, so the pseudobulk and the per-cell mean cannot differ")
         p_cell = self._fraction(log2fc_cell)
-        p_bulk = self._fraction(log2fc_bulk)
+        p_bulk = self._fraction(log2fc_bulk, bulk=True)
         template = self.emit(n, log2fc_cell).toarray().astype(np.float64)
         depths = np.rint(template.sum(axis=1)).astype(np.int64)
         seed = int(self.rng.integers(0, 2**32 - 1))
