@@ -400,3 +400,74 @@ def test_a_fold_cache_with_no_recorded_floor_is_read_as_the_legacy_500(tmp_path)
     assert prep_fold(tmp_path / "absent.h5ad", min_libsize=500.0, cache=cache).lib_median == 1000.0
     with pytest.raises(ValueError, match="built at min_libsize=500"):
         prep_fold(tmp_path / "absent.h5ad", min_libsize=1000.0, cache=cache)
+
+
+def _controls_fold_h5ad(path, depth_tracks_composition: bool):
+    """Control cells whose composition does (or does not) track depth, plus one target's cells."""
+    import anndata as ad
+    import pandas as pd
+    import scipy.sparse as sp
+
+    genes = ["g0", "g1", "g2", "g3"]
+    rows, labels = [], []
+    for k, depth in enumerate((1200, 1800, 2600, 4000, 6000, 9000)):
+        # deep cells carry more g0 when composition tracks depth (the cycling-cell pattern)
+        share = np.array([0.1 + (0.05 * k if depth_tracks_composition else 0.0), 0.3, 0.3, 0.3])
+        rows.append(np.rint(depth * share / share.sum()))
+        labels.append("non-targeting")
+    rows.append(np.array([300.0, 400.0, 400.0, 400.0])); labels.append("g1")
+    obs = pd.DataFrame({"perturbation": labels}, index=[f"c{i}" for i in range(len(rows))])
+    ad.AnnData(X=sp.csr_matrix(np.stack(rows)), obs=obs,
+               var=pd.DataFrame(index=genes)).write_h5ad(path)
+
+
+def test_prep_fold_carries_the_pooled_profile_and_the_cache_keeps_it(tmp_path):
+    import anndata as ad
+
+    from sidechain.eval.analytic_pds import anchor_profile, prep_fold
+
+    h5 = tmp_path / "fold.h5ad"
+    _controls_fold_h5ad(h5, depth_tracks_composition=True)
+    fold = prep_fold(h5, min_libsize=1000.0, cache=tmp_path / "c.npz")
+    X = np.asarray(ad.read_h5ad(h5).X.todense())[:6]
+    assert np.allclose(fold.bulk_frac, X.sum(0) / X.sum())                  # depth-weighted
+    cpm = X / X.sum(1, keepdims=True)
+    assert np.allclose(fold.frac, cpm.mean(0) / cpm.mean(0).sum())          # each cell one vote
+    assert fold.bulk_frac[0] > fold.frac[0]            # deep cells carry g0, so pooled has more
+    again = prep_fold(h5, min_libsize=1000.0, cache=tmp_path / "c.npz")      # read from the cache
+    assert np.array_equal(again.bulk_frac, fold.bulk_frac)
+    assert anchor_profile(again, "pooled") is again.bulk_frac and anchor_profile(again) is again.frac
+    with pytest.raises(ValueError, match="anchor must be"):
+        anchor_profile(again, "median")
+
+
+def test_the_pooled_anchor_moves_pds_only_when_composition_tracks_depth(tmp_path):
+    from sidechain.eval.analytic_pds import prep_fold
+
+    reads = {}
+    for tracks in (False, True):
+        h5 = tmp_path / f"fold_{tracks}.h5ad"
+        _controls_fold_h5ad(h5, depth_tracks_composition=tracks)
+        fold = prep_fold(h5, min_libsize=1000.0)
+        d = np.array([[0.4, -2.32, 0.1, -0.2]])
+        reads[tracks] = [score_delta(d, ["g1"], fold, anchor=a) for a in ("mean_cpm", "pooled")]
+        emitted = {a: emitted_sums(d, p, fold.lib_median, [100])
+                   for a, p in (("mean_cpm", fold.frac), ("pooled", fold.bulk_frac))}
+        same = np.allclose(emitted["mean_cpm"], emitted["pooled"], atol=1.0)
+        assert same is (not tracks)
+    assert all(np.isfinite(v) for pair in reads.values() for v in pair)
+
+
+def test_a_cache_without_the_pooled_profile_refuses_the_pooled_anchor(tmp_path):
+    from sidechain.eval.analytic_pds import prep_fold
+
+    cache = tmp_path / "old.npz"
+    f = _fold()
+    np.savez_compressed(cache, perts=f.perts, real_means=f.real_means,
+                        genes=f.genes.astype(object), n_cells=f.n_cells, frac=f.frac,
+                        lib_median=f.lib_median, ctrl_n_cells=f.ctrl_n_cells, min_libsize=1000.0)
+    old = prep_fold(tmp_path / "absent.h5ad", min_libsize=1000.0, cache=cache)
+    assert old.bulk_frac is None
+    score_delta(np.zeros((3, 6)), ["g0", "g1", "g2"], old)                  # the default still reads
+    with pytest.raises(ValueError, match="no pooled profile"):
+        score_delta(np.zeros((3, 6)), ["g0", "g1", "g2"], old, anchor="pooled")

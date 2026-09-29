@@ -26,6 +26,15 @@ kernel, not a reimplementation of it.
    from its bundle's. This is a SEARCH instrument: it ranks candidates cheaply, and
    whatever it selects still needs a real mirror run before the number is quoted.
 
+**Which control profile the pseudobulk sits on** (`anchor=`, T84 round 2). The emitter's
+historical anchor is `frac`, the mean of per-cell CPM (every cell one vote); cell-eval2's control
+pseudobulk is the pooled sum (a deep cell weighs more), and the two differ wherever composition
+tracks depth. `anchor="pooled"` builds the emitted sums on `FoldCache.bulk_frac` instead -- what
+`eval.loco --bulk-anchor pooled` and `submit.build --bulk-anchor pooled` do to the pseudobulk
+channel, whose column sums `emit_dual` pins to their expectation, so the identity holds there too
+(up to rounding and the targets that fall back to one amplitude). A knob read under one anchor can
+flip sign under the other (private `research/ideas/board-methods-survey.md` D11), so say which.
+
 Shipped under `T59` from the instrument `T58` built and `T60` exercised; module path and
 public names fixed by session `271a46a8` (private `84570bd`).
 """
@@ -54,7 +63,7 @@ MIN_LIBSIZE = CONTROL_MIN_LIBSIZE
 LEGACY_MIN_LIBSIZE = 500.0        # what a fold cache written before 2026-09-20 was built at
 
 __all__ = ["FoldCache", "prep_fold", "emitted_sums", "pds_cosine", "score_delta",
-           "pool_parts", "group_sums", "drop_one_arm"]
+           "pool_parts", "group_sums", "drop_one_arm", "anchor_profile"]
 
 
 @dataclass(frozen=True)
@@ -68,6 +77,9 @@ class FoldCache:
     frac: np.ndarray             # [G] control profile, sums to 1
     lib_median: float            # median control library size
     ctrl_n_cells: int
+    # [G] the POOLED control profile over the same cells (sum of counts / sum of depths): what
+    # cell-eval2's control pseudobulk is. None for a cache written before 2026-09-29.
+    bulk_frac: np.ndarray | None = None
 
     def cells_for(self, targets) -> np.ndarray:
         n = dict(zip([str(p) for p in self.perts], self.n_cells))
@@ -106,7 +118,8 @@ def group_sums(path, pert_col: str = PERT_COL, block_rows: int = 4000):
 
 
 def _control_profile(path, obs_labels, genes, control, min_libsize, block=2000):
-    """The emitter's own anchor: mean per-cell CPM over the fold's control cells.
+    """The emitter's own anchor: mean per-cell CPM over the fold's control cells -- and, from
+    the same cells, the pooled profile `anchor="pooled"` reads.
 
     Streamed in blocks rather than loaded: the X-Atlas folds run ~800 M nonzeros and a
     single slice of 20,000 x 38,584 peaks past what a 17 GB Mac has spare.
@@ -115,6 +128,7 @@ def _control_profile(path, obs_labels, genes, control, min_libsize, block=2000):
     if rows.size == 0:
         raise ValueError(f"no cells labelled {control!r}")
     cpm_sum = np.zeros(len(genes))
+    count_sum = np.zeros(len(genes))
     libs = []
     with h5py.File(path, "r") as f:
         X = f["X"]
@@ -131,12 +145,14 @@ def _control_profile(path, obs_labels, genes, control, min_libsize, block=2000):
             blk, lib = blk[keep], lib[keep]
             if lib.size:
                 cpm_sum += np.asarray((sp.diags(1e6 / lib) @ blk).sum(axis=0)).ravel()
+                count_sum += np.asarray(blk.sum(axis=0)).ravel()
                 libs.append(lib)
     libs = np.concatenate(libs) if libs else np.array([])
     if libs.size == 0:
         raise ValueError(f"every control cell fell below min_libsize={min_libsize}")
     mean_cpm = cpm_sum / len(libs)
-    return mean_cpm / mean_cpm.sum(), float(np.median(libs)), int(len(libs))
+    return (mean_cpm / mean_cpm.sum(), float(np.median(libs)), int(len(libs)),
+            count_sum / count_sum.sum())
 
 
 def prep_fold(path, pert_col: str = PERT_COL, control: str = CONTROL,
@@ -165,7 +181,8 @@ def prep_fold(path, pert_col: str = PERT_COL, control: str = CONTROL,
                 f"{float(min_libsize):g}. Delete the cache to rebuild it, or pass "
                 f"min_libsize={was:g} to reproduce the arms scored against it.")
         return FoldCache(z["perts"], z["real_means"], z["genes"].astype(str), z["n_cells"],
-                         z["frac"], float(z["lib_median"]), int(z["ctrl_n_cells"]))
+                         z["frac"], float(z["lib_median"]), int(z["ctrl_n_cells"]),
+                         z["bulk_frac"] if "bulk_frac" in z else None)
 
     labels, sums, genes = group_sums(path, pert_col=pert_col)
     real_means = bulk_lognorm_means(sums, BULK_TARGET_SUM)
@@ -174,17 +191,18 @@ def prep_fold(path, pert_col: str = PERT_COL, control: str = CONTROL,
     if control not in set(labels):
         raise ValueError(f"control {control!r} not among the fold's labels")
     n_cells = np.array([(obs_labels == lab).sum() for lab in labels], dtype=np.int64)
-    frac, lib_median, ctrl_n = _control_profile(path, obs_labels, genes, control, min_libsize)
+    frac, lib_median, ctrl_n, bulk_frac = _control_profile(path, obs_labels, genes, control,
+                                                           min_libsize)
 
     fold = FoldCache(labels.astype(object), real_means, genes.astype(str), n_cells,
-                     frac, lib_median, ctrl_n)
+                     frac, lib_median, ctrl_n, bulk_frac)
     if cache is not None:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(cache, perts=fold.perts, real_means=fold.real_means,
                             min_libsize=float(min_libsize),
                             genes=fold.genes.astype(object), n_cells=fold.n_cells,
                             frac=fold.frac, lib_median=fold.lib_median,
-                            ctrl_n_cells=fold.ctrl_n_cells)
+                            ctrl_n_cells=fold.ctrl_n_cells, bulk_frac=fold.bulk_frac)
     return fold
 
 
@@ -212,8 +230,21 @@ def pds_cosine(pred_perts, pred_sums, real_perts, real_means, genes):
     return float(np.mean(list(out.values()))) if isinstance(out, dict) else float(out)
 
 
+def anchor_profile(fold: FoldCache, anchor: str = "mean_cpm") -> np.ndarray:
+    """The control profile the emitted pseudobulk sits on: `frac` or the pooled `bulk_frac`."""
+    if anchor == "mean_cpm":
+        return fold.frac
+    if anchor != "pooled":
+        raise ValueError(f"anchor must be 'mean_cpm' or 'pooled', got {anchor!r}")
+    if fold.bulk_frac is None:
+        raise ValueError("this FoldCache has no pooled profile (a cache written before "
+                         "2026-09-29): delete the cache and let prep_fold rebuild it")
+    return fold.bulk_frac
+
+
 def score_delta(deltas, targets, fold: FoldCache, alpha: float = 1.0,
-                kd_value: float = KNOCKDOWN_LOG2FC, which=None, covered=None) -> float:
+                kd_value: float = KNOCKDOWN_LOG2FC, which=None, covered=None,
+                anchor: str = "mean_cpm") -> float:
     """Raw `pds_cosine` for a [P, G] log2FC matrix. `deltas` is never mutated.
 
     `alpha` and the knockdown pin are applied here so a caller passes the pooled delta
@@ -228,6 +259,9 @@ def score_delta(deltas, targets, fold: FoldCache, alpha: float = 1.0,
     pinning everything reads +4.359e-06 against the recorded value, honouring coverage
     reads -7.4e-10. Pass a boolean mask whenever any target may be uncovered; None means
     every target is covered.
+
+    `anchor` is the control profile the sums are built on (module docstring): the default is
+    every number this module returned before 2026-09-29.
     """
     d = np.asarray(deltas, dtype=np.float64) * alpha
     pos = {g: i for i, g in enumerate(fold.genes)}
@@ -237,7 +271,8 @@ def score_delta(deltas, targets, fold: FoldCache, alpha: float = 1.0,
         if j is not None and cov[i]:
             d[i, j] = kd_value
     idx = np.arange(len(targets)) if which is None else np.asarray(which)
-    sums = emitted_sums(d[idx], fold.frac, fold.lib_median, fold.cells_for(targets)[idx])
+    sums = emitted_sums(d[idx], anchor_profile(fold, anchor), fold.lib_median,
+                        fold.cells_for(targets)[idx])
     return pds_cosine([str(targets[i]) for i in idx], sums,
                       np.asarray(fold.perts, dtype=str), fold.real_means, fold.genes)
 
@@ -306,7 +341,7 @@ def delta_from_parts(num, den):
 
 def drop_one_arm(targets, sources, fold: FoldCache, *, names=None, alpha: float = 1.0,
                  var_floor: str = "poisson", clamp: float = 1e-12, kd_value: float = KNOCKDOWN_LOG2FC,
-                 verify: int = 15, seed: int = 0) -> dict:
+                 verify: int = 15, seed: int = 0, anchor: str = "mean_cpm") -> dict:
     """What is each arm worth? `pds(pool) - pds(pool without that arm)`, one arm at a time.
 
     **This is the SIZE of the arm, not a ceiling on a rule applied to it.** It answers, in one
@@ -402,11 +437,11 @@ def drop_one_arm(targets, sources, fold: FoldCache, *, names=None, alpha: float 
         cov = covered[keep].any(axis=0)
         d = delta_from_parts(num[keep].sum(axis=0), den[keep].sum(axis=0))
         return float(score_delta(d, targets, fold, alpha=alpha, kd_value=kd_value,
-                                 covered=cov)), cov
+                                 covered=cov, anchor=anchor)), cov
 
     full, full_cov = score(list(range(S)))
     out = {"pds_full": full, "n_targets": P, "n_targets_covered": int(full_cov.sum()),
-           "var_floor": var_floor, "alpha": alpha, "arms": {}}
+           "var_floor": var_floor, "alpha": alpha, "anchor": anchor, "arms": {}}
     for si, name in enumerate(names):
         keep = [j for j in range(S) if j != si]
         without, _ = score(keep)
