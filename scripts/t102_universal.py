@@ -190,7 +190,7 @@ def run_decompose(tables: dict[str, pd.DataFrame], n_perm: int, log) -> dict:
     feat = joined[have[0]][["gene", *[c for c in features if c in joined[have[0]].columns]]].drop_duplicates("gene")
     out = {"folds": have, "n_perm": n_perm, "features": features, "stats": {}}
     for stat in STATS:
-        d = decompose_across_lines(joined, stat, covariates=COVARIATES)
+        d = decompose_across_lines(joined, stat, covariates=COVARIATES_SENS)
         d = d.merge(feat, on="gene", how="left")
         d.to_parquet(OUT / f"decompose_{stat}.parquet", index=False)
         cov = np.vstack([d[f"mean_{c}"].to_numpy(dtype=np.float64) for c in COVARIATES])
