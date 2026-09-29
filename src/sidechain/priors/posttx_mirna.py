@@ -186,6 +186,63 @@ def sha256_of(path: Path, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
+def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress: bool = False,
+                      registry: str | Path = REGISTRY) -> Path:
+    """Bring one prior-registry block's files onto disk. Idempotent, resumable.
+
+    Order: ``run_gate`` (probe -> gate -> PROVENANCE.json) exactly as
+    ``sidechain.ingest.fetch`` runs it for a corpus, then each selected file that is not
+    already on disk at the probed size is downloaded. A ``.part`` left by an interrupted
+    run is resumed with a Range request (the hosts we use honour them); a host that
+    ignores the range restarts the file rather than appending twice, and a short file is
+    deleted rather than kept. Returns the destination directory. ``refresh=True`` accepts
+    a changed block or upstream state and rewrites PROVENANCE.json -- it is what widening
+    a file list needs.
+
+    Module-level rather than a method because every prior block that carries
+    ``host / record / files / dest`` fetches identically: ``MiRNATargetSource`` (TargetScan)
+    and ``MRNAStabilitySource`` (``posttx_stability``, the Springer and eLife blocks) both
+    call it, and a second copy of this loop is how the two would drift.
+    """
+    from sidechain.ingest.fetch import run_gate
+
+    name = spec.get("name", "<unnamed>")
+    if "host" not in spec:
+        raise ValueError(f"{name}: the registry block declares no host/record/files, "
+                         "so there is nothing to fetch through the gate")
+    record, selected, dest = run_gate(spec, root, refresh=refresh, config=registry)
+    for f in selected:
+        target = dest / f.name
+        if target.exists() and target.stat().st_size == f.size_bytes:
+            continue
+        tmp = target.with_suffix(target.suffix + ".part")
+        have = tmp.stat().st_size if tmp.exists() else 0
+        headers = {"User-Agent": USER_AGENT}
+        if have:
+            headers["Range"] = f"bytes={have}-"
+        req = urllib.request.Request(f.url, headers=headers)
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            if have and resp.status != 206:
+                # the host ignored the range: start over rather than append twice
+                have = 0
+                tmp.unlink()
+            with tmp.open("ab" if have else "wb") as out:
+                done = have
+                while chunk := resp.read(1 << 20):
+                    out.write(chunk)
+                    done += len(chunk)
+                    if progress and done % (64 << 20) < (1 << 20):
+                        print(f"  {f.name}: {done / 1e6:.0f} / {f.size_bytes / 1e6:.0f} MB",
+                              flush=True)
+        got = tmp.stat().st_size
+        if got != f.size_bytes:
+            tmp.unlink()
+            raise RuntimeError(f"{f.name}: downloaded {got} bytes, the probe said "
+                               f"{f.size_bytes}; refusing to keep a short file")
+        tmp.replace(target)
+    return dest
+
+
 def _strip_version(s: pd.Series) -> pd.Series:
     return s.astype(str).str.split(".").str[0].str.strip()
 
@@ -220,49 +277,11 @@ class MiRNATargetSource(PriorSource):
     def fetch(self, *, refresh: bool = False, progress: bool = False) -> Path:
         """Gate, record provenance, then download the block's files. Idempotent, resumable.
 
-        Order: ``run_gate`` (probe -> gate -> PROVENANCE.json) exactly as
-        ``sidechain.ingest.fetch`` runs it for a corpus, then each selected file that is
-        not already on disk at the probed size is downloaded. A ``.part`` left by an
-        interrupted run is resumed with a Range request (the host honours them). Returns
-        the destination directory. ``refresh=True`` accepts a changed block or upstream
-        state and rewrites PROVENANCE.json -- it is what widening the file list needs.
+        The loop itself is `fetch_gated_files`, shared with `MRNAStabilitySource`; the
+        order it enforces (probe -> gate -> PROVENANCE.json -> bytes) is that function's
+        docstring.
         """
-        from sidechain.ingest.fetch import run_gate
-
-        if "host" not in self.spec:
-            raise ValueError(f"{self.name}: the registry block declares no host/record/files, "
-                             "so there is nothing to fetch through the gate")
-        record, selected, dest = run_gate(self.spec, self.root, refresh=refresh, config=REGISTRY)
-        for f in selected:
-            target = dest / f.name
-            if target.exists() and target.stat().st_size == f.size_bytes:
-                continue
-            tmp = target.with_suffix(target.suffix + ".part")
-            have = tmp.stat().st_size if tmp.exists() else 0
-            headers = {"User-Agent": USER_AGENT}
-            if have:
-                headers["Range"] = f"bytes={have}-"
-            req = urllib.request.Request(f.url, headers=headers)
-            with urllib.request.urlopen(req, timeout=300) as resp:
-                if have and resp.status != 206:
-                    # the host ignored the range: start over rather than append twice
-                    have = 0
-                    tmp.unlink()
-                with tmp.open("ab" if have else "wb") as out:
-                    done = have
-                    while chunk := resp.read(1 << 20):
-                        out.write(chunk)
-                        done += len(chunk)
-                        if progress and done % (64 << 20) < (1 << 20):
-                            print(f"  {f.name}: {done / 1e6:.0f} / {f.size_bytes / 1e6:.0f} MB",
-                                  flush=True)
-            got = tmp.stat().st_size
-            if got != f.size_bytes:
-                tmp.unlink()
-                raise RuntimeError(f"{f.name}: downloaded {got} bytes, the probe said "
-                                   f"{f.size_bytes}; refusing to keep a short file")
-            tmp.replace(target)
-        return dest
+        return fetch_gated_files(self.spec, self.root, refresh=refresh, progress=progress)
 
     # ---------------------------------------------------------------- readers --
 

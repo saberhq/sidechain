@@ -225,6 +225,107 @@ sources:
       - name: targetscan_70_BL_PCT.zip
       - name: TargetScan7_context_scores.zip
 
+  - name: halflife_consensus
+    kind: node_feature
+    layer: posttx
+    relation: mrna_halflife
+    entity: gene
+    loader: MRNAStabilitySource
+    provider: "Agarwal & Kelley 2022, Genome Biology 23:245 (Additional file 3 = Table S2)"
+    url: "https://doi.org/10.1186/s13059-022-02811-x"
+    enabled: false               # a measured per-gene feature; nothing in the shipping path consumes it yet
+    notes: "Measured human mRNA half-life, not a prediction. One consensus column plus the 54 per-sample columns it was summarised from; MRNAStabilitySource.halflife_table also emits a per-cell-line mean and count so the line-invariance of the feature can be tested on HEK293 and K562 before it is used as a universal prior (T102 thread 2). Gene-name overlap with the 2026 axis is 13,199 of 18,533 on an exact symbol match (research/reading/posttx-verify-10-saluki-weights-and-table-s2.md, private). The table carries NO Saluki prediction column."
+    # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
+    # exactly as the targetscan block above is. Springer's static-content host is
+    # a plain web server: no record API, no listing, no checksums, no licence
+    # header. So the file list below IS the listing (HEAD-probed for size and
+    # Last-Modified), the checksum absence is admitted in writing, and the terms
+    # come from the article page quoted under license_override_source.
+    host: https
+    record: "https://static-content.springer.com/esm/art%3A10.1186%2Fs13059-022-02811-x/MediaObjects"
+    dest: external/springer-s13059-022-02811-x
+    derived: derived/halflife-agarwal-kelley-2022   # halflife.parquet + LINEAGE.json (ours)
+    budget_gb: 0.05                          # 0.017 GB selected; the gate refuses a selection over this
+    allow_missing_checksum: true             # the host publishes none; sha256 of what landed is in LINEAGE.json
+    license: CC-BY-4.0
+    license_override_source: >
+      A static-file host states no terms in a header. The article's own Open
+      Access statement (read 2026-09-28 on the PMC copy, PMC9684954, because
+      genomebiology.biomedcentral.com 301s to link.springer.com which then 303s
+      to an idp.springer.com authorize page) says: "Open Access This article is
+      licensed under a Creative Commons Attribution 4.0 International License,
+      which permits use, sharing, adaptation, distribution and reproduction in
+      any medium or format, as long as you give appropriate credit to the
+      original author(s) and the source, provide a link to the Creative Commons
+      licence, and indicate if changes were made. ... To view a copy of this
+      licence, visit http://creativecommons.org/licenses/by/4.0/. The Creative
+      Commons Public Domain Dedication waiver
+      (http://creativecommons.org/publicdomain/zero/1.0/) applies to the data
+      made available in this article, unless otherwise stated in a credit line
+      to the data." Additional file 3 is data made available in the article, so
+      the waiver sentence reads as CC0 on this file; CC-BY-4.0 is declared here
+      because it is the stricter of the two and citing the paper costs nothing.
+    files:
+      # Table S2: two sheets, `human` (13,921 genes) and `mouse` (14,465).
+      # Sheet `human` row 1 is a note -- "The half-life (PC1) is a summary of all
+      # of the datasets combined, excluding data from Gejman et al." -- and row 2
+      # is the header: Ensembl Gene Id, Gene name, half-life (PC1), then 54
+      # per-sample columns named <author>_<method>_<line>_<replicate>. By line
+      # those are HEK293 14, K562 8, HeLa 7, H1ESC 3, MCF7 2, HepG2 1, A549 1,
+      # RPE 1, plus the LCL samples PC1 leaves out. 17.2 MB.
+      - name: 13059_2022_2811_MOESM3_ESM.xlsx
+
+  - name: codon_optimality_wu2019
+    kind: node_feature
+    layer: posttx
+    relation: codon_optimality
+    entity: gene
+    loader: MRNAStabilitySource
+    provider: "Wu et al. 2019, eLife 8:e45396 (Figure 1 source data 1 and 2)"
+    url: "https://doi.org/10.7554/eLife.45396"
+    enabled: false               # a measured per-codon table turned into a per-gene score; not in the shipping path yet
+    notes: "Codon stability coefficients (CSC) for the 61 sense codons in four lines by three methods, and the per-gene decay rates they were computed from. Name the lines by the paper's Methods -- 293T, HeLa, RPE, K562 -- never by its Key Resources Table, whose ATCC numbers for K562 and RPE are crossed (CCL-243 is K-562, CRL-4000 is hTERT RPE-1; research/reading/posttx-verify-08-wu2019-csc-crossline.md, private). The six CSC columns correlate 0.56-0.95 pairwise and 0.91-0.95 among the three ActD endogenous lines, but only 34 of 61 codons keep their sign across all six, so `codon_score` keeps every column and averages only the three endogenous ones into csc_endo_mean."
+    # ---- the fetch, through the ADR 0003 gate, as above. eLife's CDN is a plain
+    # file host: no listing, no checksums, no licence header; the terms come from
+    # the eLife API's own licence field, quoted under license_override_source.
+    #
+    # NOTE the third input this block's codon score needs and does NOT fetch:
+    # TargetScan 8.0's ORF_Sequences.txt.zip and Gene_info.txt.zip, from the
+    # `targetscan` block's dest (external/targetscan-vert_80/). The CSC table is
+    # per codon; turning it into a per-gene score needs each gene's ORF, and
+    # TargetScan already publishes one per representative transcript on the same
+    # transcript the miRNA tables are counted on. Those two names are already in
+    # the targetscan block's `files:` -- do not add them here, or two blocks would
+    # claim the same bytes and PROVENANCE.json would disagree with itself.
+    host: https
+    record: "https://cdn.elifesciences.org/articles/45396"
+    dest: external/elife-45396
+    derived: derived/codon-optimality-wu2019   # codon_score.parquet, decay_rates.parquet + LINEAGE.json (ours)
+    budget_gb: 0.02                          # 0.006 GB selected; the gate refuses a selection over this
+    allow_missing_checksum: true             # the host publishes none; sha256 of what landed is in LINEAGE.json
+    license: CC-BY-4.0
+    license_override_source: >
+      A CDN states no terms in a header. https://api.elifesciences.org/articles/45396
+      (read 2026-09-28) returns "copyright": {"license": "CC-BY-4.0", "holder":
+      "Wu et al.", "statement": "This article is distributed under the terms of
+      the Creative Commons Attribution License, which permits unrestricted use
+      and redistribution provided that the original author and source are
+      credited."}. The source-data files are published as part of that article.
+    files:
+      # Figure 1 source data 2: the per-codon table. 61 codons x 6 CSC columns
+      # (293T_endo, HeLa_endo, RPE_endo, 293T_ORFome, K562_ORFome, K562_SLAM),
+      # plus genome and transcriptome codon counts. 6.2 kB.
+      - name: elife-45396-fig1-data2-v2.csv
+      # Figure 1 source data 1: per-gene decay rates, six sheets. Four are keyed
+      # by Ensembl gene id -- 293T-endogenous (13,187 genes), HeLa-endogenous
+      # (12,152), RPE-endogenous (11,974), k562-SLAM-seq (8,861) -- and two,
+      # 293T-ORFome and k562-ORFome, are keyed by a 24-nt library barcode with no
+      # gene id, so they need the TRC3 ORF barcode map before they can be read.
+      # The sign convention differs between sheets (SLAM-seq median -0.12, 293T
+      # endogenous +0.012): `decay_table` keeps the raw values and records each
+      # sheet's median rather than standardising silently. 5.6 MB.
+      - name: elife-45396-fig1-data1-v2.xlsx
+
   - name: postar3
     kind: edge
     layer: posttx
