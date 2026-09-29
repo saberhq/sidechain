@@ -22,9 +22,8 @@ There have been two so far: PHE-2 and SER-8abefkn.
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
 f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
 with one change. Each knockdown's borrowed response is nudged toward the average borrowed
-response of 50 other genes: those, among the 842 whose knockdowns our source screens measured,
-that sit nearest to it in Tahoe-x1's gene embedding, a map of genes learned from single-cell
-data. The nudge turns the part of the response specific to this knockdown a little, and keeps
+response of the 50 genes nearest to it in Tahoe-x1's gene embedding, a map of genes learned
+from single-cell data, chosen from a fixed list of 842 knockdowns. The nudge turns the part of the response specific to this knockdown a little, and keeps
 its size. Sent to measure how much of a gain on our own held-out tests carries over to the
 challenge's cell contexts.
 
