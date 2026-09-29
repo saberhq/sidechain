@@ -791,6 +791,15 @@ def main(argv: list[str] | None = None) -> int:
                          "delta-transfer emitter; a perturbation whose two moments cannot both be "
                          "met carries one amplitude and is counted. Unset = one amplitude, "
                          "bit-identical")
+    ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
+                    help="T84 round 2: which control profile the pseudobulk channel is built on. "
+                         "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
+                         "the mean of per-cell CPM; 'pooled' is sum of counts / sum of depths, "
+                         "the profile cell-eval2's control pseudobulk actually is. The per-cell "
+                         "channel stays on mean_cpm either way; without --alpha-bulk the "
+                         "pseudobulk takes --alpha. Same knob in sidechain.eval.loco, so a "
+                         "mirror-scored arm submits verbatim. Needs a depth spread and the "
+                         "delta-transfer emitter (count_emitters.PoissonEmitter.bulk_anchor)")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -863,6 +872,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.dispersion == "even" or args.emit_lambda == 0.0:
             ap.error("--alpha-bulk needs a depth spread (--emit-lambda > 0 or --dispersion "
                      "poisson): at lambda 0 the pseudobulk and the per-cell mean coincide")
+    if args.bulk_anchor != "mean_cpm":
+        if args.emitter != "delta-transfer":
+            ap.error("--bulk-anchor pooled moves the pseudobulk of pooled per-target deltas, so "
+                     "it only applies to delta-transfer")
+        if args.dispersion == "even" or args.emit_lambda == 0.0:
+            ap.error("--bulk-anchor pooled needs a depth spread (--emit-lambda > 0 or "
+                     "--dispersion poisson): at lambda 0 the pseudobulk and the per-cell mean "
+                     "coincide")
+    # the pseudobulk channel's amplitude, or None for one channel: a pooled anchor is a
+    # two-channel emission even at one amplitude (the same rule as eval.loco)
+    bulk_alpha = (args.alpha_bulk if args.alpha_bulk is not None
+                  else args.alpha if args.bulk_anchor != "mean_cpm" else None)
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -955,11 +976,11 @@ def main(argv: list[str] | None = None) -> int:
         # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
         # With --alpha-bulk the SAME pooled vector is also scaled by the pseudobulk amplitude
         # (taken before alpha touches it) and pinned identically; the emitter gets both.
-        bulk_map = {} if args.alpha_bulk is not None else None
+        bulk_map = {} if bulk_alpha is not None else None
         for p, vec in shift_map.items():
             if vec is not None:
                 if bulk_map is not None:
-                    b = vec * args.alpha_bulk
+                    b = vec * bulk_alpha
                     if p in gene_pos:
                         b[gene_pos[p]] = TARGET_SELF_LOG2FC
                     bulk_map[p] = b
@@ -1032,7 +1053,7 @@ def main(argv: list[str] | None = None) -> int:
             ctx_shifts, ctx_bulk = ((shifts, bulk_shifts) if per_context_shifts is None
                                     else per_context_shifts(prof))
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
-                                lam=args.emit_lambda)
+                                lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
             for k, p in enumerate(perts):
                 if ctx_bulk is None or ctx_shifts[p] is None:
                     block = em.emit(contract.cells_per_pert, ctx_shifts[p])
@@ -1049,14 +1070,17 @@ def main(argv: list[str] | None = None) -> int:
                 # count follows each context's control-depth envelope, so read it on the first
                 # D/E/F build before trusting that letter b is really in the file.
                 dual_fallbacks[ctx] = int(getattr(em, "dual_fallbacks", 0))
-                print(f"  {ctx}: alpha_bulk={args.alpha_bulk:g}: {dual_fallbacks[ctx]} of "
-                      f"{len(perts)} perturbations carried one amplitude", flush=True)
+                print(f"  {ctx}: alpha_bulk={bulk_alpha:g} anchor={args.bulk_anchor}: "
+                      f"{dual_fallbacks[ctx]} of {len(perts)} perturbations carried one "
+                      "amplitude on the mean_cpm profile", flush=True)
     info = verify_h5ad(h5ad, contract)
     if dual_fallbacks:
-        info = {**info, "alpha_bulk": args.alpha_bulk, "dual_fallbacks": dual_fallbacks}
+        # absent bulk_anchor = mean_cpm, so the letter-b records already written stay as they are
+        anchor = {"bulk_anchor": args.bulk_anchor} if args.bulk_anchor != "mean_cpm" else {}
+        info = {**info, "alpha_bulk": args.alpha_bulk, **anchor, "dual_fallbacks": dual_fallbacks}
         out.with_suffix(".dual.json").write_text(json.dumps(
-            {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "dual_fallbacks": dual_fallbacks},
-            indent=1) + "\n")
+            {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, **anchor,
+             "dual_fallbacks": dual_fallbacks}, indent=1) + "\n")
     print(json.dumps({"h5ad": str(h5ad), **info, "write_seconds": round(time.time() - t0)}), flush=True)
     if not args.no_pack:
         t0 = time.time()

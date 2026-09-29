@@ -111,3 +111,42 @@ def test_the_two_configurations_that_cannot_carry_it_are_refused(challenge):
     argv[argv.index("delta-transfer")] = "control-null"
     with pytest.raises(SystemExit):
         build.main(argv)
+
+
+def test_pooled_anchor_rides_every_block_and_is_recorded(challenge, monkeypatch):
+    """`--bulk-anchor pooled` (T84 round 2): the emitter carries the anchor; without --alpha-bulk
+    the pseudobulk takes --alpha (a two-channel emission at one amplitude), with it the two
+    amplitudes; the record names the anchor, and a mean_cpm build's record stays as written."""
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.bulk_anchor, np.array(log2fc_cell), np.array(log2fc_bulk)))
+        return self.emit(n, log2fc_cell)
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    assert build.main(_argv(challenge, "anch", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.5"])) == 0
+    assert len(seen) == 2
+    for anchor, cell, bulk in seen:
+        assert anchor == "pooled" and np.abs(cell).max() > 0 and np.allclose(bulk, cell)
+    rec = json.loads((challenge["out"] / "anch.dual.json").read_text())
+    assert rec == {"alpha": 1.35, "alpha_bulk": None, "bulk_anchor": "pooled",
+                   "dual_fallbacks": {"X": 0, "Y": 0}}
+    assert json.loads((challenge["out"] / "anch.args.json").read_text())["bulk_anchor"] == "pooled"
+
+    seen.clear()
+    assert build.main(_argv(challenge, "anch2", ["--alpha", "1.35", "--alpha-bulk", "1.25",
+                                                 "--bulk-anchor", "pooled", "--emit-lambda", "0.5"])) == 0
+    for anchor, cell, bulk in seen:
+        assert anchor == "pooled" and np.allclose(bulk, cell * (1.25 / 1.35))
+    assert json.loads((challenge["out"] / "anch2.dual.json").read_text())["alpha_bulk"] == 1.25
+
+
+def test_pooled_anchor_is_refused_where_it_cannot_ride(challenge):
+    with pytest.raises(SystemExit):                                     # lambda 0: no depth spread
+        build.main(_argv(challenge, "a_lam0", ["--bulk-anchor", "pooled", "--emit-lambda", "0"]))
+    with pytest.raises(SystemExit):
+        build.main(_argv(challenge, "a_even", ["--bulk-anchor", "pooled"]))
+    argv = _argv(challenge, "a_null", ["--bulk-anchor", "pooled", "--emit-lambda", "0.5"])
+    argv[argv.index("delta-transfer")] = "control-null"
+    with pytest.raises(SystemExit):
+        build.main(argv)
