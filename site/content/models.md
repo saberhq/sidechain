@@ -17,6 +17,22 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-10abefnw — submitted 2026-09-30
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
+f = floored source weights · n = no shrinkage · w = summed profile on the pooled control profile.**
+SER-7abefn with one change. Each knockdown's predicted cells are built on a profile of the
+context's control cells. Until now that profile was the average of each control cell's own
+composition, every cell counting once. The scorer, though, compares summed profiles, where a deep
+cell counts more than a shallow one. Where a gene's share of a cell's counts depends on how deep
+the cell is, the two profiles differ, and every prediction carried that difference. `w` builds the
+summed profile of the predicted cells on the pooled control profile instead, the one the scorer
+uses, and leaves each cell's own profile where it was.
+
+The best entry so far — 0.1353 against its parent SER-7abefn's 0.1131, nearly all of it in the
+summed-profile score, which rose from 0.485 to 0.612; the cell-by-cell scores held. Locally, on
+five held-out test sets from three cell lines, the gain was about the same size.
+
 ## SER-9abefkn — submitted 2026-09-29
 
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
@@ -28,7 +44,7 @@ of the STRING protein-interaction network: a map that places genes whose protein
 close to each other. As there, the nudge turns the part of the response specific to this
 knockdown and keeps its size.
 
-The best entry so far — 0.1144 against its parent SER-7abefn's 0.1131. The summed-profile score
+The best entry at the time — 0.1144 against its parent SER-7abefn's 0.1131. The summed-profile score
 rose most, the differential-expression test reached more of the genes that really changed, and
 fold-change accuracy fell by about half of what those two gained. Locally, on the five held-out
 test sets from three cell lines its settings were picked on, the gain was about six times as

@@ -197,6 +197,19 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-09-30",
+      "partition": "val",
+      "name": "SER-10abefnw",
+      "board_name": "Sidechain SER-10abefnw",
+      "overall": 0.1353,
+      "rank": 403,
+      "teams": 1236,
+      "card": "Tests whether predictions improve when each knockdown's summed profile is built on the control profile the scorer itself uses, pooled across control cells so deeper cells count more, instead of an average over cells. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
