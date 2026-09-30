@@ -181,6 +181,8 @@ def orphan_arms() -> list[tuple[str, int]]:
     which is how the fifth-context sweep arms went missing from it (Saber, 2026-09-21).
     """
     out = []
+    if not MIRRORS.is_dir():    # CI and a fresh clone have no data tree
+        return out
     for d in sorted(MIRRORS.iterdir()):
         if not d.is_dir() or (d / "bundle" / "manifest.json").exists():
             continue
