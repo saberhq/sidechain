@@ -17,6 +17,21 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-11abefknw — submitted 2026-09-30
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
+f = floored source weights · k = neighbour genes blended in · n = no shrinkage · w = summed profile
+on the pooled control profile.** SER-10abefnw with the change SER-9abefkn made. Each knockdown's
+borrowed response is nudged toward the average borrowed response of the 25 genes nearest to it in
+the same STRING protein-interaction map, chosen from the same fixed list of 842 knockdowns, with a
+slightly weaker nudge. As there, the nudge turns the part of the response specific to this knockdown
+and keeps its size.
+
+The best entry so far — 0.1360 against its parent SER-10abefnw's 0.1353. The differential-expression
+test reached more of the genes that really changed; fold-change accuracy and the summed-profile score
+each fell a little. Locally, on five held-out test sets from three cell lines, the gain was about ten
+times as large.
+
 ## SER-10abefnw — submitted 2026-09-30
 
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
@@ -29,7 +44,7 @@ the cell is, the two profiles differ, and every prediction carried that differen
 summed profile of the predicted cells on the pooled control profile instead, the one the scorer
 uses, and leaves each cell's own profile where it was.
 
-The best entry so far — 0.1353 against its parent SER-7abefn's 0.1131, nearly all of it in the
+The best entry at the time — 0.1353 against its parent SER-7abefn's 0.1131, nearly all of it in the
 summed-profile score, which rose from 0.485 to 0.612; the cell-by-cell scores held. Locally, on
 five held-out test sets from three cell lines, the gain was about the same size.
 
