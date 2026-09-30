@@ -59,6 +59,23 @@ def test_writer_round_trips_a_matrix_anndata_reads_back(tmp_path):
     assert back.X.dtype == np.float32
 
 
+def test_writer_row_pointers_survive_2_to_the_31_nonzeros(tmp_path):
+    # A 400-cell prediction on an X-Atlas fold has ~2.45e9 nonzeros. Under NumPy 2 a Python-int
+    # base plus an int32 block indptr stayed int32 and wrapped negative (T103 box night,
+    # 2026-09-30: every such arm died in attach_controls after an hour). Pretend 2^31 - 5
+    # nonzeros are already written, append a block, and read the pointers back.
+    X = sp.csr_matrix(np.array([[1, 0, 2], [0, 3, 0], [4, 5, 6]], dtype=np.float32))
+    X.indptr = X.indptr.astype(np.int32)
+    with open_anndata_h5(tmp_path / "x.h5ad", "w") as h:
+        w = CsrWriter(h, 3)
+        w.indptr = [0, 2**31 - 5]
+        w.append_csr(X)
+        w.close()
+        ptr = h["X/indptr"][:]
+    assert ptr.dtype == np.int64
+    assert ptr.tolist() == [0, 2**31 - 5, 2**31 - 3, 2**31 - 2, 2**31 + 1]
+
+
 def test_load_rows_csr_returns_scattered_rows_in_order(tmp_path):
     rng = np.random.default_rng(2)
     X = sp.csr_matrix((rng.random((20, 6)) < 0.5) * rng.integers(1, 5, (20, 6)).astype(np.float32))

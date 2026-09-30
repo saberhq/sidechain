@@ -270,7 +270,8 @@ class _CsrWriter:
         self.indices.resize((self.nnz + add,))
         self.indices[self.nnz :] = block.indices.astype(np.int32)
         self.indptr.resize((self.n_rows + n + 1,))
-        self.indptr[self.n_rows + 1 :] = block.indptr[1:] + self.nnz
+        # int64 first: NumPy 2 keeps int32 + Python int in int32, which wraps past 2^31 nonzeros
+        self.indptr[self.n_rows + 1 :] = block.indptr[1:].astype(np.int64) + self.nnz
         self.n_rows += n
         self.nnz += add
 

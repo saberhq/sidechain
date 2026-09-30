@@ -104,7 +104,9 @@ class CsrWriter:
             self.indices.resize((self.nnz + n,))
             self.indices[self.nnz:] = indices
         base = self.indptr[-1]
-        self.indptr.extend((base + indptr[1:]).tolist())
+        # int64 before adding: under NumPy 2 a Python-int base plus an int32 indptr stays int32 and wraps
+        # silently once the running nnz passes 2^31 (a 400-cell prediction on an X-Atlas fold has 2.45e9)
+        self.indptr.extend((base + np.asarray(indptr[1:], dtype=np.int64)).tolist())
         self.nnz += n
 
     def append_csr(self, block) -> None:
