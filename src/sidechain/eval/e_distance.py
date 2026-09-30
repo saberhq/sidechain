@@ -35,8 +35,9 @@ plain-Euclidean energy distance (Szekely-Rizzo; `scperturb` with `dist='euclidea
 different number from the paper's, deliberately not exposed here. Two further traps, both
 measured 2026-09-29 (`~/data/sidechain/runs/t103_directions_20260929/a_edist/`): a null from
 random splits of the control cells understates the real one wherever controls span batches
-(control cells drawn from 3 batches score 2.8-3.9 on X-Atlas HCT116, against about 0 for a
-random split), so a threshold on E must come from a batch-matched null; and a control given
+(150 control cells drawn from 3 batches score 2.8 on X-Atlas HCT116 and about 4 on K562 GWPS,
+means over 40 draws, against about 0 for a random split), so a threshold on E must come from a
+batch-matched null; and a control given
 as a list of labels is merged into one group first (`_one_control`), because
 `edist_to_control` pools the list for delta but averages the per-label sigmas, which adds the
 between-label spread to every knockdown (+0.317 on HCT116 split by batch).

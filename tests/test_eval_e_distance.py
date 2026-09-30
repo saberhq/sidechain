@@ -99,9 +99,9 @@ def test_a_spread_only_change_scores_no_more_than_noise():
     adata = ad.AnnData(X=np.zeros((800, 1)), obs=obs)
     adata.obsm["X_pca"] = np.concatenate([ctrl, wide])
     result = e_distance(adata, "pert", control=CONTROL)
-    # the sd of the estimate here is about 2*sqrt(2*tr(S_wide)^2/(5*400)) ~ 4; a mean shift of
-    # one unit on every axis would score 10
-    assert abs(result["wide"]) < 8.0
+    # the sd of the estimate here is about 0.4 (2,000 simulated draws); a mean shift of one unit
+    # on every axis would score 10
+    assert abs(result["wide"]) < 2.0
 
 
 def test_a_list_control_is_pooled_like_one_label():
