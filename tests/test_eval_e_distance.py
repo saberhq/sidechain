@@ -72,6 +72,62 @@ def test_e_distance_is_larger_for_a_further_separated_group():
     assert result["far"] > result["near"]
 
 
+def test_e_distance_is_the_noise_corrected_squared_mean_shift():
+    # The docstring's identity: E = 2|mean(X) - mean(Y)|^2 - 2 tr(S_X)/N - 2 tr(S_Y)/M. The
+    # within-group terms remove the means' sampling noise; they add no spread.
+    adata = _pca_adata({CONTROL: (90, 0.0), "target_a": (70, 1.5)})
+    result = e_distance(adata, "pert", control=CONTROL)
+
+    X = adata.obsm["X_pca"][adata.obs["pert"] == "target_a"]
+    Y = adata.obsm["X_pca"][adata.obs["pert"] == CONTROL]
+    closed = (
+        2 * np.sum((X.mean(0) - Y.mean(0)) ** 2)
+        - 2 * np.trace(np.cov(X.T)) / len(X)
+        - 2 * np.trace(np.cov(Y.T)) / len(Y)
+    )
+    assert result["target_a"] == pytest.approx(closed, rel=1e-9)
+
+
+def test_a_spread_only_change_scores_no_more_than_noise():
+    # Same mean, five times the spread: the mean-shift statistic stays near zero, where a
+    # whole-distribution distance would not. A reader who expects "cloud shape" is warned here.
+    rng = np.random.default_rng(1)
+    ctrl = rng.normal(0.0, 1.0, size=(400, 5))
+    wide = rng.normal(0.0, 5.0, size=(400, 5))
+    obs = pd.DataFrame({"pert": [CONTROL] * 400 + ["wide"] * 400})
+    obs.index = [f"cell{i}" for i in range(800)]
+    adata = ad.AnnData(X=np.zeros((800, 1)), obs=obs)
+    adata.obsm["X_pca"] = np.concatenate([ctrl, wide])
+    result = e_distance(adata, "pert", control=CONTROL)
+    # the sd of the estimate here is about 2*sqrt(2*tr(S_wide)^2/(5*400)) ~ 4; a mean shift of
+    # one unit on every axis would score 10
+    assert abs(result["wide"]) < 8.0
+
+
+def test_a_list_control_is_pooled_like_one_label():
+    # Two control batches with different means: scperturb alone averages their separate
+    # sigmas, which inflates every E by the between-batch spread. The wrapper merges them.
+    split = _pca_adata(
+        {"ntc_batch1": (80, 0.0), "ntc_batch2": (80, 1.0), "target_a": (60, 3.0)}
+    )
+    merged = split.copy()
+    lab = merged.obs["pert"].astype(str)
+    merged.obs["pert"] = lab.where(~lab.isin(["ntc_batch1", "ntc_batch2"]), CONTROL)
+
+    from_list = e_distance(split, "pert", control=["ntc_batch1", "ntc_batch2"])
+    from_one = e_distance(merged, "pert", control=CONTROL)
+
+    assert from_list["target_a"] == pytest.approx(from_one["target_a"], rel=1e-9)
+    assert "ntc_batch1+ntc_batch2" in from_list.index
+    assert from_list["ntc_batch1+ntc_batch2"] == pytest.approx(0.0, abs=1e-8)
+
+
+def test_a_list_control_with_an_unknown_label_is_refused():
+    adata = _pca_adata({CONTROL: (50, 0.0), "target_a": (50, 3.0)})
+    with pytest.raises(ValueError, match="not found"):
+        e_distance(adata, "pert", control=[CONTROL, "no_such_label"])
+
+
 # ------------------------------------------------------------------------- e_test --
 
 

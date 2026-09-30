@@ -11,10 +11,13 @@ not a one-line stand-in.
 **E-distance was never a PDS proxy**, so nothing about a PDS question is settled by
 reasoning about it. `pds_cosine` ranks *pseudobulk deltas* -- one vector per
 perturbation -- and asks whether our predicted delta is nearer that target's real
-delta than any other target's, discarding within-group spread entirely. E-distance
-compares *two clouds of cells* in PCA space, half its formula IS the within-group
-spread, and it needs no prediction at all: it is a property of real data. Its use is
-on the input side, grading the corpora we pool deltas from -- see
+delta than any other target's. E-distance is computed from *two clouds of real cells*
+in PCA space and needs no prediction at all: it is a property of real data. Its
+within-group terms do NOT add the clouds' spread to the number: with the squared
+distance the paper uses they cancel the spread already inside the between-group term,
+so what is left is a noise-corrected squared distance between the two groups' MEAN
+profiles (the identity is in `sidechain.eval.e_distance`'s docstring). Its use is on
+the input side, grading the corpora we pool deltas from -- see
 `sidechain.eval.e_distance` and `research/ideas/e-test-source-perturbation-gate.md`.
 
 **Do not reach for pertpy's E-distance.** Measured against 1.0.3, not inferred: its

@@ -3,22 +3,43 @@ paper and the authors' own `scperturb` package rather than from memory (`T94`, r
 deletion of an unimplemented stub -- see `metrics_extra.py` for that history).
 
 **Not a PDS proxy.** `metrics_extra.py` has the full argument for why this statistic cannot
-substitute for `pds_cosine`: E-distance compares two clouds of real cells and needs no
-prediction, PDS ranks a predicted pseudobulk delta against the truth. Its home here is grading
-whether a *source* perturbation's own knockdown is distinguishable from control, before that
-source's delta is pooled (`research/ideas/e-test-source-perturbation-gate.md`) -- not scoring
-a prediction.
+substitute for `pds_cosine`: E-distance is computed from real cells and needs no prediction,
+PDS ranks a predicted pseudobulk delta against the truth. Its home here is grading whether a
+*source* perturbation's own knockdown is distinguishable from control, before that source's
+delta is pooled (`research/ideas/e-test-source-perturbation-gate.md`) -- not scoring a
+prediction.
 
 **`scperturb.edist_to_control` / `scperturb.etest` ARE the paper's formulas**, read against
 Methods and confirmed, not `pertpy`'s (measured wrong in `metrics_extra.py`):
   * cell-wise distance: squared Euclidean -- `dist='sqeuclidean'`, the package default.
-  * bias correction: sigma divided by N(N-1), not N^2 -- `sample_correct=True`, the default.
+  * bias correction: sigma divided by N(N-1), not N^2 -- `sample_correct=True`, the default
+    (the paper uses it everywhere except its Fig. 5c and 5d).
   * E(X,Y) = 2*delta_XY - sigma_X - sigma_Y, exactly the Methods formula.
   * E-test: Monte-Carlo permutation p-value, Holm-Sidak corrected per dataset -- the package's
     default `correction_method`, via `statsmodels`.
 So this module does not reimplement the statistic itself -- it pins the arguments that must
 never silently drift (so a future edit cannot reintroduce the pertpy trap) and supplies the
 one thing `scperturb` does not: the paper's fixed preprocessing recipe.
+
+**What the number measures: the shift of the MEAN, not the shape of the cloud.** With squared
+distances and the N(N-1) correction the formula is algebraically
+
+    E(X,Y) = 2 * ||mean(X) - mean(Y)||^2  -  2 * tr(S_X) / N  -  2 * tr(S_Y) / M
+
+(S the unbiased covariance), an unbiased estimate of 2 * ||mu_X - mu_Y||^2: the within-group
+terms remove the sampling noise of the two means and add no spread (`tests/test_eval_e_distance.py`
+pins the identity; measured on real K562 cells to 2.5e-12, T103, 2026-09-29). So a knockdown
+that only widens the cloud scores zero, and "half the cells respond fully" reads the same as
+"every cell responds halfway". The statistic that compares whole distributions is the
+plain-Euclidean energy distance (Szekely-Rizzo; `scperturb` with `dist='euclidean'`) -- a
+different number from the paper's, deliberately not exposed here. Two further traps, both
+measured 2026-09-29 (`~/data/sidechain/runs/t103_directions_20260929/a_edist/`): a null from
+random splits of the control cells understates the real one wherever controls span batches
+(control cells drawn from 3 batches score 2.8-3.9 on X-Atlas HCT116, against about 0 for a
+random split), so a threshold on E must come from a batch-matched null; and a control given
+as a list of labels is merged into one group first (`_one_control`), because
+`edist_to_control` pools the list for delta but averages the per-label sigmas, which adds the
+between-label spread to every knockdown (+0.317 on HCT116 split by batch).
 
 **One measured departure from `scperturb.equal_subsampling`.** Called with `N_min=50` directly,
 it computes the subsample size as `max(50, min(cell count over ALL groups, including ones about
@@ -90,12 +111,39 @@ def prep_for_edistance(adata: AnnData, pert_col: str, *, seed: int = 0) -> AnnDa
     return out
 
 
+def _one_control(
+    adata: AnnData, pert_col: str, control: str | list[str]
+) -> tuple[AnnData, str]:
+    """A list of control labels becomes ONE group, named ``'+'.join(labels)``.
+
+    `edist_to_control` pools a list's cells for the between-group term but averages the
+    per-label sigmas, so batch-split controls add their between-label spread to every
+    knockdown's E (module docstring). Merging first makes `e_distance` and `e_test` see the
+    same pooled control. A single label is passed through untouched.
+    """
+    if isinstance(control, str):
+        return adata, control
+    labels = [str(c) for c in dict.fromkeys(control)]
+    if len(labels) == 1:
+        return adata, labels[0]
+    col = adata.obs[pert_col].astype(str)
+    missing = [c for c in labels if not (col == c).any()]
+    if missing:
+        raise ValueError(f"control labels not found in {pert_col!r}: {missing}")
+    merged = "+".join(labels)
+    obs = pd.DataFrame({pert_col: col.where(~col.isin(labels), merged)}, index=adata.obs_names)
+    return AnnData(obs=obs, obsm={"X_pca": adata.obsm["X_pca"]}), merged
+
+
 def e_distance(adata: AnnData, pert_col: str, control: str | list[str]) -> pd.Series:
     """E-distance of every group in `pert_col` to `control`, in `adata.obsm['X_pca']`.
 
     A thin, argument-pinned call onto `scperturb.edist_to_control` -- see the module docstring
-    for why `dist` and `sample_correct` are fixed rather than exposed.
+    for why `dist` and `sample_correct` are fixed rather than exposed, and for what the number
+    measures (the mean shift). A list `control` is merged into one group first; the result then
+    carries one row for it, named ``'+'.join(control)``.
     """
+    adata, control = _one_control(adata, pert_col, control)
     result = edist_to_control(
         adata,
         obs_key=pert_col,
@@ -123,8 +171,10 @@ def e_test(
     a real gate. `scperturb.etest` parallelizes over permutation runs via `n_jobs`
     (`joblib`) -- the default of 1 is the safe choice for a laptop; a genome-wide corpus
     (thousands of targets x 10,000 permutations) is a box job and should pass the box's core
-    count, not stay at 1 -- `research/ideas/e-test-source-perturbation-gate.md`.
+    count, not stay at 1 -- `research/ideas/e-test-source-perturbation-gate.md`. A list
+    `control` is merged into one group first, as in `e_distance`.
     """
+    adata, control = _one_control(adata, pert_col, control)
     return etest(
         adata,
         obs_key=pert_col,
