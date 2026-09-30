@@ -98,12 +98,13 @@ sources:
     loader: GeneTableSource        # not written; see T19
     provider: "ESM-2 15B (Meta) as shipped by Arc Institute beside SE-600M"
     url: "https://huggingface.co/arcinstitute/SE-600M"
-    path: "~/data/sidechain/external/hf-arcinstitute-SE-600M/protein_embeddings.pt"
-    key_type: hgnc_symbol          # 19,790 symbols
+    path: "~/data/sidechain/derived/esm2-15b-se600m/esm2_15b_gene_table.pt"
+    sha256: "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748"
+    key_type: hgnc_symbol          # 19,790 symbols; retired symbols via sidechain.data.gene_aliases
     embed_dim: 5120
     precompute: true
     enabled: false
-    notes: "The featurizer until 2026-09-16; superseded by esm2_3b_gene_table (T90). Still the geometry gate's default comparator (scripts/esm2_geometry_gate.py EMB)."
+    notes: "The featurizer until 2026-09-16; superseded by esm2_3b_gene_table (T90). Still the geometry gate's default comparator (scripts/esm2_geometry_gate.py EMB, which reads the external/hf-arcinstitute-SE-600M/protein_embeddings.pt original). The derived path is a byte-identical copy (same sha256 as the HF LFS oid at commit 5a9a80f4) so it can live in lamin (ADR 0007 keeps external/ out); LINEAGE.json beside it. Covers 300/300 challenge targets and 842/842 of the neighbour pool (T103, 2026-09-29)."
 
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
