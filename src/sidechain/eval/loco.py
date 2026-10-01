@@ -86,6 +86,7 @@ def build_transfer_prediction(
     neighbour_pool: Path | None = None,
     neighbour_k: int = 25,
     neighbour_w: float | list[float] | None = None,
+    neighbour_size: str = "unit",
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -162,7 +163,8 @@ def build_transfer_prediction(
 
         arm, arm_record = neighbour_arm_for(
             SimpleNamespace(neighbour_table=neighbour_table, neighbour_pool=neighbour_pool,
-                            neighbour_k=neighbour_k, neighbour_w=neighbour_w), delta_of, axis)
+                            neighbour_k=neighbour_k, neighbour_w=neighbour_w,
+                            neighbour_size=neighbour_size), delta_of, axis)
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
                          log_bias_correct=log_bias_correct,
@@ -368,7 +370,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_table=args.neighbour_table,
                                      neighbour_pool=args.neighbour_pool,
                                      neighbour_k=args.neighbour_k,
-                                     neighbour_w=args.neighbour_w)
+                                     neighbour_w=args.neighbour_w,
+                                     neighbour_size=args.neighbour_size)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -398,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
              str(t) for t in args.neighbour_table],
          "neighbour_pool": None if args.neighbour_pool is None else str(args.neighbour_pool),
          "neighbour_k": args.neighbour_k, "neighbour_w": args.neighbour_w,
+         "neighbour_size": args.neighbour_size,
          "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
         artifacts=[str(out / "summary.json")],

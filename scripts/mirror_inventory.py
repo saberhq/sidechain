@@ -135,7 +135,12 @@ def knob_str(build: dict) -> str:
             tables = [tables] if isinstance(tables, str) else tables
             w = v.get("w")
             w = w if isinstance(w, list) else [w]
-            v = "+".join(f"{Path(t).stem.split('_')[0]}·{x:g}" for t, x in zip(tables, w)) + f"·k{v.get('k')}"
+            # the blend shape (T103 direction 1 (i)): "unit" is the default and the gate's, and an
+            # arm scored before the flag existed has no key, so only "median" is written. Without
+            # it a size-aware arm and the unit arm it is read against render identically.
+            med = "·med" if v.get("size") == "median" else ""
+            stems = "+".join(f"{Path(t).stem.split('_')[0]}·{x:g}" for t, x in zip(tables, w))
+            v = f"{stems}·k{v.get('k')}{med}"
         bits.append(f"{LABEL.get(k, k.split('_')[0])}={v}")
     # Cells per target: the mirror's default is the real side's count, the board takes 400
     # (T84 round 2: the #348 mse refund depends on it). Shown only when it was set to a round number.

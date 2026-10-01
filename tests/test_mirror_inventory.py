@@ -101,3 +101,11 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
           "w": [0.05, 0.3], "k": 25}
     assert "nb=tahoex1·0.05+string·0.3·k25" in knob_str({**base, "neighbour": nb})
     assert "nb=" not in knob_str({**base, "neighbour": None})
+    # the blend shape, or a size-aware arm renders as the unit arm it is read against (T103)
+    one = {"table": "/y/string_node2vec_table.pt", "w": 0.2, "k": 25, "scale": 31.4159}
+    assert "nb=string·0.2·k25" in knob_str({**base, "neighbour": {**one, "size": "unit"}})
+    assert "·med" not in knob_str({**base, "neighbour": {**one, "size": "unit"}})
+    assert "nb=string·0.2·k25·med" in knob_str({**base, "neighbour": {**one, "size": "median"}})
+    assert "·med" not in knob_str({**base, "neighbour": one})       # no key = scored pre-flag
+    assert ("nb=tahoex1·0.05+string·0.3·k25·med"
+            in knob_str({**base, "neighbour": {**nb, "size": "median"}}))

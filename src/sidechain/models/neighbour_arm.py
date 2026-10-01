@@ -9,7 +9,9 @@ measured it; this module only replays it on pooled deltas. For each predicted ta
   2. ``r_t`` t's pooled delta minus ``m``, t's own gene zeroed: the residual SER carries.
   3. ``n_t`` the mean of ``d_j - m`` over the k pool members j nearest to t by cosine in the
              gene table, t itself excluded: the neighbour arm, which never reads t.
-  4. out   ``m + |r_t| * unit(unit(r_t) + w * unit(n_t))``.
+  4. out   ``m + |r_t| * unit(unit(r_t) + w * unit(n_t))``   (``size="unit"``, the default)
+           or ``m + |r_t| * unit(unit(r_t) + w * n_t / s)``    (``size="median"``), with
+           ``s`` the median residual length over the pool, so ``|n_t| / s`` is unitless.
 
 Why each step is the shape it is:
 
@@ -20,6 +22,13 @@ Why each step is the shape it is:
   term for term, so a w read off the gate's sweep means here what it meant there: the cosine
   of ``out - m`` with any truth equals the gate's fused cosine (`tests/test_neighbour_arm.py`
   pins it against the gate's own functions).
+- **Size-aware blend (T103 direction 1 (i), ``size="median"``).** With ``size="unit"`` every
+  target's neighbour arm pulls equally hard, however much its neighbourhood agrees. With
+  ``size="median"`` the arm keeps its length, divided by one pool-wide number ``s`` (the median
+  ``|d_j - m|`` over the pool's residuals, the arm's own scale), so a neighbourhood that
+  responds strongly and agrees pulls harder than one that cancels. ``s`` is a constant of the
+  pool, not of the target, so no target is rescaled by its own neighbours' size. The default
+  stays ``unit``: the gate's blend, bit-identical.
 - **SER's length.** The fused residual is rescaled to ``|r_t|``: the arm moves SER's direction
   and nothing else, so ``alpha`` and ``alpha_bulk`` keep the meaning they were calibrated with.
 - **Own genes zeroed.** A neighbour's pooled delta carries its own knockdown (about -2 log2 at
@@ -45,6 +54,8 @@ from pathlib import Path
 import numpy as np
 
 from sidechain.data.gene_aliases import RETIRED_SYMBOLS as ALIAS
+
+SIZES = ("unit", "median")       # the blend shapes: the gate's unit arm, or size-aware
 
 
 def unit(v: np.ndarray) -> np.ndarray:
@@ -102,9 +113,21 @@ class NeighbourArm:
     pool_unit: np.ndarray            # (n_pool, dim): unit table rows
     gene_pos: dict[str, int]         # axis symbol -> column
     stats: dict = field(default_factory=dict)
+    size: str = "unit"               # blend shape: "unit" (the gate's) or "median"
+    scale: float | None = None       # s: the median |d_j - m| over the pool's residuals
 
     def __post_init__(self):
         self._pool_pos = {lab: i for i, lab in enumerate(self.pool)}
+        # `build_neighbour_arm` checks these too; here they also catch an arm built by hand (a
+        # screen cross-checking its own fusion against `fuse`), which otherwise divides by None
+        # deep inside `fuse` and reads as a TypeError about floats.
+        if self.size not in SIZES:
+            raise ValueError(f"size must be one of {SIZES}, got {self.size!r}")
+        if self.size == "median" and not (self.scale is not None and self.scale > 0):
+            raise ValueError(f"size='median' divides the neighbour mean by the pool's median "
+                             f"residual length, so it needs a positive scale, got {self.scale!r}: "
+                             f"build the arm with build_neighbour_arm(..., size='median'), which "
+                             f"measures it from the pool")
 
     def fuse(self, target: str, delta: np.ndarray) -> np.ndarray:
         """SER's pooled delta for ``target`` -> the fused delta (a new array).
@@ -125,23 +148,45 @@ class NeighbourArm:
         if r_norm == 0.0:
             s["targets_zero_residual"] = s.get("targets_zero_residual", 0) + 1
             return delta
-        un, own = self.neighbour_unit(target, e)
+        n, own = self.neighbour_mean(target, e)
+        un = unit(n)
         ur = unit(r)
-        fused = self.mean + r_norm * unit(ur + self.w * un)
+        if self.size == "median":
+            # the arm keeps its length in units of the pool's median residual length
+            arm = n / self.scale
+            arm_size = float(np.linalg.norm(arm))
+            s["arm_size_sum"] = s.get("arm_size_sum", 0.0) + arm_size
+            s["arm_size_gt1"] = s.get("arm_size_gt1", 0) + int(arm_size > 1.0)
+        else:
+            arm = un
+        fused = self.mean + r_norm * unit(ur + self.w * arm)
         s["targets_fused"] = s.get("targets_fused", 0) + 1
         s["arm_cosine_sum"] = s.get("arm_cosine_sum", 0.0) + float(ur @ un)
         s["own_in_pool"] = s.get("own_in_pool", 0) + int(own is not None)
         return fused
 
-    def neighbour_unit(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
-        """``unit(n_t)``, the mean residual of the k pool members nearest ``e``, t excluded;
-        and t's pool index (None when t is not in the pool)."""
+    def neighbour_mean(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
+        """``n_t``, the plain mean residual of the k pool members nearest ``e``, t excluded;
+        and t's pool index (None when t is not in the pool).
+
+        The one place the neighbours are picked: `neighbour_unit` is this, normalised.
+        """
         sim = self.pool_unit @ unit(e)
         own = self._pool_pos.get(target)
         if own is not None:
             sim[own] = -np.inf               # a target is never its own neighbour
         idx = np.argsort(-sim)[: self.k]
-        return unit(self.resid[idx].mean(0)), own
+        return self.resid[idx].mean(0), own
+
+    def neighbour_unit(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
+        """``unit(n_t)`` and t's pool index: `neighbour_mean`, normalised (one pick, one path).
+
+        Diagnostic API: since the size flag, `fuse` takes the unnormalised mean and normalises it
+        itself, so nothing in `src/` or `scripts/` calls this -- only tests and a probe that wants
+        the gate's unit arm on its own.
+        """
+        n, own = self.neighbour_mean(target, e)
+        return unit(n), own
 
     def summary(self) -> dict:
         """What a run records: the knobs, the pool, and how the targets fared."""
@@ -152,18 +197,37 @@ class NeighbourArm:
             s["arm_cosine_mean"] = round(s.pop("arm_cosine_sum") / n, 6)
         else:
             s.pop("arm_cosine_sum", None)
-        return {"k": self.k, "w": self.w, "pool_used": len(self.pool), **s}
+        tot = s.pop("arm_size_sum", None)
+        if self.size == "median" and n:
+            # how long the neighbour arm is in pool-median units, and how often (before w)
+            # it is longer than the unit residual it is blended with
+            s["arm_size_mean"] = round((tot or 0.0) / n, 6)
+            s["arm_size_gt1_frac"] = round(s.get("arm_size_gt1", 0) / n, 6)
+        # `scale` is rounded for reading; `scale_exact` is the number `fuse` divided by, because
+        # rounding to 6 decimals is a relative 4e-9 at a real residual length and a replay from
+        # the record alone could not reach the 1e-10 agreement the screen's gate asks for.
+        return {"k": self.k, "w": self.w, "size": self.size,
+                "scale": None if self.scale is None else round(self.scale, 6),
+                "scale_exact": self.scale,
+                "pool_used": len(self.pool), **s}
 
 
 def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarray | None],
-                        axis: np.ndarray, table: Mapping, *, k: int, w: float) -> NeighbourArm:
+                        axis: np.ndarray, table: Mapping, *, k: int, w: float,
+                        size: str = "unit") -> NeighbourArm:
     """Pool the residuals once; ``delta_of(label)`` is the caller's pooled delta (None = uncovered).
 
     ``delta_of`` must be the SAME pooling the predicted targets get (sources, shrinkage,
     floors), or the pool's residuals are in a different space from SER's.
+
+    ``size`` is the blend shape: ``"unit"`` (the gate's, the default) or ``"median"``. The
+    pool's median residual length is measured and recorded either way, so a run says what the
+    arm's scale was even when it did not use it.
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
+    if size not in SIZES:
+        raise ValueError(f"size must be one of {SIZES}, got {size!r}")
     if not (np.isfinite(w) and w > 0):
         raise ValueError(f"w must be finite and > 0 (w = 0 is the knob off: do not build the "
                          f"arm), got {w}")
@@ -196,14 +260,28 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
         raise ValueError(f"table rows differ in length: {sorted(dims)}")
     D = np.stack(rows)
     m = D.mean(0)
+    resid = np.ascontiguousarray(D - m)
+    # chunked: `np.linalg.norm(resid, axis=1)` in one call materialises a second full copy of the
+    # residual block (126 MB at 842 members x 18,533 genes), and this runs on every build, size
+    # flag or not. Per-row norms do not depend on the chunking, so the number is bit-identical.
+    rn = np.empty(len(resid))
+    for lo in range(0, len(resid), 64):
+        rn[lo:lo + 64] = np.linalg.norm(resid[lo:lo + 64], axis=1)
+    scale = float(np.median(rn))
+    if size == "median" and not scale > 0.0:          # 0, negative and NaN all land here
+        raise ValueError("size='median' divides the neighbour mean by the pool's median "
+                         f"residual length, which is {scale!r} here, not a positive number: the "
+                         "pool's deltas equal its mean, their lengths underflowed, or a member "
+                         f"carries a non-finite value ({stats})")
     return NeighbourArm(k=k, w=float(w), table=table, pool=labels, mean=m,
-                        resid=np.ascontiguousarray(D - m), pool_unit=unit(np.stack(vecs)),
-                        gene_pos=gene_pos, stats=stats)
+                        resid=resid, pool_unit=unit(np.stack(vecs)),
+                        gene_pos=gene_pos, stats=stats, size=size, scale=scale)
 
 
 @dataclass
 class NeighbourMix:
-    """Several gene tables at once: ``out = m + |r| unit(unit(r) + sum_i w_i unit(n_i))``.
+    """Several gene tables at once: ``out = m + |r| unit(unit(r) + sum_i w_i a_i)``, with each
+    ``a_i`` its arm's own blend shape (``unit(n_i)``, or ``n_i / s`` under ``size="median"``).
 
     Each table picks its own k nearest neighbours; all of them share one pool (the members
     every table resolves), so they share one ``m`` and one set of residuals, and SER's own
@@ -221,6 +299,10 @@ class NeighbourMix:
     @property
     def ws(self) -> list[float]:
         return [a.w for a in self.arms]
+
+    @property
+    def size(self) -> str:
+        return self.arms[0].size
 
     def fuse(self, target: str, delta: np.ndarray) -> np.ndarray:
         s, a0 = self.stats, self.arms[0]
@@ -242,8 +324,18 @@ class NeighbourMix:
             if e is None:
                 s[f"table{i}_unresolved"] = s.get(f"table{i}_unresolved", 0) + 1
                 continue
-            un, _own = a.neighbour_unit(target, e)
-            acc += a.w * un
+            n, _own = a.neighbour_mean(target, e)
+            un = unit(n)
+            # each arm follows its own size rule; the arms share one pool, so one scale
+            if a.size == "median":
+                arm = n / a.scale
+                sz = float(np.linalg.norm(arm))
+                # per table, so a median mix says how hard each table's arm actually pulled
+                s[f"table{i}_size_sum"] = s.get(f"table{i}_size_sum", 0.0) + sz
+                s[f"table{i}_size_gt1"] = s.get(f"table{i}_size_gt1", 0) + int(sz > 1.0)
+            else:
+                arm = un
+            acc += a.w * arm
             s[f"table{i}_cosine_sum"] = s.get(f"table{i}_cosine_sum", 0.0) + float(ur @ un)
         s["targets_fused"] = s.get("targets_fused", 0) + 1
         return a0.mean + r_norm * unit(acc)
@@ -255,19 +347,29 @@ class NeighbourMix:
             c = s.pop(f"table{i}_cosine_sum", None)
             if c is not None and n:
                 s[f"table{i}_cosine_mean"] = round(c / n, 6)
-        return {"k": self.k, "w": self.ws, "pool_used": len(self.arms[0].pool),
-                "pool_requested": self.arms[0].stats.get("pool_requested"), **s}
+            # only under size="median", and only when the table resolved something: a missing
+            # reading must never render as "that table's neighbourhoods cancelled"
+            z = s.pop(f"table{i}_size_sum", None)
+            if z is not None and n:
+                s[f"table{i}_size_mean"] = round(z / n, 6)
+                s[f"table{i}_size_gt1_frac"] = round(s.get(f"table{i}_size_gt1", 0) / n, 6)
+        a0 = self.arms[0]
+        return {"k": self.k, "w": self.ws, "size": self.size,
+                "scale": None if a0.scale is None else round(a0.scale, 6),
+                "scale_exact": a0.scale,
+                "pool_used": len(a0.pool),
+                "pool_requested": a0.stats.get("pool_requested"), **s}
 
 
 def build_neighbour_arms(pool: Sequence[str], delta_of: Callable[[str], np.ndarray | None],
                          axis: np.ndarray, tables: Sequence[Mapping], *, k: int,
-                         ws: Sequence[float]) -> NeighbourArm | NeighbourMix:
+                         ws: Sequence[float], size: str = "unit") -> NeighbourArm | NeighbourMix:
     """One table: exactly `build_neighbour_arm`. Several: a `NeighbourMix` whose arms share the
-    pool members every table resolves, pooled once."""
+    pool members every table resolves, pooled once. ``size`` is one rule for every arm."""
     if len(tables) != len(ws) or not tables:
         raise ValueError(f"one w per table: got {len(tables)} tables and {len(ws)} weights")
     if len(tables) == 1:
-        return build_neighbour_arm(pool, delta_of, axis, tables[0], k=k, w=ws[0])
+        return build_neighbour_arm(pool, delta_of, axis, tables[0], k=k, w=ws[0], size=size)
     labels = list(dict.fromkeys(str(x) for x in pool))
     shared = [lab for lab in labels if all(table_vector(t, lab) is not None for t in tables)]
     memo: dict = {}
@@ -277,9 +379,11 @@ def build_neighbour_arms(pool: Sequence[str], delta_of: Callable[[str], np.ndarr
             memo[lab] = delta_of(lab)
         return memo[lab]
 
-    arms = [build_neighbour_arm(shared, once, axis, t, k=k, w=w) for t, w in zip(tables, ws)]
+    arms = [build_neighbour_arm(shared, once, axis, t, k=k, w=w, size=size)
+            for t, w in zip(tables, ws)]
     for a in arms[1:]:
         assert a.pool == arms[0].pool and np.array_equal(a.mean, arms[0].mean)
+        assert a.scale == arms[0].scale          # one pool, one residual scale
     arms[0].stats["pool_requested"] = len(labels)
     arms[0].stats["pool_unresolved"] = len(labels) - len(shared)
     return NeighbourMix(arms=arms)

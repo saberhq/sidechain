@@ -30,6 +30,8 @@ genes whose p-value has saturated.
 `--neighbour-table`, `--neighbour-pool`, `--neighbour-k` and `--neighbour-w` fuse each target's
 pooled delta with the mean delta of its k nearest neighbours in a gene table (T103; the geometry
 gate's `cross`-mode fusion, `sidechain.models.neighbour_arm`). Off unless `--neighbour-w` > 0.
+`--neighbour-size median` lets the neighbourhood's own response size set how hard it pulls;
+`unit` (the default) is the gate's blend, bit-identical.
 
 `--limit-perts N` builds a small panel (first N perturbations) and writes a matching
 pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout locally.
@@ -639,7 +641,7 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
 
 
 def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
-    """The four neighbour-arm flags (T103), shared by `submit.build` and `eval.loco`."""
+    """The five neighbour-arm flags (T103), shared by `submit.build` and `eval.loco`."""
     ap.add_argument("--neighbour-table", type=Path, action="append", default=None, metavar="PT",
                     help="symbol-keyed gene table (.pt, {symbol: vector}) whose cosine "
                          "neighbourhoods pick each target's neighbours, e.g. Tahoe-x1 3B's "
@@ -656,24 +658,45 @@ def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
     ap.add_argument("--neighbour-k", type=int, default=25, metavar="K",
                     help="neighbours per target (default 25, the geometry gate's header k)")
     ap.add_argument("--neighbour-w", type=float, action="append", default=None, metavar="W",
-                    help="weight of the unit neighbour arm against SER's unit residual: "
+                    help="weight of the neighbour arm against SER's unit residual: "
                          "out = m + |r| unit(unit(r) + w unit(n)), the geometry gate's cross-mode "
-                         "fusion term for term; repeatable, one per --neighbour-table. Unset = "
-                         "off and bit-identical (nothing is loaded).")
+                         "fusion term for term under --neighbour-size unit (the default). Under "
+                         "'median' w multiplies n/s, whose length is about 0.2 on a real "
+                         "neighbourhood at the default k, so a w read off the gate's unit sweep "
+                         "does not carry over and has to be re-swept (the arm's own record "
+                         "reports the distribution). Repeatable, one per --neighbour-table. "
+                         "Unset = off and bit-identical (nothing is loaded).")
+    # the two spellings of models.neighbour_arm.SIZES, named here so that off still never
+    # imports that module (tests/test_neighbour_arm.py pins the two lists equal)
+    ap.add_argument("--neighbour-size", choices=("unit", "median"), default="unit",
+                    help="how long the neighbour arm is in the blend: 'unit' (default) is the "
+                         "gate's blend, every target's arm the same length; 'median' is "
+                         "out = m + |r| unit(unit(r) + w n/s) with n the plain mean of the k "
+                         "neighbours' residuals and s the median residual length over the pool, "
+                         "so a neighbourhood that responds strongly and agrees pulls harder than "
+                         "one that cancels. Needs --neighbour-w.")
 
 
 def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     """Refuse a half-set neighbour arm before any work, in both entry points."""
     ws, tables, pool = args.neighbour_w or [], args.neighbour_table or [], args.neighbour_pool
+    size = getattr(args, "neighbour_size", "unit")
     for w in ws:
         if not math.isfinite(w) or w <= 0:
             ap.error(f"--neighbour-w must be finite and > 0, got {w}: a negative weight steers "
                      "AWAY from the neighbours, which no gate measured, inf or nan fuse every "
                      "target into NaN, and 0 is the knob off -- leave the flag out")
     if not ws:
-        if tables or pool is not None:
-            ap.error("--neighbour-table/--neighbour-pool without --neighbour-w do nothing; "
-                     "give a weight or drop them")
+        half = [f for f, on in (("--neighbour-table", bool(tables)),
+                                ("--neighbour-pool", pool is not None),
+                                ("--neighbour-size median", size == "median")) if on]
+        if half:
+            # ", " not "/": "--neighbour-table/--neighbour-size median" reads as one flag taking
+            # the value median. The verb and the pronoun follow the count.
+            one = len(half) == 1
+            ap.error(f"{', '.join(half)} without --neighbour-w "
+                     f"{'does' if one else 'do'} nothing; give a weight or "
+                     f"drop {'it' if one else 'them'}")
         return
     if not tables or pool is None:
         ap.error("--neighbour-w needs both --neighbour-table and --neighbour-pool")
@@ -710,14 +733,20 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
     table_paths = [Path(t).expanduser() for t in as_list(args.neighbour_table)]
     ws = [float(w) for w in as_list(args.neighbour_w)]
     pool_path = Path(args.neighbour_pool).expanduser()
+    # getattr: eval.loco's SimpleNamespace and older callers predate the size flag
+    size = getattr(args, "neighbour_size", "unit")
     arm = build_neighbour_arms(read_pool(pool_path), delta_of, axis,
                                [load_gene_table(t) for t in table_paths],
-                               k=args.neighbour_k, ws=ws)
+                               k=args.neighbour_k, ws=ws, size=size)
     # One table records the scalar shape the first two bundles were built with; a mix, lists.
     one = len(table_paths) == 1
     record = {"table": str(table_paths[0]) if one else [str(t) for t in table_paths],
               "table_sha256": (sha256(table_paths[0]) if one
                                else [sha256(t) for t in table_paths]),
+              # the flag as parsed; every consumer merges arm.summary() over this record, and the
+              # arm re-states its own size there, so the arm's actual blend always wins and a
+              # record whose size disagrees with the arm that ran cannot be written
+              "size": size,
               "pool_file": str(pool_path), "pool_sha256": sha256(pool_path)}
     return arm, record
 
