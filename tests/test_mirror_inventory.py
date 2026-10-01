@@ -97,6 +97,10 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     assert "anchor" not in knob_str({**base, "bulk_anchor": "mean_cpm"})
     pooled = knob_str({**base, "bulk_anchor": "pooled", "cells": 400 * 272})
     assert "anchor=pooled" in pooled and "cells=400/target" in pooled
+    # the fallback rung (T84): an anchor-rung arm must not render as the template arm it is read against
+    assert "fb=" not in knob_str({**base, "bulk_anchor": "pooled", "dual_fallback": "template"})
+    assert "fb=" not in pooled                                      # no key = scored before the flag
+    assert "fb=anchor" in knob_str({**base, "bulk_anchor": "pooled", "dual_fallback": "anchor"})
     nb = {"table": ["/x/tahoex1_3b_gene_encoder_table.pt", "/y/string_node2vec_table.pt"],
           "w": [0.05, 0.3], "k": 25}
     assert "nb=tahoex1·0.05+string·0.3·k25" in knob_str({**base, "neighbour": nb})

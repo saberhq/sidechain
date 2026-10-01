@@ -290,3 +290,119 @@ def test_loco_routes_every_target_through_the_dual_emitter_under_the_pooled_anch
         loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "bad.h5ad",
                                        pert_col="perturbation", control="non-targeting",
                                        dispersion="even", bulk_anchor="pooled", min_libsize=0.0)
+
+
+def _pooled_profile(rng):
+    prof = _profile(rng)
+    tilt = np.exp(rng.uniform(-0.08, 0.08, size=G))   # inside a lambda 0.5 depth envelope
+    prof.bulk_fraction = prof.fraction * tilt / (prof.fraction * tilt).sum()
+    return prof
+
+
+def test_the_anchor_fallback_keeps_the_pooled_profile_and_the_template_one_loses_it():
+    """T84 sweep, 2026-10-01: a target whose two amplitudes cannot both be met used to be emitted
+    from the one-amplitude template, which is built on the mean-per-cell-CPM profile -- so under
+    the pooled anchor it lost the anchor as well. `on_fail="anchor"` keeps the summed profile on
+    the anchor at the per-cell amplitude; `"fallback"` is unchanged, bit for bit."""
+    rng = np.random.default_rng(2)
+    prof = _pooled_profile(rng)
+    d = rng.normal(0, 0.4, size=G)
+    shifted = lambda f: f * np.exp2(d) / (f * np.exp2(d)).sum()
+    kw = dict(max_projection=1.0)                      # 2.0 * d passes the envelope and fails the fit
+    old = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    A = old.emit_dual(400, d, 2.0 * d, on_fail="fallback", **kw)
+    _X, _depth, per_cell, bulk = _moments(A)
+    assert old.dual_fallbacks == 1 and not hasattr(old, "dual_fallbacks_anchor")
+    assert (old.last_dual, old.last_dual_reason) == ("template", "fit")
+    assert np.abs(bulk - shifted(prof.bulk_fraction)).sum() > 0.02     # off the pooled anchor
+    assert (A != PoissonEmitter(prof, seed=0, lam=0.5).emit(400, d)).nnz == 0   # the template, exactly
+    new = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    B = new.emit_dual(400, d, 2.0 * d, on_fail="anchor", **kw)
+    X, depth, per_cell, bulk = _moments(B)
+    assert new.dual_fallbacks == 1 and new.dual_fallbacks_anchor == 1   # one amplitude, anchor kept
+    assert (new.last_dual, new.last_dual_reason) == ("anchor", "fit")
+    assert np.abs(bulk - shifted(prof.bulk_fraction)).sum() < 0.01     # summed profile on the anchor
+    assert np.abs(per_cell - shifted(prof.fraction)).sum() < 0.01      # per-cell channel where it was
+    assert np.array_equal(X, np.round(X)) and np.array_equal(depth, A.toarray().sum(axis=1))
+    # the retry draws nothing from the emitter's stream: the next target is the same cells either way
+    assert (old.emit_dual(200, 0.5 * d, 0.5 * d) != new.emit_dual(200, 0.5 * d, 0.5 * d)).nnz == 0
+    assert (new.last_dual, new.last_dual_reason) == ("dual", None)
+
+
+def test_the_anchor_fallback_ends_on_the_template_when_one_amplitude_fails_too():
+    rng = np.random.default_rng(3)
+    prof = _profile(rng)
+    wild = np.exp(rng.uniform(-3, 3, size=G))          # an anchor no depth spread can carry
+    prof.bulk_fraction = prof.fraction * wild / (prof.fraction * wild).sum()
+    d = rng.normal(0, 0.4, size=G)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    # both rungs are refused before the fit, and the template is returned and counted once
+    M = em.emit_dual(300, d, 2.0 * d, on_fail="anchor")
+    assert em.dual_fallbacks == 1 and not hasattr(em, "dual_fallbacks_anchor")
+    assert (em.last_dual, em.last_dual_reason) == ("template", "envelope")
+    assert (M != PoissonEmitter(prof, seed=0, lam=0.5).emit(300, d)).nnz == 0
+    # a request that already IS the one-amplitude rung is not fitted twice
+    calls = []
+    import sidechain.models.count_emitters as ce
+    orig = ce.dual_moment_counts
+    try:
+        ce.dual_moment_counts = lambda *a, **k: calls.append(1) or orig(*a, **k)
+        em.emit_dual(300, d, d, on_fail="anchor")
+    finally:
+        ce.dual_moment_counts = orig
+    assert calls == [1] and em.last_dual == "template" and em.dual_fallbacks == 2
+
+
+def test_loco_passes_the_fallback_rung_and_names_the_targets_that_fell_back(monkeypatch, tmp_path):
+    import anndata as ad
+    import pandas as pd
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    rng = np.random.default_rng(15)
+    genes = np.array([f"g{i}" for i in range(G)], dtype=object)
+    basal = rng.uniform(100, 2000, size=G)
+    mean = np.stack([basal, basal * np.exp2(rng.normal(0, 0.15, G))])
+    n = np.full(2, 1000, dtype=np.int64)
+    src = PseudobulkSums(labels=["ctrl", "g0"], genes=genes.copy(), count_sum=mean * n[:, None],
+                         cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2 + mean) * n[:, None],
+                         n_cells=n, libsize_sum=n.astype(float) * 2e4, sources=["t"])
+    rows, labels = [], []
+    for lab, k in (("non-targeting", 60), ("g0", 12)):
+        for _ in range(k):
+            rows.append(rng.poisson(basal / basal.sum() * rng.integers(3000, 6000))); labels.append(lab)
+    real = ad.AnnData(X=sp.csr_matrix(np.asarray(rows, dtype=np.float32)),
+                      obs=pd.DataFrame({"perturbation": labels}, index=[f"c{i}" for i in range(len(rows))]),
+                      var=pd.DataFrame(index=genes.astype(str)))
+    real_path = tmp_path / "real.h5ad"
+    real.write_h5ad(real_path)
+    seen = []
+    orig = loco.PoissonEmitter.emit_dual
+
+    def spy(self, *a, **k):           # force the requested pair to fail, so the rung is exercised
+        seen.append(k["on_fail"])
+        return orig(self, *a, max_projection=0.0 if len(seen) == 1 else 0.03, **k)
+    kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
+              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.6, bulk_anchor="pooled", min_libsize=0.0)
+    monkeypatch.setattr(loco.PoissonEmitter, "emit_dual", spy)
+    old = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "old.h5ad", **kw)
+    assert seen == ["fallback"] and old["dual_fallback"] == "template" and old["dual_fallbacks"] == 1
+    assert old["dual_fallback_targets"] == {"anchor": [], "template": [["g0", "envelope"]]}
+    seen.clear()
+    new = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "new.h5ad",
+                                         dual_fallback="anchor", **kw)
+    assert seen == ["anchor"] and new["dual_fallback"] == "anchor" and new["dual_fallbacks"] == 1
+    # the requested pair is refused, one amplitude on the anchor is met: named under that rung
+    assert new["dual_fallback_targets"] == {"anchor": [["g0", "envelope"]], "template": []}
+    with pytest.raises(SystemExit, match="dual_fallback"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "bad.h5ad",
+                                       dual_fallback="pooled", **kw)
+    one = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "one.h5ad",
+                                         pert_col="perturbation", control="non-targeting",
+                                         shrinkage=False, emit_lambda=0.5, alpha=1.35, min_libsize=0.0)
+    assert one["dual_fallback"] is None and one["dual_fallback_targets"] is None
+    with pytest.raises(SystemExit, match="two-channel"):           # one channel: nothing to fall back from
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "inert.h5ad",
+                                       pert_col="perturbation", control="non-targeting", shrinkage=False,
+                                       emit_lambda=0.5, alpha=1.35, min_libsize=0.0, dual_fallback="anchor")

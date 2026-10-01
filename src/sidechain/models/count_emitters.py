@@ -174,6 +174,7 @@ class PoissonEmitter:
         return frac
 
     def emit(self, n: int, log2fc: np.ndarray | None = None, *, max_counts_per_cell: int = 1_000_000) -> sp.csr_matrix:
+        self.last_dual, self.last_dual_reason = None, None    # emit_dual sets them after its template
         frac = self._fraction(log2fc)
         w = self.lam * self.lam    # Poisson share of the variance; sd scales as lam
         if w == 0.0:
@@ -221,9 +222,32 @@ class PoissonEmitter:
         fails on most). `on_fail="raise"` surfaces that; `on_fail="fallback"` returns the
         single-amplitude template for that call instead and sets `self.dual_fallbacks`, so a
         run can report how many targets carried one amplitude.
+
+        The template is `self.emit`, which knows nothing of `bulk_anchor`: under the pooled
+        anchor a `"fallback"` target therefore loses the anchor together with the second
+        amplitude (T84 sweep, 2026-10-01: every entry through SER-11abefknw). `on_fail="anchor"`
+        puts one rung in between: when the requested pair cannot be met, fit the per-cell
+        amplitude on BOTH channels with the summed profile still on this emitter's anchor
+        (the identity call above, which on the five mirror folds never failed), and only if
+        that fails too return the template. Both rungs count in `dual_fallbacks` (the target
+        carried one amplitude); `dual_fallbacks_anchor` counts the ones that kept the anchor.
+        The retry reuses the first attempt's integer seed and draws nothing from `self.rng`,
+        so the targets emitted after a fallback are the same cells in either mode.
+        `last_dual` ("dual" | "anchor" | "template") and `last_dual_reason` ("envelope" | "fit"
+        | "other", None when the pair was met) describe the call just made, for the caller's
+        per-target record; a plain `emit` resets both to None.
+
+        Three things the rung is not. Under `bulk_anchor="mean_cpm"` there is no anchor to keep:
+        the same rung is the identity call, so it re-pins the template's column sums to their
+        expectation and changes mean_cpm fallback targets too. It is reachable only where one
+        amplitude on the anchor is itself inside the depth envelope -- a context whose pooled and
+        mean-CPM control profiles differ by more than `max_projection` (L1) fails both rungs on
+        every target, and the caller's count is how that shows. And it is not retried for a
+        ValueError that is neither an envelope refusal nor a failed fit ("other": a contract
+        violation, not an unreachable pair) -- that one ends on the template, as before.
         """
-        if on_fail not in ("raise", "fallback"):
-            raise ValueError(f"on_fail must be 'raise' or 'fallback', got {on_fail!r}")
+        if on_fail not in ("raise", "fallback", "anchor"):
+            raise ValueError(f"on_fail must be 'raise', 'fallback' or 'anchor', got {on_fail!r}")
         if self.lam == 0.0:
             raise ValueError("emit_dual needs a depth spread: at lam=0 every cell has the same "
                              "depth, so the pseudobulk and the per-cell mean cannot differ")
@@ -232,14 +256,31 @@ class PoissonEmitter:
         template = self.emit(n, log2fc_cell).toarray().astype(np.float64)
         depths = np.rint(template.sum(axis=1)).astype(np.int64)
         seed = int(self.rng.integers(0, 2**32 - 1))
+        fit = dict(depths=depths, seed=seed, iterations=iterations, tolerance=tolerance,
+                   max_projection=max_projection)
+        self.last_dual, self.last_dual_reason = "dual", None
         try:
-            counts = dual_moment_counts(template, p_cell, p_bulk, depths=depths, seed=seed,
-                                        iterations=iterations, tolerance=tolerance,
-                                        max_projection=max_projection)
-        except ValueError:
+            counts = dual_moment_counts(template, p_cell, p_bulk, **fit)
+        except ValueError as err:
             if on_fail == "raise":
                 raise
             self.dual_fallbacks = getattr(self, "dual_fallbacks", 0) + 1
+            msg = str(err)
+            self.last_dual_reason = ("fit" if "moment fitting failed" in msg else
+                                     "envelope" if ("depth envelope" in msg or "bulk projection" in msg
+                                                    or "feasible moment bounds" in msg) else "other")
+            if on_fail == "anchor" and self.last_dual_reason != "other":
+                p_one = self._fraction(log2fc_cell, bulk=True)
+                if not np.array_equal(p_one, p_bulk):     # the request was not already this rung
+                    try:
+                        counts = dual_moment_counts(template, p_cell, p_one, **fit)
+                    except ValueError:
+                        pass
+                    else:
+                        self.dual_fallbacks_anchor = getattr(self, "dual_fallbacks_anchor", 0) + 1
+                        self.last_dual = "anchor"
+                        return sp.csr_matrix(counts.astype(np.float32))
+            self.last_dual = "template"
             return sp.csr_matrix(template.astype(np.float32))
         return sp.csr_matrix(counts.astype(np.float32))
 

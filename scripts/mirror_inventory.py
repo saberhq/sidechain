@@ -37,11 +37,12 @@ LINE = {
 }
 SUFFIX = {"_pdex": "CPU/pdex", "_ch272": "challenge 272", "_union": "union panel",
           "_d3": "depth probe", "_rule": "rule probe"}
-KNOBS = ("alpha", "alpha_bulk", "bulk_anchor", "gamma", "var_floor", "coverage_tiers",
+KNOBS = ("alpha", "alpha_bulk", "bulk_anchor", "dual_fallback", "gamma", "var_floor", "coverage_tiers",
          "similarity_beta", "transfer_floor", "dispersion", "emit_lambda", "shrinkage",
          "neighbour", "min_libsize")
 # Knobs whose name's first word would collide or mislead (`alpha_bulk` is not `alpha`).
-LABEL = {"alpha_bulk": "ab", "bulk_anchor": "anchor", "min_libsize": "floor", "neighbour": "nb"}
+LABEL = {"alpha_bulk": "ab", "bulk_anchor": "anchor", "dual_fallback": "fb", "min_libsize": "floor",
+         "neighbour": "nb"}
 
 
 def held_out(name: str) -> str:
@@ -128,6 +129,8 @@ def knob_str(build: dict) -> str:
             v = ",".join(f"{int(a)}:{b:g}" for a, b in v)
         if k == "bulk_anchor" and v == "mean_cpm":
             continue                       # the default; an arm scored before the flag has no key
+        if k == "dual_fallback" and v == "template":
+            continue                       # the default rung (T84); only an anchor-rung arm is marked
         if k == "min_libsize":
             v = f"{v:g}"
         if k == "neighbour" and isinstance(v, dict):

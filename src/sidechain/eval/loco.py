@@ -87,8 +87,24 @@ def build_transfer_prediction(
     neighbour_k: int = 25,
     neighbour_w: float | list[float] | None = None,
     neighbour_size: str = "unit",
+    dual_fallback: str = "template",
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
+    if dual_fallback not in ("template", "anchor"):
+        raise SystemExit(f"dual_fallback must be 'template' or 'anchor', got {dual_fallback!r}")
+    # what a target whose two moments cannot both be met falls back to: the one-amplitude template
+    # (every arm through 2026-10-01; it loses the pooled anchor too) or one amplitude with the
+    # summed profile kept on the emitter's anchor (count_emitters.PoissonEmitter.emit_dual)
+    on_fail = "fallback" if dual_fallback == "template" else "anchor"
+    fell_back: dict[str, list] = {"anchor": [], "template": []}
+
+    def dual(n, d_cell, d_bulk, label):          # called only inside the write loop, after `em` exists
+        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail)
+        how = getattr(em, "last_dual", "dual")
+        if how in ("anchor", "template"):
+            fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None)])
+        return block
+
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
     # folds are 726 M nonzeros: reading one whole would cost ~6 GB before a single cell
     # is emitted, and the emitted side costs as much again.
@@ -108,8 +124,11 @@ def build_transfer_prediction(
                         bulk_anchor=bulk_anchor)
     # T84 round 2: a pooled anchor is a two-channel emission even at one amplitude -- the
     # pseudobulk moves onto the depth-weighted control profile, the per-cell mean stays put.
-    dual = alpha_bulk is not None or bulk_anchor != "mean_cpm"
-    if dual and em.lam == 0.0:
+    two_channel = alpha_bulk is not None or bulk_anchor != "mean_cpm"
+    if dual_fallback != "template" and not two_channel:
+        raise SystemExit("--dual-fallback only acts on a two-channel emission -- pass --alpha-bulk "
+                         "or --bulk-anchor pooled")
+    if two_channel and em.lam == 0.0:
         raise SystemExit("--alpha-bulk / --bulk-anchor pooled need a depth spread (--emit-lambda "
                          "> 0 or --dispersion poisson): at lambda 0 the pseudobulk and the "
                          "per-cell mean coincide")
@@ -182,18 +201,18 @@ def build_transfer_prediction(
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
-        if not dual or (d is None and bulk_anchor == "mean_cpm"):
+        if not two_channel or (d is None and bulk_anchor == "mean_cpm"):
             writer.append_csr(em.emit(n, d))
         elif d is None:
             # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile
-            writer.append_csr(em.emit_dual(n, None, None, on_fail="fallback"))
+            writer.append_csr(dual(n, None, None, p))
         else:
             # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
             # the knockdown pin is the same on both, and everything upstream is untouched.
             d_bulk = d0 * (alpha_bulk if alpha_bulk is not None else alpha)
             if p in gene_pos:
                 d_bulk[gene_pos[p]] = -2.32
-            writer.append_csr(em.emit_dual(n, d, d_bulk, on_fail="fallback"))
+            writer.append_csr(dual(n, d, d_bulk, p))
         obs_labels += [p] * n
     n_rows = writer.close()
     assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
@@ -212,7 +231,11 @@ def build_transfer_prediction(
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             # targets whose two moments were jointly unreachable and carried one amplitude
-            "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if dual else None,
+            "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if two_channel else None,
+            # which rung a failed target fell to, by name, with why the requested pair failed
+            # ("envelope": refused before the fit; "fit": the moment fit did not converge)
+            "dual_fallback": dual_fallback if two_channel else None,
+            "dual_fallback_targets": fell_back if two_channel else None,
             "gamma": gamma, "var_floor": var_floor,
             # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
             # submission's 1000: an arm scored before that date carries no floor in its
@@ -285,6 +308,15 @@ def main(argv: list[str] | None = None) -> int:
                          "the profile cell-eval2's control pseudobulk actually is. The per-cell "
                          "channel stays on mean_cpm either way. Needs --emit-lambda > 0 "
                          "(count_emitters.PoissonEmitter.bulk_anchor)")
+    ap.add_argument("--dual-fallback", choices=["template", "anchor"], default="template",
+                    help="what a target whose two moments cannot both be met falls back to. "
+                         "'template' (default, bit-identical, every arm and entry through "
+                         "SER-11abefknw): one amplitude on the mean-per-cell-CPM profile, so under "
+                         "--bulk-anchor pooled it loses the anchor too. 'anchor': one amplitude "
+                         "with the summed profile kept on the anchor, the template only if that "
+                         "fails as well (under --bulk-anchor mean_cpm it re-pins the column sums "
+                         "to their expectation instead). Same knob in sidechain.submit.build, so a "
+                         "scored arm submits verbatim")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
@@ -371,7 +403,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_pool=args.neighbour_pool,
                                      neighbour_k=args.neighbour_k,
                                      neighbour_w=args.neighbour_w,
-                                     neighbour_size=args.neighbour_size)
+                                     neighbour_size=args.neighbour_size,
+                                     dual_fallback=args.dual_fallback)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -392,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
+         "dual_fallback": args.dual_fallback,
          "gamma": args.gamma,
          "var_floor": args.var_floor,
          "similarity_beta": args.similarity_beta,

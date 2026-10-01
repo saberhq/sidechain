@@ -150,3 +150,58 @@ def test_pooled_anchor_is_refused_where_it_cannot_ride(challenge):
     argv[argv.index("delta-transfer")] = "control-null"
     with pytest.raises(SystemExit):
         build.main(argv)
+
+
+def test_the_fallback_rung_is_a_flag_and_the_record_names_who_fell_back(challenge, monkeypatch):
+    """`--dual-fallback anchor` (T84, 2026-10-01): the emitter is told to keep the summed profile on
+    the anchor when the two amplitudes cannot both be met; the record names the rung and the
+    perturbations that fell back, per context. The default's record stays as it was written."""
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append(kw)
+        block = self.emit(n, log2fc_cell)
+        # pretend the first context's perturbation fell to the anchor rung
+        self.last_dual, self.last_dual_reason = (("anchor", "fit") if self.p.name == "X" else ("dual", None))
+        if self.p.name == "X":
+            self.dual_fallbacks = getattr(self, "dual_fallbacks", 0) + 1
+            self.dual_fallbacks_anchor = getattr(self, "dual_fallbacks_anchor", 0) + 1
+        return block
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    assert build.main(_argv(challenge, "rung", ["--alpha", "1.35", "--alpha-bulk", "1.0", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.5", "--dual-fallback", "anchor"])) == 0
+    assert seen == [{"on_fail": "anchor"}, {"on_fail": "anchor"}]
+    rec = json.loads((challenge["out"] / "rung.dual.json").read_text())
+    pert = json.loads((challenge["out"] / "rung.args.json").read_text())
+    assert pert["dual_fallback"] == "anchor"
+    assert rec["dual_fallback"] == "anchor" and rec["dual_fallbacks"] == {"X": 1, "Y": 0}
+    (name, why), = rec["dual_fallback_targets"]["X"]["anchor"]
+    assert why == "fit" and rec["dual_fallback_targets"]["X"]["template"] == [] and "Y" not in rec["dual_fallback_targets"]
+
+
+def test_a_real_fallback_keeps_the_default_record_and_the_anchor_rung_names_it(challenge, capsys):
+    """No spy: the real emitter. Under the default rung a build with a genuine fallback writes the
+    same four-key record every shipped entry wrote; with `--dual-fallback anchor` the record names
+    the rung and the perturbation, and the cells of that perturbation differ."""
+    argv = ["--alpha", "1.35", "--alpha-bulk", "1.5", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    assert build.main(_argv(challenge, "old", argv)) == 0
+    old = json.loads((challenge["out"] / "old.dual.json").read_text())
+    assert set(old) == {"alpha", "alpha_bulk", "bulk_anchor", "dual_fallbacks"}
+    n_fb = sum(old["dual_fallbacks"].values())
+    assert n_fb >= 1, "the fixture is expected to produce a genuine fallback"
+    assert "fell back:" in capsys.readouterr().out                 # the names go to the log
+    assert build.main(_argv(challenge, "new", argv + ["--dual-fallback", "anchor"])) == 0
+    new = json.loads((challenge["out"] / "new.dual.json").read_text())
+    assert new["dual_fallback"] == "anchor" and new["dual_fallbacks"] == old["dual_fallbacks"]
+    named = [t for rungs in new["dual_fallback_targets"].values() for rung in rungs.values() for t in rung]
+    assert len(named) == n_fb
+    a = ad.read_h5ad(challenge["out"] / "old.h5ad"); b = ad.read_h5ad(challenge["out"] / "new.h5ad")
+    assert a.shape == b.shape and np.array_equal(np.asarray(a.X.sum(axis=1)), np.asarray(b.X.sum(axis=1)))
+    kept = sum(len(r["anchor"]) for r in new["dual_fallback_targets"].values())
+    assert ((a.X != b.X).nnz > 0) == (kept > 0)                     # only an anchor-rung rescue moves cells
+
+
+def test_the_fallback_rung_is_refused_where_it_cannot_act(challenge):
+    with pytest.raises(SystemExit):                                 # one channel: nothing to fall back from
+        build.main(_argv(challenge, "inert", ["--alpha", "1.35", "--emit-lambda", "0.5",
+                                              "--dual-fallback", "anchor"]))

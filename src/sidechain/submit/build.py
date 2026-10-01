@@ -829,6 +829,15 @@ def main(argv: list[str] | None = None) -> int:
                          "pseudobulk takes --alpha. Same knob in sidechain.eval.loco, so a "
                          "mirror-scored arm submits verbatim. Needs a depth spread and the "
                          "delta-transfer emitter (count_emitters.PoissonEmitter.bulk_anchor)")
+    ap.add_argument("--dual-fallback", choices=["template", "anchor"], default="template",
+                    help="what a perturbation whose two moments cannot both be met falls back to. "
+                         "'template' (default, bit-identical, every entry through SER-11abefknw): "
+                         "one amplitude on the mean-per-cell-CPM profile, so under --bulk-anchor "
+                         "pooled it loses the anchor too. 'anchor': one amplitude with the summed "
+                         "profile kept on the anchor, the template only if that fails as well; "
+                         "under --bulk-anchor mean_cpm it re-pins the column sums to their "
+                         "expectation instead (count_emitters.PoissonEmitter.emit_dual). Same knob "
+                         "in sidechain.eval.loco, so a mirror-scored arm submits verbatim")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -913,6 +922,9 @@ def main(argv: list[str] | None = None) -> int:
     # two-channel emission even at one amplitude (the same rule as eval.loco)
     bulk_alpha = (args.alpha_bulk if args.alpha_bulk is not None
                   else args.alpha if args.bulk_anchor != "mean_cpm" else None)
+    if args.dual_fallback != "template" and bulk_alpha is None:
+        ap.error("--dual-fallback only acts on a two-channel emission -- pass --alpha-bulk or "
+                 "--bulk-anchor pooled")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -1074,6 +1086,9 @@ def main(argv: list[str] | None = None) -> int:
         pd.DataFrame({cfg["pert_col"]: perts}).to_csv(out.with_suffix(".pert_counts.csv"), index=False)
     t0 = time.time()
     dual_fallbacks: dict[str, int] = {}
+    # which perturbations fell back, per context and per rung, with why the requested pair failed
+    fell_back: dict[str, dict[str, list]] = {}
+    on_fail = "fallback" if args.dual_fallback == "template" else "anchor"
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
             prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize)
@@ -1090,22 +1105,44 @@ def main(argv: list[str] | None = None) -> int:
                     # letter b: two amplitudes in one count matrix; a perturbation whose two
                     # moments are jointly unreachable carries one amplitude and is counted
                     block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
-                                         on_fail="fallback")
+                                         on_fail=on_fail)
+                    how = getattr(em, "last_dual", "dual")
+                    if how in ("anchor", "template"):
+                        fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
+                            how, []).append([p, getattr(em, "last_dual_reason", None)])
                 w.add_block(block, ctx, p)
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
             if ctx_bulk is not None:
                 # (final-phase: knobs) counted, never refused. A/B/C gave 1, 3 and 2 of 300; the
                 # count follows each context's control-depth envelope, so read it on the first
-                # D/E/F build before trusting that letter b is really in the file.
+                # D/E/F build before trusting that letter b is really in the file. The same count
+                # says whether the pooled anchor (letter w) fits at all: a context whose pooled and
+                # mean-CPM control profiles differ by more than the envelope allows puts EVERY
+                # perturbation on the template, under either --dual-fallback rung.
                 dual_fallbacks[ctx] = int(getattr(em, "dual_fallbacks", 0))
+                kept = int(getattr(em, "dual_fallbacks_anchor", 0))
+                # the default rung's line is the one SER-10abefnw's and SER-11abefknw's logs carry
+                tail = ("amplitude on the mean_cpm profile" if args.dual_fallback == "template" else
+                        f"amplitude, {dual_fallbacks[ctx] - kept} of them from the one-amplitude template")
                 print(f"  {ctx}: alpha_bulk={bulk_alpha:g} anchor={args.bulk_anchor}: "
-                      f"{dual_fallbacks[ctx]} of {len(perts)} perturbations carried one "
-                      "amplitude on the mean_cpm profile", flush=True)
+                      f"{dual_fallbacks[ctx]} of {len(perts)} perturbations carried one {tail}",
+                      flush=True)
+                if args.dual_fallback == "template" and fell_back.get(ctx):
+                    # names for the log only: the default rung's .dual.json keeps its shipped shape
+                    print(f"  {ctx}: fell back: "
+                          + ", ".join(f"{p} ({why})" for p, why in fell_back[ctx]["template"]), flush=True)
     info = verify_h5ad(h5ad, contract)
     if dual_fallbacks:
         # absent bulk_anchor = mean_cpm, so the letter-b records already written stay as they are
         anchor = {"bulk_anchor": args.bulk_anchor} if args.bulk_anchor != "mean_cpm" else {}
+        # the fallback rung and its per-target list are written only off the default: a
+        # template-rung build's record is byte for byte what SER-10abefnw and SER-11abefknw wrote
+        # (its names go to the log above). eval.loco's summary.json always carries both keys.
+        if args.dual_fallback != "template":
+            anchor["dual_fallback"] = args.dual_fallback
+            if fell_back:
+                anchor["dual_fallback_targets"] = fell_back
         info = {**info, "alpha_bulk": args.alpha_bulk, **anchor, "dual_fallbacks": dual_fallbacks}
         out.with_suffix(".dual.json").write_text(json.dumps(
             {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, **anchor,
