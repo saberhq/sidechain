@@ -376,6 +376,15 @@ def test_loco_fuses_end_to_end_and_off_is_unchanged(tmp_path, challenge):
     x_on = ad.read_h5ad(tmp_path / "on.h5ad").X
     assert (x_off != x_def).nnz == 0                       # off is bit-identical
     assert (x_off != x_on).nnz > 0                         # on moves the emitted cells
+    # T84: under the adaptive rule the pool's fits are counted apart from the targets'
+    info_ash = build_transfer_prediction(
+        real, [(gw, "control")], tmp_path / "ash.h5ad", **{**kw, "shrinkage": True},
+        shrink_stage="pooled", shrink_rule="adaptive",
+        neighbour_table=challenge["data"] / "table.pt",
+        neighbour_pool=challenge["data"] / "pool.csv", neighbour_k=3, neighbour_w=0.3)
+    pool = info_ash["adaptive_fit"]["neighbour_pool"]
+    assert pool and all(k.startswith("adaptive_") for k in pool) and sum(pool.values()) > 0
+    assert info_ash["neighbour"]["targets_fused"] == 4 and "adaptive_fit" not in info_on
 
 
 def test_a_zero_or_non_finite_table_row_counts_as_absent():

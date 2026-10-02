@@ -101,6 +101,19 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     assert "fb=" not in knob_str({**base, "bulk_anchor": "pooled", "dual_fallback": "template"})
     assert "fb=" not in pooled                                      # no key = scored before the flag
     assert "fb=anchor" in knob_str({**base, "bulk_anchor": "pooled", "dual_fallback": "anchor"})
+    # the shrinkage rule (T84): the historical rule stays hidden, a moved one is named, and a rule
+    # that is switched off names nothing
+    on = {**base, "shrinkage": True}
+    # (labelled `thr`, not `k`: the neighbour count and the neighbour letter are both k)
+    assert "thr=" not in knob_str({**on, "shrink_k": 1.0, "shrink_stage": "source", "shrink_rule": "garrote"})
+    hard = knob_str({**on, "shrink_k": 8.0, "shrink_stage": "pooled", "shrink_rule": "garrote"})
+    assert "thr=8" in hard and "stage=pooled" in hard and "rule=" not in hard
+    assert "rule=adaptive" in knob_str({**on, "shrink_stage": "pooled", "shrink_rule": "adaptive"})
+    off = {**base, "shrinkage": False, "shrink_k": 8.0, "shrink_stage": "pooled"}
+    assert "thr=" not in knob_str(off) and "stage=" not in knob_str(off)
+    # ... unless a source is pinned on (the depth-aware arm): there the threshold did run
+    assert "thr=8" in knob_str({**base, "shrinkage": False, "shrink_k": 8.0, "shrink_overrides": [True, None]})
+    assert "thr=" not in knob_str({**base, "shrinkage": False, "shrink_k": 8.0, "shrink_overrides": [None, None]})
     nb = {"table": ["/x/tahoex1_3b_gene_encoder_table.pt", "/y/string_node2vec_table.pt"],
           "w": [0.05, 0.3], "k": 25}
     assert "nb=tahoex1·0.05+string·0.3·k25" in knob_str({**base, "neighbour": nb})

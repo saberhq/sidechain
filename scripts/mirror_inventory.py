@@ -39,10 +39,10 @@ SUFFIX = {"_pdex": "CPU/pdex", "_ch272": "challenge 272", "_union": "union panel
           "_d3": "depth probe", "_rule": "rule probe"}
 KNOBS = ("alpha", "alpha_bulk", "bulk_anchor", "dual_fallback", "gamma", "var_floor", "coverage_tiers",
          "similarity_beta", "transfer_floor", "dispersion", "emit_lambda", "shrinkage",
-         "neighbour", "min_libsize")
+         "shrink_k", "shrink_stage", "shrink_rule", "neighbour", "min_libsize")
 # Knobs whose name's first word would collide or mislead (`alpha_bulk` is not `alpha`).
 LABEL = {"alpha_bulk": "ab", "bulk_anchor": "anchor", "dual_fallback": "fb", "min_libsize": "floor",
-         "neighbour": "nb"}
+         "neighbour": "nb", "shrink_k": "thr", "shrink_stage": "stage", "shrink_rule": "rule"}
 
 
 def held_out(name: str) -> str:
@@ -131,6 +131,13 @@ def knob_str(build: dict) -> str:
             continue                       # the default; an arm scored before the flag has no key
         if k == "dual_fallback" and v == "template":
             continue                       # the default rung (T84); only an anchor-rung arm is marked
+        if (k, v) in (("shrink_k", 1.0), ("shrink_stage", "source"), ("shrink_rule", "garrote")):
+            continue                       # the historical rule (T84); an arm scored before has no key
+        if (k.startswith("shrink_") and not build.get("shrinkage")
+                and not any(o is True for o in build.get("shrink_overrides") or [])):
+            continue                       # the rule ran on no source: its settings describe nothing
+        if k == "shrink_k":
+            v = f"{v:g}"
         if k == "min_libsize":
             v = f"{v:g}"
         if k == "neighbour" and isinstance(v, dict):

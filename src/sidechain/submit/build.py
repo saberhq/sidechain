@@ -27,6 +27,12 @@ contrast already taken instead of cells (Feng 2026), built by
 variance from an adjusted p-value rather than from CPM spread, and abstains (zero weight) on
 genes whose p-value has saturated.
 
+`--shrink-k`, `--shrink-stage` and `--shrink-rule` move the shrinkage of transferred log2FCs
+off its default (the garrote at one standard error, per source): a harder threshold, the rule
+applied once to the pooled vector instead of to each source, or the adaptive rule in place of
+the garrote (see `shrink`, `pooled_delta` and `sidechain.models.adaptive_shrink`). The same
+three flags are on `sidechain.eval.loco`.
+
 `--neighbour-table`, `--neighbour-pool`, `--neighbour-k` and `--neighbour-w` fuse each target's
 pooled delta with the mean delta of its k nearest neighbours in a gene table (T103; the geometry
 gate's `cross`-mode fusion, `sidechain.models.neighbour_arm`). Off unless `--neighbour-w` > 0.
@@ -55,6 +61,7 @@ from sidechain.data.loaders import (
     challenge_data_dir,
 )
 from sidechain.data.stream_pseudobulk import PseudobulkSums
+from sidechain.models.adaptive_shrink import adaptive_shrink
 from sidechain.models.count_emitters import (
     CONTROL_MIN_LIBSIZE,
     ContextProfile,
@@ -172,22 +179,54 @@ def h1_mean_shift(h1: PseudobulkSums, control: str, axis: np.ndarray) -> np.ndar
     return remap_to_axis(fcs.mean(axis=0), h1.genes, axis)
 
 
-def shrink(fc: np.ndarray, var: np.ndarray) -> np.ndarray:
-    """Per-gene positive-part shrinkage of log2FCs toward 0: fc * max(0, 1 - var/fc^2).
+SHRINK_STAGES = ("source", "pooled")
+SHRINK_RULES = ("garrote", "adaptive")
+
+
+def shrink(fc: np.ndarray, var: np.ndarray, k: float = 1.0) -> np.ndarray:
+    """Per-gene positive-part shrinkage of log2FCs toward 0: fc * max(0, 1 - k * var/fc^2).
 
     A source measures each gene's fold change with its own sampling error; with
     ~170 cells per K562 target, a gene at 5 CPM carries roughly +-0.5 log2 of pure
     noise, which would be transferred as if it were signal and charged by the
-    fold-change metric. This is the gene-wise James-Stein rule: a gene whose
-    estimate is within one standard error of zero is set to zero, one at three
-    standard errors keeps 89 % of its value, one at five keeps 96 %. A single
-    global normal prior was tried first and erased the real effects too -- they
-    are a few hundred genes among ~8,000 nulls, so any one-variance prior is
-    dominated by the nulls.
+    fold-change metric. This is the non-negative garrote (Breiman 1995) with each
+    gene's threshold at sqrt(k) of its own standard errors; the wavelet literature
+    also calls the one-dimensional form James-Stein. At `k = 1`, the default and
+    the rule every entry before T84's sweep carries, a gene whose estimate is
+    within one standard error of zero is set to zero, one at three standard errors
+    keeps 89 % of its value, one at five keeps 96 %. At `k = 8` the zero reaches
+    2.83 standard errors and a gene at four keeps half. A single global normal
+    prior was tried first and erased the real effects too -- they are a few hundred
+    genes among ~8,000 nulls, so any one-variance prior is dominated by the nulls;
+    a mixture prior is `sidechain.models.adaptive_shrink`.
+
+    "Standard error" means the variance this is handed. The Poisson-floored
+    variance of `_log2fc_with_var` is the right size on expressed genes and far
+    too large below about 1 CPM, where the floor's pseudocount sets it, so one `k`
+    is a harder rule there than its name says (T84 step 0, 2026-10-02).
     """
     with np.errstate(divide="ignore", invalid="ignore"):
-        factor = np.where(fc != 0, 1.0 - var / np.maximum(fc**2, 1e-12), 0.0)
+        factor = np.where(fc != 0, 1.0 - k * var / np.maximum(fc**2, 1e-12), 0.0)
     return fc * np.clip(factor, 0.0, 1.0)
+
+
+def check_shrink_rule(k: float, stage: str, rule: str) -> None:
+    """Refuse a shrinkage setting that names no model; shared by `pooled_delta` and the flags."""
+    if stage not in SHRINK_STAGES:
+        raise ValueError(f"unknown shrink_stage {stage!r}: expected one of {SHRINK_STAGES}")
+    if rule not in SHRINK_RULES:
+        raise ValueError(f"unknown shrink_rule {rule!r}: expected one of {SHRINK_RULES}")
+    if not (math.isfinite(k) and k > 0):
+        raise ValueError(f"shrink_k must be finite and > 0, got {k}: 0 would switch the rule "
+                         "off, which is what shrinkage=False (--no-shrink) is for")
+    if rule == "adaptive":
+        if stage != "pooled":
+            raise ValueError("shrink_rule='adaptive' is wired after pooling only "
+                             "(shrink_stage='pooled'): per source it reads each source's "
+                             "standard error as exact, and they are not the same size")
+        if k != 1.0:
+            raise ValueError("shrink_k is the garrote's threshold and has no meaning under "
+                             "shrink_rule='adaptive'")
 
 
 def parse_coverage_tiers(spec: str | None) -> tuple[tuple[float, float], ...] | None:
@@ -455,7 +494,9 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  gamma: float = 1.0, ctrl_tgt_cpm: np.ndarray | None = None,
                  coverage_tiers: tuple[tuple[float, float], ...] | None = None,
                  similarity_beta: float = 0.0, log_bias_correct: bool = False,
-                 stats: dict | None = None) -> np.ndarray | None:
+                 stats: dict | None = None, shrink_k: float = 1.0,
+                 shrink_stage: str = "source",
+                 shrink_rule: str = "garrote") -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
 
     A source may be a `(PseudobulkSums, control_label)` tuple -- counts we
@@ -470,6 +511,23 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     essential-scale arms whose sub-noise effects really are noise, leave the
     genome-wide arms -- where those same-size effects are the measured
     direction -- untouched.
+
+    `shrink_k`, `shrink_stage` and `shrink_rule` say WHICH rule and WHERE, and
+    act only while shrinkage is on. `shrink_k` is the garrote's threshold (see
+    `shrink`; 1 is the historical rule). `shrink_stage="source"` shrinks each
+    source's fold change before it is pooled, the historical order.
+    `shrink_stage="pooled"` pools the raw fold changes first and applies the rule
+    once to the pooled vector, with the pooled sampling variance `1 / sum(w)`:
+    two sources that each see a gene at 0.9 standard errors are both zeroed per
+    source, and together are a gene at 1.3. That variance is the variance of the
+    pooled mean only while the weights are plain inverse variances, so the stage
+    refuses gamma != 1, coverage tiers, a similarity weight, a transfer floor and
+    a per-source override rather than divide by something else; and it is the
+    variance of the pooled mean only where the sources agree on the true effect,
+    so where cell lines truly differ it is too small and the rule softer than
+    its `k` reads. `shrink_rule="adaptive"` replaces the garrote with the
+    posterior mean of `sidechain.models.adaptive_shrink`, after pooling only.
+    The defaults are bit-identical to every historical call.
 
     A source may also ABSTAIN per gene by returning `var = inf` there, which
     makes its weight exactly 0. Feng does this on the 98.9 % of rows whose
@@ -530,6 +588,12 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     if similarity_beta != 0.0 and ctrl_tgt_cpm is None:
         raise ValueError("similarity_beta != 0 needs ctrl_tgt_cpm: the weighting is a cosine "
                          "between the TARGET context's control profile and each source's own")
+    check_shrink_rule(shrink_k, shrink_stage, shrink_rule)
+    after = shrinkage and shrink_stage == "pooled"
+    if after and (gamma != 1.0 or coverage_tiers is not None or similarity_beta != 0.0):
+        raise ValueError("shrink_stage='pooled' divides by the pooled sampling variance "
+                         "1/sum(w); gamma != 1, coverage tiers and a similarity weight each "
+                         "make sum(w) something else -- run the stage without them")
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
     for src in (as_delta_source(s, var_floor=var_floor,
@@ -540,10 +604,20 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
         any_src = True
         fc, var = got
         want = getattr(src, "shrink", None)
-        if want is None:
-            want = shrinkage
-        if want:
-            fc = shrink(fc, var)
+        if shrink_stage == "pooled" and want is not None:
+            # whatever the global flag says: an override here would run the rule per source
+            # under a record that says it ran after pooling
+            raise ValueError("a per-source shrinkage override (--shrink-source) has no "
+                             "meaning when the rule runs after pooling")
+        if after:
+            if float(getattr(src, "transfer_floor", 0.0) or 0.0):
+                raise ValueError("shrink_stage='pooled' with a transfer floor: tau^2 is not "
+                                 "sampling variance, so 1/sum(w) would not be the pooled one")
+        else:
+            if want is None:
+                want = shrinkage
+            if want:
+                fc = shrink(fc, var, shrink_k)
         if gamma != 1.0:
             get_ctrl = getattr(src, "control_cpm", None)
             if get_ctrl is None:
@@ -637,7 +711,65 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     if stats is not None and not nz.any():
         stats["targets_zero_weight"] = stats.get("targets_zero_weight", 0) + 1
     out[nz] = num[nz] / den[nz]
+    if after:
+        # one rule on the pooled vector, with the variance of an inverse-variance mean
+        pooled_var = 1.0 / den[nz]
+        out[nz] = (adaptive_shrink(out[nz], pooled_var, stats=stats) if shrink_rule == "adaptive"
+                   else shrink(out[nz], pooled_var, shrink_k))
     return out
+
+
+def add_shrink_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
+    """The three shrinkage-rule flags (T84), shared by `submit.build` and `eval.loco`."""
+    ap.add_argument("--shrink-k", type=float, default=1.0, metavar="K",
+                    help="the garrote's threshold: a transferred log2FC within sqrt(K) standard "
+                         "errors of zero is set to zero, a larger one keeps 1 - K*var/fc^2 of "
+                         "itself (default 1, the historical rule; 8 zeroes below 2.83 standard "
+                         f"errors). Same knob in {twin}.")
+    ap.add_argument("--shrink-stage", choices=SHRINK_STAGES, default="source",
+                    help="where the rule runs: on each source's fold change before pooling "
+                         "(source, the historical order), or once on the pooled vector with the "
+                         "pooled sampling variance (pooled). The pooled stage is refused with "
+                         "--shrink-source, --gamma != 1, --coverage-tiers, a similarity weight "
+                         "or a transfer floor.")
+    ap.add_argument("--shrink-rule", choices=SHRINK_RULES, default="garrote",
+                    help="garrote (the default) or adaptive: the posterior mean under a mixture "
+                         "prior fitted across each target's genes (sidechain.models."
+                         "adaptive_shrink), which shrinks a weak gene without zeroing it. "
+                         "adaptive needs --shrink-stage pooled and takes no --shrink-k.")
+
+
+def check_shrink_args(ap: argparse.ArgumentParser, args) -> None:
+    """Refuse an inert or undefined shrinkage setting before any work; both entry points."""
+    moved = [flag for flag, on in (("--shrink-k", args.shrink_k != 1.0),
+                                   ("--shrink-stage", args.shrink_stage != "source"),
+                                   ("--shrink-rule", args.shrink_rule != "garrote")) if on]
+    if args.no_shrink and args.shrink_source:
+        # the depth-aware arm: the rule runs on the named sources only, at --shrink-k
+        moved = [flag for flag in moved if flag != "--shrink-k"]
+    if moved and args.no_shrink:
+        ap.error(f"{', '.join(moved)} with --no-shrink: the rule is switched off, so the "
+                 "setting would do nothing and the arm would be named for a rule it never ran")
+    try:
+        check_shrink_rule(args.shrink_k, args.shrink_stage, args.shrink_rule)
+    except ValueError as err:
+        ap.error(str(err))
+    if args.shrink_stage == "pooled":
+        clash = [flag for flag, on in (
+            ("--shrink-source", bool(args.shrink_source)),
+            ("--gamma", getattr(args, "gamma", 1.0) != 1.0),
+            ("--coverage-tiers", getattr(args, "coverage_tiers", None) is not None),
+            ("--similarity-beta", getattr(args, "similarity_beta", 0.0) != 0.0),
+            ("--transfer-floor", bool(getattr(args, "transfer_floor", None)))) if on]
+        if clash:
+            ap.error(f"--shrink-stage pooled with {', '.join(clash)}: the pooled rule divides by "
+                     "the pooled sampling variance, which each of these changes")
+
+
+def shrink_kwargs(args) -> dict:
+    """The parsed shrinkage flags as `pooled_delta`'s keyword arguments."""
+    return {"shrinkage": not args.no_shrink, "shrink_k": args.shrink_k,
+            "shrink_stage": args.shrink_stage, "shrink_rule": args.shrink_rule}
 
 
 def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
@@ -768,7 +900,7 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
     def delta_of(label):
         if label in done:
             return shifts[label]
-        return pooled_delta(label, sources, axis, shrinkage=not args.no_shrink,
+        return pooled_delta(label, sources, axis, **shrink_kwargs(args),
                             log_bias_correct=args.log_bias_correct, var_floor=args.var_floor,
                             coverage_tiers=cov_tiers)
 
@@ -847,7 +979,8 @@ def main(argv: list[str] | None = None) -> int:
                          "write loop, against that context's own control profile. delta-transfer "
                          "only. The H1 mean-shift fallback is not gamma-transformed (it is an "
                          "aggregate, not a contrast; fallback is 0 on the current pool).")
-    ap.add_argument("--no-shrink", action="store_true", help="disable the per-gene empirical-Bayes shrinkage of transferred log2FCs")
+    ap.add_argument("--no-shrink", action="store_true", help="switch the shrinkage of transferred log2FCs off entirely (--shrink-stage and --shrink-rule are refused with it)")
+    add_shrink_args(ap, twin="sidechain.eval.loco")
     ap.add_argument("--var-floor", choices=["none", "poisson"], default="none",
                     help="floor each pseudobulk arm's per-gene variance at its Poisson sampling "
                          "variance and abstain on single-cell arms, so observed zero spread stops "
@@ -889,6 +1022,11 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     check_neighbour_args(ap, args)
+    check_shrink_args(ap, args)
+    if ((args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")
+            and args.emitter != "delta-transfer"):
+        ap.error("--shrink-k, --shrink-stage and --shrink-rule act on pooled per-target deltas, "
+                 "so they only apply to delta-transfer")
     if args.neighbour_w and args.emitter != "delta-transfer":
         ap.error("--neighbour-w fuses pooled per-target deltas, so it only applies to "
                  "delta-transfer")
@@ -928,6 +1066,13 @@ def main(argv: list[str] | None = None) -> int:
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
+    if (CLAIMS_RE.match(stem)
+            and (args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")):
+        # Shrinkage on is the unlettered baseline (ADR 0005), so a harder, pooled or adaptive
+        # rule would be built under letters that say the historical rule. Freeform stems pass.
+        ap.error(f"'{stem}' is named like a model, and --shrink-k / --shrink-stage / "
+                 "--shrink-rule off their defaults have no registered knob letter yet "
+                 "(ADR 0005): register the letters first, or build under a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "
@@ -999,7 +1144,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.gamma == 1.0:
             covered = []
             for p in perts:
-                d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                d = pooled_delta(p, sources, axis, **shrink_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  stats=pool_stats)
@@ -1061,7 +1206,7 @@ def main(argv: list[str] | None = None) -> int:
             fb = 0
             ctrl_cpm = prof.fraction * 1e6
             for p in perts:
-                d = pooled_delta(p, sources, axis, shrinkage=not args.no_shrink,
+                d = pooled_delta(p, sources, axis, **shrink_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,

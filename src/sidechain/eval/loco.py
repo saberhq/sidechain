@@ -42,17 +42,22 @@ import numpy as np
 
 from sidechain.data.lfc_table import LfcTable
 from sidechain.eval.mirror2026 import attach_controls, score
+from sidechain.models import adaptive_shrink
 from sidechain.models.basal_slope import MODES as BASAL_MODES, fit_basal_slopes, target_basal
 from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE, ContextProfile, PoissonEmitter
 from sidechain.submit.build import (
     add_neighbour_args,
+    add_shrink_args,
     apply_transfer_floors,
     as_delta_source,
     check_neighbour_args,
+    check_shrink_args,
+    check_shrink_rule,
     neighbour_arm_for,
     parse_coverage_tiers,
     parse_transfer_floor,
     pooled_delta,
+    shrink_kwargs,
     sources_from_specs,
 )
 from sidechain.utils.h5ad_stream import CsrWriter, open_anndata_h5, write_frame
@@ -70,6 +75,9 @@ def build_transfer_prediction(
     dispersion: str | None = None,
     emit_lambda: float | None = None,
     shrinkage: bool = True,
+    shrink_k: float = 1.0,
+    shrink_stage: str = "source",
+    shrink_rule: str = "garrote",
     alpha: float = 1.0,
     gamma: float = 1.0,
     var_floor: str = "none",
@@ -92,6 +100,10 @@ def build_transfer_prediction(
     """Predict every non-control perturbation of `real_path` from `sources`."""
     if dual_fallback not in ("template", "anchor"):
         raise SystemExit(f"dual_fallback must be 'template' or 'anchor', got {dual_fallback!r}")
+    check_shrink_rule(shrink_k, shrink_stage, shrink_rule)     # before any file is written
+    # the neighbour pool's adaptive fits, counted apart from the targets'; None keeps the
+    # pool's pooled_delta call exactly what it was for every other rule
+    pool_fit_stats = {} if shrinkage and shrink_rule == "adaptive" else None
     # what a target whose two moments cannot both be met falls back to: the one-amplitude template
     # (every arm through 2026-10-01; it loses the pooled anchor too) or one amplitude with the
     # summed profile kept on the emitter's anchor (count_emitters.PoissonEmitter.emit_dual)
@@ -175,7 +187,9 @@ def build_transfer_prediction(
                              "as in sidechain.submit.build")
 
         def delta_of(label):
-            return pooled_delta(label, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
+            return pooled_delta(label, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
+                                shrink_stage=shrink_stage, shrink_rule=shrink_rule,
+                                var_floor=var_floor, stats=pool_fit_stats,
                                 log_bias_correct=log_bias_correct, gamma=gamma,
                                 ctrl_tgt_cpm=ctrl_cpm, coverage_tiers=coverage_tiers,
                                 similarity_beta=similarity_beta)
@@ -185,7 +199,8 @@ def build_transfer_prediction(
                             neighbour_k=neighbour_k, neighbour_w=neighbour_w,
                             neighbour_size=neighbour_size), delta_of, axis)
     for p in perts:
-        d = pooled_delta(p, sources, axis, shrinkage=shrinkage, var_floor=var_floor,
+        d = pooled_delta(p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
+                         shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
                          log_bias_correct=log_bias_correct,
                          gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
                          coverage_tiers=coverage_tiers,
@@ -228,6 +243,17 @@ def build_transfer_prediction(
             "nonzeros": int(writer.nnz),
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
+            # which rule and where (T84); the three defaults are the historical rule
+            "shrink_k": shrink_k, "shrink_stage": shrink_stage, "shrink_rule": shrink_rule,
+            # the adaptive rule's stopping constants are part of the model, and its fits on the
+            # neighbour pool are counted apart from the targets' (those are in pool_stats)
+            **({"adaptive_fit": {"max_cycles": adaptive_shrink.MAX_CYCLES,
+                                 "tol_per_gene": adaptive_shrink.TOL_PER_GENE,
+                                 "calm_cycles": adaptive_shrink.CALM_CYCLES,
+                                 "min_genes": adaptive_shrink.MIN_GENES,
+                                 "neighbour_pool": {k: v for k, v in (pool_fit_stats or {}).items()
+                                                    if k.startswith("adaptive_")}}}
+               if shrinkage and shrink_rule == "adaptive" else {}),
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             # targets whose two moments were jointly unreachable and carried one amplitude
@@ -293,7 +319,10 @@ def main(argv: list[str] | None = None) -> int:
                          "interior values narrow the emitted cloud toward the mean (exact "
                          "variance law: count_emitters.PoissonEmitter). Same knob in "
                          "sidechain.submit.build, so a scored arm submits verbatim.")
-    ap.add_argument("--no-shrink", action="store_true")
+    ap.add_argument("--no-shrink", action="store_true",
+                    help="switch the shrinkage of transferred log2FCs off entirely "
+                         "(--shrink-stage and --shrink-rule are refused with it)")
+    add_shrink_args(ap, twin="sidechain.submit.build")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="T84: a second amplitude for the pseudobulk channel. The emitted cells' "
@@ -357,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     check_neighbour_args(ap, args)
+    check_shrink_args(ap, args)
     if args.neighbour_w and args.basal_slope != "off":
         ap.error("--neighbour-w with --basal-slope is not wired (sidechain.submit.build has no "
                  "basal slope to pair it with)")
@@ -390,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,
                                      control=args.control, dispersion=args.dispersion,
                                      emit_lambda=args.emit_lambda,
-                                     shrinkage=not args.no_shrink, alpha=args.alpha,
+                                     **shrink_kwargs(args), alpha=args.alpha,
                                      gamma=args.gamma, var_floor=args.var_floor,
                                      coverage_tiers=cov_tiers,
                                      similarity_beta=args.similarity_beta,
@@ -424,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
          "lfc_sources": args.lfc_source,
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
+         "shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage,
+         "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "dual_fallback": args.dual_fallback,
          "gamma": args.gamma,

@@ -140,6 +140,13 @@ def replay_arm(arm: Path, fold_name: str, fold_cache) -> dict:
         return out | {"status": "skipped",
                       "why": f"min_libsize {_num(b, 'min_libsize', LEGACY_MIN_LIBSIZE):g}, "
                              f"this replay prepares folds at {LEGACY_MIN_LIBSIZE:g}"}
+    rule = (_num(b, "shrink_k", 1.0), b.get("shrink_stage") or "source", b.get("shrink_rule") or "garrote")
+    if rule != (1.0, "source", "garrote"):
+        # T84: a harder threshold, the pooled stage or the adaptive rule. The replay threads
+        # the historical rule only, so rebuilding such an arm would report the rule's own
+        # effect as a replay error. An absent key is the historical rule.
+        return out | {"status": "skipped",
+                      "why": f"shrinkage rule moved (k {rule[0]:g}, {rule[1]}, {rule[2]}) not threaded"}
     if any(x is not None for x in (b.get("shrink_overrides") or [])):
         # depth-aware shrinkage forces shrink ON for named sources only; the replay
         # threads one global flag, so reconstructing these would be a guess.

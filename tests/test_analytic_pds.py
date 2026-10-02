@@ -151,6 +151,32 @@ def test_replay_refuses_an_arm_whose_shrinkage_is_unrecorded(tmp_path):
     assert "shrinkage not recorded" in out["why"]
 
 
+def test_replay_refuses_an_arm_whose_shrinkage_rule_was_moved(tmp_path):
+    """T84: the replay threads the historical rule (k 1, per source, garrote) and nothing
+    else, so a harder, pooled or adaptive arm must be skipped, not rebuilt as the shipped
+    rule with its own effect reported as a replay error. An absent key is the old rule."""
+    import json
+    from scripts.analytic_pds_replay import LEGACY_MIN_LIBSIZE, replay_arm
+
+    def arm_with(name, **build):
+        arm = tmp_path / name
+        (arm / "run").mkdir(parents=True)
+        (arm / "run" / "agg_results.csv").write_text("statistic,pds_cosine\nmean,0.7\n")
+        (arm / "summary.json").write_text(json.dumps(
+            {"build": {"alpha": 1.0, "var_floor": "poisson", "shrinkage": True,
+                       "min_libsize": LEGACY_MIN_LIBSIZE, **build},
+             "sources": {"pseudobulk": ["/nowhere/x.npz:non-targeting"]}}))
+        return replay_arm(arm, "some_fold", None)
+
+    for moved in ({"shrink_k": 8.0}, {"shrink_stage": "pooled"},
+                  {"shrink_stage": "pooled", "shrink_rule": "adaptive"}):
+        out = arm_with("moved_" + "_".join(moved), **moved)
+        assert out["status"] == "skipped" and "shrinkage rule moved" in out["why"]
+    for same in ({}, {"shrink_k": 1.0, "shrink_stage": "source", "shrink_rule": "garrote"}):
+        out = arm_with("same_" + str(len(same)), **same)
+        assert "shrinkage rule moved" not in (out.get("why") or "")
+
+
 # ---------------------------------------------------------------- drop_one_arm
 
 
