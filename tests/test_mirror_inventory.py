@@ -108,6 +108,8 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     assert "thr=" not in knob_str({**on, "shrink_k": 1.0, "shrink_stage": "source", "shrink_rule": "garrote"})
     hard = knob_str({**on, "shrink_k": 8.0, "shrink_stage": "pooled", "shrink_rule": "garrote"})
     assert "thr=8" in hard and "stage=pooled" in hard and "rule=" not in hard
+    bits = hard.split()                                            # whole tokens, not substrings
+    assert "thr=8" in bits and "stage=pooled" in bits and not any(x.startswith("shrink=") for x in bits)
     assert "rule=adaptive" in knob_str({**on, "shrink_stage": "pooled", "shrink_rule": "adaptive"})
     off = {**base, "shrinkage": False, "shrink_k": 8.0, "shrink_stage": "pooled"}
     assert "thr=" not in knob_str(off) and "stage=" not in knob_str(off)

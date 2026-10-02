@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from types import SimpleNamespace
 
 import anndata as ad
 import numpy as np
@@ -27,6 +28,7 @@ from sidechain.submit import build
 from sidechain.submit.build import pooled_delta, shrink
 
 AXIS = np.array(["A", "B", "C", "D"])
+KNOBS = ("shrink_k", "shrink_stage", "shrink_rule")
 
 
 def _lfc(lfc, var, genes=AXIS, label="T"):
@@ -477,3 +479,82 @@ def test_build_refuses_the_flags_where_they_cannot_act(challenge):
     # a moved rule has no registered knob letter yet, so a stem named like a model is refused
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "ser-99aefkw_k8pool_v1", ["--shrink-k", "8", "--shrink-stage", "pooled"]))
+
+
+# ------------------------------------------------- paths a mutation review found unwalked --
+
+
+def _spy(monkeypatch, module):
+    seen = []
+    orig = module.pooled_delta
+    monkeypatch.setattr(module, "pooled_delta", lambda *a, **k: seen.append(
+        {x: k.get(x) for x in KNOBS}) or orig(*a, **k))
+    return seen
+
+
+def test_build_hands_the_adaptive_rule_through(challenge, monkeypatch):
+    """An arm named adaptive that silently ran the garrote could never be renamed (ADR 0005)."""
+    seen = _spy(monkeypatch, build)
+    assert build.main(_argv(challenge, "ash2", ["--shrink-rule", "adaptive", "--shrink-stage", "pooled"])) == 0
+    assert seen and all(s == {"shrink_k": 1.0, "shrink_stage": "pooled", "shrink_rule": "adaptive"}
+                        for s in seen)
+
+
+def test_build_carries_the_rule_through_the_per_context_gamma_pool(challenge, monkeypatch):
+    seen = _spy(monkeypatch, build)
+    assert build.main(_argv(challenge, "g", ["--gamma", "0.5", "--shrink-k", "8"])) == 0
+    assert seen and all(s == {"shrink_k": 8.0, "shrink_stage": "source", "shrink_rule": "garrote"}
+                        for s in seen)
+
+
+def test_loco_hands_the_rule_to_the_neighbour_pool_too(monkeypatch, tmp_path):
+    """The pool is pooled with every knob the targets get, or the two live in different spaces."""
+    real_path, src = _fold(tmp_path)
+    seen = _spy(monkeypatch, loco)
+
+    def fake_arm(args, delta_of, axis):
+        assert delta_of("g0") is not None            # the pool pools through delta_of
+        return SimpleNamespace(fuse=lambda p, d: d, summary=lambda: {}), {}
+    monkeypatch.setattr(loco, "neighbour_arm_for", fake_arm)
+    loco.build_transfer_prediction(
+        real_path, [(src, "ctrl")], tmp_path / "nb.h5ad", pert_col="perturbation",
+        control="non-targeting", var_floor="poisson", emit_lambda=0.5, alpha=1.35,
+        min_libsize=0.0, neighbour_table=[tmp_path / "t.pt"], neighbour_w=[0.3],
+        shrink_k=8.0, shrink_stage="pooled")
+    assert len(seen) == 3 and all(s == {"shrink_k": 8.0, "shrink_stage": "pooled",
+                                        "shrink_rule": "garrote"} for s in seen)
+
+
+def test_build_neighbour_pool_pools_with_the_same_rule(monkeypatch, tmp_path):
+    seen = _spy(monkeypatch, build)
+
+    def fake_arm(args, delta_of, axis):
+        delta_of("g0")
+        return (SimpleNamespace(fuse=lambda p, d: d, summary=lambda: {}),
+                {"k": 1, "w": 1, "pool_used": 1, "pool_requested": 1, "targets_fused": 0})
+    monkeypatch.setattr(build, "neighbour_arm_for", fake_arm)
+    a = _lfc([0.5, -2.0, 0.1, 3.0], [0.01, 0.1, 0.2, 0.5], label="g0")
+    args = SimpleNamespace(no_shrink=False, shrink_k=8.0, shrink_stage="pooled",
+                           shrink_rule="garrote", log_bias_correct=False, var_floor="none")
+    build.fuse_neighbours(args, {"g0": np.zeros(4)}, [], [a], AXIS, None, tmp_path / "rec.json")
+    assert seen and all(s == {"shrink_k": 8.0, "shrink_stage": "pooled", "shrink_rule": "garrote"}
+                        for s in seen)
+
+
+def test_adaptive_prior_grid_spans_a_tenth_of_the_smallest_error_to_twice_the_largest_effect():
+    s = np.array([0.05, 0.2, 1.0])
+    x = np.array([0.0, 0.0, 3.0])
+    sd = ash.prior_grid(x, s)
+    assert sd[0] == pytest.approx(s.min() / 10.0)
+    assert sd[-1] >= 2.0 * np.sqrt(np.max(x * x - s * s)) > sd[-2]
+    assert np.allclose(sd[1:] / sd[:-1], np.sqrt(2.0))
+    # each row of the likelihood is scaled to a maximum of exactly 1
+    assert np.allclose(ash.likelihood(x, s, sd).max(axis=1), 1.0)
+
+
+def test_the_adaptive_stop_waits_for_several_quiet_cycles(monkeypatch):
+    _, x, s = _mixture(3000, seed=2)
+    lik = ash.likelihood(x, s, ash.prior_grid(x, s))
+    n_three = ash.fit_weights(lik)[1]
+    monkeypatch.setattr(ash, "CALM_CYCLES", 1)
+    assert ash.fit_weights(lik)[1] < n_three
