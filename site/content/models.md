@@ -17,6 +17,20 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-12aefkw — submitted 2026-10-02
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
+genes blended in · w = summed profile on the pooled control profile.** SER-11abefknw with two
+settings moved back to the series baseline. The summed profile of each knockdown's 400 cells now
+carries the borrowed response at the same strength as the cells themselves (`b` off), and each
+borrowed gene change is shrunk toward zero by its own measurement noise, so a change no larger
+than its noise is dropped (`n` off).
+
+The best entry so far — 0.1438 against its parent SER-11abefknw's 0.1360. The summed-profile score
+and fold-change accuracy rose; the differential-expression test reached fewer of the genes that
+really changed. Locally the two settings had read as a small gain for one strength and a trade for
+shrinkage.
+
 ## SER-11abefknw — submitted 2026-09-30
 
 **a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·

@@ -223,6 +223,19 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-10-02",
+      "partition": "val",
+      "name": "SER-12aefkw",
+      "board_name": "Sidechain SER-12aefkw",
+      "overall": 0.1438,
+      "rank": 405,
+      "teams": 1292,
+      "card": "Tests whether shrinking each borrowed gene change by its own measurement noise, so that a change no larger than its noise is dropped, improves predictions. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
