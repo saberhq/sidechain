@@ -52,7 +52,12 @@ Why each step is the shape it is:
   its own residuals (one that needs each member's measurement noise) is handed in as a declared
   pick, ``picks``: for each target the pool members to average and, optionally, their weights.
   A declared pick is built from the same sources as the pool, by the caller, and is recorded by
-  its file's hash like the pool is. The default is the gate's pick, bit-identical.
+  its file's hash like the pool is. It must name EVERY target the arm fuses: a pick is an
+  outside rule, so a target it leaves out cannot be answered by any rule the arm carries, and
+  silently falling back to ``select`` would score a mixture of two rules under the pick's name.
+  A pick and a ``select`` other than ``"table"`` are therefore refused together: the pick
+  answers every target, which leaves the ranking nothing to rank. The default is the gate's
+  pick, bit-identical.
 
 Off is the default everywhere, and off means this module is never imported into the path:
 w = 0 is not a fusion at weight zero, it is no fusion (`submit.build`, `eval.loco`).
@@ -133,7 +138,7 @@ class NeighbourArm:
     select: str = "table"            # which k members: one of SELECTS
     cand: int = 100                  # "hybrid": how many table neighbours are re-ranked
     # a declared pick, {target: (pool row indices, weights or None)}; a target it names is
-    # averaged over exactly those rows, any other target follows `select`
+    # averaged over exactly those rows, and a target it does NOT name is refused
     picks: Mapping | None = None
 
     def __post_init__(self):
@@ -156,6 +161,12 @@ class NeighbourArm:
                              f"residual length, so it needs a positive scale, got {self.scale!r}: "
                              f"build the arm with build_neighbour_arm(..., size='median'), which "
                              f"measures it from the pool")
+        # how many members the declared pick averages, smallest and largest: measured once here,
+        # because a run's record is the only place a reader can see whether the outside rule
+        # handed in two members per target or two hundred
+        self._picks_sizes = (None if not self.picks else
+                             (min(len(i) for i, _ in self.picks.values()),
+                              max(len(i) for i, _ in self.picks.values())))
 
     def fuse(self, target: str, delta: np.ndarray) -> np.ndarray:
         """SER's pooled delta for ``target`` -> the fused delta (a new array).
@@ -205,19 +216,24 @@ class NeighbourArm:
         s = self.stats
         if self.picks is not None:
             got = self.picks.get(target)
-            if got is not None:
-                idx, wts = got
-                s["picks_used"] = s.get("picks_used", 0) + 1
-                if wts is None:
-                    return self.resid[idx].mean(0), own
-                tot = float(np.sum(wts))
-                if not tot > 0.0:            # every declared weight is 0: the flat mean, counted
-                    s["picks_zero_weight"] = s.get("picks_zero_weight", 0) + 1
-                    return self.resid[idx].mean(0), own
-                return (np.asarray(wts, dtype=float) / tot) @ self.resid[idx], own
-            # a target the declared pick does not name follows the arm's own rule, counted: a
-            # caller that meant to declare every target reads this count and refuses the run
-            s["picks_missing"] = s.get("picks_missing", 0) + 1
+            if got is None:
+                # A pick comes from a rule the arm cannot compute (each member's measurement
+                # noise, say), so there is nothing to fall back TO: answering this target by
+                # `select` instead would score one arm that is two rules at once, under the
+                # pick's name and hash. The caller writes the pick, so it can write them all.
+                raise ValueError(f"the declared pick does not name {target!r}, and it declares "
+                                 f"{len(self.picks)} target(s): a declared pick must name every "
+                                 f"target the arm fuses -- the pick comes from a rule this arm "
+                                 f"cannot compute, so a target it leaves out has no rule at all")
+            idx, wts = got
+            s["picks_used"] = s.get("picks_used", 0) + 1
+            if wts is None:
+                return self.resid[idx].mean(0), own
+            tot = float(np.sum(wts))
+            if not tot > 0.0:                # every declared weight is 0: the flat mean, counted
+                s["picks_zero_weight"] = s.get("picks_zero_weight", 0) + 1
+                return self.resid[idx].mean(0), own
+            return (np.asarray(wts, dtype=float) / tot) @ self.resid[idx], own
         if self.select == "table":
             sim = self.pool_unit @ unit(e)
             if own is not None:
@@ -239,13 +255,18 @@ class NeighbourArm:
             if own is not None:
                 rs[own] = -np.inf
             idx = np.argsort(-rs)[: self.k]
-        else:                                         # "euclid": |d_j - m - r|^2, less the constant |r|^2
+        elif self.select == "euclid":     # |d_j - m - r|^2, less the constant |r|^2
             if self._resid_sq is None:
                 self._resid_sq = np.einsum("ij,ij->i", self.resid, self.resid)
             d2 = self._resid_sq - 2.0 * (self.resid @ np.asarray(r, dtype=float))
             if own is not None:
                 d2[own] = np.inf
             idx = np.argsort(d2)[: self.k]
+        else:
+            # `__post_init__` refuses an unknown rule, so this is reachable only if `select` was
+            # assigned after construction; an `else` that fell through to one of the rules above
+            # would answer a name nobody wired with another rule's pick.
+            raise ValueError(f"select must be one of {SELECTS}, got {self.select!r}")
         return self.resid[idx].mean(0), own
 
     def _unit_resid(self) -> np.ndarray:
@@ -290,6 +311,11 @@ class NeighbourArm:
                 "select": self.select,
                 **({"cand": self.cand} if self.select == "hybrid" else {}),
                 **({"picks_declared": len(self.picks)} if self.picks is not None else {}),
+                # how wide the outside rule's picks were: a pick of 2 members and one of 200
+                # are different arms, and the file's hash alone does not say which ran
+                **({"picks_members_min": self._picks_sizes[0],
+                    "picks_members_max": self._picks_sizes[1]}
+                   if self._picks_sizes is not None else {}),
                 "pool_used": len(self.pool), **s}
 
 
@@ -310,6 +336,8 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
     its file form, ``{target: {"members": [pool labels], "weights": [...] or None}}``: every
     member must be in the pool as built here (a label that is not means the pick was made for
     another pool or other sources, and is refused by name), and a target may not name itself.
+    A pick answers every target it is asked about, so it is refused together with a ``select``
+    other than ``"table"``, which would then rank nothing.
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
@@ -317,6 +345,9 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
         raise ValueError(f"size must be one of {SIZES}, got {size!r}")
     if select not in SELECTS:
         raise ValueError(f"select must be one of {SELECTS}, got {select!r}")
+    if picks is not None and select != "table":
+        raise ValueError(f"a declared pick must name every target the arm fuses, so there is "
+                         f"nothing left for select={select!r} to rank: pass one or the other")
     if not (np.isfinite(w) and w > 0):
         raise ValueError(f"w must be finite and > 0 (w = 0 is the knob off: do not build the "
                          f"arm), got {w}")
@@ -374,8 +405,8 @@ def index_picks(picks: Mapping, pool: Sequence[str]) -> dict:
 
     ``{target: {"members": [...], "weights": [...] | None}}`` ->
     ``{target: (int64 indices, float weights | None)}``. Refused, by name: a member that is not
-    in the pool, a target that names itself, an empty member list, weights of another length,
-    and a negative or non-finite weight.
+    in the pool, a member named twice in one target's pick, a target that names itself, an empty
+    member list, weights of another length, and a negative or non-finite weight.
     """
     pos = {lab: i for i, lab in enumerate(pool)}
     out = {}
@@ -383,6 +414,12 @@ def index_picks(picks: Mapping, pool: Sequence[str]) -> dict:
         members = [str(x) for x in entry["members"]]
         if not members:
             raise ValueError(f"declared pick for {target!r} names no member")
+        twice = sorted({x for x in members if members.count(x) > 1})
+        if twice:
+            # the mean would count that member twice, which is a weight the file does not
+            # declare; under explicit weights it is two weights for one member
+            raise ValueError(f"declared pick for {target!r} names {len(twice)} member(s) more "
+                             f"than once ({twice[:5]}): a repeat is an undeclared weight")
         gone = [x for x in members if x not in pos]
         if gone:
             raise ValueError(f"declared pick for {target!r} names {len(gone)} label(s) that are "

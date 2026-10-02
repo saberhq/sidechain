@@ -26,9 +26,11 @@ What is pinned, in the order it would cost us if it slipped:
   is untouched; ``hybrid``, ``response`` and ``euclid`` are each re-derived member by member
   without the arm's own code, never pick the target itself, and read nothing but the pool's
   residuals and the target's own. A declared pick (``--neighbour-picks``) is averaged exactly as
-  declared, is refused when it names a label the pool lacks, and a target it leaves out is
-  counted, never silently swapped. A mix refuses both; a model-named stem refuses both until a
-  knob letter exists.
+  declared -- direction AND length, since ``size="unit"`` would normalise a mis-scaled mean away
+  -- is refused when it names a label the pool lacks or names one twice, and must name every
+  target the arm fuses: one it leaves out is refused by name, never answered by another rule. A
+  mix refuses a pick and a moved ``select``, so does a pick together with a moved ``select``, and
+  a model-named stem refuses both until a knob letter exists.
 """
 from __future__ import annotations
 
@@ -639,14 +641,22 @@ def test_size_median_shrinks_a_neighbourhood_the_unit_blend_trusts_in_full():
 
 
 def test_neighbour_unit_is_unit_of_neighbour_mean():
+    """One pick, one path -- under every selection rule, not only the table's.
+
+    `neighbour_unit` is the diagnostic twin of `neighbour_mean`, so a rule that reached one and
+    not the other would let a probe and `fuse` disagree about which members were averaged.
+    """
     targets, axis, deltas, table = _world()
-    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=7, w=0.2)
-    for t in targets[:5] + targets[20:25]:
-        e = na.table_vector(table, t)
-        n, own = arm.neighbour_mean(t, e)
-        un, own_u = arm.neighbour_unit(t, e)
-        np.testing.assert_allclose(na.unit(n), un, atol=1e-15)
-        assert own == own_u
+    for select in na.SELECTS:
+        arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=7, w=0.2,
+                                     select=select, cand=12)
+        for t in targets[:5] + targets[20:25]:
+            e = na.table_vector(table, t)
+            r = _resid_of(arm, deltas, t)            # every rule but "table" ranks against it
+            n, own = arm.neighbour_mean(t, e, r)
+            un, own_u = arm.neighbour_unit(t, e, r)
+            np.testing.assert_allclose(na.unit(n), un, atol=1e-15)
+            assert own == own_u
 
 
 def test_build_arm_refuses_an_unknown_size_and_a_flat_pool():
@@ -916,6 +926,7 @@ def test_select_table_default_is_bit_identical():
     summ = default.summary()
     assert summ["select"] == "table" and "cand" not in summ and "picks_declared" not in summ
     assert "picks_used" not in summ and "picks_missing" not in summ
+    assert "picks_members_min" not in summ and "picks_members_max" not in summ
 
 
 @pytest.mark.parametrize("select, cand", [("hybrid", 15), ("hybrid", 6), ("response", 100),
@@ -941,6 +952,13 @@ def test_each_selection_rule_picks_what_a_plain_loop_picks(select, cand, k):
 
 
 def test_the_rules_differ_and_hybrid_stays_inside_the_tables_candidates():
+    """Each moved rule changes somebody's prediction, and hybrid never leaves cand.
+
+    The candidate assertion reads the ARM, not two test-side computations: the hybrid arm's own
+    neighbour mean has to equal the mean of the loop's pick, and that pick has to sit inside the
+    table's `cand` nearest. An arm that ignored `cand` -- re-ranking the whole pool -- would
+    average other rows and fail the first half.
+    """
     targets, axis, deltas, table = _world()
     arms = {s: na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=s,
                                       cand=12) for s in na.SELECTS}
@@ -948,11 +966,13 @@ def test_the_rules_differ_and_hybrid_stays_inside_the_tables_candidates():
     for t in targets:
         e = na.table_vector(table, t)
         near = set(_loop_pick(arms["table"], table, deltas, t, 12, "table"))
-        assert set(_loop_pick(arms["hybrid"], table, deltas, t, 5, "hybrid", 12)) <= near
+        pick = _loop_pick(arms["hybrid"], table, deltas, t, 5, "hybrid", 12)
+        assert set(pick) <= near
+        got, _own = arms["hybrid"].neighbour_mean(t, e, _resid_of(arms["hybrid"], deltas, t))
+        np.testing.assert_allclose(got, arms["hybrid"].resid[pick].mean(0), atol=1e-12)
         ref = arms["table"].fuse(t, deltas[t])
         for s in differ:
             differ[s] += int(not np.allclose(arms[s].fuse(t, deltas[t]), ref))
-        assert e is not None
     assert all(n > 0 for n in differ.values()), differ      # each rule moves some target
 
 
@@ -999,44 +1019,96 @@ def test_selection_refusals():
     with pytest.raises(ValueError, match="one table"):
         na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
                                 picks={targets[0]: {"members": targets[1:3], "weights": None}})
+    # a pick answers every target, so a ranking rule beside it would rank nothing
+    for select in ("hybrid", "response", "euclid"):
+        with pytest.raises(ValueError, match="nothing left for select"):
+            na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=select,
+                                   cand=12,
+                                   picks={t: {"members": targets[20:23], "weights": None}
+                                          for t in targets})
+
+
+def test_a_hand_built_arm_refuses_an_unknown_rule_and_too_few_candidates():
+    """The analytic screen builds `NeighbourArm` directly, so the selection preconditions have
+    to hold at construction -- and `neighbour_mean`'s chain must refuse a rule it does not know
+    rather than fall through to the last branch, which would answer under another rule's pick."""
+    targets, axis, deltas, table = _world()
+    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3)
+    kw = {"k": 5, "w": 0.3, "table": table, "pool": ref.pool, "mean": ref.mean,
+          "resid": ref.resid, "pool_unit": ref.pool_unit, "gene_pos": ref.gene_pos}
+    with pytest.raises(ValueError, match="select must be one of"):
+        na.NeighbourArm(**kw, select="nearest")
+    with pytest.raises(ValueError, match="k <= cand"):          # cand = k - 1
+        na.NeighbourArm(**kw, select="hybrid", cand=4)
+    hand = na.NeighbourArm(**kw, select="response")
+    hand.select = "nearest"                   # assigned past the constructor's gate
+    t = targets[0]
+    with pytest.raises(ValueError, match="select must be one of"):
+        hand.neighbour_mean(t, na.table_vector(table, t), _resid_of(hand, deltas, t))
 
 
 def test_a_declared_pick_is_averaged_exactly_as_declared():
+    """Direction AND length.
+
+    ``size="unit"`` normalises the neighbour mean away inside `fuse`, so a pick that was
+    rescaled -- summed instead of averaged, divided by the wrong weight total -- fuses to the
+    same vector. The length is therefore asserted on `neighbour_mean` itself, per case.
+    """
     targets, axis, deltas, table = _world()
     picks = {targets[0]: {"members": targets[3:6], "weights": None},             # flat, 3 members
              targets[1]: {"members": targets[4:8], "weights": [1.0, 0.0, 2.0, 1.0]},
              targets[2]: {"members": targets[5:7], "weights": [0.0, 0.0]}}        # all zero
     arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3, picks=picks)
-    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3)
     pos = {t: i for i, t in enumerate(arm.pool)}
 
     def fused(t, n):
         r = _resid_of(arm, deltas, t)
         return arm.mean + float(np.linalg.norm(r)) * na.unit(na.unit(r) + 0.3 * na.unit(n))
 
-    n0 = arm.resid[[pos[x] for x in targets[3:6]]].mean(0)
-    np.testing.assert_allclose(arm.fuse(targets[0], deltas[targets[0]]), fused(targets[0], n0),
-                               atol=1e-12)
     w1 = np.array([1.0, 0.0, 2.0, 1.0])
-    n1 = (w1[:, None] * arm.resid[[pos[x] for x in targets[4:8]]]).sum(0) / w1.sum()
-    np.testing.assert_allclose(arm.fuse(targets[1], deltas[targets[1]]), fused(targets[1], n1),
-                               atol=1e-12)
-    n2 = arm.resid[[pos[x] for x in targets[5:7]]].mean(0)       # zero weights: the flat mean
-    np.testing.assert_allclose(arm.fuse(targets[2], deltas[targets[2]]), fused(targets[2], n2),
-                               atol=1e-12)
-    # a target the pick does not name follows the arm's own rule, and is counted
-    assert np.array_equal(arm.fuse(targets[9], deltas[targets[9]]),
-                          ref.fuse(targets[9], deltas[targets[9]]))
+    want = {targets[0]: arm.resid[[pos[x] for x in targets[3:6]]].mean(0),
+            targets[1]: (w1[:, None] * arm.resid[[pos[x] for x in targets[4:8]]]).sum(0)
+            / w1.sum(),
+            targets[2]: arm.resid[[pos[x] for x in targets[5:7]]].mean(0)}   # zero wts: flat
+    for t, n in want.items():
+        np.testing.assert_allclose(arm.fuse(t, deltas[t]), fused(t, n), atol=1e-12)
     summ = arm.summary()
     assert summ["picks_declared"] == 3 and summ["picks_used"] == 3
-    assert summ["picks_zero_weight"] == 1 and summ["picks_missing"] == 1
-    assert summ["targets_fused"] == 4
+    assert summ["picks_zero_weight"] == 1
+    assert summ["targets_fused"] == 3 and "picks_missing" not in summ
+    assert summ["own_in_pool"] == summ["targets_fused"]               # every target is a member
+    # the pick's widths, measured at construction: 3, 4 and 2 members
+    assert summ["picks_members_min"] == 2 and summ["picks_members_max"] == 4
+    # the LENGTH, read off the mean itself (after the summary, which these reads would count):
+    # a pick summed instead of averaged, or divided by the wrong weight total, fuses to the very
+    # same vector, because `fuse` normalises the mean under size="unit".
+    for t, n in want.items():
+        got, _own = arm.neighbour_mean(t, na.table_vector(table, t), _resid_of(arm, deltas, t))
+        assert float(np.linalg.norm(got)) == pytest.approx(float(np.linalg.norm(n)), rel=1e-12)
+
+
+def test_a_declared_pick_must_name_every_target_the_arm_fuses():
+    """No fallback. A pick comes from a rule the arm cannot compute, so a target it leaves out
+    has no rule at all; answering it by `select` would score two rules under the pick's hash."""
+    targets, axis, deltas, table = _world()
+    picks = {t: {"members": targets[20:23], "weights": None} for t in targets[:3]}
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3, picks=picks)
+    t0, t9 = targets[0], targets[9]
+    # a named target fuses: a new array, not the untouched delta the unfused paths hand back
+    assert arm.fuse(t0, deltas[t0]) is not deltas[t0]
+    with pytest.raises(ValueError) as exc:
+        arm.fuse(t9, deltas[t9])
+    assert "a declared pick must name every target the arm fuses" in str(exc.value)
+    assert f"does not name {t9!r}" in str(exc.value)       # the target, by name
+    assert "declares 3 target" in str(exc.value)           # and how many the file did name
 
 
 @pytest.mark.parametrize("entry, why", [
     ({"members": ["T001", "NOT_IN_POOL"], "weights": None}, "not in the pool as built"),
     ({"members": ["T000", "T001"], "weights": None}, "names the target itself"),
     ({"members": [], "weights": None}, "names no member"),
+    ({"members": ["T001", "T002", "T001"], "weights": None}, "more than once"),
+    ({"members": ["T001", "T001"], "weights": [1.0, 2.0]}, "more than once"),
     ({"members": ["T001", "T002"], "weights": [1.0]}, "2 members and 1 weights"),
     ({"members": ["T001", "T002"], "weights": [1.0, -0.5]}, "finite and >= 0"),
     ({"members": ["T001", "T002"], "weights": [1.0, float("nan")]}, "finite and >= 0"),
@@ -1058,9 +1130,12 @@ def test_the_flags_select_choices_are_the_modules_selects():
 
 
 def _picks_file(ch, name="picks.json"):
+    """A pick for every one of the four panel targets: a pick must name them all."""
     perts = GENES[:N_PERTS]
     picks = {perts[0]: {"members": perts[4:7], "weights": None},
-             perts[1]: {"members": perts[5:9], "weights": [1.0, 2.0, 0.5, 1.0]}}
+             perts[1]: {"members": perts[5:9], "weights": [1.0, 2.0, 0.5, 1.0]},
+             perts[2]: {"members": perts[8:10], "weights": None},
+             perts[3]: {"members": perts[9:12], "weights": [0.0, 1.0, 3.0]}}
     path = ch["data"] / name
     path.write_text(json.dumps(picks))
     return path
@@ -1074,14 +1149,26 @@ def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "bad", ["--neighbour-picks", str(picks)]))
     assert "--neighbour-picks without --neighbour-w does nothing" in capsys.readouterr().err
+    with pytest.raises(SystemExit):            # cand off its default is as half-set as the rest
+        build.main(_argv(challenge, "bad", ["--neighbour-cand", "7"]))
+    assert "--neighbour-cand 7 without --neighbour-w does nothing" in capsys.readouterr().err
     with pytest.raises(SystemExit):                       # fewer candidates than k
         build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-select",
                                             "hybrid", "--neighbour-cand", "2"]))
     assert "cand must be >= k" in capsys.readouterr().err
+    with pytest.raises(SystemExit):           # more candidates than the pool file even declares
+        build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-select",
+                                            "hybrid", "--neighbour-cand", str(N_PERTS + 1)]))
+    assert "cand must be < the pool's size" in capsys.readouterr().err
     with pytest.raises(SystemExit):                       # a picks file that is not there
         build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
                                             str(challenge["data"] / "nope.json")]))
     assert "--neighbour-picks: no such file" in capsys.readouterr().err
+    for select in ("hybrid", "response", "euclid"):       # a pick leaves nothing to rank
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
+                                                str(picks), "--neighbour-select", select]))
+        assert f"nothing left for --neighbour-select {select} to rank" in capsys.readouterr().err
     rng = np.random.default_rng(9)
     t2 = challenge["data"] / "table2.pt"
     torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
@@ -1093,6 +1180,28 @@ def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, "bad", mix + extra))
         assert "wired for one --neighbour-table" in capsys.readouterr().err
+
+
+def test_build_reads_the_picks_file_before_it_pools_anything(challenge, capsys, monkeypatch):
+    """A malformed pick must die at the launch, not after the pool is pooled.
+
+    The pool is 849 targets on the real panel and costs minutes; a KeyError raised inside the
+    arm after that is a wasted box hour, and a stack trace instead of a named entry.
+    """
+    def boom(*a, **k):
+        raise AssertionError("the pool was pooled before the picks file was read")
+
+    monkeypatch.setattr(build, "pooled_delta", boom)
+    bad = challenge["data"] / "bad.json"
+    for text, why in (("{not json", "could not be read as JSON"),
+                      ('["P00", "P01"]', "must be a mapping of target ->"),
+                      ('{"P00": 3}', "entry 'P00' must be a mapping"),
+                      ('{"P00": {"weights": [1.0]}}', "entry 'P00' is a mapping without")):
+        bad.write_text(text)
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
+                                                str(bad)]))
+        assert why in capsys.readouterr().err, text
 
 
 def test_build_refuses_a_model_named_stem_with_a_moved_selection(challenge, capsys):
@@ -1124,8 +1233,9 @@ def test_build_emits_the_selected_pick_and_records_it(challenge, monkeypatch):
     assert rec_t["select"] == "table" and "cand" not in rec_t and "picks_file" not in rec_t
     assert rec_h["select"] == "hybrid" and rec_h["cand"] == 6 and rec_h["targets_fused"] == 4
     assert rec_d["picks_file"].endswith("picks.json") and len(rec_d["picks_sha256"]) == 64
-    assert rec_d["picks_declared"] == 2 and rec_d["picks_used"] == 2
-    assert rec_d["picks_missing"] == 2                      # 4 panel targets, 2 declared
+    assert rec_d["picks_declared"] == 4 and rec_d["picks_used"] == 4   # all 4 panel targets
+    assert "picks_missing" not in rec_d                      # there is no fallback to count
+    assert rec_d["picks_members_min"] == 2 and rec_d["picks_members_max"] == 4
     args = json.loads((challenge["out"] / "hyb.args.json").read_text())
     assert args["neighbour_select"] == "hybrid" and args["neighbour_cand"] == 6
 
@@ -1152,8 +1262,8 @@ def test_build_emits_the_selected_pick_and_records_it(challenge, monkeypatch):
             np.testing.assert_allclose(got[i], expect, atol=1e-12)
         moved += int(not np.allclose(hyb[i], tab[i]))
     assert moved > 0                                        # the rule changed somebody's pick
-    assert not np.allclose(dec[0], tab[0]) and not np.allclose(dec[1], tab[1])
-    np.testing.assert_allclose(dec[2], tab[2], atol=1e-12)  # undeclared: the table's own pick
+    # every panel target is declared, so every one of them left the table's own pick
+    assert all(not np.allclose(dec[i], tab[i]) for i in range(4))
 
 
 def test_loco_passes_the_selection_through(monkeypatch, tmp_path, challenge):
@@ -1170,12 +1280,17 @@ def test_loco_passes_the_selection_through(monkeypatch, tmp_path, challenge):
     picks = _picks_file(challenge)
     rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm"),
                     "--source", "x.npz:ctl", *_arm_flags(challenge, w="0.15", k="2"),
-                    "--neighbour-select", "hybrid", "--neighbour-cand", "7",
-                    "--neighbour-picks", str(picks)])
+                    "--neighbour-select", "hybrid", "--neighbour-cand", "7"])
     assert rc == 0
     assert captured["neighbour_select"] == "hybrid" and captured["neighbour_cand"] == 7
-    assert Path(captured["neighbour_picks"]).name == "picks.json"
     assert logged["neighbour_select"] == "hybrid" and logged["neighbour_cand"] == 7
+    captured.clear(); logged.clear()
+    # a pick travels on its own: it names every target, so no rule travels beside it
+    rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "pick"),
+                    "--source", "x.npz:ctl", *_arm_flags(challenge, w="0.15", k="2"),
+                    "--neighbour-picks", str(picks)])
+    assert rc == 0 and captured["neighbour_select"] == "table"
+    assert Path(captured["neighbour_picks"]).name == "picks.json"
     assert logged["neighbour_picks"].endswith("picks.json")
     captured.clear(); logged.clear()
     rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm2"),
@@ -1207,7 +1322,8 @@ def test_loco_selection_reaches_the_arm_and_moves_the_cells(tmp_path, challenge)
                                        neighbour_picks=_picks_file(challenge))
     assert info_t["neighbour"]["select"] == "table"
     assert info_r["neighbour"]["select"] == "response"
-    assert info_p["neighbour"]["picks_used"] == 2 and info_p["neighbour"]["picks_missing"] == 2
+    assert info_p["neighbour"]["picks_used"] == 4          # all four targets, no fallback
+    assert "picks_missing" not in info_p["neighbour"]
     assert len(info_p["neighbour"]["picks_sha256"]) == 64
     x_t = ad.read_h5ad(tmp_path / "t.h5ad").X
     assert (x_t != ad.read_h5ad(tmp_path / "r.h5ad").X).nnz > 0

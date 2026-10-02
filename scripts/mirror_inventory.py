@@ -149,8 +149,19 @@ def knob_str(build: dict) -> str:
             # arm scored before the flag existed has no key, so only "median" is written. Without
             # it a size-aware arm and the unit arm it is read against render identically.
             med = "·med" if v.get("size") == "median" else ""
+            # which k members were averaged (T103 round two), on the same footing as the blend
+            # shape: "table" is the gate's pick and the default, and an arm scored before the
+            # flag has no key, so only a MOVED rule is written -- otherwise a hybrid, response,
+            # euclid or declared-pick arm renders as the table arm it is read against.
+            sel, cnd = v.get("select"), v.get("cand")
+            if sel == "hybrid":
+                rule = f"·hyb{cnd}" if cnd is not None else "·hyb"
+            else:
+                rule = {"response": "·resp", "euclid": "·eucl"}.get(sel, "")
+            if v.get("picks_file"):      # an outside rule, named by its file in the record
+                rule += "·picks"
             stems = "+".join(f"{Path(t).stem.split('_')[0]}·{x:g}" for t, x in zip(tables, w))
-            v = f"{stems}·k{v.get('k')}{med}"
+            v = f"{stems}·k{v.get('k')}{med}{rule}"
         bits.append(f"{LABEL.get(k, k.split('_')[0])}={v}")
     # Cells per target: the mirror's default is the real side's count, the board takes 400
     # (T84 round 2: the #348 mse refund depends on it). Shown only when it was set to a round number.

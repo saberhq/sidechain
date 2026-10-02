@@ -128,3 +128,19 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     assert "·med" not in knob_str({**base, "neighbour": one})       # no key = scored pre-flag
     assert ("nb=tahoex1·0.05+string·0.3·k25·med"
             in knob_str({**base, "neighbour": {**nb, "size": "median"}}))
+    # which k members were averaged (T103 round two), on the same footing: the table's pick is
+    # the default and writes nothing, every moved rule is named, or a hybrid / response / euclid
+    # / declared-pick arm renders as the table arm it is read against
+    def nbs(**extra):
+        return knob_str({**base, "neighbour": {**one, **extra}})
+
+    # whole tokens, so "·k25" followed by a rule cannot pass as the bare table arm
+    assert "nb=string·0.2·k25" in nbs(select="table").split()
+    assert "nb=string·0.2·k25" in nbs().split()                     # no key = scored pre-flag
+    assert "nb=string·0.2·k25·hyb200" in nbs(select="hybrid", cand=200)
+    assert "nb=string·0.2·k25·resp" in nbs(select="response")
+    assert "nb=string·0.2·k25·eucl" in nbs(select="euclid")
+    assert "nb=string·0.2·k25·picks" in nbs(picks_file="/x/picks.json")
+    # the blend shape and the rule stack, in that order
+    assert ("nb=string·0.2·k25·med·hyb200"
+            in nbs(size="median", select="hybrid", cand=200))

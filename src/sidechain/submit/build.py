@@ -41,7 +41,8 @@ gate's `cross`-mode fusion, `sidechain.models.neighbour_arm`). Off unless `--nei
 pool members are averaged: `table` (the default) is the table's k nearest, `hybrid` the table's
 `--neighbour-cand` nearest re-ranked by how alike they respond in the sources, `response` and
 `euclid` the whole pool ranked by response direction or distance; `--neighbour-picks` hands in
-a declared pick per target instead (a JSON built from the same sources as the pool).
+a declared pick per target instead (a JSON built from the same sources as the pool, which has to
+name every target the build fuses and rules out a moved `--neighbour-select`).
 
 `--limit-perts N` builds a small panel (first N perturbations) and writes a matching
 pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout locally.
@@ -826,10 +827,12 @@ def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
                          "re-ranked by response (default 100)")
     ap.add_argument("--neighbour-picks", type=Path, default=None, metavar="JSON",
                     help="a declared pick: {target: {\"members\": [pool labels], \"weights\": "
-                         "[...] or null}}, built from the same sources as the pool. A target it "
-                         "names is averaged over exactly those members (weighted when weights "
-                         "are given); a target it does not name follows --neighbour-select and "
-                         "is counted (picks_missing). One table only. Needs --neighbour-w.")
+                         "[...] or null}}, built from the same sources as the pool. Each target "
+                         "is averaged over exactly those members (weighted when weights are "
+                         "given), and the file must name EVERY target the build fuses: the pick "
+                         "comes from a rule the arm cannot compute, so a target it leaves out "
+                         "has no rule at all and the build refuses it by name. One table only, "
+                         "--neighbour-select table only. Needs --neighbour-w.")
 
 
 def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
@@ -837,6 +840,7 @@ def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     ws, tables, pool = args.neighbour_w or [], args.neighbour_table or [], args.neighbour_pool
     size = getattr(args, "neighbour_size", "unit")
     select = getattr(args, "neighbour_select", "table")
+    cand = int(getattr(args, "neighbour_cand", 100))
     picks = getattr(args, "neighbour_picks", None)
     for w in ws:
         if not math.isfinite(w) or w <= 0:
@@ -848,6 +852,7 @@ def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
                                 ("--neighbour-pool", pool is not None),
                                 ("--neighbour-size median", size == "median"),
                                 (f"--neighbour-select {select}", select != "table"),
+                                (f"--neighbour-cand {cand}", cand != 100),
                                 ("--neighbour-picks", picks is not None)) if on]
         if half:
             # ", " not "/": "--neighbour-table/--neighbour-size median" reads as one flag taking
@@ -872,9 +877,41 @@ def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
         ap.error("--neighbour-select other than table and --neighbour-picks are wired for one "
                  f"--neighbour-table, not for a mix of {len(tables)}: it is not defined which "
                  "table's neighbours they would replace")
-    if select == "hybrid" and getattr(args, "neighbour_cand", 100) < args.neighbour_k:
+    if picks is not None and select != "table":
+        ap.error(f"--neighbour-picks names every target the build fuses, so there is nothing "
+                 f"left for --neighbour-select {select} to rank: pass one or the other")
+    if select == "hybrid" and cand < args.neighbour_k:
         ap.error(f"--neighbour-select hybrid keeps k of the table's --neighbour-cand nearest, so "
-                 f"cand must be >= k: got cand = {args.neighbour_cand}, k = {args.neighbour_k}")
+                 f"cand must be >= k: got cand = {cand}, k = {args.neighbour_k}")
+    # Read the two declared inputs here, not after the pooling: a pool of 849 targets costs
+    # minutes to pool, and a launch that cannot work should die in the first second.
+    if picks is not None:
+        parsed = None
+        try:
+            parsed = json.loads(Path(picks).expanduser().read_text())
+        except (OSError, ValueError) as exc:
+            ap.error(f"--neighbour-picks: {picks} could not be read as JSON ({exc})")
+        if not isinstance(parsed, dict):
+            ap.error(f"--neighbour-picks: {picks} must be a mapping of target -> "
+                     f'{{"members": [...], "weights": [...] or null}}, got a '
+                     f"{type(parsed).__name__}")
+        for target, entry in parsed.items():
+            if not isinstance(entry, dict):
+                ap.error(f"--neighbour-picks: {picks} entry {target!r} must be a mapping "
+                         f'carrying "members", got a {type(entry).__name__}')
+            if "members" not in entry:
+                ap.error(f"--neighbour-picks: {picks} entry {target!r} is a mapping without "
+                         f'"members" (it carries {sorted(entry)})')
+    if select == "hybrid":
+        from sidechain.models.neighbour_arm import read_pool
+
+        # the pool the arm builds can only be SMALLER than its file (members the table lacks or
+        # no source covers are dropped), so a cand the file cannot reach never can
+        n_declared = len(read_pool(pool))
+        if cand >= n_declared:
+            ap.error(f"--neighbour-select hybrid re-ranks the table's cand nearest OTHER members, "
+                     f"so cand must be < the pool's size: got cand = {cand} and "
+                     f"{n_declared} labels in {pool} (the pool as built can only be smaller)")
     if args.gamma != 1.0:
         ap.error("--neighbour-w with --gamma != 1 is not wired: gamma makes the shifts "
                  "context-specific, and the pool's residuals would have to be re-pooled per "
