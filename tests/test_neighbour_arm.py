@@ -21,6 +21,14 @@ What is pinned, in the order it would cost us if it slipped:
 * **A median run can be read and replayed.** ``|n|/s`` is reported with its own value (per table
   in a mix), and the scale is recorded unrounded as well, because the rounded one cannot
   reproduce ``fuse`` to the 1e-10 the screen's gate asks of it.
+* **The default pick is the gate's, to the bit, and every other pick is what a plain loop picks.**
+  ``--neighbour-select`` chooses which k members are averaged (round two): ``table``, the default,
+  is untouched; ``hybrid``, ``response`` and ``euclid`` are each re-derived member by member
+  without the arm's own code, never pick the target itself, and read nothing but the pool's
+  residuals and the target's own. A declared pick (``--neighbour-picks``) is averaged exactly as
+  declared, is refused when it names a label the pool lacks, and a target it leaves out is
+  counted, never silently swapped. A mix refuses both; a model-named stem refuses both until a
+  knob letter exists.
 """
 from __future__ import annotations
 
@@ -853,3 +861,354 @@ def test_loco_default_size_is_unit_and_reaches_the_arm(tmp_path, challenge):
     x_u = ad.read_h5ad(tmp_path / "u.h5ad").X
     x_m = ad.read_h5ad(tmp_path / "m.h5ad").X
     assert (x_u != x_m).nnz > 0                            # the blend moved the emitted cells
+
+
+# ------------------------------------------------ which k: the selection rules (round two)
+
+def _resid_of(arm, deltas, t):
+    d = np.array(deltas[t], dtype=float)
+    if t in arm.gene_pos:
+        d[arm.gene_pos[t]] = 0.0
+    return d - arm.mean
+
+
+def _loop_pick(arm, table, deltas, t, k, select, cand=None):
+    """The k members a rule should pick, member by member in plain Python: no matrix product,
+    no argsort, none of the arm's own code -- so a slip in the arm's vectorised pick moves
+    `fuse` and not this expectation."""
+    r = _resid_of(arm, deltas, t)
+    e = na.table_vector(table, t)
+    others = [j for j, lab in enumerate(arm.pool) if lab != t]
+
+    def cos(a, b):
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    by_table = {j: cos(np.asarray(na.table_vector(table, arm.pool[j])), e) for j in others}
+    if select == "table":
+        score = by_table
+    elif select == "hybrid":
+        near = sorted(others, key=lambda j: -by_table[j])[:cand]
+        score = {j: cos(arm.resid[j], r) for j in near}
+    elif select == "response":
+        score = {j: cos(arm.resid[j], r) for j in others}
+    else:
+        score = {j: -float(np.sum((arm.resid[j] - r) ** 2)) for j in others}
+    return sorted(score, key=lambda j: -score[j])[:k]
+
+
+def test_select_table_default_is_bit_identical():
+    """An explicit select="table" is the default, and both are the pre-flag pick: the same
+    floating-point operations in the same order (np.array_equal), with the pick re-derived."""
+    targets, axis, deltas, table = _world()
+    default = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3)
+    explicit = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3,
+                                      select="table", cand=7)        # cand is read by hybrid only
+    for t in targets:
+        out = default.fuse(t, deltas[t])
+        assert np.array_equal(out, explicit.fuse(t, deltas[t]))
+        r = _resid_of(default, deltas, t)
+        un = na.unit(_mean_of_the_k_nearest(default, table, t, 10))
+        assert np.array_equal(out, default.mean + float(np.linalg.norm(r))
+                              * na.unit(na.unit(r) + 0.3 * un))
+        assert sorted(_loop_pick(default, table, deltas, t, 10, "table")) == sorted(
+            np.argsort(-(default.pool_unit @ na.unit(na.table_vector(table, t))
+                         - np.where(np.array(default.pool) == t, np.inf, 0.0)))[:10].tolist())
+    summ = default.summary()
+    assert summ["select"] == "table" and "cand" not in summ and "picks_declared" not in summ
+    assert "picks_used" not in summ and "picks_missing" not in summ
+
+
+@pytest.mark.parametrize("select, cand", [("hybrid", 15), ("hybrid", 6), ("response", 100),
+                                          ("euclid", 100)])
+@pytest.mark.parametrize("k", [1, 5])
+def test_each_selection_rule_picks_what_a_plain_loop_picks(select, cand, k):
+    targets, axis, deltas, table = _world()
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=k, w=0.3, select=select,
+                                 cand=cand)
+    for t in targets:
+        pick = _loop_pick(arm, table, deltas, t, k, select, cand)
+        assert arm.pool.index(t) not in pick                  # never its own neighbour
+        r = _resid_of(arm, deltas, t)
+        n, own = arm.neighbour_mean(t, na.table_vector(table, t), r)
+        assert own == arm.pool.index(t)
+        np.testing.assert_allclose(n, arm.resid[pick].mean(0), atol=1e-12)
+        want = arm.mean + float(np.linalg.norm(r)) * na.unit(
+            na.unit(r) + 0.3 * na.unit(arm.resid[pick].mean(0)))
+        np.testing.assert_allclose(arm.fuse(t, deltas[t]), want, atol=1e-12)
+    summ = arm.summary()
+    assert summ["select"] == select and summ["targets_fused"] == len(targets)
+    assert ("cand" in summ) == (select == "hybrid")
+
+
+def test_the_rules_differ_and_hybrid_stays_inside_the_tables_candidates():
+    targets, axis, deltas, table = _world()
+    arms = {s: na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=s,
+                                      cand=12) for s in na.SELECTS}
+    differ = {s: 0 for s in na.SELECTS if s != "table"}
+    for t in targets:
+        e = na.table_vector(table, t)
+        near = set(_loop_pick(arms["table"], table, deltas, t, 12, "table"))
+        assert set(_loop_pick(arms["hybrid"], table, deltas, t, 5, "hybrid", 12)) <= near
+        ref = arms["table"].fuse(t, deltas[t])
+        for s in differ:
+            differ[s] += int(not np.allclose(arms[s].fuse(t, deltas[t]), ref))
+        assert e is not None
+    assert all(n > 0 for n in differ.values()), differ      # each rule moves some target
+
+
+def test_hybrid_over_every_other_member_is_the_response_rule():
+    """With every other pool member a candidate, the table has no say left."""
+    targets, axis, deltas, table = _world()
+    hyb = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="hybrid",
+                                 cand=len(targets) - 1)
+    resp = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3,
+                                  select="response")
+    for t in targets:
+        np.testing.assert_allclose(hyb.fuse(t, deltas[t]), resp.fuse(t, deltas[t]), atol=1e-12)
+
+
+def test_a_response_rule_reads_the_sources_residuals_and_nothing_else():
+    """The pick is a function of the pool's residuals and the target's own: moving a target's
+    delta moves ITS pick only, and the table has no say under response / euclid."""
+    targets, axis, deltas, table = _world()
+    rng = np.random.default_rng(5)
+    other = {t: rng.normal(size=8) for t in targets}          # another table entirely
+    for select in ("response", "euclid"):
+        a = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=select)
+        b = na.build_neighbour_arm(targets, deltas.get, axis, other, k=5, w=0.3, select=select)
+        for t in targets:
+            assert np.array_equal(a.fuse(t, deltas[t]), b.fuse(t, deltas[t]))
+
+
+def test_selection_refusals():
+    targets, axis, deltas, table = _world()
+    with pytest.raises(ValueError, match="select must be one of"):
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="nearest")
+    with pytest.raises(ValueError, match="k <= cand"):         # fewer candidates than k
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="hybrid",
+                               cand=4)
+    with pytest.raises(ValueError, match="k <= cand"):         # the whole pool: own would be in
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="hybrid",
+                               cand=len(targets))
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="response")
+    with pytest.raises(ValueError, match="pass r"):            # no residual, no response rule
+        arm.neighbour_mean(targets[0], na.table_vector(table, targets[0]))
+    with pytest.raises(ValueError, match="one table"):
+        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
+                                select="hybrid")
+    with pytest.raises(ValueError, match="one table"):
+        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
+                                picks={targets[0]: {"members": targets[1:3], "weights": None}})
+
+
+def test_a_declared_pick_is_averaged_exactly_as_declared():
+    targets, axis, deltas, table = _world()
+    picks = {targets[0]: {"members": targets[3:6], "weights": None},             # flat, 3 members
+             targets[1]: {"members": targets[4:8], "weights": [1.0, 0.0, 2.0, 1.0]},
+             targets[2]: {"members": targets[5:7], "weights": [0.0, 0.0]}}        # all zero
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3, picks=picks)
+    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3)
+    pos = {t: i for i, t in enumerate(arm.pool)}
+
+    def fused(t, n):
+        r = _resid_of(arm, deltas, t)
+        return arm.mean + float(np.linalg.norm(r)) * na.unit(na.unit(r) + 0.3 * na.unit(n))
+
+    n0 = arm.resid[[pos[x] for x in targets[3:6]]].mean(0)
+    np.testing.assert_allclose(arm.fuse(targets[0], deltas[targets[0]]), fused(targets[0], n0),
+                               atol=1e-12)
+    w1 = np.array([1.0, 0.0, 2.0, 1.0])
+    n1 = (w1[:, None] * arm.resid[[pos[x] for x in targets[4:8]]]).sum(0) / w1.sum()
+    np.testing.assert_allclose(arm.fuse(targets[1], deltas[targets[1]]), fused(targets[1], n1),
+                               atol=1e-12)
+    n2 = arm.resid[[pos[x] for x in targets[5:7]]].mean(0)       # zero weights: the flat mean
+    np.testing.assert_allclose(arm.fuse(targets[2], deltas[targets[2]]), fused(targets[2], n2),
+                               atol=1e-12)
+    # a target the pick does not name follows the arm's own rule, and is counted
+    assert np.array_equal(arm.fuse(targets[9], deltas[targets[9]]),
+                          ref.fuse(targets[9], deltas[targets[9]]))
+    summ = arm.summary()
+    assert summ["picks_declared"] == 3 and summ["picks_used"] == 3
+    assert summ["picks_zero_weight"] == 1 and summ["picks_missing"] == 1
+    assert summ["targets_fused"] == 4
+
+
+@pytest.mark.parametrize("entry, why", [
+    ({"members": ["T001", "NOT_IN_POOL"], "weights": None}, "not in the pool as built"),
+    ({"members": ["T000", "T001"], "weights": None}, "names the target itself"),
+    ({"members": [], "weights": None}, "names no member"),
+    ({"members": ["T001", "T002"], "weights": [1.0]}, "2 members and 1 weights"),
+    ({"members": ["T001", "T002"], "weights": [1.0, -0.5]}, "finite and >= 0"),
+    ({"members": ["T001", "T002"], "weights": [1.0, float("nan")]}, "finite and >= 0"),
+])
+def test_a_declared_pick_refuses_what_it_cannot_honour(entry, why):
+    targets, axis, deltas, table = _world()
+    with pytest.raises(ValueError, match=why):
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3,
+                               picks={"T000": entry})
+
+
+def test_the_flags_select_choices_are_the_modules_selects():
+    ap = argparse.ArgumentParser()
+    build.add_neighbour_args(ap, twin="sidechain.eval.loco")
+    action = next(a for a in ap._actions if a.dest == "neighbour_select")
+    assert tuple(action.choices) == na.SELECTS and action.default == "table"
+    assert next(a for a in ap._actions if a.dest == "neighbour_cand").default == 100
+    assert next(a for a in ap._actions if a.dest == "neighbour_picks").default is None
+
+
+def _picks_file(ch, name="picks.json"):
+    perts = GENES[:N_PERTS]
+    picks = {perts[0]: {"members": perts[4:7], "weights": None},
+             perts[1]: {"members": perts[5:9], "weights": [1.0, 2.0, 0.5, 1.0]}}
+    path = ch["data"] / name
+    path.write_text(json.dumps(picks))
+    return path
+
+
+def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
+    picks = _picks_file(challenge)
+    with pytest.raises(SystemExit):
+        build.main(_argv(challenge, "bad", ["--neighbour-select", "hybrid"]))
+    assert "--neighbour-select hybrid without --neighbour-w does nothing" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        build.main(_argv(challenge, "bad", ["--neighbour-picks", str(picks)]))
+    assert "--neighbour-picks without --neighbour-w does nothing" in capsys.readouterr().err
+    with pytest.raises(SystemExit):                       # fewer candidates than k
+        build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-select",
+                                            "hybrid", "--neighbour-cand", "2"]))
+    assert "cand must be >= k" in capsys.readouterr().err
+    with pytest.raises(SystemExit):                       # a picks file that is not there
+        build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
+                                            str(challenge["data"] / "nope.json")]))
+    assert "--neighbour-picks: no such file" in capsys.readouterr().err
+    rng = np.random.default_rng(9)
+    t2 = challenge["data"] / "table2.pt"
+    torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
+                for p in GENES[:N_PERTS]}, t2)
+    mix = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.2",
+           "--neighbour-table", str(t2), "--neighbour-w", "0.1",
+           "--neighbour-pool", str(challenge["data"] / "pool.csv"), "--neighbour-k", "3"]
+    for extra in (["--neighbour-select", "response"], ["--neighbour-picks", str(picks)]):
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, "bad", mix + extra))
+        assert "wired for one --neighbour-table" in capsys.readouterr().err
+
+
+def test_build_refuses_a_model_named_stem_with_a_moved_selection(challenge, capsys):
+    """Letter `k` says "the table's k nearest"; a moved rule has no letter yet (ADR 0005)."""
+    picks = _picks_file(challenge)
+    stem = "ser-9abefkn_delta4_test_v1"
+    for extra in (["--neighbour-select", "hybrid", "--neighbour-cand", "6"],
+                  ["--neighbour-picks", str(picks)]):
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, stem, [*_arm_flags(challenge), *extra]))
+        assert "no registered knob letter yet" in capsys.readouterr().err
+    assert build.main(_argv(challenge, stem, _arm_flags(challenge))) == 0   # the default passes
+
+
+def test_build_emits_the_selected_pick_and_records_it(challenge, monkeypatch):
+    seen = _capture_emits(monkeypatch)
+    assert build.main(_argv(challenge, "tab", _arm_flags(challenge))) == 0
+    tab = list(seen); seen.clear()
+    flags = [*_arm_flags(challenge), "--neighbour-select", "hybrid", "--neighbour-cand", "6"]
+    assert build.main(_argv(challenge, "hyb", flags)) == 0
+    hyb = list(seen); seen.clear()
+    picks = _picks_file(challenge)
+    assert build.main(_argv(challenge, "dec", [*_arm_flags(challenge), "--neighbour-picks",
+                                               str(picks)])) == 0
+    dec = list(seen)
+    rec_t = json.loads((challenge["out"] / "tab.neighbour.json").read_text())
+    rec_h = json.loads((challenge["out"] / "hyb.neighbour.json").read_text())
+    rec_d = json.loads((challenge["out"] / "dec.neighbour.json").read_text())
+    assert rec_t["select"] == "table" and "cand" not in rec_t and "picks_file" not in rec_t
+    assert rec_h["select"] == "hybrid" and rec_h["cand"] == 6 and rec_h["targets_fused"] == 4
+    assert rec_d["picks_file"].endswith("picks.json") and len(rec_d["picks_sha256"]) == 64
+    assert rec_d["picks_declared"] == 2 and rec_d["picks_used"] == 2
+    assert rec_d["picks_missing"] == 2                      # 4 panel targets, 2 declared
+    args = json.loads((challenge["out"] / "hyb.args.json").read_text())
+    assert args["neighbour_select"] == "hybrid" and args["neighbour_cand"] == 6
+
+    # the expected shifts, rebuilt from the pieces the build used
+    axis = np.array(GENES)
+    h1 = PseudobulkSums.load(challenge["data"] / "h1.npz")
+    gw = PseudobulkSums.load(challenge["data"] / "gwps.npz")
+    sources = [(gw, "control"), (h1, "non-targeting")]
+
+    def delta_of(lab):
+        return build.pooled_delta(lab, sources, axis, shrinkage=False)
+
+    table = na.load_gene_table(challenge["data"] / "table.pt")
+    pool = na.read_pool(challenge["data"] / "pool.csv")
+    arm_h = na.build_neighbour_arm(pool, delta_of, axis, table, k=3, w=0.3, select="hybrid",
+                                   cand=6)
+    arm_d = na.build_neighbour_arm(pool, delta_of, axis, table, k=3, w=0.3,
+                                   picks=json.loads(picks.read_text()))
+    moved = 0
+    for i, p in enumerate(GENES[:4]):
+        for got, arm in ((hyb, arm_h), (dec, arm_d)):
+            expect = arm.fuse(p, delta_of(p)) * 1.35
+            expect[i] = build.TARGET_SELF_LOG2FC
+            np.testing.assert_allclose(got[i], expect, atol=1e-12)
+        moved += int(not np.allclose(hyb[i], tab[i]))
+    assert moved > 0                                        # the rule changed somebody's pick
+    assert not np.allclose(dec[0], tab[0]) and not np.allclose(dec[1], tab[1])
+    np.testing.assert_allclose(dec[2], tab[2], atol=1e-12)  # undeclared: the table's own pick
+
+
+def test_loco_passes_the_selection_through(monkeypatch, tmp_path, challenge):
+    from sidechain.eval import loco
+
+    captured, logged = {}, {}
+    monkeypatch.setattr(loco, "build_transfer_prediction",
+                        lambda real, sources, out_path, **kw: captured.update(kw) or {})
+    monkeypatch.setattr(loco, "attach_controls", lambda pred, real, out, **kw: out)
+    monkeypatch.setattr(loco, "score", lambda *a, **kw: {"overall": 0.0, "members": {}})
+    monkeypatch.setattr(loco, "log_run",
+                        lambda params, results, artifacts=None: logged.update(params))
+    monkeypatch.setattr(PseudobulkSums, "load", classmethod(lambda cls, p: type("PB", (), {})()))
+    picks = _picks_file(challenge)
+    rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm"),
+                    "--source", "x.npz:ctl", *_arm_flags(challenge, w="0.15", k="2"),
+                    "--neighbour-select", "hybrid", "--neighbour-cand", "7",
+                    "--neighbour-picks", str(picks)])
+    assert rc == 0
+    assert captured["neighbour_select"] == "hybrid" and captured["neighbour_cand"] == 7
+    assert Path(captured["neighbour_picks"]).name == "picks.json"
+    assert logged["neighbour_select"] == "hybrid" and logged["neighbour_cand"] == 7
+    assert logged["neighbour_picks"].endswith("picks.json")
+    captured.clear(); logged.clear()
+    rc = loco.main(["--real", "r.h5ad", "--bundle", "b", "--out", str(tmp_path / "arm2"),
+                    "--source", "x.npz:ctl", *_arm_flags(challenge, w="0.15", k="2")])
+    assert rc == 0 and captured["neighbour_select"] == "table"
+    assert captured["neighbour_cand"] == 100 and captured["neighbour_picks"] is None
+    assert logged["neighbour_picks"] is None
+
+
+def test_loco_selection_reaches_the_arm_and_moves_the_cells(tmp_path, challenge):
+    from sidechain.eval.loco import build_transfer_prediction
+
+    rng = np.random.default_rng(13)
+    perts = GENES[:4]
+    labels = ["non-targeting"] * 20 + [p for p in perts for _ in range(5)]
+    X = sp.csr_matrix(rng.poisson(200, size=(len(labels), len(GENES))).astype(float))
+    real = tmp_path / "real.h5ad"
+    ad.AnnData(X=X, obs=pd.DataFrame({"target_gene": labels},
+                                     index=[f"c{i}" for i in range(len(labels))]),
+               var=pd.DataFrame(index=GENES)).write_h5ad(real)
+    gw = PseudobulkSums.load(challenge["data"] / "gwps.npz")
+    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.35,
+              seed=0, min_libsize=100, neighbour_table=challenge["data"] / "table.pt",
+              neighbour_pool=challenge["data"] / "pool.csv", neighbour_k=3, neighbour_w=0.3)
+    info_t = build_transfer_prediction(real, [(gw, "control")], tmp_path / "t.h5ad", **kw)
+    info_r = build_transfer_prediction(real, [(gw, "control")], tmp_path / "r.h5ad", **kw,
+                                       neighbour_select="response")
+    info_p = build_transfer_prediction(real, [(gw, "control")], tmp_path / "p.h5ad", **kw,
+                                       neighbour_picks=_picks_file(challenge))
+    assert info_t["neighbour"]["select"] == "table"
+    assert info_r["neighbour"]["select"] == "response"
+    assert info_p["neighbour"]["picks_used"] == 2 and info_p["neighbour"]["picks_missing"] == 2
+    assert len(info_p["neighbour"]["picks_sha256"]) == 64
+    x_t = ad.read_h5ad(tmp_path / "t.h5ad").X
+    assert (x_t != ad.read_h5ad(tmp_path / "r.h5ad").X).nnz > 0
+    assert (x_t != ad.read_h5ad(tmp_path / "p.h5ad").X).nnz > 0

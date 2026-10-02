@@ -37,7 +37,11 @@ three flags are on `sidechain.eval.loco`.
 pooled delta with the mean delta of its k nearest neighbours in a gene table (T103; the geometry
 gate's `cross`-mode fusion, `sidechain.models.neighbour_arm`). Off unless `--neighbour-w` > 0.
 `--neighbour-size median` lets the neighbourhood's own response size set how hard it pulls;
-`unit` (the default) is the gate's blend, bit-identical.
+`unit` (the default) is the gate's blend, bit-identical. `--neighbour-select` chooses WHICH k
+pool members are averaged: `table` (the default) is the table's k nearest, `hybrid` the table's
+`--neighbour-cand` nearest re-ranked by how alike they respond in the sources, `response` and
+`euclid` the whole pool ranked by response direction or distance; `--neighbour-picks` hands in
+a declared pick per target instead (a JSON built from the same sources as the pool).
 
 `--limit-perts N` builds a small panel (first N perturbations) and writes a matching
 pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout locally.
@@ -807,12 +811,33 @@ def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
                          "neighbours' residuals and s the median residual length over the pool, "
                          "so a neighbourhood that responds strongly and agrees pulls harder than "
                          "one that cancels. Needs --neighbour-w.")
+    # the spellings of models.neighbour_arm.SELECTS, named here for the same reason as the sizes
+    ap.add_argument("--neighbour-select", choices=("table", "hybrid", "response", "euclid"),
+                    default="table",
+                    help="which k pool members are averaged: 'table' (default) is the gate's "
+                         "pick, the k nearest in the gene table; 'hybrid' takes the table's "
+                         "--neighbour-cand nearest and keeps the k whose residual responses in "
+                         "the sources point most like the target's own (cosine); 'response' "
+                         "ranks the whole pool by that cosine; 'euclid' by the Euclidean "
+                         "distance between residuals. Every rule reads the sources only. One "
+                         "table only. Needs --neighbour-w.")
+    ap.add_argument("--neighbour-cand", type=int, default=100, metavar="N",
+                    help="--neighbour-select hybrid: how many of the table's nearest are "
+                         "re-ranked by response (default 100)")
+    ap.add_argument("--neighbour-picks", type=Path, default=None, metavar="JSON",
+                    help="a declared pick: {target: {\"members\": [pool labels], \"weights\": "
+                         "[...] or null}}, built from the same sources as the pool. A target it "
+                         "names is averaged over exactly those members (weighted when weights "
+                         "are given); a target it does not name follows --neighbour-select and "
+                         "is counted (picks_missing). One table only. Needs --neighbour-w.")
 
 
 def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     """Refuse a half-set neighbour arm before any work, in both entry points."""
     ws, tables, pool = args.neighbour_w or [], args.neighbour_table or [], args.neighbour_pool
     size = getattr(args, "neighbour_size", "unit")
+    select = getattr(args, "neighbour_select", "table")
+    picks = getattr(args, "neighbour_picks", None)
     for w in ws:
         if not math.isfinite(w) or w <= 0:
             ap.error(f"--neighbour-w must be finite and > 0, got {w}: a negative weight steers "
@@ -821,7 +846,9 @@ def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     if not ws:
         half = [f for f, on in (("--neighbour-table", bool(tables)),
                                 ("--neighbour-pool", pool is not None),
-                                ("--neighbour-size median", size == "median")) if on]
+                                ("--neighbour-size median", size == "median"),
+                                (f"--neighbour-select {select}", select != "table"),
+                                ("--neighbour-picks", picks is not None)) if on]
         if half:
             # ", " not "/": "--neighbour-table/--neighbour-size median" reads as one flag taking
             # the value median. The verb and the pronoun follow the count.
@@ -835,11 +862,19 @@ def check_neighbour_args(ap: argparse.ArgumentParser, args) -> None:
     if len(tables) != len(ws):
         ap.error(f"one --neighbour-w per --neighbour-table, in the same order: got "
                  f"{len(tables)} tables and {len(ws)} weights")
-    for flag, path in [("--neighbour-table", t) for t in tables] + [("--neighbour-pool", pool)]:
+    for flag, path in ([("--neighbour-table", t) for t in tables] + [("--neighbour-pool", pool)]
+                       + ([("--neighbour-picks", picks)] if picks is not None else [])):
         if not Path(path).expanduser().exists():
             ap.error(f"{flag}: no such file {path}")
     if args.neighbour_k < 1:
         ap.error(f"--neighbour-k must be >= 1, got {args.neighbour_k}")
+    if len(tables) > 1 and (select != "table" or picks is not None):
+        ap.error("--neighbour-select other than table and --neighbour-picks are wired for one "
+                 f"--neighbour-table, not for a mix of {len(tables)}: it is not defined which "
+                 "table's neighbours they would replace")
+    if select == "hybrid" and getattr(args, "neighbour_cand", 100) < args.neighbour_k:
+        ap.error(f"--neighbour-select hybrid keeps k of the table's --neighbour-cand nearest, so "
+                 f"cand must be >= k: got cand = {args.neighbour_cand}, k = {args.neighbour_k}")
     if args.gamma != 1.0:
         ap.error("--neighbour-w with --gamma != 1 is not wired: gamma makes the shifts "
                  "context-specific, and the pool's residuals would have to be re-pooled per "
@@ -867,9 +902,17 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
     pool_path = Path(args.neighbour_pool).expanduser()
     # getattr: eval.loco's SimpleNamespace and older callers predate the size flag
     size = getattr(args, "neighbour_size", "unit")
+    select = getattr(args, "neighbour_select", "table")
+    cand = int(getattr(args, "neighbour_cand", 100))
+    picks_path = getattr(args, "neighbour_picks", None)
+    picks = None
+    if picks_path is not None:
+        picks_path = Path(picks_path).expanduser()
+        picks = json.loads(picks_path.read_text())
     arm = build_neighbour_arms(read_pool(pool_path), delta_of, axis,
                                [load_gene_table(t) for t in table_paths],
-                               k=args.neighbour_k, ws=ws, size=size)
+                               k=args.neighbour_k, ws=ws, size=size, select=select, cand=cand,
+                               picks=picks)
     # One table records the scalar shape the first two bundles were built with; a mix, lists.
     one = len(table_paths) == 1
     record = {"table": str(table_paths[0]) if one else [str(t) for t in table_paths],
@@ -880,6 +923,8 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
               # record whose size disagrees with the arm that ran cannot be written
               "size": size,
               "pool_file": str(pool_path), "pool_sha256": sha256(pool_path)}
+    if picks_path is not None:       # a declared pick is an input like the pool: path and hash
+        record.update({"picks_file": str(picks_path), "picks_sha256": sha256(picks_path)})
     return arm, record
 
 
@@ -1073,6 +1118,13 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --shrink-k / --shrink-stage / "
                  "--shrink-rule off their defaults have no registered knob letter yet "
                  "(ADR 0005): register the letters first, or build under a freeform stem")
+    if (CLAIMS_RE.match(stem)
+            and (args.neighbour_select != "table" or args.neighbour_picks is not None)):
+        # The neighbour arm's letter `k` says "the table's k nearest" (ADR 0005); a moved
+        # selection rule would be built under letters that say the gate's pick.
+        ap.error(f"'{stem}' is named like a model, and --neighbour-select off its default / "
+                 "--neighbour-picks have no registered knob letter yet (ADR 0005): register the "
+                 "letter first, or build under a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "

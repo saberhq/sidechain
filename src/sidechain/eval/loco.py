@@ -95,6 +95,9 @@ def build_transfer_prediction(
     neighbour_k: int = 25,
     neighbour_w: float | list[float] | None = None,
     neighbour_size: str = "unit",
+    neighbour_select: str = "table",
+    neighbour_cand: int = 100,
+    neighbour_picks: Path | None = None,
     dual_fallback: str = "template",
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`."""
@@ -197,7 +200,9 @@ def build_transfer_prediction(
         arm, arm_record = neighbour_arm_for(
             SimpleNamespace(neighbour_table=neighbour_table, neighbour_pool=neighbour_pool,
                             neighbour_k=neighbour_k, neighbour_w=neighbour_w,
-                            neighbour_size=neighbour_size), delta_of, axis)
+                            neighbour_size=neighbour_size, neighbour_select=neighbour_select,
+                            neighbour_cand=neighbour_cand, neighbour_picks=neighbour_picks),
+            delta_of, axis)
     for p in perts:
         d = pooled_delta(p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
                          shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
@@ -434,6 +439,9 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_k=args.neighbour_k,
                                      neighbour_w=args.neighbour_w,
                                      neighbour_size=args.neighbour_size,
+                                     neighbour_select=args.neighbour_select,
+                                     neighbour_cand=args.neighbour_cand,
+                                     neighbour_picks=args.neighbour_picks,
                                      dual_fallback=args.dual_fallback)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
@@ -468,6 +476,8 @@ def main(argv: list[str] | None = None) -> int:
          "neighbour_pool": None if args.neighbour_pool is None else str(args.neighbour_pool),
          "neighbour_k": args.neighbour_k, "neighbour_w": args.neighbour_w,
          "neighbour_size": args.neighbour_size,
+         "neighbour_select": args.neighbour_select, "neighbour_cand": args.neighbour_cand,
+         "neighbour_picks": None if args.neighbour_picks is None else str(args.neighbour_picks),
          "seed": args.seed, "de_backend": args.de_backend},
         {"overall": res.get("overall"), "members": res.get("members")},
         artifacts=[str(out / "summary.json")],

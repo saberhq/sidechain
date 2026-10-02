@@ -42,6 +42,18 @@ Why each step is the shape it is:
   a label subset of them only its labels, so a pool read off "what the sources cover" would make
   one model differ between the box and the Mac. The caller passes the list.
 
+- **Which k (T103 round two, ``select``).** ``"table"``, the default, is the gate's pick: the k
+  pool members nearest t in the gene table. The other rules also read how the pool members
+  RESPONDED in the sources -- their residuals ``d_j - m``, against t's own residual ``r_t`` --
+  and never anything of the line being predicted: ``"hybrid"`` takes the table's ``cand``
+  nearest and keeps the k of them whose residuals point most like ``r_t`` (cosine);
+  ``"response"`` ranks the whole pool by that cosine; ``"euclid"`` by the Euclidean distance
+  between residuals, so size counts as well as direction. A rule the arm cannot compute from
+  its own residuals (one that needs each member's measurement noise) is handed in as a declared
+  pick, ``picks``: for each target the pool members to average and, optionally, their weights.
+  A declared pick is built from the same sources as the pool, by the caller, and is recorded by
+  its file's hash like the pool is. The default is the gate's pick, bit-identical.
+
 Off is the default everywhere, and off means this module is never imported into the path:
 w = 0 is not a fusion at weight zero, it is no fusion (`submit.build`, `eval.loco`).
 """
@@ -56,6 +68,9 @@ import numpy as np
 from sidechain.data.gene_aliases import RETIRED_SYMBOLS as ALIAS
 
 SIZES = ("unit", "median")       # the blend shapes: the gate's unit arm, or size-aware
+# which k members are averaged: the table's nearest (the gate's), the table's `cand` nearest
+# re-ranked by response, or the whole pool ranked by response direction / distance
+SELECTS = ("table", "hybrid", "response", "euclid")
 
 
 def unit(v: np.ndarray) -> np.ndarray:
@@ -115,9 +130,22 @@ class NeighbourArm:
     stats: dict = field(default_factory=dict)
     size: str = "unit"               # blend shape: "unit" (the gate's) or "median"
     scale: float | None = None       # s: the median |d_j - m| over the pool's residuals
+    select: str = "table"            # which k members: one of SELECTS
+    cand: int = 100                  # "hybrid": how many table neighbours are re-ranked
+    # a declared pick, {target: (pool row indices, weights or None)}; a target it names is
+    # averaged over exactly those rows, any other target follows `select`
+    picks: Mapping | None = None
 
     def __post_init__(self):
         self._pool_pos = {lab: i for i, lab in enumerate(self.pool)}
+        self._resid_unit = None      # unit rows of `resid`, built on first use by a response rule
+        self._resid_sq = None        # squared row lengths of `resid`, for "euclid"
+        if self.select not in SELECTS:
+            raise ValueError(f"select must be one of {SELECTS}, got {self.select!r}")
+        if self.select == "hybrid" and not self.k <= self.cand < len(self.pool):
+            raise ValueError(f"select='hybrid' re-ranks the table's cand nearest and keeps k of "
+                             f"them, so it needs k <= cand < the pool's size: got k = {self.k}, "
+                             f"cand = {self.cand}, pool = {len(self.pool)}")
         # `build_neighbour_arm` checks these too; here they also catch an arm built by hand (a
         # screen cross-checking its own fusion against `fuse`), which otherwise divides by None
         # deep inside `fuse` and reads as a TypeError about floats.
@@ -148,7 +176,7 @@ class NeighbourArm:
         if r_norm == 0.0:
             s["targets_zero_residual"] = s.get("targets_zero_residual", 0) + 1
             return delta
-        n, own = self.neighbour_mean(target, e)
+        n, own = self.neighbour_mean(target, e, r)
         un = unit(n)
         ur = unit(r)
         if self.size == "median":
@@ -165,27 +193,77 @@ class NeighbourArm:
         s["own_in_pool"] = s.get("own_in_pool", 0) + int(own is not None)
         return fused
 
-    def neighbour_mean(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
-        """``n_t``, the plain mean residual of the k pool members nearest ``e``, t excluded;
-        and t's pool index (None when t is not in the pool).
+    def neighbour_mean(self, target: str, e: np.ndarray,
+                       r: np.ndarray | None = None) -> tuple[np.ndarray, int | None]:
+        """``n_t``, the mean residual of the picked pool members, t excluded; and t's pool index
+        (None when t is not in the pool).
 
-        The one place the neighbours are picked: `neighbour_unit` is this, normalised.
+        The one place the neighbours are picked: `neighbour_unit` is this, normalised. ``r`` is
+        t's own residual, which every rule but ``"table"`` ranks the members against.
         """
-        sim = self.pool_unit @ unit(e)
         own = self._pool_pos.get(target)
-        if own is not None:
-            sim[own] = -np.inf               # a target is never its own neighbour
-        idx = np.argsort(-sim)[: self.k]
+        s = self.stats
+        if self.picks is not None:
+            got = self.picks.get(target)
+            if got is not None:
+                idx, wts = got
+                s["picks_used"] = s.get("picks_used", 0) + 1
+                if wts is None:
+                    return self.resid[idx].mean(0), own
+                tot = float(np.sum(wts))
+                if not tot > 0.0:            # every declared weight is 0: the flat mean, counted
+                    s["picks_zero_weight"] = s.get("picks_zero_weight", 0) + 1
+                    return self.resid[idx].mean(0), own
+                return (np.asarray(wts, dtype=float) / tot) @ self.resid[idx], own
+            # a target the declared pick does not name follows the arm's own rule, counted: a
+            # caller that meant to declare every target reads this count and refuses the run
+            s["picks_missing"] = s.get("picks_missing", 0) + 1
+        if self.select == "table":
+            sim = self.pool_unit @ unit(e)
+            if own is not None:
+                sim[own] = -np.inf           # a target is never its own neighbour
+            idx = np.argsort(-sim)[: self.k]
+            return self.resid[idx].mean(0), own
+        if r is None:
+            raise ValueError(f"select={self.select!r} ranks the pool against the target's own "
+                             "residual: pass r")
+        ur = unit(np.asarray(r, dtype=float))
+        if self.select == "hybrid":
+            sim = self.pool_unit @ unit(e)
+            if own is not None:
+                sim[own] = -np.inf
+            near = np.argsort(-sim)[: self.cand]      # own sorts last, and cand < the pool's size
+            idx = near[np.argsort(-(self._unit_resid()[near] @ ur))[: self.k]]
+        elif self.select == "response":
+            rs = self._unit_resid() @ ur
+            if own is not None:
+                rs[own] = -np.inf
+            idx = np.argsort(-rs)[: self.k]
+        else:                                         # "euclid": |d_j - m - r|^2, less the constant |r|^2
+            if self._resid_sq is None:
+                self._resid_sq = np.einsum("ij,ij->i", self.resid, self.resid)
+            d2 = self._resid_sq - 2.0 * (self.resid @ np.asarray(r, dtype=float))
+            if own is not None:
+                d2[own] = np.inf
+            idx = np.argsort(d2)[: self.k]
         return self.resid[idx].mean(0), own
 
-    def neighbour_unit(self, target: str, e: np.ndarray) -> tuple[np.ndarray, int | None]:
+    def _unit_resid(self) -> np.ndarray:
+        """Unit rows of the pool's residuals, built once: a second (n_pool, n_axis) block, which
+        only a response rule pays for."""
+        if self._resid_unit is None:
+            self._resid_unit = unit(self.resid)
+        return self._resid_unit
+
+    def neighbour_unit(self, target: str, e: np.ndarray,
+                       r: np.ndarray | None = None) -> tuple[np.ndarray, int | None]:
         """``unit(n_t)`` and t's pool index: `neighbour_mean`, normalised (one pick, one path).
 
         Diagnostic API: since the size flag, `fuse` takes the unnormalised mean and normalises it
         itself, so nothing in `src/` or `scripts/` calls this -- only tests and a probe that wants
         the gate's unit arm on its own.
         """
-        n, own = self.neighbour_mean(target, e)
+        n, own = self.neighbour_mean(target, e, r)
         return unit(n), own
 
     def summary(self) -> dict:
@@ -209,12 +287,16 @@ class NeighbourArm:
         return {"k": self.k, "w": self.w, "size": self.size,
                 "scale": None if self.scale is None else round(self.scale, 6),
                 "scale_exact": self.scale,
+                "select": self.select,
+                **({"cand": self.cand} if self.select == "hybrid" else {}),
+                **({"picks_declared": len(self.picks)} if self.picks is not None else {}),
                 "pool_used": len(self.pool), **s}
 
 
 def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarray | None],
                         axis: np.ndarray, table: Mapping, *, k: int, w: float,
-                        size: str = "unit") -> NeighbourArm:
+                        size: str = "unit", select: str = "table", cand: int = 100,
+                        picks: Mapping | None = None) -> NeighbourArm:
     """Pool the residuals once; ``delta_of(label)`` is the caller's pooled delta (None = uncovered).
 
     ``delta_of`` must be the SAME pooling the predicted targets get (sources, shrinkage,
@@ -223,11 +305,18 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
     ``size`` is the blend shape: ``"unit"`` (the gate's, the default) or ``"median"``. The
     pool's median residual length is measured and recorded either way, so a run says what the
     arm's scale was even when it did not use it.
+
+    ``select`` and ``cand`` are the selection rule (`SELECTS`). ``picks`` is a declared pick in
+    its file form, ``{target: {"members": [pool labels], "weights": [...] or None}}``: every
+    member must be in the pool as built here (a label that is not means the pick was made for
+    another pool or other sources, and is refused by name), and a target may not name itself.
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
     if size not in SIZES:
         raise ValueError(f"size must be one of {SIZES}, got {size!r}")
+    if select not in SELECTS:
+        raise ValueError(f"select must be one of {SELECTS}, got {select!r}")
     if not (np.isfinite(w) and w > 0):
         raise ValueError(f"w must be finite and > 0 (w = 0 is the knob off: do not build the "
                          f"arm), got {w}")
@@ -275,7 +364,42 @@ def build_neighbour_arm(pool: Sequence[str], delta_of: Callable[[str], np.ndarra
                          f"carries a non-finite value ({stats})")
     return NeighbourArm(k=k, w=float(w), table=table, pool=labels, mean=m,
                         resid=resid, pool_unit=unit(np.stack(vecs)),
-                        gene_pos=gene_pos, stats=stats, size=size, scale=scale)
+                        gene_pos=gene_pos, stats=stats, size=size, scale=scale,
+                        select=select, cand=int(cand),
+                        picks=None if picks is None else index_picks(picks, labels))
+
+
+def index_picks(picks: Mapping, pool: Sequence[str]) -> dict:
+    """A declared pick, from its file form (labels) to the arm's (pool row indices).
+
+    ``{target: {"members": [...], "weights": [...] | None}}`` ->
+    ``{target: (int64 indices, float weights | None)}``. Refused, by name: a member that is not
+    in the pool, a target that names itself, an empty member list, weights of another length,
+    and a negative or non-finite weight.
+    """
+    pos = {lab: i for i, lab in enumerate(pool)}
+    out = {}
+    for target, entry in picks.items():
+        members = [str(x) for x in entry["members"]]
+        if not members:
+            raise ValueError(f"declared pick for {target!r} names no member")
+        gone = [x for x in members if x not in pos]
+        if gone:
+            raise ValueError(f"declared pick for {target!r} names {len(gone)} label(s) that are "
+                             f"not in the pool as built ({gone[:5]}): it was made for another "
+                             "pool, or for sources that cover other targets")
+        if str(target) in members:
+            raise ValueError(f"declared pick for {target!r} names the target itself")
+        wts = entry.get("weights")
+        if wts is not None:
+            wts = np.asarray(wts, dtype=float)
+            if wts.shape != (len(members),):
+                raise ValueError(f"declared pick for {target!r}: {len(members)} members and "
+                                 f"{wts.size} weights")
+            if not np.isfinite(wts).all() or (wts < 0).any():
+                raise ValueError(f"declared pick for {target!r}: weights must be finite and >= 0")
+        out[str(target)] = (np.array([pos[x] for x in members], dtype=np.int64), wts)
+    return out
 
 
 @dataclass
@@ -324,7 +448,7 @@ class NeighbourMix:
             if e is None:
                 s[f"table{i}_unresolved"] = s.get(f"table{i}_unresolved", 0) + 1
                 continue
-            n, _own = a.neighbour_mean(target, e)
+            n, _own = a.neighbour_mean(target, e, r)
             un = unit(n)
             # each arm follows its own size rule; the arms share one pool, so one scale
             if a.size == "median":
@@ -363,13 +487,22 @@ class NeighbourMix:
 
 def build_neighbour_arms(pool: Sequence[str], delta_of: Callable[[str], np.ndarray | None],
                          axis: np.ndarray, tables: Sequence[Mapping], *, k: int,
-                         ws: Sequence[float], size: str = "unit") -> NeighbourArm | NeighbourMix:
+                         ws: Sequence[float], size: str = "unit", select: str = "table",
+                         cand: int = 100,
+                         picks: Mapping | None = None) -> NeighbourArm | NeighbourMix:
     """One table: exactly `build_neighbour_arm`. Several: a `NeighbourMix` whose arms share the
-    pool members every table resolves, pooled once. ``size`` is one rule for every arm."""
+    pool members every table resolves, pooled once. ``size`` is one rule for every arm.
+
+    A selection rule other than ``"table"`` and a declared pick are wired for ONE table: in a
+    mix it is not defined which table's arm they would replace, so both are refused there."""
     if len(tables) != len(ws) or not tables:
         raise ValueError(f"one w per table: got {len(tables)} tables and {len(ws)} weights")
     if len(tables) == 1:
-        return build_neighbour_arm(pool, delta_of, axis, tables[0], k=k, w=ws[0], size=size)
+        return build_neighbour_arm(pool, delta_of, axis, tables[0], k=k, w=ws[0], size=size,
+                                   select=select, cand=cand, picks=picks)
+    if select != "table" or picks is not None:
+        raise ValueError("select != 'table' and a declared pick are wired for one table, not for "
+                         f"a mix of {len(tables)}")
     labels = list(dict.fromkeys(str(x) for x in pool))
     shared = [lab for lab in labels if all(table_vector(t, lab) is not None for t in tables)]
     memo: dict = {}
