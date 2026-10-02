@@ -17,6 +17,18 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-13aefknw — submitted 2026-10-02
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
+genes blended in · n = no shrinkage · w = summed profile on the pooled control profile.**
+SER-11abefknw with one setting moved back to the series baseline: the summed profile of each
+knockdown's 400 cells carries the borrowed response at the same strength as the cells themselves
+(`b` off). Sent after SER-12aefkw so that the two together read the shrinkage setting on its own.
+
+Level with its parent — 0.1360 against SER-11abefknw's 0.1360. The summed-profile score rose a
+little and the differential-expression test reached slightly fewer of the genes that really
+changed. Locally the setting had read as a small gain on three cell lines.
+
 ## SER-12aefkw — submitted 2026-10-02
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour

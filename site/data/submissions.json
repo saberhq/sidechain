@@ -236,6 +236,19 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-10-02",
+      "partition": "val",
+      "name": "SER-13aefknw",
+      "board_name": "Sidechain SER-13aefknw",
+      "overall": 0.136,
+      "rank": 443,
+      "teams": 1292,
+      "card": "Tests whether predictions improve when each knockdown's summed profile carries the same strength as its individual cells, instead of a stronger one. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
