@@ -476,7 +476,7 @@ def test_build_refuses_the_flags_where_they_cannot_act(challenge):
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "ash", ["--shrink-rule", "adaptive"]))
     assert build.main(_argv(challenge, "ok", ["--shrink-rule", "adaptive", "--shrink-stage", "pooled"])) == 0
-    # a moved rule has no registered knob letter yet, so a stem named like a model is refused
+    # a moved rule is knob letter s, so a stem named like a model without it is refused
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "ser-99aefkw_k8pool_v1", ["--shrink-k", "8", "--shrink-stage", "pooled"]))
 
