@@ -1328,3 +1328,25 @@ def test_loco_selection_reaches_the_arm_and_moves_the_cells(tmp_path, challenge)
     x_t = ad.read_h5ad(tmp_path / "t.h5ad").X
     assert (x_t != ad.read_h5ad(tmp_path / "r.h5ad").X).nnz > 0
     assert (x_t != ad.read_h5ad(tmp_path / "p.h5ad").X).nnz > 0
+
+
+def test_the_adaptive_rule_with_the_arm_counts_targets_and_pool_apart(challenge, monkeypatch):
+    """T84, SER-14aefksw's own path end to end: the adaptive rule after pooling with the arm on.
+
+    The build's `.shrink.json` must count the targets' fits and the neighbour pool's apart, and a
+    pool member that is also a target reuses its delta, so it is fitted once and counted once."""
+    from sidechain.models import adaptive_shrink as ash
+
+    monkeypatch.setattr(ash, "MIN_GENES", 5)                      # the fixture has 16 genes
+    stem = "ser-99aefksw_ashpool_v1"
+    argv = [a for a in _argv(challenge, stem, [*_arm_flags(challenge), "--shrink-stage", "pooled",
+                                               "--shrink-rule", "adaptive"]) if a != "--no-shrink"]
+    assert build.main(argv) == 0
+    rec = json.loads((challenge["out"] / f"{stem}.shrink.json").read_text())
+    assert (rec["shrink_rule"], rec["shrink_stage"]) == ("adaptive", "pooled")
+    assert rec["fits_targets"]["adaptive_fits"] == 4               # the four predicted targets
+    assert rec["fits_neighbour_pool"]["adaptive_fits"] == N_PERTS - 4   # the pool minus those four
+    assert not rec["fits_targets"].get("adaptive_too_few_genes")
+    assert not rec["fits_neighbour_pool"].get("adaptive_too_few_genes")
+    nb = json.loads((challenge["out"] / f"{stem}.neighbour.json").read_text())
+    assert nb["targets_fused"] == 4 and nb["pool_used"] == N_PERTS

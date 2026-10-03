@@ -558,3 +558,60 @@ def test_the_adaptive_stop_waits_for_several_quiet_cycles(monkeypatch):
     n_three = ash.fit_weights(lik)[1]
     monkeypatch.setattr(ash, "CALM_CYCLES", 1)
     assert ash.fit_weights(lik)[1] < n_three
+
+
+# --------------------------------------------- the letter s and the build's shrinkage record --
+
+
+def test_a_model_named_build_with_a_moved_rule_needs_the_letter_s(challenge, capsys):
+    """ADR 0005 (2026-10-03): `s` is the fold-change shrinkage rule moved off the baseline garrote,
+    with the rule named in the slug; `n` is the same object switched off; no letter is the baseline."""
+    flags = ["--shrink-k", "8", "--shrink-stage", "pooled"]
+    assert build.main(_argv(challenge, "ser-99aefksw_k8pool_v1", flags)) == 0
+    rec = json.loads((challenge["out"] / "ser-99aefksw_k8pool_v1.shrink.json").read_text())
+    assert rec == {"shrink_k": 8.0, "shrink_stage": "pooled", "shrink_rule": "garrote"}
+    capsys.readouterr()
+    for stem, extra, why in (
+            ("ser-99aefkw_k8pool_v1", flags, "must carry the letter s"),          # moved rule, no s
+            ("ser-99aefksw_shrink_v1", [], "carries the letter s"),               # s, but the baseline rule
+            ("ser-99aefknsw_k8pool_v1", flags, "both n"),                         # n and s together
+            # the depth-aware arm at a harder threshold: a real model with no name yet
+            ("ser-99dn_k8_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name"),
+            ("ser-99ds_k8_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name")):
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, stem, extra))
+        assert why in capsys.readouterr().err, stem
+    # the baseline rule writes no shrinkage record: its records keep their shipped shape
+    assert build.main(_argv(challenge, "ser-99aefkw_shrink_v1", [])) == 0
+    assert not (challenge["out"] / "ser-99aefkw_shrink_v1.shrink.json").exists()
+
+
+def test_the_adaptive_build_records_its_fit(challenge):
+    assert build.main(_argv(challenge, "ser-99aefksw_ashpool_v1",
+                            ["--shrink-stage", "pooled", "--shrink-rule", "adaptive"])) == 0
+    rec = json.loads((challenge["out"] / "ser-99aefksw_ashpool_v1.shrink.json").read_text())
+    assert (rec["shrink_rule"], rec["shrink_stage"]) == ("adaptive", "pooled")
+    assert rec["adaptive_fit"] == {"max_cycles": ash.MAX_CYCLES, "tol_per_gene": ash.TOL_PER_GENE,
+                                   "calm_cycles": ash.CALM_CYCLES, "min_genes": ash.MIN_GENES,
+                                   "max_components": ash.MAX_COMPONENTS}
+    # three genes is too thin for a prior: the one target is counted as unshrunk, not silently passed
+    assert rec["fits_targets"] == {"adaptive_too_few_genes": 1}
+    assert rec["fits_neighbour_pool"] is None                        # this fixture has no neighbour arm
+    assert set(rec["numerics"]) == {"numpy", "blas", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"}
+
+
+def test_the_neighbour_pool_fits_are_counted_apart(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_arm(args, delta_of, axis):
+        delta_of("g0")
+        return (SimpleNamespace(fuse=lambda p, d: d, summary=lambda: {}),
+                {"k": 1, "w": 1, "pool_used": 1, "pool_requested": 1, "targets_fused": 0})
+    monkeypatch.setattr(build, "neighbour_arm_for", fake_arm)
+    genes = np.array([f"g{i}" for i in range(300)])
+    _, x, s = _mixture(300, seed=9)
+    a = _lfc(x, s * s, genes=genes, label="g0")
+    args = SimpleNamespace(no_shrink=False, shrink_k=1.0, shrink_stage="pooled", shrink_rule="adaptive",
+                           log_bias_correct=False, var_floor="none")
+    build.fuse_neighbours(args, {}, [], [a], genes, None, tmp_path / "rec.json", fit_stats=seen)
+    assert seen.get("adaptive_fits") == 1

@@ -66,6 +66,7 @@ from sidechain.data.loaders import (
     challenge_data_dir,
 )
 from sidechain.data.stream_pseudobulk import PseudobulkSums
+from sidechain.models import adaptive_shrink as adaptive_shrink_module
 from sidechain.models.adaptive_shrink import adaptive_shrink
 from sidechain.models.count_emitters import (
     CONTROL_MIN_LIBSIZE,
@@ -75,7 +76,7 @@ from sidechain.models.count_emitters import (
     remap_to_axis,
 )
 from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify_h5ad
-from sidechain.utils.naming import CLAIMS_RE, check_out_leaf
+from sidechain.utils.naming import CLAIMS_RE, STEM_RE, check_out_leaf
 from sidechain.utils.paths import resolve_config
 
 LN2 = np.log(2)
@@ -777,6 +778,44 @@ def shrink_kwargs(args) -> dict:
             "shrink_stage": args.shrink_stage, "shrink_rule": args.shrink_rule}
 
 
+def write_shrink_record(path: Path, args, target_stats: dict, pool_fit_stats: dict | None) -> dict:
+    """The sidecar a build under a moved shrinkage rule leaves beside the .vcc (`<stem>.shrink.json`).
+
+    Which rule ran, and -- for the adaptive rule -- the fit's stopping constants and how its fits
+    ended, for the targets and for the neighbour pool apart: the constants are part of the model,
+    and the at-cap counts say how much of the build rests on fits stopped at the cap (a lower bound
+    on unfinished ones). The thread settings and the BLAS numpy links against are recorded too,
+    because the adaptive fit is reproducible to about 1e-4 across machines, not bit for bit.
+    """
+    import os
+
+    rec = {"shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage, "shrink_rule": args.shrink_rule}
+    if args.shrink_rule == "adaptive":
+        pick = lambda st: {k: v for k, v in (st or {}).items() if k.startswith("adaptive_")}
+        try:
+            blas = np.show_config(mode="dicts").get("Build Dependencies", {}).get("blas", {}).get("name")
+        except Exception:          # older numpy: no dict form
+            blas = None
+        rec["adaptive_fit"] = {"max_cycles": adaptive_shrink_module.MAX_CYCLES,
+                               "tol_per_gene": adaptive_shrink_module.TOL_PER_GENE,
+                               "calm_cycles": adaptive_shrink_module.CALM_CYCLES,
+                               "min_genes": adaptive_shrink_module.MIN_GENES,
+                               "max_components": adaptive_shrink_module.MAX_COMPONENTS}
+        rec["fits_targets"] = pick(target_stats)
+        rec["fits_neighbour_pool"] = pick(pool_fit_stats) if pool_fit_stats is not None else None
+        rec["numerics"] = {"numpy": np.__version__, "blas": blas,
+                           **{k: os.environ.get(k) for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+                                                              "MKL_NUM_THREADS")}}
+    path.write_text(json.dumps(rec, indent=1) + "\n")
+    if args.shrink_rule == "adaptive":
+        t, q = rec["fits_targets"], rec["fits_neighbour_pool"] or {}
+        print(f"adaptive shrinkage: targets {t.get('adaptive_fits', 0)} fits ({t.get('adaptive_fits_at_cap', 0)} at "
+              f"the cap, {t.get('adaptive_too_few_genes', 0)} too thin to fit); neighbour pool "
+              f"{q.get('adaptive_fits', 0)} fits ({q.get('adaptive_fits_at_cap', 0)} at the cap, "
+              f"{q.get('adaptive_too_few_genes', 0)} too thin)", flush=True)
+    return rec
+
+
 def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
     """The five neighbour-arm flags (T103), shared by `submit.build` and `eval.loco`."""
     ap.add_argument("--neighbour-table", type=Path, action="append", default=None, metavar="PT",
@@ -966,7 +1005,7 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
 
 
 def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis: np.ndarray,
-                    cov_tiers, record_path: Path) -> dict:
+                    cov_tiers, record_path: Path, fit_stats: dict | None = None) -> dict:
     """Replace each covered target's pooled delta with its neighbour-fused one, in place.
 
     The pool is pooled exactly as the targets were (same sources, shrinkage, floor, tiers);
@@ -984,7 +1023,7 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
             return shifts[label]
         return pooled_delta(label, sources, axis, **shrink_kwargs(args),
                             log_bias_correct=args.log_bias_correct, var_floor=args.var_floor,
-                            coverage_tiers=cov_tiers)
+                            coverage_tiers=cov_tiers, stats=fit_stats)
 
     arm, record = neighbour_arm_for(args, delta_of, axis)
     for p in covered:
@@ -1148,13 +1187,30 @@ def main(argv: list[str] | None = None) -> int:
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
-    if (CLAIMS_RE.match(stem)
-            and (args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")):
-        # Shrinkage on is the unlettered baseline (ADR 0005), so a harder, pooled or adaptive
-        # rule would be built under letters that say the historical rule. Freeform stems pass.
-        ap.error(f"'{stem}' is named like a model, and --shrink-k / --shrink-stage / "
-                 "--shrink-rule off their defaults have no registered knob letter yet "
-                 "(ADR 0005): register the letters first, or build under a freeform stem")
+    rule_moved = (args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")
+    named = STEM_RE.match(stem) if CLAIMS_RE.match(stem) else None
+    if named:
+        # The fold-change shrinkage rule's letter is `s` (ADR 0005, registered 2026-10-03): shrinkage
+        # on at the baseline garrote is unlettered, `n` is the same object switched off, and `s` is
+        # any other rule, named in the slug. Only `s` is checked against the flags here; `n` against
+        # --no-shrink stays the name checker's business, as it was.
+        letters = named.group(3)
+        if rule_moved and args.no_shrink:
+            # reachable only as --no-shrink --shrink-source X --shrink-k K: the depth-aware arm (d)
+            # at a harder threshold. It would need n and s together, which is no name.
+            ap.error(f"'{stem}': the depth-aware arm at a moved --shrink-k has no registered name "
+                     "yet (ADR 0005) -- build it under a freeform stem")
+        if rule_moved and "s" not in letters:
+            ap.error(f"'{stem}': --shrink-k / --shrink-stage / --shrink-rule are off the baseline "
+                     "garrote, so the name must carry the letter s (ADR 0005) -- or build under a "
+                     "freeform stem")
+        if "s" in letters and not rule_moved:
+            ap.error(f"'{stem}' carries the letter s, which says the shrinkage rule moved off the "
+                     "baseline garrote, but --shrink-k / --shrink-stage / --shrink-rule are at their "
+                     "defaults")
+        if "s" in letters and "n" in letters:
+            ap.error(f"'{stem}' carries both n (shrinkage off) and s (another shrinkage rule): one "
+                     "object, two states -- pick one")
     if (CLAIMS_RE.match(stem)
             and (args.neighbour_select != "table" or args.neighbour_picks is not None)):
         # The neighbour arm's letter `k` says "the table's k nearest" (ADR 0005); a moved
@@ -1199,6 +1255,9 @@ def main(argv: list[str] | None = None) -> int:
     shifts: dict[str, np.ndarray | None] = {p: None for p in perts}
     fallback = 0
     pool_stats: dict = {}
+    # the neighbour pool's fits under a moved shrinkage rule, counted apart from the targets'
+    # (None keeps every default call exactly what it was)
+    pool_fit_stats: dict | None = {} if rule_moved and not args.no_shrink and args.neighbour_w else None
     if args.emitter in ("h1-mean-shift", "delta-transfer"):
         if not args.h1_cache:
             raise SystemExit("--h1-cache is required for this emitter")
@@ -1244,7 +1303,7 @@ def main(argv: list[str] | None = None) -> int:
                     covered.append(p)
             if args.neighbour_w:
                 fuse_neighbours(args, shifts, covered, sources, axis, cov_tiers,
-                                out.with_suffix(".neighbour.json"))
+                                out.with_suffix(".neighbour.json"), fit_stats=pool_fit_stats)
     gene_pos = {g: i for i, g in enumerate(genes)}
 
     def finalize(shift_map):
@@ -1313,6 +1372,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         bulk_shifts = finalize(shifts)
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
+    if rule_moved and not args.no_shrink:
+        # Written as soon as the shifts exist, before the write loop: every fit is done by now (the
+        # adaptive rule is refused with gamma != 1, the one path that pools inside the loop).
+        write_shrink_record(out.with_suffix(".shrink.json"), args, pool_stats, pool_fit_stats)
 
     # -- write
     h5ad = out.with_suffix(".h5ad")
