@@ -117,7 +117,9 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);
   `check_modelname.py --propose` gates every submit.
 - **The GPU box is shared like this checkout:** `brev ls` first, message the owning session, box
-  lifetime is Saber's call, pull → register → verify → delete (`/sidechain-brev`).
+  lifetime is Saber's call, pull → register → verify → delete (`/sidechain-brev`). A stop you set
+  never ends running work, and a renewed `brev login` cancels it; CPU-only tails leave the GPU box
+  (trap 17).
 
 ## Replying to Saber
 
