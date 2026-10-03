@@ -12,6 +12,7 @@ never pay for, or depend on, the import.
 from __future__ import annotations
 
 import subprocess
+import sys
 import warnings
 from pathlib import Path
 
@@ -20,6 +21,11 @@ from .lamin import DEFAULT_INSTANCE, artifact_key, export_registries, instance
 __all__ = ["DEFAULT_INSTANCE", "code_sha", "log_run"]
 
 _WARNED = False
+
+# lamindb's `Run.cli_args` is a 1024-character column, filled by `ln.track()` with
+# " ".join(sys.argv[1:]). An `eval.loco` arm on a box (full source paths, neighbour flags)
+# runs past it, and the save fails -- every round-two T103 arm went unlogged that way.
+CLI_ARGS_MAX = 1024
 
 # Where run logs land. `ln.connect()` is PROCESS-LOCAL (verified 2026-08-27: a
 # fresh process still sees none/none), so connecting here never changes machine
@@ -84,7 +90,18 @@ def log_run(config: dict, metrics: dict, artifacts: list[str] | None = None) -> 
             # Unauthenticated machines (a fresh Brev box) fail here and land in
             # the except below -- the run still completes, one warning.
             ln.connect(inst)
-        ln.track(params={"config": config, "metrics": metrics, "code_sha": code_sha()})
+        params = {"config": config, "metrics": metrics, "code_sha": code_sha()}
+        argv = sys.argv
+        cli = " ".join(argv[1:])
+        if len(cli) > CLI_ARGS_MAX:
+            # the whole call goes into params, the column gets a marked head of it
+            params["argv"] = list(argv)
+            mark = " ...[truncated; the whole call is params['argv']]"
+            sys.argv = [argv[0], cli[: CLI_ARGS_MAX - len(mark)] + mark]
+        try:
+            ln.track(params=params)
+        finally:
+            sys.argv = argv
         for path in artifacts or []:
             p = Path(path).expanduser()
             if p.is_dir():

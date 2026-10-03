@@ -61,6 +61,32 @@ def test_log_run_records_config_metrics_git_sha_and_artifacts(fake_lamindb, tmp_
     assert fake_lamindb["finish"] == 1
 
 
+def test_a_call_longer_than_lamindbs_cli_column_is_logged_whole_in_params(fake_lamindb, monkeypatch):
+    """lamindb stores " ".join(sys.argv[1:]) in a 1024-character column and the run's save
+    fails past it: a box arm's call is that long. The column gets a marked head, params
+    the whole call, and sys.argv is put back."""
+    seen = []
+    fake_lamindb_track = sys.modules["lamindb"].track
+
+    def _track(params=None):
+        seen.append(" ".join(sys.argv[1:]))
+        fake_lamindb_track(params=params)
+
+    monkeypatch.setattr(sys.modules["lamindb"], "track", _track)
+    long_call = ["loco.py"] + ["--source", "/home/x/" + "a" * 300] * 4
+    monkeypatch.setattr(sys, "argv", list(long_call))
+    slog.log_run({}, {})
+    (params,) = fake_lamindb["track"]
+    assert params["argv"] == long_call
+    assert len(seen[0]) <= slog.CLI_ARGS_MAX and seen[0].endswith("params['argv']]")
+    assert sys.argv == long_call
+
+    # a call that fits is left alone and adds no key
+    monkeypatch.setattr(sys, "argv", ["loco.py", "--seed", "0"])
+    slog.log_run({}, {})
+    assert "argv" not in fake_lamindb["track"][1] and seen[1] == "--seed 0"
+
+
 def test_log_run_connects_to_the_hosted_instance_by_default(fake_lamindb, monkeypatch):
     """`ln.connect()` is process-local, so log_run must make the connection
     itself -- there is no machine default to inherit."""
