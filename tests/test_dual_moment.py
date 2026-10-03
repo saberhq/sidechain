@@ -377,15 +377,27 @@ def test_loco_passes_the_fallback_rung_and_names_the_targets_that_fell_back(monk
                       var=pd.DataFrame(index=genes.astype(str)))
     real_path = tmp_path / "real.h5ad"
     real.write_h5ad(real_path)
-    seen = []
-    orig = loco.PoissonEmitter.emit_dual
+    import sidechain.models.count_emitters as ce
+    seen, fits = [], []
+    orig, orig_fit = loco.PoissonEmitter.emit_dual, ce.dual_moment_counts
 
-    def spy(self, *a, **k):           # force the requested pair to fail, so the rung is exercised
+    def spy(self, *a, **k):
         seen.append(k["on_fail"])
-        return orig(self, *a, max_projection=0.0 if len(seen) == 1 else 0.03, **k)
+        fits.clear()
+        return orig(self, *a, **k)
+
+    def refuse_the_pair(*a, **k):     # the requested pair fails by fiat, so the rung is exercised
+        # (max_projection=0.0 used to do this: it needed the projection error to sit above zero by
+        # rounding noise, and on some CI runners it is exactly zero)
+        fits.append(1)
+        if len(fits) == 1:
+            raise ValueError("requested bulk profile lies 1.0000 (L1) outside the depth envelope, "
+                             "above max_projection=0.03")
+        return orig_fit(*a, **k)
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
               emit_lambda=0.5, alpha=1.35, alpha_bulk=1.6, bulk_anchor="pooled", min_libsize=0.0)
     monkeypatch.setattr(loco.PoissonEmitter, "emit_dual", spy)
+    monkeypatch.setattr(ce, "dual_moment_counts", refuse_the_pair)
     old = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "old.h5ad", **kw)
     assert seen == ["fallback"] and old["dual_fallback"] == "template" and old["dual_fallbacks"] == 1
     assert old["dual_fallback_targets"] == {"anchor": [], "template": [["g0", "envelope"]]}
