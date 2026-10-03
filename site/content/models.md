@@ -17,6 +17,22 @@ scoring itself behaves, or how much of a gain on our own held-out tests carries 
 challenge's cell contexts. Marked as one before it goes in, never after.
 There have been two so far: PHE-2 and SER-8abefkn.
 
+## SER-14aefksw — submitted 2026-10-03
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
+genes blended in · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
+SER-12aefkw with the shrinkage rule changed. There, each borrowed gene change was shrunk by its own
+measurement noise in every source cell line, and a change no larger than its noise was dropped.
+Here the changes are first combined across the source cell lines, and each one is then shrunk by
+how believable it is against all of that knockdown's genes together, so a weak change ends small
+rather than zero.
+
+The best entry so far — 0.1626 against its parent SER-12aefkw's 0.1438. The predicted profiles sit
+closer to the control cells, and the expression-accuracy score left zero for the first time; that
+score is more than the whole gain. The summed-profile score rose a little, fold-change accuracy
+fell, and the differential-expression test reached slightly fewer of the genes that really changed.
+Locally the rule had read as a trade between those same scores.
+
 ## SER-13aefknw — submitted 2026-10-02
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour

@@ -249,6 +249,19 @@
       "card_retro": false,
       "class": "",
       "class_retro": false
+    },
+    {
+      "date": "2026-10-03",
+      "partition": "val",
+      "name": "SER-14aefksw",
+      "board_name": "Sidechain SER-14aefksw",
+      "overall": 0.1626,
+      "rank": 283,
+      "teams": 1307,
+      "card": "Tests whether adaptive shrinkage improves predictions: each borrowed gene change is shrunk by how believable it is against all of that knockdown's genes together, instead of dropping changes below a fixed noise threshold. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "",
+      "class_retro": false
     }
   ]
 }
