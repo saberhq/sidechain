@@ -113,7 +113,7 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   that use it would rewrite shipped submission records. D/E/F are unreleased until Oct 22, so a
   letter written today can only mean A, B or C (Saber, 2026-09-16).
 - **Standings numbers are generated** (`scripts/standings.py`): never hand-edit the README table,
-  `site/data/submissions.json` or `RESULTS.md` ranks.
+  `site/data/submissions.json`, `site/assets/data/field.json` or `RESULTS.md` ranks.
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);
   `check_modelname.py --propose` gates every submit.
 - **The GPU box is shared like this checkout:** `brev ls` first, message the owning session, box

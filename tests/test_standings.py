@@ -318,3 +318,55 @@ def test_a_record_without_a_partition_is_a_validation_entry(tmp_path):
     snap(snaps, "20260821T0900Z", {"OLD": 2}, 42, final={"Z": 1}, final_total=5)
     (row,) = standings.load_rows(subs, snaps)
     assert (row["rank"], row["teams"], row["partition"]) == (2, 42, "val")
+
+
+# -- the field file (T107): the leaderboard over time, from board_teams.py's ticks.json --------
+
+
+def tick(stamp, field, source="api", origin="ours", at_rank=None, our=None):
+    return {"stamp": stamp, "field": field, "source": source, "origin": origin,
+            "at_rank": at_rank or {}, "our": our}
+
+
+def test_the_field_file_is_the_series_headed_by_the_latest_whole_field_snapshot(tmp_path):
+    ticks = tmp_path / "ticks.json"
+    ours = {"rank": 294, "score_avg": 0.16264962, "model_name": "Sidechain SER-14aefksw"}
+    ticks.write_text(json.dumps([
+        tick("20260915T2116Z", 970, at_rank={"20": 0.21444, "100": 0.15759}, our={**ours, "rank": 280}),
+        tick("20260820T2218Z", 6, source="page"),                       # out of order on disk
+        tick("20260824T1806Z", 216, source="page", at_rank={"20": 0.0871}),
+        tick("20260826T1456Z", 290, origin="wayback", at_rank={"20": 0.11921, "100": 0.05136}),
+        tick("20261005T0030Z", 1314, at_rank={"20": 0.267277, "100": 0.225874}, our=ours),
+        tick("20261005T0200Z", 1316, source="page", at_rank={"20": 0.27}),   # a page tick after it
+    ]))
+    f = standings.load_field(ticks)
+    # the head is the last snapshot of the whole field that is ours -- never a page tick, which
+    # cannot give rank 100, and never the archive's capture
+    assert (f["as_of"], f["teams"], f["rank_20"], f["rank_100"]) == ("2026-10-05T00:30:00Z", 1314, 0.2673, 0.2259)
+    assert f["ours"] == {"rank": 294, "overall": 0.1626, "name": "SER-14aefksw"}
+    assert [p["t"] for p in f["series"]] == sorted(p["t"] for p in f["series"]) and len(f["series"]) == 6
+    by_t = {p["t"]: p for p in f["series"]}
+    assert by_t["2026-08-20T22:18:00Z"] == {"t": "2026-08-20T22:18:00Z", "teams": 6, "rank_20": None,
+                                            "rank_100": None, "source": "page"}
+    assert by_t["2026-08-24T18:06:00Z"]["rank_20"] == 0.0871 and by_t["2026-08-24T18:06:00Z"]["rank_100"] is None
+    assert by_t["2026-08-26T14:56:00Z"]["source"] == "wayback" and by_t["2026-08-26T14:56:00Z"]["rank_100"] == 0.0514
+    # no team's row passes through: a point is five finished numbers and nothing else
+    assert all(set(p) == {"t", "teams", "rank_20", "rank_100", "source"} for p in f["series"])
+
+
+def test_the_field_file_cut_at_its_own_as_of_ignores_newer_snapshots(tmp_path):
+    ticks = tmp_path / "ticks.json"
+    ours = {"rank": 300, "score_avg": 0.15, "model_name": "Sidechain SER-9"}
+    old = [tick("20260915T2116Z", 970, at_rank={"20": 0.2, "100": 0.1}, our=ours)]
+    ticks.write_text(json.dumps(old))
+    had = standings.load_field(ticks)
+    ticks.write_text(json.dumps(old + [tick("20260916T1630Z", 990, at_rank={"20": 0.21, "100": 0.11}, our=ours)]))
+    assert standings.load_field(ticks, as_of=had["as_of"]) == had      # --check: no drift
+    assert standings.load_field(ticks)["teams"] == 990                 # a rewrite: current
+
+
+def test_no_series_on_this_machine_is_none_not_a_raise(tmp_path):
+    assert standings.load_field(tmp_path / "absent.json") is None
+    only_page = tmp_path / "ticks.json"
+    only_page.write_text(json.dumps([tick("20260820T2218Z", 6, source="page")]))
+    assert standings.load_field(only_page) is None       # nothing to head the file with yet
