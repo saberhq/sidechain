@@ -89,8 +89,8 @@
       "overall": 0.0992,
       "rank": 101,
       "teams": 476,
-      "card": "",
-      "card_retro": false,
+      "card": "SER-3afgn = cross-line delta transfer, model 3 (a = amplified transfer, f = floored source weights, g = abundance-ratio transfer exponent, n = no shrinkage). SER-3afn with one setting changed: instead of carrying each gene's fold change over unchanged, the borrowed effect is bent toward the new line's own resting abundance of that gene. All models: saberhq.com/sidechain/models/",
+      "card_retro": true,
       "class": "",
       "class_retro": false
     },

@@ -1,0 +1,32 @@
+{{- /* One submission's row in the bars (_partials/entries.html): label, bar, score — and,
+       folded under it, everything else about the entry: date, the rank it held when scored,
+       its name on the board and its model card. The row is the <summary>, so the name opens
+       it with no script at all.
+       Context: dict "e" (an entry of data/submissions.json) "ceil" (the axis ceiling), plus
+       "best" (the highlighted row) or "aside" (a calibration run's stepped-back row). */ -}}
+{{ $e := .e }}
+{{ $off := or (lt $e.overall 0.0) (gt $e.overall .ceil) }}
+{{ $w := mul (div $e.overall .ceil) 100 }}
+{{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
+<details class="sc-entry" id="m-{{ $e.name | urlize }}">
+  <summary>
+    <span class="sc-bar-row{{ if .best }} sc-bar-row--best{{ end }}{{ if .aside }} sc-bar-row--aside{{ end }}">
+      <span class="sc-bar-label"><span class="sc-entry-name">{{ $e.name }}</span></span>
+      <span class="sc-bar-track">
+        {{- if $off -}}
+        <span class="sc-bar-offscale">{{ if lt $e.overall 0.0 }}below zero · off this scale{{ else }}above this scale{{ end }}</span>
+        {{- else -}}
+        <span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span>
+        {{- end -}}
+      </span>
+      <span class="sc-bar-value">{{ printf "%.4f" $e.overall }}</span>
+    </span>
+  </summary>
+  <div class="sc-entry-body">
+    {{- /* No board snapshot was taken while the entry was still inside the page's ~50-row
+           embed, so the field size is unknown. Print the rank alone rather than a dangling
+           "of" — scripts/standings.py's rank_label does the same for the README. */}}
+    <div class="sc-entry-meta">{{ $e.date }}{{ if $e.rank }} · #{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }} when scored{{ end }} · on the board as <code>{{ $e.board_name }}</code></div>
+    {{ with $e.card }}<p>{{ . }}{{ if $e.card_retro }} <em>(card written after the entry was scored)</em>{{ end }}</p>{{ end }}
+  </div>
+</details>

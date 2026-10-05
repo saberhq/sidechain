@@ -34,10 +34,11 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "assets"
 SITE_STATIC = Path(__file__).resolve().parent.parent / "site" / "static"
 CACHE = Path(tempfile.gettempdir()) / "sidechain-fonts"
 
-# saberhq.com tokens (assets/tokens/colors.css there): ink, ink-3, accent.
+# saberhq.com tokens (assets/tokens/colors.css there): ink, ink-3, and carmine -- --accent-2,
+# the colour that marks Sidechain, which is this site's accent (site/assets/site.css).
 PALETTES = {
-    "light": {"ink": "#191613", "muted": "#6F6A62", "accent": "#D55E00"},
-    "dark": {"ink": "#ECE7DF", "muted": "#999183", "accent": "#F08A3E"},
+    "light": {"ink": "#191613", "muted": "#6F6A62", "accent": "#A62B4D"},
+    "dark": {"ink": "#ECE7DF", "muted": "#999183", "accent": "#DE5A78"},
 }
 PAPER, INK_2 = "#FAF9F7", "#45403A"  # --paper, --ink-2 (light); the social card is light-only
 
@@ -147,8 +148,9 @@ def _bbox(cells):
     return min(xs), min(ys), max(xs) + 1, max(ys) + 1
 
 
-def favicon_svg(font: TTFont, fill: str) -> str:
-    """``S.`` as grid squares in a square viewBox, one colour so it reads on any tab bar."""
+def favicon_svg(font: TTFont, fill: str, fill_dark: str) -> str:
+    """``S.`` as grid squares in a square viewBox, in the accent: the light value, and the
+    lifted one where the browser's own chrome is dark, so it reads on either tab bar."""
     cells, _ = cells_for(font, WORD[0] + MARK)
     x0, y0, x1, y1 = _bbox(cells)
     w, h = x1 - x0, y1 - y0
@@ -160,7 +162,8 @@ def favicon_svg(font: TTFont, fill: str) -> str:
     )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {side} {side}" shape-rendering="crispEdges">'
-        f'<g fill="{fill}">{rects}</g></svg>\n'
+        f'<style>g{{fill:{fill}}}@media (prefers-color-scheme:dark){{g{{fill:{fill_dark}}}}}</style>'
+        f'<g>{rects}</g></svg>\n'
     )
 
 
@@ -236,7 +239,7 @@ def build_site_assets() -> list[tuple[Path, int]]:
     SITE_STATIC.mkdir(parents=True, exist_ok=True)
     out = []
     p = SITE_STATIC / "favicon.svg"
-    p.write_text(favicon_svg(pixel, accent))
+    p.write_text(favicon_svg(pixel, accent, PALETTES["dark"]["accent"]))
     out.append((p, p.stat().st_size))
     for name, size, bg in (("favicon.png", 32, None), ("apple-touch-icon.png", 180, PAPER)):
         p = SITE_STATIC / name

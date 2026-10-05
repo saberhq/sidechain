@@ -7,8 +7,10 @@
   <span class="sc-section-num">{{ .num }}</span>
   <h2 class="sq-section-label">{{ .label }}</h2>
   <span class="sq-section-fill"></span>
-  {{ range $i, $a := $asides }}
+  {{- /* the asides travel together: on a small phone they take the line under the label */}}
+  {{ with $asides }}<span class="sc-section-asides">
+  {{- range $i, $a := . }}
   {{- if $i }}<span class="sq-section-aside-sep">·</span>{{ end -}}
   <a class="sq-section-aside" href="{{ $a.href }}"{{ if $a.external }} target="_blank" rel="noopener"{{ end }}>{{ $a.label }}</a>
-  {{- end }}
+  {{- end }}</span>{{ end }}
 </div>

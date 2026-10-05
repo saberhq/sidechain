@@ -17,7 +17,10 @@
       {{ with $.Params.caption }}<figcaption class="sc-banner-caption">{{ . }}</figcaption>{{ end }}
     </figure>
     {{ end }}
-    <div class="sq-kicker"><span class="sq-kicker-accent2">Post</span> · {{ .Date.Format "2006-01-02" }} · {{ .ReadingTime }} min</div>
+    {{- /* A post may be edited after it is published: `lastmod` in its front matter prints
+           the date here, linked to the file's history, which is the record of what changed. */}}
+    <div class="sq-kicker"><span class="sq-kicker-accent2">Post</span> · {{ .Date.Format "2006-01-02" }}
+      {{- if and .File (ne (.Lastmod.Format "2006-01-02") (.Date.Format "2006-01-02")) }} · <a class="sc-updated" href="{{ .Site.Params.repo }}/commits/main/site/content/{{ .File.Path }}" target="_blank" rel="noopener">updated {{ .Lastmod.Format "2006-01-02" }}</a>{{ end }} · {{ .ReadingTime }} min</div>
     <h1 class="sq-article-title">{{ .Title }}</h1>
     {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
     <div class="sq-byline">

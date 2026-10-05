@@ -1,5 +1,7 @@
 /* Saber HQ color tokens.
-   One accent: Okabe–Ito vermillion. Warm paper neutrals. Everything else is ink. */
+   Vermillion is the accent — the site's own voice. Carmine (--accent-2) is the companion,
+   spent only where Sidechain appears; blue hour (--accent-3) only where Saber Vibes does.
+   Warm paper neutrals. Everything else is ink. */
 :root {
   /* neutrals — warm paper (light) */
   --paper: #FAF9F7;
@@ -17,6 +19,26 @@
   --accent: #D55E00;
   --accent-strong: #B34F00; /* pressed / hover-on-accent */
   --accent-wash: #F7E9DE;   /* code + selection backgrounds only, never large fills */
+
+  /* companion accent — deep carmine. Marks Sidechain, and nothing else: the header link,
+     the light lapping the hero button. Never a fill, never body-link color, at most one
+     use per view. Derived from the palette's reddish-purple (--viz-4 #CC79A7) stepped dark
+     enough to carry 10.5px text: 6.49:1 on paper, and ΔE 17 from vermillion in OKLab, held
+     at 16.4 / 17.9 under deuteranopia / protanopia so the two reds never collapse into each
+     other. (Raw --viz-4 is 2.91:1 — too pale for text; plain crimson sits ΔE 9.5 from
+     vermillion — too close to read as a second color.) */
+  --accent-2: #A62B4D;
+  --accent-2-wash: #F7E4EA; /* same rule as --accent-wash: hairline-scale backgrounds only */
+
+  /* third naming accent — "blue hour". Marks Saber Vibes and nothing else: its header link,
+     and its own page, where it takes vermillion's place. Same rules as carmine. Derived from
+     the palette's blue (--viz-2 #0072B2) stepped 0.020 darker in OKLab lightness at its own
+     hue: 5.37:1 on paper, 4.74:1 as chip text on its wash, and ΔE ≥ 16 from both vermillion
+     and carmine in normal, deutan, protan and tritan vision (Machado 2009). Blue because it is
+     the one family that stays apart from both reds for colour-blind readers: teals and greens
+     collapse into carmine under deuteranopia (jade #00785A sits ΔE 2.6 from it). */
+  --accent-3: #006CA9;
+  --accent-3-wash: #DFEDF9; /* hairline-scale backgrounds only, like the other washes */
 
   /* semantic aliases */
   --text-body: var(--ink);
@@ -57,4 +79,8 @@
   --accent: #F08A3E;        /* vermillion lifted for dark contrast */
   --accent-strong: #FFA057;
   --accent-wash: #2E2013;
+  --accent-2: #DE5A78;      /* carmine lifted the same way — 5.15:1 on the dark paper */
+  --accent-2-wash: #2A1620;
+  --accent-3: #56B4E9;      /* blue hour at night: the palette's sky blue (--viz-5) as-is, 8.02:1 */
+  --accent-3-wash: #0F232E;
 }

@@ -1,6 +1,7 @@
 ---
 title: "What Sidechain is"
 date: 2026-08-31
+lastmod: 2026-10-05
 draft: false
 description: "A solo entry to the Virtual Cell Challenge 2026 that runs like a small research group: one human, a handful of AI agents, and a ladder of models climbed one scored rung at a time."
 short: "sidechain"
@@ -58,6 +59,22 @@ flowchart BT
 
 Every knob a model carries goes into its name at birth, as a letter, and a name is never changed after it has been scored — which makes the standings table on the landing page read like an ablation study instead of a highlight reel.
 
+## Why “Sidechain”
+
+A *side chain* is the part of an amino acid that makes it different from the other canonical nineteen. The models are named the same way: each **series** is an amino acid whose side chain matches the model's character, and a number counts entries within it. A letter suffix marks a one-knob variant — `SER-1p` is `SER-1` with Poisson cells, `SER-1n` is `SER-1` without shrinkage.
+
+| series | side chain | what it names |
+|---|---|---|
+| `GLY` | none — the simplest residue | nulls and baselines |
+| `ALA` | a single methyl | a single statistical shift |
+| `SER` | a hydroxyl — small, reactive, transfers a group | cross-line delta transfer (today's models) |
+| `CYS` | forms bridges between chains | context-aware models |
+| `HIS`&nbsp;/&nbsp;`LYS`&nbsp;/&nbsp;`ARG` | long and charged — act at a distance | graph and prior heads |
+| `PHE`&nbsp;/&nbsp;`TYR`&nbsp;/&nbsp;`TRP` | the aromatic heavyweights | deep generative models |
+| `PRO` | bends the backbone | fusion |
+
+For the chemistry behind the pun: Compound Interest's [20 common amino acids](https://www.compoundchem.com/2014/09/16/aminoacids/) poster.
+
 ## Built in the open
 
 Two repositories. The public one holds the *what*: the code, the configs, the tests, the agent briefs, this site. A private one holds the *why*: live strategy, half-formed ideas, results we haven't finished arguing about. The routing rule is one line — publishing a private file later costs one commit, un-publishing a public one costs a history rewrite, so anything unsure stays private until it stops being live. Negative results and methodology are always fair game, and honestly the better content anyway.
@@ -66,4 +83,4 @@ The numbers on this site keep the same discipline as the ledgers: the standings 
 
 ## Where to read more
 
-The code and the agent briefs are on [GitHub](https://github.com/saberhq/sidechain). The [landing page](/) carries the scored submissions and the series cards; the longer write-ups land here as [posts](/posts/), and progress notes go out on [LinkedIn](https://www.linkedin.com/in/saberhq). The final three cell lines arrive on October 22 and the deadline is November 5 — until then, everything is a rehearsal with a scoreboard.
+The code and the agent briefs are on [GitHub](https://github.com/saberhq/sidechain). The [landing page](/) carries the scored submissions; the longer write-ups land here as [posts](/posts/), and progress notes go out on [LinkedIn](https://www.linkedin.com/in/saberhq). The final three cell lines arrive on October 22 and the deadline is November 5 — until then, everything is a rehearsal with a scoreboard.

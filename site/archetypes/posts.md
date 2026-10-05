@@ -2,6 +2,7 @@
 title: "{{ replace .File.ContentBaseName "-" " " | title }}"
 date: {{ .Date }}
 draft: true
+# lastmod: 2026-01-31    # after an edit to a published post: prints "updated <date>", linked to the file's history
 description: ""    # one sentence for a stranger — the search snippet and the card text
 short: ""          # optional: short tab title (e.g. "batch effects")
 # image: cover.jpg    # the photo banner — cut by scripts/banner.py into this post's bundle

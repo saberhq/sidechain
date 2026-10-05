@@ -7,27 +7,32 @@
    article type, footer. `sc-` rules are Sidechain's additions: the wordmark,
    the standings (stat tiles, bars, tables), the empty states.
 
-   Brand rules that apply here: one vermillion accent, never a fill; Geist for
-   reading, Geist Mono for anything measured; hairline structure, no shadows at
-   rest; dark mode via [data-theme="dark"] on <html>; punctuation is the icon set.
+   Brand rules that apply here: one accent, never a fill — carmine on this site (below);
+   Geist for reading, Geist Mono for anything measured; hairline structure, no shadows
+   at rest; dark mode via [data-theme="dark"] on <html>; punctuation is the icon set.
    ================================================================ */
 
 /* ---------- Base ---------- */
 :root { color-scheme: light; }
 [data-theme="dark"] { color-scheme: dark; }
 
-/* Companion accent — the writing's voice: the posts rail, post kickers, "Read more".
-   Deep carmine: the palette's reddish-purple family (--viz-4 #CC79A7) stepped dark enough
-   to carry 10.5px text. Measured, not eyeballed — 6.49:1 on paper, and ΔE 17 from vermillion
-   in OKLab, holding 16.4 / 17.9 under deuteranopia / protanopia, so the two reds never
-   collapse into each other. (Raw --viz-4 is 2.91:1 — too pale for text; plain crimson sits
-   at ΔE 9.5 from vermillion — too close to read as a second colour.) The dark value is
-   lifted the way vermillion lifts to #F08A3E.
-   Sidechain-local brand extension: defined here, NOT in tokens/ — those stay verbatim
-   copies of saberhq.com's; promote it there if the brand adopts it. Rules: never a fill,
-   never body-link colour, one voice only. */
-:root { --accent-2: #A62B4D; --accent-2-wash: #F7E4EA; }
-[data-theme="dark"] { --accent-2: #DE5A78; --accent-2-wash: #2A1620; }
+/* Sidechain's colour is carmine. The tokens name it --accent-2, "marks Sidechain", and keep
+   vermillion as --accent for the personal site; on this site carmine takes vermillion's job
+   everywhere, the way --accent-3 does on the Saber Vibes page. --accent is re-pointed once,
+   here, so every rule below (and --link, --focus-ring, which the tokens derive from it)
+   follows in both themes. Measured in the tokens: 6.49:1 on paper, 5.15:1 on the dark paper.
+   --up is the one second colour: the green of a figure that rose. The figure keeps its sign,
+   because green and carmine sit close for red-green colour-blind readers. 5.60:1 on paper,
+   8.45:1 on the dark paper. */
+:root { --accent: var(--accent-2); --accent-wash: var(--accent-2-wash); --up: #00734F; }
+[data-theme="dark"] { --up: #5DC290; }
+/* --mark is carmine as a fill: the best bar and the plot's latest point. It is the light value in both themes, as the
+   tokens' --viz-1 is for vermillion -- the lifted dark carmine is tuned for small text, and as
+   a broad fill it reads pink (Saber, 2026-10-05). --bar-rest is the grey of every other bar.
+   The pair is the same in both themes, so it is measured once (the dataviz validator): ΔE 18.6
+   apart for red-green colour-blind readers. Each sits near 2.7:1 on one of the two grounds,
+   which is why every bar has its number beside it. */
+:root { --mark: #A62B4D; --bar-rest: var(--viz-8); }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -69,6 +74,9 @@ img { max-width: 100%; height: auto; }
   color: var(--ink-3);
 }
 .sq-kicker-accent { color: var(--accent); }
+/* "updated <date>" in a post's kicker: quiet like the rest of the line, a link on hover */
+a.sc-updated, a.sc-updated:visited { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+a.sc-updated:hover { color: var(--ink); text-decoration-color: currentColor; }
 
 /* ---------- Site header strip ---------- */
 .sq-siteheader { border-bottom: var(--rule-w) solid var(--rule); }
@@ -80,6 +88,8 @@ img { max-width: 100%; height: auto; }
 a.sq-mark, a.sq-mark:visited { font-family: var(--font-pixel); font-size: 18px; font-weight: 400; line-height: 1; color: var(--ink); }
 a.sq-mark:hover { color: var(--ink); }
 .sq-crumb, a.sq-crumb, a.sq-crumb:visited { font-family: var(--font-mono); font-size: var(--label-size); color: var(--ink-3); }
+/* "/ sidechain" wears the site's colour, as "/ vibes" does on the personal site */
+a.sq-crumb, a.sq-crumb:visited { color: var(--accent); }
 a.sq-crumb:hover { color: var(--ink); text-decoration: none; }
 .sq-nav { display: flex; flex-wrap: wrap; gap: var(--space-2) 20px; font-family: var(--font-mono); font-size: var(--label-size); }
 .sq-back { font-family: var(--font-mono); font-size: var(--label-size); }
@@ -121,6 +131,7 @@ a.sq-btn, a.sq-btn:visited { color: var(--btn-solid-text); }
 .sq-section-fill { flex: 1; }
 a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 400; color: var(--link); white-space: nowrap; }
 .sq-section-aside-sep { font-size: 10px; font-weight: 400; color: var(--ink-4); }
+.sc-section-asides { display: inline-flex; align-items: baseline; gap: var(--space-2); margin-left: auto; white-space: nowrap; }
 
 /* ---------- Hero ---------- */
 .sq-hero { padding-top: var(--space-9); padding-bottom: var(--space-8); }
@@ -171,63 +182,107 @@ a.sq-card:hover {
 }
 .sq-tag--accent { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 
-/* ---------- About copy ---------- */
-.sq-about-copy { margin-top: 20px; max-width: var(--measure); }
-.sq-about-copy p { margin: 0 0 12px; font-size: var(--body-size); line-height: var(--body-leading); text-wrap: pretty; }
-.sq-about-copy p:last-child { margin-bottom: 0; }
-.sq-about-copy code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); }
-.sq-topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-
-/* ---------- Standings: stat tiles ---------- */
-.sc-intro { margin-top: 14px; max-width: 60ch; }
+/* ---------- Where we stand: the plot, then the figures ----------
+   Both follow the ledger dashboard's Standing card (Saber, 2026-10-05): its sparkline, and its
+   stat block at its own sizes -- 11px labels, 22px figures, 12px sub-lines. */
+.sc-intro { margin-top: var(--space-5); max-width: 60ch; }
 .sc-intro p { margin: 0; color: var(--ink-2); }
-.sc-stats {
-  display: grid; grid-template-columns: 1fr 1fr;
-  margin-top: var(--space-5);
-  border-top: var(--rule-w) solid var(--rule); border-bottom: var(--rule-w) solid var(--rule);
-}
-.sc-stat { padding: 14px 16px 14px 0; border-right: var(--rule-w) solid var(--rule); }
-.sc-stat:nth-child(2n) { border-right: 0; padding-left: 16px; padding-right: 0; }
-.sc-stat:nth-child(n+3) { border-top: var(--rule-w) solid var(--rule); }
-.sc-stat-label {
-  font-family: var(--font-mono); font-size: var(--label-size); font-weight: 500;
-  letter-spacing: var(--label-track); text-transform: uppercase; color: var(--ink-3);
-}
-.sc-stat-value {
-  margin-top: 6px; font-family: var(--font-mono); font-size: 28px; font-weight: 500;
-  letter-spacing: -0.01em; line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums;
-}
-.sc-stat-sub { margin-top: 4px; font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink-3); }
 
-/* ---------- Standings: one thin bar per submission ---------- */
+/* The plot: one point per ranked entry in submission order, at its rank as a share of the
+   field when scored -- lower is better -- with one dotted reference at the top 10%. The line
+   and the reference are a stretched SVG (non-scaling strokes); the points and the label are
+   HTML placed by percentage, so the dots stay round at any width. Drawn at build time;
+   assets/standing.js only adds the hover readout. */
+.sc-spark { position: relative; margin: 16px 0 0; }
+.sc-spark-title, .sc-stat-label {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
+}
+.sc-spark-title span { letter-spacing: 0; text-transform: none; }
+.sc-plot { position: relative; height: 104px; margin: 12px 6px 0; }
+.sc-plot svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
+.sc-ref { fill: none; stroke: var(--ink-4); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.sc-ref-label { position: absolute; right: 0; transform: translateY(-100%); padding-bottom: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.sc-line { fill: none; stroke: var(--ink-2); stroke-width: 1.25; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+/* A point: hollow, with a 25px target around it. The best share is green, the latest entry
+   is carmine (--mark, the bar's own) and a size up; the two are also the first and last
+   things a reader meets, so neither rests on colour alone. */
+a.sc-pt, a.sc-pt:visited {
+  position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+  background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink-3);
+  transition: transform var(--dur) var(--ease);
+}
+a.sc-pt::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; }
+a.sc-pt--best { background: var(--up); box-shadow: none; }
+a.sc-pt--latest { width: 10px; height: 10px; margin: -5px 0 0 -5px; background: var(--mark); box-shadow: none; z-index: 1; }
+a.sc-pt:hover, a.sc-pt:focus-visible, a.sc-pt.is-hot { background: var(--ink); box-shadow: none; transform: scale(1.4); z-index: 2; outline: none; }
+.sc-spark-axis { display: flex; justify-content: space-between; margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+/* The readout: the hovered entry, on the dates' own line so it never covers a point. */
+.sc-spark-axis.is-reading > span:not(.sc-spark-readout) { display: none; }
+.sc-spark-readout { flex: 1; text-align: center; color: var(--ink-2); }
+.sc-spark-readout b { font-weight: 500; color: var(--ink); white-space: nowrap; }
+/* A chosen point's model card, under that line: the same sentence its row opens to. */
+.sc-spark-card { margin: 8px auto 0; max-width: 60ch; }
+.sc-spark-card p { margin: 0; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.sc-spark-card code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sc-spark-close { margin-left: 10px; padding: 0 4px; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-3); }
+.sc-spark-close:hover { color: var(--ink); }
+a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink); }
+
+/* The figures: four cells in two rows, a hairline between the rows. A cell that holds two
+   figures separates them with a mid dot, in the order its label names them. */
+.sc-stand { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 12px; padding-top: 10px; border-top: var(--rule-w) solid var(--rule); }
+.sc-stand-row { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; padding-top: 8px; border-top: var(--rule-w) solid var(--rule); }
+.sc-stat { min-width: 0; }
+.sc-stat-value { margin-top: 2px; font-family: var(--font-mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); }
+.sc-stat-value small { margin-left: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.sc-stat-sep { margin: 0 3px; font-weight: 400; color: var(--ink-4); }
+/* The change since the entry before. Green only when it rose, and the sign says so too. */
+.sc-delta { margin-left: 8px; color: var(--ink-3); white-space: nowrap; }
+.sc-delta--up { color: var(--up); }
+.sc-stat-sub { margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.sc-stat-sub b { font-weight: 500; color: var(--accent); }
+.sc-stat-sub span, .sc-stat-sub a { white-space: nowrap; }
+
+/* ---------- Where we stand: one thin bar per submission ----------
+   Each row is the summary of a <details>: the model's name opens its card, date and rank under
+   the same bar. The grid lives on a span inside the summary, which some browsers will not lay
+   out as a grid itself. `.sc-bar-row` on its own is the plain row the corpus figure uses. */
 .sc-bars { margin: var(--space-5) 0 0; }
 .sc-bars-title { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); margin-bottom: 6px; }
-.sc-bar-row { display: grid; grid-template-columns: 108px 1fr 64px; align-items: center; gap: 12px; padding: 4px 0; }
+.sc-bar-row { display: grid; grid-template-columns: 118px 1fr 64px; align-items: center; gap: 12px; padding: 4px 0; }
 .sc-bars-axis { padding: 0 0 2px; }
 .sc-bars-axis-track { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-3); }
 .sc-bar-label { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink-2); white-space: nowrap; }
 .sc-bar-track { position: relative; height: 10px; border-left: 1px solid var(--rule-strong); }
 .sc-bar-track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px dashed var(--rule); }
-.sc-bar { position: relative; z-index: 1; display: block; height: 100%; background: var(--viz-8); border-radius: 0 4px 4px 0; }
-.sc-bar-row--best .sc-bar { background: var(--viz-1); }
-.sc-bar-row--bench .sc-bar { background: var(--viz-8); opacity: 0.45; }
+.sc-bar { position: relative; z-index: 1; display: block; height: 100%; background: var(--bar-rest); border-radius: 0 4px 4px 0; }
+.sc-bar-row--best .sc-bar { background: var(--mark); }
+.sc-bar-row--bench .sc-bar { opacity: 0.45; }
 .sc-bar-row--bench .sc-bar-label, .sc-bar-row--bench .sc-bar-value { color: var(--ink-3); }
 /* A calibration run sits in its own strip below: same idiom, stepped back, with a rule
    between the two so nobody reads one scale across both. An off-scale row gets no bar at
    all -- a clamped full-width bar would read as a triumph, which is the opposite of true. */
 .sc-bars--aside { margin-top: var(--space-4); padding-top: 10px; border-top: 1px dashed var(--rule); }
-.sc-bar-row--aside .sc-bar { background: var(--viz-8); opacity: 0.45; }
+.sc-bar-row--aside .sc-bar { opacity: 0.45; }
 .sc-bar-row--aside .sc-bar-label, .sc-bar-row--aside .sc-bar-value { color: var(--ink-3); }
 .sc-bar-offscale {
   position: absolute; left: 6px; top: 50%; transform: translateY(-50%); white-space: nowrap;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-3);
 }
-.sc-class-tag {
-  text-transform: uppercase; font-size: 9px; letter-spacing: var(--meta-track); color: var(--ink-3);
-  border: 1px solid var(--rule); border-radius: 2px; padding: 0 4px; margin-left: 4px; white-space: nowrap;
-}
 .sc-bar-value { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .sc-bar-row--best .sc-bar-value, .sc-bar-row--best .sc-bar-label { font-weight: 500; color: var(--ink); }
+.sc-entry > summary { display: block; list-style: none; cursor: pointer; border-radius: var(--radius-sm); }
+.sc-entry > summary::-webkit-details-marker { display: none; }
+.sc-entry .sc-bar-label::before { content: "+\00a0"; color: var(--accent); font-weight: 400; }
+.sc-entry[open] .sc-bar-label::before { content: "\2212\00a0"; }
+.sc-entry > summary:hover .sc-entry-name { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+/* the row a plot point points at: lit while the point is hovered, and when it is the link's target */
+.sc-entry.is-hot > summary, .sc-entry:target > summary { background: var(--surface-sunken); }
+.sc-entry { scroll-margin-top: var(--space-6); }
+.sc-entry-body { margin: 2px 0 12px 130px; max-width: 58ch; }
+.sc-entry-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); }
+.sc-entry-body code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sc-entry-body p { margin: 6px 0 0; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
 
 /* ---------- Tables ---------- */
 .sc-table-wrap { overflow-x: auto; margin-top: var(--space-5); }
@@ -244,19 +299,6 @@ a.sq-card:hover {
 .sc-num { text-align: right; font-variant-numeric: tabular-nums; }
 .sc-table code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
 .sc-series { font-weight: 500; color: var(--ink); }
-.sc-table--entries .sc-row-entry td { border-bottom: 0; padding-bottom: 3px; }
-.sc-row-card td { padding-top: 0; padding-bottom: 9px; }
-.sc-modelcard summary {
-  cursor: pointer; list-style: none;
-  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3);
-}
-.sc-modelcard summary::-webkit-details-marker { display: none; }
-.sc-modelcard summary::before { content: "+ "; color: var(--accent); }
-.sc-modelcard[open] summary::before { content: "\2212\00a0 "; }
-.sc-modelcard summary:hover { color: var(--ink); }
-.sc-modelcard-tag { text-transform: uppercase; }
-.sc-modelcard p { margin: 6px 0 0 14px; font-size: var(--small-size); color: var(--ink-2); line-height: 1.55; max-width: 58ch; text-wrap: pretty; }
-.sc-table--naming td:nth-child(2) { color: var(--ink-2); }
 .sc-measure { max-width: var(--measure); margin-top: 14px; }
 .sc-footmark { color: var(--accent); cursor: help; }
 .sc-footnote { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); margin: 12px 0 0; }
@@ -293,6 +335,8 @@ a.sq-card:hover {
   transition: color var(--dur) var(--ease);
 }
 .sq-action:hover { color: var(--accent); }
+/* The same action at the foot of the landing page, under both columns. */
+.sc-page-actions { grid-column: 1 / -1; margin-top: 0; }
 
 /* ---------- Article ---------- */
 .sq-article-wrap { max-width: 720px; margin: 0 auto; padding: var(--space-8) var(--space-6) 0; }
@@ -314,8 +358,8 @@ a.sq-card:hover {
   font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track);
   color: var(--ink-3); margin-top: 6px; text-align: right;
 }
-/* The rail's pinned chip — carmine, the writing's own accent. */
-.sc-pin { color: var(--accent-2); font-weight: 500; }
+/* The rail's pinned chip. */
+.sc-pin { color: var(--accent); font-weight: 500; }
 
 /* ---------- Prose (markdown bodies) ---------- */
 .sq-prose p { font-size: var(--body-size); line-height: var(--body-leading); letter-spacing: var(--body-track); text-wrap: pretty; margin: 0 0 18px; }
@@ -373,12 +417,12 @@ a.sq-card:hover {
 .sc-journal { display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: var(--space-8); align-items: start; }
 .sc-rail { padding-top: var(--space-9); }
 .sc-rail-in { position: sticky; top: var(--space-5); }
-.sc-rail-head { border-top-color: var(--accent-2); }
-.sc-rail-head .sq-section-label { color: var(--accent-2); }
+.sc-rail-head { border-top-color: var(--accent); }
+.sc-rail-head .sq-section-label { color: var(--accent); }
 .sc-rail-cards { display: flex; flex-direction: column; gap: var(--space-4); margin-top: 20px; }
-.sc-rail .sq-card-read, .sq-listing .sq-card-read { color: var(--accent-2); }
+.sc-rail .sq-card-read, .sq-listing .sq-card-read { color: var(--accent); }
 .sc-rail-empty { margin-top: 20px; }
-.sq-kicker-accent2 { color: var(--accent-2); }
+.sq-kicker-accent2 { color: var(--accent); }
 
 /* ---------- Responsive ---------- */
 /* ---------- Mermaid figures ----------
@@ -412,6 +456,14 @@ a.sq-card:hover {
 @media (max-width: 600px) {
   .sq-card-grid { grid-template-columns: 1fr; }
   .sq-cover img { height: 200px; }
-  .sc-bar-row { grid-template-columns: 96px 1fr 56px; gap: 8px; }
+  /* a section head with two asides is wider than a small phone: the asides take the next line */
+  .sq-section-head { flex-wrap: wrap; row-gap: 2px; }
+  .sc-stat-value { font-size: 17px; }
+  .sc-spark-readout .sc-wide { display: none; }
+  /* a label that wraps must not drop its figure below its neighbour's */
+  .sc-stand-row .sc-stat-label { min-height: 3.2em; }
+  .sc-bar-row { grid-template-columns: 104px 1fr 56px; gap: 8px; }
+  .sc-entry .sc-bar-label { font-size: 11px; }
+  .sc-entry-body { margin-left: 14px; }
   .sq-siteheader-in .sq-nav { gap: var(--space-2) 14px; }
 }

@@ -21,41 +21,12 @@
       {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "asides" (slice
           (dict "href" $models.RelPermalink "label" "what each model is →")
           (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true))) }}
+      {{- /* In this order (Saber, 2026-10-05): the plot, the figures, the paragraph, the bars. */}}
+      {{ partial "standing.html" . }}
       <div class="sc-intro">
         <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each name means and what it borrows.</p>
       </div>
-      {{ partial "standings.html" . }}
-    </section>
-
-    <section class="sq-section" id="about">
-      {{ partial "section-head.html" (dict "num" "02" "label" "What it is") }}
-      <div class="sq-about-copy">
-        {{ .Content }}
-        {{ if or .Params.topics .Params.topicAccent }}
-        <div class="sq-topics">
-          {{ range .Params.topics }}<span class="sq-tag">{{ . }}</span>{{ end }}
-          {{ with .Params.topicAccent }}<span class="sq-tag sq-tag--accent">{{ . }}</span>{{ end }}
-        </div>
-        {{ end }}
-      </div>
-    </section>
-
-    <section class="sq-section" id="naming">
-      {{ partial "section-head.html" (dict "num" "03" "label" "Why “Sidechain”") }}
-      <div class="sq-prose sc-measure">
-        <p>A <em>side chain</em> is the part of an amino acid that makes it different from the other canonical nineteen. The models are named the same way: each <strong>series</strong> is an amino acid whose side chain matches the model's character, and a number counts entries within it. A letter suffix marks a one-knob variant — <code>SER-1p</code> is <code>SER-1</code> with Poisson cells, <code>SER-1n</code> is <code>SER-1</code> without shrinkage.</p>
-      </div>
-      <div class="sc-table-wrap" tabindex="0">
-      <table class="sc-table sc-table--naming">
-        <thead><tr><th>series</th><th>side chain</th><th>what it names</th></tr></thead>
-        <tbody>
-          {{ range .Params.series }}
-          <tr><td class="sc-mono sc-series">{{ .code }}</td><td>{{ .chain }}</td><td>{{ .names }}</td></tr>
-          {{ end }}
-        </tbody>
-      </table>
-      </div>
-      <p class="sc-footnote">For the chemistry behind the pun: Compound Interest's <a href="https://www.compoundchem.com/2014/09/16/aminoacids/" target="_blank" rel="noopener">20 common amino acids</a> poster.</p>
+      {{ partial "entries.html" . }}
     </section>
 
   </div>
@@ -90,9 +61,16 @@
       {{ end }}
     </div>
   </aside>
+
+  <div class="sq-post-actions sc-page-actions">
+    <button class="sq-action" type="button" data-scroll-top><span class="sq-glyph">↑</span> Back to top</button>
+  </div>
 </div>
 {{ end }}
 
 {{ define "footer" }}
   {{ partial "site-footer.html" (dict "page" .) }}
+  {{- /* The plot's hover readout and the two countdowns. The page reads without it. */}}
+  {{ $js := resources.Get "standing.js" | resources.Minify | resources.Fingerprint "sha384" }}
+  <script src="{{ $js.RelPermalink }}" integrity="{{ $js.Data.Integrity }}" crossorigin="anonymous" defer></script>
 {{ end }}

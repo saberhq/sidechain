@@ -1,0 +1,119 @@
+{{- /* "Where we stand", its first two items: the plot, then the figures. Both are the ledger
+       dashboard's Standing card brought to the page (Saber, 2026-10-05), and both are rendered
+       at build time from generated files that are never hand-edited (scripts/standings.py):
+
+       - data/submissions.json -- our scored entries, each with the rank it held and the size
+         of the field the day it was scored. The plot and the first two figures read it.
+       - assets/data/field.json -- the leaderboard over time; from its head come the scores at
+         rank 100 and rank 20 and the row the leaderboard shows for Sidechain in the latest
+         whole-field snapshot. That row is the team's latest entry, so the two gaps are
+         measured from it.
+
+       The page rebuilds only on a push, so nothing here pretends to be live: the gaps carry
+       the file's as-of date, and the two countdowns are worked out in the browser
+       (assets/standing.js) over a build-time fallback that prints the dates.
+
+       The plot is one point per ranked entry in submission order, at its rank as a share of
+       the field when scored. An entry with no field size (no snapshot was taken when it
+       scored) has no share and is not plotted; neither is an entry of the final round, which
+       is ranked on another board. Every point links to its row in the bars below; with
+       scripts on, choosing a point shows that row's model card under the plot instead. */ -}}
+{{ $d := .Site.Data.submissions }}
+{{ $entries := $d.entries }}
+{{ if $entries }}
+{{ $n := len $entries }}
+{{ $rest := where $entries "class" "!=" "calibration" }}
+{{- /* A board of nothing but calibration runs has no other entry to call best; fall back. */ -}}
+{{ $scale := cond (gt (len $rest) 0) $rest $entries }}
+{{ $best := index $scale 0 }}
+{{ range $scale }}{{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
+{{ $latest := index $entries (sub $n 1) }}
+{{ $field := dict }}
+{{ $fieldFile := resources.Get "data/field.json" }}
+{{ with $fieldFile }}{{ $field = . | transform.Unmarshal }}{{ end }}
+{{ $ours := $field.ours }}
+
+{{- /* ---- the plot ---- */ -}}
+{{ $ranked := slice }}
+{{ range $entries }}{{ if and .rank .teams (eq .partition "val") }}{{ $ranked = $ranked | append . }}{{ end }}{{ end }}
+{{ $m := len $ranked }}
+{{ if gt $m 1 }}
+{{- /* share axis: 0 at the bottom, up to the largest share any entry held (at least 25%) */ -}}
+{{ $max := 0.25 }}
+{{ $bestShare := 2.0 }}{{ $bestName := "" }}
+{{ range $ranked }}
+  {{ $s := div (float .rank) (float .teams) }}
+  {{ if gt $s $max }}{{ $max = $s }}{{ end }}
+  {{ if lt $s $bestShare }}{{ $bestShare = $s }}{{ $bestName = .name }}{{ end }}
+{{ end }}
+{{ $line := "" }}
+{{ $pts := slice }}
+{{ range $i, $e := $ranked }}
+  {{ $share := div (float $e.rank) (float $e.teams) }}
+  {{ $x := mul 100 (div (float $i) (float (sub $m 1))) }}
+  {{ $y := sub 100 (mul 100 (div $share $max)) }}
+  {{ $line = printf "%s %.2f,%.2f" $line $x $y }}
+  {{ $pts = $pts | append (dict "x" $x "y" $y "share" (mul 100 $share) "e" $e) }}
+{{ end }}
+{{ $refY := sub 100 (mul 100 (div 0.1 $max)) }}
+<figure class="sc-spark" data-standing aria-label="Each ranked entry's rank as a share of the field when it was scored, in submission order; lower is better. Every point links to its row below.">
+  <figcaption class="sc-spark-title">Rank percentile over entries <span>· lower is better</span></figcaption>
+  <div class="sc-plot" data-plot>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <path class="sc-ref" d="M0,{{ printf "%.2f" $refY }} L100,{{ printf "%.2f" $refY }}"/>
+      <polyline class="sc-line" points="{{ strings.TrimSpace $line }}"/>
+    </svg>
+    <span class="sc-ref-label" style="top: {{ printf "%.2f" $refY }}%">top 10%</span>
+    {{ range $pts }}
+    {{ $e := .e }}
+    <a class="sc-pt{{ if eq $e.name $latest.name }} sc-pt--latest{{ else if eq $e.name $bestName }} sc-pt--best{{ end }}" href="#m-{{ $e.name | urlize }}" style="left: {{ printf "%.2f" .x }}%; top: {{ printf "%.2f" .y }}%"
+       data-name="{{ $e.name }}" data-date="{{ $e.date }}" data-overall="{{ printf "%.4f" $e.overall }}" data-rank="#{{ $e.rank }} of {{ $e.teams }}" data-share="top {{ printf "%.1f" .share }}%"{{ if eq $e.class "calibration" }} data-class="calibration run"{{ end }}
+       title="{{ $e.name }} {{ $e.date }} · #{{ $e.rank }} of {{ $e.teams }}"
+       aria-label="{{ $e.name }}, {{ $e.date }}: overall {{ printf "%.4f" $e.overall }}, rank {{ $e.rank }} of {{ $e.teams }}, top {{ printf "%.1f" .share }} percent"></a>
+    {{ end }}
+  </div>
+  {{- /* While a point is hovered, focused or chosen, standing.js swaps this line for that
+         entry's readout; a chosen point's model card goes in the block under it. */}}
+  <div class="sc-spark-axis" data-axis><span aria-hidden="true">{{ (index $ranked 0).date }}</span><span aria-hidden="true">{{ $m }} entries</span><span aria-hidden="true">{{ (index $ranked (sub $m 1)).date }}</span><span class="sc-spark-readout" data-readout hidden></span></div>
+  <div class="sc-spark-card" data-card aria-live="polite" hidden></div>
+</figure>
+{{ end }}
+
+{{- /* ---- the figures ---- */ -}}
+<div class="sc-stand">
+  <div class="sc-stat">
+    <div class="sc-stat-label">Best</div>
+    <div class="sc-stat-value">{{ printf "%.4f" $best.overall }}</div>
+    <div class="sc-stat-sub"><b>{{ $best.name }}</b>{{ with $best.rank }} · <span>#{{ . }}{{ with $best.teams }} of {{ . }}{{ end }}</span>{{ end }}</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Latest</div>
+    <div class="sc-stat-value">{{ printf "%.4f" $latest.overall }}
+      {{- if gt $n 1 }}{{ $delta := sub $latest.overall (index $entries (sub $n 2)).overall }}
+      <span class="sc-delta{{ if gt $delta 0.00005 }} sc-delta--up{{ end }}" title="against the entry before it">{{ replace (printf "%+.4f" $delta) "-" "−" }}</span>
+      {{- end }}</div>
+    <div class="sc-stat-sub"><b>{{ $latest.name }}</b>{{ with $latest.rank }} · <span>#{{ . }}{{ with $latest.teams }} of {{ . }}{{ end }}</span>{{ end }}</div>
+  </div>
+  <div class="sc-stand-row">
+    {{ if and $ours $field.rank_100 $field.rank_20 }}
+    {{ $g100 := sub $field.rank_100 $ours.overall }}
+    {{ $g20 := sub $field.rank_20 $ours.overall }}
+    <div class="sc-stat">
+      <div class="sc-stat-label">Gap to top 100 · top 20</div>
+      <div class="sc-stat-value">{{ if gt $g100 0.0 }}{{ printf "%.4f" $g100 }}{{ else }}in{{ end }}<span class="sc-stat-sep">·</span><wbr>{{ if gt $g20 0.0 }}{{ printf "%.4f" $g20 }}{{ else }}in{{ end }}</div>
+      <div class="sc-stat-sub"><span>from #{{ $ours.rank }} of {{ $field.teams }}</span> · <span>{{ (time.AsTime $field.as_of).Format "Jan 2" }}</span></div>
+    </div>
+    {{ end }}
+    {{ $test := time.AsTime $d.final_test_set }}{{ $dead := time.AsTime $d.deadline }}
+    <div class="sc-stat">
+      <div class="sc-stat-label">To final test set · deadline</div>
+      <div class="sc-stat-value"><span data-days-to="{{ $d.final_test_set }}">{{ $test.Format "Jan 2" }}</span><span class="sc-stat-sep">·</span><wbr><span data-days-to="{{ $d.deadline }}">{{ $dead.Format "Jan 2" }}</span></div>
+      <div class="sc-stat-sub" data-days-sub hidden><span>{{ $test.Format "Jan 2" }}</span> · <span>{{ $dead.Format "Jan 2" }}</span></div>
+    </div>
+  </div>
+</div>
+{{ else }}
+<div class="sc-empty">
+  <p>No scored submission yet. Deadline {{ (time.AsTime $d.deadline).Format "January 2" }}; final test set {{ (time.AsTime $d.final_test_set).Format "January 2" }}.</p>
+</div>
+{{ end }}

@@ -1,0 +1,62 @@
+{{- /* "Where we stand", its last item: a bar per scored submission, latest first, and under
+       it the calibration runs in a strip of their own. Each row is a fold-out: the model's
+       name opens its card, date, rank when scored and board name under the same bar
+       (_partials/entry-row.html), so the bars are the one list of models on the page. They
+       are also the plot's table view: every point above links to its row here (the row ids).
+       Rendered at build time from data/submissions.json, which scripts/standings.py generates
+       from the submission records and the board snapshots. Never hand-edited. With no entries
+       yet, standing.html has already said so.
+
+       TWO SEPARATE THINGS HAPPEN BELOW; they were confused once and it is worth keeping
+       them apart (Saber, 2026-09-11).
+
+       1. Off-scale rendering, which is the actual bug fix and applies to EVERY entry,
+          whatever its class. A score outside the axis produced `width: -490.4%` for PHE-2
+          on 2026-09-07 — invalid CSS, which a browser discards, so the span fell back to
+          `auto` and filled the whole track: a failed entry drawn as the longest bar on the
+          page. Widths are clamped, and anything outside the axis gets no bar at all and
+          says so in words. An entry that simply scores badly is drawn the same way, because
+          nobody can know in advance which entries will need this.
+
+       2. `class`, which is `calibration` on an entry known in advance not to be competitive
+          and absent on every other one. There is no opposite label: every submission asks a
+          question (Saber, 2026-09-11). It is metadata, never part of a model's name (ADR
+          0005 is untouched), and it decides only GROUPING — the rest set the axis ceiling
+          and share it, a calibration run sits in its own strip. Nothing is hidden on it.
+          The models page carries the one-line explanation, so this page does not repeat
+          it (Saber, 2026-09-12). */ -}}
+{{ $d := .Site.Data.submissions }}
+{{ $entries := $d.entries }}
+{{ if $entries }}
+{{ $models := .Site.GetPage "/models" }}
+{{ $rest := where $entries "class" "!=" "calibration" }}
+{{ $calibration := where $entries "class" "calibration" }}
+{{- /* A board of nothing but calibration runs has nothing to set the axis by; fall back. */ -}}
+{{ $scale := cond (gt (len $rest) 0) $rest $entries }}
+{{ $best := index $scale 0 }}
+{{ range $scale }}{{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
+
+{{- /* Bars: one per submission, scale 0 → a round ceiling above the best (0.1 steps), which
+       is 0.2 for as long as no entry passes it. */ -}}
+{{ $ceil := math.Ceil (mul $best.overall 10) }}
+{{ $ceil = div $ceil 10.0 }}
+{{ if lt $ceil 0.1 }}{{ $ceil = 0.1 }}{{ end }}
+<figure class="sc-bars" aria-label="Overall score per scored submission; a name opens that model's card">
+  <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
+  <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
+  {{ range collections.Reverse $rest }}
+  {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" (eq .name $best.name)) }}
+  {{ end }}
+</figure>
+
+{{ if $calibration }}
+<figure class="sc-bars sc-bars--aside" aria-label="Calibration runs, drawn apart from the other submissions">
+  <figcaption class="sc-bars-title">Calibration runs · <a href="{{ $models.RelPermalink }}#calibration-runs">what this means →</a></figcaption>
+  {{- /* Same off-scale rule as the rows above -- the class changes the grouping, never how
+         a number is drawn. */ -}}
+  {{ range collections.Reverse $calibration }}
+  {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "aside" true) }}
+  {{ end }}
+</figure>
+{{ end }}
+{{ end }}
