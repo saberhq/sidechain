@@ -178,8 +178,11 @@ written.
 - **Grants** (Science app → the folder grants): `~/code/sidechain` read-write, both repos;
   `~/data/sidechain` read-write; `~/.local/share/uv`, so `.venv/bin/python` starts in the sandbox;
   `~/.lamin` read-write, for lamindb registration.
-- **The GPU box** as an SSH compute target — configured; each new box needs
-  `scripts/brev_ssh_mirror.sh <name>` once and its own host entry in the app.
+- **The GPU box** as an SSH compute target — one host entry, alias `sidechain-gpu`, which stays
+  while boxes come and go: after every `brev create`, `scripts/brev_ssh_mirror.sh <instance> --as
+  sidechain-gpu` re-points the alias at the new box (hostname and port change per instance), then
+  the app's probe is re-run (Compute → the host's row). A probe that fails with `Connection closed
+  by <ip> port <p>` means the alias still names a deleted box (2026-10-05).
 - **OpenAlex key** — stored.
 - **Profiles**: Sidechain Analyst and Sidechain Critic, generated from `agents/analyst.md` and
   `agents/critic.md`; the repo files stay canonical.
