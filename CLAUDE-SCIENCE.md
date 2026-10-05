@@ -201,60 +201,13 @@ The rung ladder, metric-first, nothing-trusted-until-the-mirror-scores-it, spars
 naming, two submissions a day. Science is another place to do the measuring. It is not another place
 to decide what counts as a win.
 
-## Project Agent Context — last synced 2026-09-18 · edited 2026-09-29 (ADR 0011), re-paste pending
+## Project Agent Context — last synced 2026-10-05
 
-This block is canonical; the Claude Science project-settings box holds a copy of it. Edits are
-made here first and re-pasted into that box, and the date on this heading is updated to the day of
-the paste — nothing reads that box but every Claude Science session in the project inherits it, so
-a block that has quietly diverged is invisible until it misleads a session, and worse than no copy.
-Fenced so it copies without reflowing; keep it byte-identical to the box.
+This block is canonical; the Claude Science project-settings box holds a copy of it. It is kept to
+pointers on purpose (Saber, 2026-10-05), so it only changes when a path does: everything else a
+Science session needs is read from the git, starting with `CLAUDE.md`. Edit here first, re-paste
+into the box, and set this heading's date to the day of the paste.
 
 ```markdown
-## Sidechain — Claude Science side
-
-**The project.** Sidechain is Saber's solo entry to Arc Institute's Virtual Cell Challenge 2026,
-run as a multi-agentic workflow with Saber as the only human in the loop. Two repos, both at
-`~/code/sidechain` and read-write here (ADR 0011): the public core, and the gitignored `private/`
-tree that holds the research argument, the protocol and the tasks.
-
-**Picking up a task.** When Saber says `pick up T<n>`, load the `sidechain-pickup` skill and follow
-the repo file it points to. `science_session.py start T<n> --frame <frame id>` claims the task and
-runs the checkers; from then on you are its mother, as a Claude Code session would be: work it,
-write the task's Log line, the idea file's `## Outcome` and the `CHANGELOG.md` entry, run
-`science_session.py check` after edits, and commit by explicit path with `science_session.py
-commit`. Never push.
-
-**The seam.** Claude Science takes the research; Claude Code takes the implementation-heavy work,
-`vcc`, pushing and the site. Read `CLAUDE-SCIENCE.md` (public root) for the routing and
-`private/HOWTO-science.md` for the operating page.
-
-**Read the repo; do not recall it.** Spec numbers, the gene axis, control-arm definitions, the
-rung ladder and the naming rule come from `private/research/protocol/facts.json`,
-`challenges/vcc2026/CLAUDE.md`, `private/ARCHITECTURE.md` and `private/GLOSSARY.md` each session.
-Never mirror them into memory — the git is canonical.
-
-**House rules for anything reported.** Every number carries its null (scramble, permuted labels,
-context-mean, or the replicate ceiling). Check the minimum before writing "every". A control arm
-comes from a paper's methods, never from its labels. Raw integer counts, never log1p. Sparse only:
-never allocate a dense gene-by-gene matrix. Nothing is trusted until the local mirror scores it.
-A–F name the challenge's contexts and nothing of ours.
-
-**Where output lands** (A88). Both a `runs/<slug>_<date>/` directory under `~/data/sidechain` and a
-saved artifact, which carries the code and environment that produced it; what it means goes into
-the idea file, committed. Run code with the repo's `.venv/bin/python`.
-
-**Asking Saber.** In the reply. When it must reach the board: `science_session.py ledger --frame
-<id> -- ask open …`, one open ask per task, its `A<n>` named in the reply. A session with no task
-uses the outbox at `~/data/sidechain/science/outbox/<frame_id>.jsonl` (ADR 0009, 0010).
-
-**Walls.** `virtualcellchallenge.org` and `saberhq.com` are off the network allowlist, the board's
-`127.0.0.1:7391` is unreachable (read `private/agents/*.jsonl`), and the keychain the git remotes
-use is out of reach. The GPU box is an SSH target; a box for a Science task is
-`sidechain-gpu-sci-T<n>`; never create, stop or delete one, and start every remote command with
-`export PATH="$HOME/.local/bin:$PATH"` and `cd ~/code/sidechain`.
-
-**Register.** Saber is a computational biologist, not an ML engineer: biology as technical as it
-needs to be, ML and infrastructure in plain words. Lead with the number, then the pointer, then the
-caveat. One number per sentence. A reply that ends a unit of work is three sections: What changed ·
-What I need from you · Next steps.
+Sidechain: Saber's entry to Arc's Virtual Cell Challenge 2026. The git is canonical; read it, never recall it. Repos: ~/code/sidechain (public) and ~/code/sidechain/private, both read-write. Data: ~/data/sidechain. Every session first reads ~/code/sidechain/CLAUDE.md, then CLAUDE-SCIENCE.md; for research or planning, also private/CLAUDE.md. "pick up T<n>": follow private/research/protocol/sidechain-pickup/SKILL.md. Any other project skill: read private/research/protocol/<name>/SKILL.md and follow it. Commit only through science_session.py commit; never push, never run vcc.
 ```
