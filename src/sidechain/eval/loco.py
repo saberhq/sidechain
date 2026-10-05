@@ -99,8 +99,15 @@ def build_transfer_prediction(
     neighbour_cand: int = 100,
     neighbour_picks: Path | None = None,
     dual_fallback: str = "template",
+    delta_cache: dict | None = None,
 ) -> dict:
-    """Predict every non-control perturbation of `real_path` from `sources`."""
+    """Predict every non-control perturbation of `real_path` from `sources`.
+
+    `delta_cache` (T103 round three; `sidechain.eval.delta_cache`) is `{"dir": ..., "sources":
+    [[stem, sha256, control], ...], "build_jobs": N or None}`: with `build_jobs` the pooled delta
+    of every target and neighbour-pool label is written once and nothing is predicted; without,
+    every pooled delta is read from that cache instead of pooled. None is the historical path.
+    """
     if dual_fallback not in ("template", "anchor"):
         raise SystemExit(f"dual_fallback must be 'template' or 'anchor', got {dual_fallback!r}")
     check_shrink_rule(shrink_k, shrink_stage, shrink_rule)     # before any file is written
@@ -127,6 +134,38 @@ def build_transfer_prediction(
     labels = real.obs[pert_col].astype(str).to_numpy()
     perts = sorted(set(labels) - {control})
     axis = real.var_names.astype(str).to_numpy()
+    cache = None
+    if delta_cache is not None:
+        from sidechain.eval.delta_cache import DeltaCache, build_cache, key_fields
+        from sidechain.models.neighbour_arm import read_pool
+
+        plain = all(isinstance(s, tuple) and len(s) == 2
+                    and not getattr(s[0], "transfer_floor", 0.0) for s in sources)
+        if (gamma != 1.0 or similarity_beta != 0.0 or coverage_tiers is not None
+                or basal_slope != "off" or not plain
+                or len(sources) != len(delta_cache["sources"])):
+            raise SystemExit("--delta-cache holds the plain pool only: gamma 1, no similarity "
+                             "weight, no coverage tiers, no basal slope, --source arms alone")
+        fields = key_fields(delta_cache["sources"], axis, {
+            "shrinkage": shrinkage, "shrink_k": shrink_k, "shrink_stage": shrink_stage,
+            "shrink_rule": shrink_rule, "var_floor": var_floor,
+            "log_bias_correct": log_bias_correct})
+        if delta_cache.get("build_jobs"):
+            if real.isbacked:
+                real.file.close()
+
+            def pool_one(label, stats):
+                return pooled_delta(label, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
+                                    shrink_stage=shrink_stage, shrink_rule=shrink_rule,
+                                    var_floor=var_floor, log_bias_correct=log_bias_correct,
+                                    gamma=gamma, ctrl_tgt_cpm=None, coverage_tiers=coverage_tiers,
+                                    similarity_beta=similarity_beta, stats=stats)
+
+            members = read_pool(neighbour_pool) if neighbour_pool is not None else []
+            return {"delta_cache_built": build_cache(delta_cache["dir"], fields,
+                                                     [*perts, *members], pool_one,
+                                                     jobs=int(delta_cache["build_jobs"]))}
+        cache = DeltaCache(delta_cache["dir"], fields)
     ctrl_tmp = out_path.parent / f"{out_path.stem}.controls.h5ad"
     ctrl_tmp.parent.mkdir(parents=True, exist_ok=True)
     real[labels == control].to_memory().write_h5ad(ctrl_tmp)
@@ -190,6 +229,8 @@ def build_transfer_prediction(
                              "as in sidechain.submit.build")
 
         def delta_of(label):
+            if cache is not None:
+                return cache.get(label, pool_fit_stats)
             return pooled_delta(label, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
                                 shrink_stage=shrink_stage, shrink_rule=shrink_rule,
                                 var_floor=var_floor, stats=pool_fit_stats,
@@ -204,12 +245,13 @@ def build_transfer_prediction(
                             neighbour_cand=neighbour_cand, neighbour_picks=neighbour_picks),
             delta_of, axis)
     for p in perts:
-        d = pooled_delta(p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
-                         shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
-                         log_bias_correct=log_bias_correct,
-                         gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
-                         coverage_tiers=coverage_tiers,
-                         similarity_beta=similarity_beta, stats=pool_stats)
+        d = cache.get(p, pool_stats) if cache is not None else pooled_delta(
+            p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
+            shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
+            log_bias_correct=log_bias_correct,
+            gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
+            coverage_tiers=coverage_tiers,
+            similarity_beta=similarity_beta, stats=pool_stats)
         if d is not None:
             covered += 1
             if arm is not None:
@@ -287,6 +329,9 @@ def build_transfer_prediction(
                                              "transfer_floor", 0.0) or 0.0)
                                for i, s in enumerate(sources)},
             "neighbour": None if arm is None else {**arm_record, **arm.summary()},
+            # present only when the pooled deltas were read from a cache; the rest of the
+            # record equals an uncached run's
+            **({"delta_cache": cache.record()} if cache is not None else {}),
             "pool_stats": pool_stats}
 
 
@@ -386,12 +431,33 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--log-bias-correct", action="store_true",
                     help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
     add_neighbour_args(ap, twin="sidechain.submit.build")
+    ap.add_argument("--delta-cache", type=Path, default=None, metavar="DIR",
+                    help="read every pooled delta (targets and neighbour pool) from a per-fold "
+                         "cache under DIR instead of pooling it (sidechain.eval.delta_cache): "
+                         "the same deltas, without refitting the shrinkage rule in every arm. "
+                         "The cache must have been built with --delta-cache-build from the same "
+                         "sources, knobs and thread settings; an arm never fills it. Plain "
+                         "--source pools only. Not a submit.build knob")
+    ap.add_argument("--delta-cache-build", action="store_true",
+                    help="with --delta-cache: pool every target of --real and every member of "
+                         "--neighbour-pool once, write the cache, and stop -- nothing is "
+                         "predicted or scored and --out is not written")
+    ap.add_argument("--delta-cache-jobs", type=int, default=1, metavar="N",
+                    help="--delta-cache-build: processes that pool side by side (default 1)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     check_neighbour_args(ap, args)
     check_shrink_args(ap, args)
+    if args.delta_cache_build and args.delta_cache is None:
+        ap.error("--delta-cache-build needs --delta-cache DIR")
+    if args.delta_cache_jobs < 1 or (args.delta_cache_jobs != 1 and not args.delta_cache_build):
+        ap.error("--delta-cache-jobs is a count >= 1 and only acts with --delta-cache-build")
+    if args.delta_cache is not None and (args.shrink_source or args.lfc_source
+                                         or args.transfer_floor):
+        ap.error("--delta-cache holds the plain pool only: no --shrink-source, "
+                 "--lfc-source or --transfer-floor")
     if args.neighbour_w and args.basal_slope != "off":
         ap.error("--neighbour-w with --basal-slope is not wired (sidechain.submit.build has no "
                  "basal slope to pair it with)")
@@ -420,7 +486,24 @@ def main(argv: list[str] | None = None) -> int:
         tab.sidechain_name = Path(path).expanduser().stem
         sources.append(tab)
     sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
+    delta_cache = None
+    if args.delta_cache is not None:
+        from sidechain.eval.delta_cache import source_ids
+        delta_cache = {"dir": args.delta_cache, "sources": source_ids(args.source),
+                       "build_jobs": args.delta_cache_jobs if args.delta_cache_build else None}
     out = args.out.expanduser()
+    if args.delta_cache_build:
+        info = build_transfer_prediction(args.real, sources, out / "pred.h5ad",
+                                         pert_col=args.pert_col, control=args.control,
+                                         **shrink_kwargs(args), gamma=args.gamma,
+                                         var_floor=args.var_floor, coverage_tiers=cov_tiers,
+                                         similarity_beta=args.similarity_beta,
+                                         basal_slope=args.basal_slope,
+                                         log_bias_correct=args.log_bias_correct,
+                                         neighbour_pool=args.neighbour_pool,
+                                         delta_cache=delta_cache)
+        print(json.dumps(info), flush=True)
+        return 0
     out.mkdir(parents=True, exist_ok=True)
     info = build_transfer_prediction(args.real, sources, out / "pred.h5ad", pert_col=args.pert_col,
                                      control=args.control, dispersion=args.dispersion,
@@ -442,7 +525,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_select=args.neighbour_select,
                                      neighbour_cand=args.neighbour_cand,
                                      neighbour_picks=args.neighbour_picks,
-                                     dual_fallback=args.dual_fallback)
+                                     dual_fallback=args.dual_fallback,
+                                     delta_cache=delta_cache)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
