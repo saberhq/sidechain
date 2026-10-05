@@ -157,7 +157,8 @@ def knob_str(build: dict) -> str:
             if sel == "hybrid":
                 rule = f"·hyb{cnd}" if cnd is not None else "·hyb"
             else:
-                rule = {"response": "·resp", "euclid": "·eucl"}.get(sel, "")
+                rule = {"response": "·resp", "euclid": "·eucl",
+                        "constant": "·const"}.get(sel, "")
             if v.get("picks_file"):      # an outside rule, named by its file in the record
                 rule += "·picks"
             stems = "+".join(f"{Path(t).stem.split('_')[0]}·{x:g}" for t, x in zip(tables, w))

@@ -1000,6 +1000,37 @@ def test_a_response_rule_reads_the_sources_residuals_and_nothing_else():
             assert np.array_equal(a.fuse(t, deltas[t]), b.fuse(t, deltas[t]))
 
 
+def test_the_constant_rule_is_minus_the_pool_mean_for_every_target():
+    """The control for the response rules (T103 round three): nobody is averaged, so the arm is
+    `-m` whoever the target is, k and the table's vectors have no say in it, and the table still
+    decides which targets are fused -- the same ones the table arm fuses."""
+    targets, axis, deltas, table = _world()
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2, select="constant")
+    k1 = na.build_neighbour_arm(targets, deltas.get, axis, table, k=1, w=0.2, select="constant")
+    rng = np.random.default_rng(5)
+    other = {t: rng.normal(size=8) for t in targets}
+    oth = na.build_neighbour_arm(targets, deltas.get, axis, other, k=5, w=0.2, select="constant")
+    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2)
+    for t in targets:
+        r = _resid_of(arm, deltas, t)
+        n, own = arm.neighbour_mean(t, na.table_vector(table, t), r)
+        assert np.array_equal(n, -arm.mean) and own == arm.pool.index(t)
+        out = arm.fuse(t, deltas[t])
+        assert np.array_equal(out, arm.mean + float(np.linalg.norm(r))
+                              * na.unit(na.unit(r) + 0.2 * na.unit(-arm.mean)))
+        assert np.array_equal(out, k1.fuse(t, deltas[t]))
+        assert np.array_equal(out, oth.fuse(t, deltas[t]))
+        ref.fuse(t, deltas[t])
+    summ = arm.summary()
+    assert summ["select"] == "constant" and "cand" not in summ
+    assert summ["targets_fused"] == ref.summary()["targets_fused"] == len(targets)
+    gone = {k: v for k, v in table.items() if k != targets[0]}      # the table still gates
+    cut = na.build_neighbour_arm(targets[1:], deltas.get, axis, gone, k=5, w=0.2,
+                                 select="constant")
+    assert cut.fuse(targets[0], deltas[targets[0]]) is deltas[targets[0]]
+    assert cut.summary()["targets_unresolved"] == 1
+
+
 def test_selection_refusals():
     targets, axis, deltas, table = _world()
     with pytest.raises(ValueError, match="select must be one of"):
@@ -1020,7 +1051,7 @@ def test_selection_refusals():
         na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
                                 picks={targets[0]: {"members": targets[1:3], "weights": None}})
     # a pick answers every target, so a ranking rule beside it would rank nothing
-    for select in ("hybrid", "response", "euclid"):
+    for select in ("hybrid", "response", "euclid", "constant"):
         with pytest.raises(ValueError, match="nothing left for select"):
             na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=select,
                                    cand=12,
@@ -1164,7 +1195,7 @@ def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
         build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
                                             str(challenge["data"] / "nope.json")]))
     assert "--neighbour-picks: no such file" in capsys.readouterr().err
-    for select in ("hybrid", "response", "euclid"):       # a pick leaves nothing to rank
+    for select in ("hybrid", "response", "euclid", "constant"):   # a pick leaves nothing to rank
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, "bad", [*_arm_flags(challenge), "--neighbour-picks",
                                                 str(picks), "--neighbour-select", select]))
@@ -1209,6 +1240,7 @@ def test_build_refuses_a_model_named_stem_with_a_moved_selection(challenge, caps
     picks = _picks_file(challenge)
     stem = "ser-9abefkn_delta4_test_v1"
     for extra in (["--neighbour-select", "hybrid", "--neighbour-cand", "6"],
+                  ["--neighbour-select", "constant"],
                   ["--neighbour-picks", str(picks)]):
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, stem, [*_arm_flags(challenge), *extra]))

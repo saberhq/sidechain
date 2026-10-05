@@ -48,7 +48,10 @@ Why each step is the shape it is:
   and never anything of the line being predicted: ``"hybrid"`` takes the table's ``cand``
   nearest and keeps the k of them whose residuals point most like ``r_t`` (cosine);
   ``"response"`` ranks the whole pool by that cosine; ``"euclid"`` by the Euclidean distance
-  between residuals, so size counts as well as direction. A rule the arm cannot compute from
+  between residuals, so size counts as well as direction. ``"constant"`` is the control for
+  those rules and picks nobody: every target's arm is ``-m``, one shared nudge away from the
+  pool mean (T103 round two found a response pick that was this nudge in disguise), with the
+  table still deciding which targets are fused. A rule the arm cannot compute from
   its own residuals (one that needs each member's measurement noise) is handed in as a declared
   pick, ``picks``: for each target the pool members to average and, optionally, their weights.
   A declared pick is built from the same sources as the pool, by the caller, and is recorded by
@@ -74,8 +77,9 @@ from sidechain.data.gene_aliases import RETIRED_SYMBOLS as ALIAS
 
 SIZES = ("unit", "median")       # the blend shapes: the gate's unit arm, or size-aware
 # which k members are averaged: the table's nearest (the gate's), the table's `cand` nearest
-# re-ranked by response, or the whole pool ranked by response direction / distance
-SELECTS = ("table", "hybrid", "response", "euclid")
+# re-ranked by response, or the whole pool ranked by response direction / distance; "constant"
+# averages nobody (the control: every target gets minus the pool mean)
+SELECTS = ("table", "hybrid", "response", "euclid", "constant")
 
 
 def unit(v: np.ndarray) -> np.ndarray:
@@ -240,6 +244,9 @@ class NeighbourArm:
                 sim[own] = -np.inf           # a target is never its own neighbour
             idx = np.argsort(-sim)[: self.k]
             return self.resid[idx].mean(0), own
+        if self.select == "constant":
+            # the control: no member is read and k is unused; the same vector for every target
+            return -self.mean, own
         if r is None:
             raise ValueError(f"select={self.select!r} ranks the pool against the target's own "
                              "residual: pass r")

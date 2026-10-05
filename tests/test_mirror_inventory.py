@@ -140,6 +140,7 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     assert "nb=string·0.2·k25·hyb200" in nbs(select="hybrid", cand=200)
     assert "nb=string·0.2·k25·resp" in nbs(select="response")
     assert "nb=string·0.2·k25·eucl" in nbs(select="euclid")
+    assert "nb=string·0.2·k25·const" in nbs(select="constant")
     assert "nb=string·0.2·k25·picks" in nbs(picks_file="/x/picks.json")
     # the blend shape and the rule stack, in that order
     assert ("nb=string·0.2·k25·med·hyb200"

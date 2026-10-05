@@ -852,14 +852,17 @@ def add_neighbour_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
                          "so a neighbourhood that responds strongly and agrees pulls harder than "
                          "one that cancels. Needs --neighbour-w.")
     # the spellings of models.neighbour_arm.SELECTS, named here for the same reason as the sizes
-    ap.add_argument("--neighbour-select", choices=("table", "hybrid", "response", "euclid"),
+    ap.add_argument("--neighbour-select", choices=("table", "hybrid", "response", "euclid",
+                                                      "constant"),
                     default="table",
                     help="which k pool members are averaged: 'table' (default) is the gate's "
                          "pick, the k nearest in the gene table; 'hybrid' takes the table's "
                          "--neighbour-cand nearest and keeps the k whose residual responses in "
                          "the sources point most like the target's own (cosine); 'response' "
                          "ranks the whole pool by that cosine; 'euclid' by the Euclidean "
-                         "distance between residuals. Every rule reads the sources only. One "
+                         "distance between residuals; 'constant' is the control and averages "
+                         "nobody, every target's arm being minus the pool mean (k is unused). "
+                         "Every rule reads the sources only. One "
                          "table only. Needs --neighbour-w.")
     ap.add_argument("--neighbour-cand", type=int, default=100, metavar="N",
                     help="--neighbour-select hybrid: how many of the table's nearest are "
