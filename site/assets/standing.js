@@ -99,7 +99,8 @@
   }
 
   /* Choosing a point puts its model card under the plot: the paragraph its row opens to,
-     copied from that row so the two can never disagree. Choosing it again lets it go. */
+     copied from that row so the two can never disagree. Choosing it again lets it go, and so
+     do the close mark, Escape and a click anywhere else. */
   function choose(pt) {
     if (chosen) chosen.classList.remove('is-chosen');
     chosen = pt === chosen ? null : pt;
@@ -138,6 +139,14 @@
   });
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape' && chosen) choose(null);
+  });
+  /* A click anywhere else lets the chosen point go. Its own card and readout do not count
+     as elsewhere, so the card's text can still be selected. */
+  document.addEventListener('click', function (ev) {
+    if (!chosen) return;
+    var t = ev.target;
+    if ((t.closest && t.closest('a.sc-pt')) || card.contains(t) || readout.contains(t)) return;
+    choose(null);
   });
 
   /* A row lights its point, as a point lights its row. */
