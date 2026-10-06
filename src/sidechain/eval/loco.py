@@ -65,6 +65,51 @@ from sidechain.utils.logging import log_run
 from sidechain.utils.naming import check_out_leaf
 
 
+def read_scatter_table(path: Path, axis: np.ndarray, perts: list[str]) -> tuple[dict, dict]:
+    """A per-(perturbation, gene) scatter table for `PoissonEmitter.emit_dual(scatter=)` (T85).
+
+    A parquet with `target`, `feature` and `scatter` >= 0: 1 leaves the gene as the emitter's
+    lambda emits it, 0 removes its sampling scatter, above 1 widens it. Rows whose target is not
+    a perturbation of this file, whose gene is not on its axis, or whose gene IS the target (its
+    pin is not the table's to move) are dropped and counted; a pair listed twice is refused.
+    Returns `{target: (gene positions, values)}` for the pairs that change something (scatter
+    other than 1) and the record that goes into the run's summary.
+    """
+    import hashlib
+
+    import pandas as pd
+
+    path = Path(path).expanduser()
+    tab = pd.read_parquet(path, columns=["target", "feature", "scatter"])
+    tab["target"], tab["feature"] = tab["target"].astype(str), tab["feature"].astype(str)
+    val = tab["scatter"].to_numpy(dtype=np.float64)
+    if not np.isfinite(val).all() or (val < 0).any():
+        raise SystemExit(f"--scatter-table {path.name}: scatter must be finite and >= 0")
+    if tab.duplicated(["target", "feature"]).any():
+        raise SystemExit(f"--scatter-table {path.name}: a (target, feature) pair is listed twice")
+    pos = {g: i for i, g in enumerate(axis)}
+    known = set(perts)
+    off_target = ~tab["target"].isin(known).to_numpy()
+    off_axis = ~tab["feature"].isin(pos).to_numpy()
+    own = (tab["target"] == tab["feature"]).to_numpy()
+    keep = ~(off_target | off_axis | own) & (val != 1.0)
+    out = {}
+    for target, block in tab[keep].groupby("target", sort=False):
+        out[target] = (np.array([pos[g] for g in block["feature"]], dtype=np.int64),
+                       block["scatter"].to_numpy(dtype=np.float64))
+    sizes = [len(v[0]) for v in out.values()]
+    record = {"table": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              "rows": len(tab), "pairs_applied": int(keep.sum()),
+              "targets_with_a_pair": len(out), "pairs_per_target_median": float(np.median(sizes)) if sizes else 0.0,
+              "rows_at_scatter_zero": int(((val == 0.0) & keep).sum()),
+              "rows_below_one": int(((val < 1.0) & keep).sum()),
+              "rows_above_one": int(((val > 1.0) & keep).sum()),
+              "rows_dropped": {"target_not_in_this_file": int(off_target.sum()),
+                               "gene_not_on_the_axis": int((off_axis & ~off_target).sum()),
+                               "the_targets_own_gene": int((own & ~off_target & ~off_axis).sum())}}
+    return out, record
+
+
 def build_transfer_prediction(
     real_path: Path,
     sources: list,
@@ -100,6 +145,7 @@ def build_transfer_prediction(
     neighbour_picks: Path | None = None,
     dual_fallback: str = "template",
     delta_cache: dict | None = None,
+    scatter_table: Path | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -120,11 +166,15 @@ def build_transfer_prediction(
     on_fail = "fallback" if dual_fallback == "template" else "anchor"
     fell_back: dict[str, list] = {"anchor": [], "template": []}
 
-    def dual(n, d_cell, d_bulk, label):          # called only inside the write loop, after `em` exists
-        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail)
+    sharpened: dict[str, int] = {}               # target -> genes whose scatter the block carries
+
+    def dual(n, d_cell, d_bulk, label, scatter=None):   # called only inside the write loop, after `em` exists
+        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter)
         how = getattr(em, "last_dual", "dual")
         if how in ("anchor", "template"):
             fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None)])
+        if scatter is not None:
+            sharpened[label] = int(em.last_sharpened or 0)
         return block
 
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -187,6 +237,13 @@ def build_transfer_prediction(
                          "> 0 or --dispersion poisson): at lambda 0 the pseudobulk and the "
                          "per-cell mean coincide")
     gene_pos = {g: i for i, g in enumerate(axis)}
+    # T85: the per-gene scatter dial. It acts inside the two-moment fit, so it needs that path.
+    scatter_of, scatter_record = None, None
+    if scatter_table is not None:
+        if not two_channel:
+            raise SystemExit("--scatter-table acts on the two-channel emission -- pass --alpha-bulk "
+                             "or --bulk-anchor pooled")
+        scatter_of, scatter_record = read_scatter_table(scatter_table, axis, perts)
     out_h5 = open_anndata_h5(out_path, "w")
     writer = CsrWriter(out_h5, len(axis))
     obs_labels, covered = [], 0
@@ -274,7 +331,11 @@ def build_transfer_prediction(
             d_bulk = d0 * (alpha_bulk if alpha_bulk is not None else alpha)
             if p in gene_pos:
                 d_bulk[gene_pos[p]] = -2.32
-            writer.append_csr(dual(n, d, d_bulk, p))
+            scatter = None
+            if scatter_of is not None and p in scatter_of:
+                scatter = np.ones(len(axis))
+                scatter[scatter_of[p][0]] = scatter_of[p][1]
+            writer.append_csr(dual(n, d, d_bulk, p, scatter))
         obs_labels += [p] * n
     n_rows = writer.close()
     assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
@@ -309,6 +370,13 @@ def build_transfer_prediction(
             # ("envelope": refused before the fit; "fit": the moment fit did not converge)
             "dual_fallback": dual_fallback if two_channel else None,
             "dual_fallback_targets": fell_back if two_channel else None,
+            # T85: present only with --scatter-table. `targets_carrying_it` counts the blocks whose
+            # fit took the table's genes; a target that ended on the template rung carries none.
+            **({"scatter_table": {**scatter_record,
+                                  "targets_carrying_it": int(sum(v > 0 for v in sharpened.values())),
+                                  "targets_listed_but_not_carrying": sorted(t for t, v in sharpened.items() if v == 0),
+                                  "targets_listed_but_uncovered": sorted(set(scatter_of) - set(sharpened))}}
+               if scatter_record is not None else {}),
             "gamma": gamma, "var_floor": var_floor,
             # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
             # submission's 1000: an arm scored before that date carries no floor in its
@@ -396,6 +464,15 @@ def main(argv: list[str] | None = None) -> int:
                          "fails as well (under --bulk-anchor mean_cpm it re-pins the column sums "
                          "to their expectation instead). Same knob in sidechain.submit.build, so a "
                          "scored arm submits verbatim")
+    ap.add_argument("--scatter-table", type=Path, default=None, metavar="PARQUET",
+                    help="T85: a per-(perturbation, gene) dial on the emitted cell-to-cell scatter. A "
+                         "parquet with target, feature, scatter >= 0: 1 = as --emit-lambda emits "
+                         "the gene, 0 = no sampling scatter (the gene keeps its per-cell mean, its "
+                         "column total and the depth tilt the two moments need), above 1 = wider. "
+                         "The cells drawn, "
+                         "their depths and every unlisted gene's draw are the run's without it. "
+                         "Needs the two-channel emission (--alpha-bulk or --bulk-anchor pooled); "
+                         "count_emitters.PoissonEmitter.emit_dual. Not a submit.build knob yet")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
@@ -526,7 +603,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_cand=args.neighbour_cand,
                                      neighbour_picks=args.neighbour_picks,
                                      dual_fallback=args.dual_fallback,
-                                     delta_cache=delta_cache)
+                                     delta_cache=delta_cache,
+                                     scatter_table=args.scatter_table)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -550,6 +628,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "dual_fallback": args.dual_fallback,
+         "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "gamma": args.gamma,
          "var_floor": args.var_floor,
          "similarity_beta": args.similarity_beta,

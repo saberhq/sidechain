@@ -133,6 +133,15 @@ class PoissonEmitter:
     moves: the per-cell channel stays on `fraction`, because that is where the real controls'
     per-cell mean sits, and moving it would read to the Wilcoxon members as DE on every
     perturbation. `emit` has one channel and ignores the anchor.
+
+    `emit_dual(..., scatter=)` is the same dial PER GENE (T85, private
+    research/ideas/reach-call-set-emitter.md): a factor >= 0 on each gene's cell-to-cell
+    scatter around its predicted count, applied to the template before the two moments are
+    fitted. 1 leaves the gene as `lam` emitted it; 0 removes its sampling scatter, so what is
+    left is the depth tilt the two moments need and the integer rounding; above 1 the scatter
+    is widened (counts that would fall below zero are held at zero, and the fit re-pins the
+    gene's two moments). Which genes the rank test calls, and in what order, is decided gene
+    by gene by that scatter.
     """
 
     def __init__(self, profile: ContextProfile, seed: int = 0, *, dispersion: str | None = None,
@@ -175,6 +184,7 @@ class PoissonEmitter:
 
     def emit(self, n: int, log2fc: np.ndarray | None = None, *, max_counts_per_cell: int = 1_000_000) -> sp.csr_matrix:
         self.last_dual, self.last_dual_reason = None, None    # emit_dual sets them after its template
+        self.last_sharpened = None
         frac = self._fraction(log2fc)
         w = self.lam * self.lam    # Poisson share of the variance; sd scales as lam
         if w == 0.0:
@@ -194,7 +204,8 @@ class PoissonEmitter:
 
     def emit_dual(self, n: int, log2fc_cell: np.ndarray | None, log2fc_bulk: np.ndarray | None, *,
                   iterations: int = 100, tolerance: float = 2e-4,
-                  max_projection: float = 0.03, on_fail: str = "raise") -> sp.csr_matrix:
+                  max_projection: float = 0.03, on_fail: str = "raise",
+                  scatter: np.ndarray | None = None) -> sp.csr_matrix:
         """Two amplitudes in one count matrix (T84, private research/ideas/two-amplitude-emitter.md).
 
         cell-eval2 reads a perturbation's cells twice: `pds` and `mse` through the depth-weighted
@@ -245,6 +256,23 @@ class PoissonEmitter:
         every target, and the caller's count is how that shows. And it is not retried for a
         ValueError that is neither an envelope refusal nor a failed fit ("other": a contract
         violation, not an unreachable pair) -- that one ends on the template, as before.
+
+        `scatter` (T85) is one factor per gene, >= 0. Before the fit, each gene's template
+        column c is replaced by max(m + scatter * (c - m), 0), with m = the cell's own depth times
+        the gene's per-cell fraction: the count the gene is predicted to have in that cell. 1 is
+        the template (None, or all ones, touches nothing and is bit-identical); 0 leaves no
+        sampling scatter in the gene; above 1 widens it, and the floor at zero then piles cells
+        onto zero the way a sparse gene's real cells are (the fit re-pins the mean that floor
+        moved). The template itself is drawn exactly as without it, so the RNG
+        stream, every cell's depth and every other gene's draw are the unscattered call's, and
+        the fit then pins the same two moments: the gene's per-cell mean and its column total do
+        not move, only how its counts are spread over the cells. What a fully sharpened gene
+        keeps is the depth tilt the two moments ask of it and the integer rounding, so it is a
+        point mass in CPM only where its two profiles agree. If the fit cannot be met, the
+        rungs above apply: the anchor rung is fitted on the same re-scattered template, and the
+        last rung returns the ORIGINAL template, untouched. `last_sharpened` is the number of
+        genes whose scatter was changed (either way) in the block just returned (0 on the
+        template rung, None when `scatter` was not passed).
         """
         if on_fail not in ("raise", "fallback", "anchor"):
             raise ValueError(f"on_fail must be 'raise', 'fallback' or 'anchor', got {on_fail!r}")
@@ -253,14 +281,32 @@ class PoissonEmitter:
                              "depth, so the pseudobulk and the per-cell mean cannot differ")
         p_cell = self._fraction(log2fc_cell)
         p_bulk = self._fraction(log2fc_bulk, bulk=True)
+        if scatter is not None:
+            scatter = np.asarray(scatter, dtype=np.float64)
+            if scatter.shape != p_cell.shape:
+                raise ValueError("scatter must be per gene on the submission axis")
+            if not np.isfinite(scatter).all() or (scatter < 0).any():
+                raise ValueError("scatter must be finite and >= 0 (1 = as emitted, 0 = sharp, "
+                                 "above 1 = wider)")
         template = self.emit(n, log2fc_cell).toarray().astype(np.float64)
         depths = np.rint(template.sum(axis=1)).astype(np.int64)
         seed = int(self.rng.integers(0, 2**32 - 1))
         fit = dict(depths=depths, seed=seed, iterations=iterations, tolerance=tolerance,
                    max_projection=max_projection)
         self.last_dual, self.last_dual_reason = "dual", None
+        # the per-gene dial acts on what the fit starts from; `template` stays the drawn cells,
+        # because the last fallback rung returns them as they are
+        start, self.last_sharpened = template, None
+        if scatter is not None:
+            move = scatter != 1.0
+            self.last_sharpened = int(move.sum())
+            if move.any():
+                predicted = depths[:, None].astype(np.float64) * p_cell[None, move]
+                start = template.copy()
+                start[:, move] = np.maximum(
+                    predicted + scatter[None, move] * (template[:, move] - predicted), 0.0)
         try:
-            counts = dual_moment_counts(template, p_cell, p_bulk, **fit)
+            counts = dual_moment_counts(start, p_cell, p_bulk, **fit)
         except ValueError as err:
             if on_fail == "raise":
                 raise
@@ -273,7 +319,7 @@ class PoissonEmitter:
                 p_one = self._fraction(log2fc_cell, bulk=True)
                 if not np.array_equal(p_one, p_bulk):     # the request was not already this rung
                     try:
-                        counts = dual_moment_counts(template, p_cell, p_one, **fit)
+                        counts = dual_moment_counts(start, p_cell, p_one, **fit)
                     except ValueError:
                         pass
                     else:
@@ -281,6 +327,8 @@ class PoissonEmitter:
                         self.last_dual = "anchor"
                         return sp.csr_matrix(counts.astype(np.float32))
             self.last_dual = "template"
+            if self.last_sharpened is not None:
+                self.last_sharpened = 0
             return sp.csr_matrix(template.astype(np.float32))
         return sp.csr_matrix(counts.astype(np.float32))
 

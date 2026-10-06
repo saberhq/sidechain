@@ -418,3 +418,187 @@ def test_loco_passes_the_fallback_rung_and_names_the_targets_that_fell_back(monk
         loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "inert.h5ad",
                                        pert_col="perturbation", control="non-targeting", shrinkage=False,
                                        emit_lambda=0.5, alpha=1.35, min_libsize=0.0, dual_fallback="anchor")
+
+
+# ── T85: the per-gene scatter dial (private research/ideas/reach-call-set-emitter.md) ─────────
+
+
+def _cpm(M):
+    X = M.toarray().astype(np.float64)
+    return X, X / X.sum(axis=1, keepdims=True)
+
+
+def test_the_per_gene_dial_is_off_by_default_and_all_ones_is_the_same_call():
+    rng = np.random.default_rng(11)
+    prof = _profile(rng)
+    d = rng.normal(0, 0.3, size=G)
+    plain = PoissonEmitter(prof, seed=4, lam=0.5)
+    ones = PoissonEmitter(prof, seed=4, lam=0.5)
+    a = plain.emit_dual(300, d, 1.2 * d).toarray()
+    b = ones.emit_dual(300, d, 1.2 * d, scatter=np.ones(G)).toarray()
+    assert np.array_equal(a, b)
+    assert plain.last_sharpened is None and ones.last_sharpened == 0
+    # and a plain emit resets the record
+    plain.emit(10, d)
+    assert plain.last_sharpened is None
+
+
+def test_a_sharpened_gene_keeps_both_moments_and_every_depth_and_loses_its_scatter():
+    rng = np.random.default_rng(12)
+    prof = _profile(rng)
+    d = rng.normal(0, 0.3, size=G)
+    head = np.zeros(G, dtype=bool)
+    head[np.argsort(-prof.fraction)[:20:2]] = True      # ten well-expressed genes
+    scatter = np.where(head, 0.0, 1.0)
+    base_em, sharp_em = PoissonEmitter(prof, seed=9, lam=0.5), PoissonEmitter(prof, seed=9, lam=0.5)
+    base, base_comp = _cpm(base_em.emit_dual(400, d, d))
+    sharp, sharp_comp = _cpm(sharp_em.emit_dual(400, d, d, scatter=scatter))
+    assert sharp_em.last_sharpened == 10 and sharp_em.last_dual == "dual"
+    assert np.array_equal(sharp, np.round(sharp)) and sharp.min() >= 0
+    # the cells are the same cells: every depth agrees, and so does (to the pin's rounding) every column total
+    assert np.array_equal(base.sum(axis=1), sharp.sum(axis=1))
+    assert np.abs(base.sum(axis=0) - sharp.sum(axis=0)).max() <= 2.0
+    # the per-cell mean of every gene, sharpened or not, stays on the profile
+    p_cell = sharp_em._fraction(d)
+    assert np.abs(sharp_comp.mean(axis=0) - p_cell).sum() < 0.01
+    assert np.abs(sharp_comp.mean(axis=0) - base_comp.mean(axis=0))[head].max() < 0.02 * p_cell[head].max()
+    # what moved is the spread: a sharpened gene's composition varies far less from cell to cell
+    ratio = sharp_comp.std(axis=0)[head] / base_comp.std(axis=0)[head]
+    assert np.median(ratio) < 0.5 and ratio.max() < 0.9
+    # and the genes that were not asked for keep their spread (their counts move only by rounding)
+    other = ~head
+    assert np.median(sharp_comp.std(axis=0)[other] / base_comp.std(axis=0)[other]) > 0.9
+    moved = np.abs(base[:, other] - sharp[:, other])
+    assert (moved == 0).mean() > 0.6 and moved.mean() < 0.5      # here the head is 39 % of the counts; on real folds it is a few %
+
+
+def test_an_interior_scatter_sits_between_the_template_and_the_sharp_gene():
+    rng = np.random.default_rng(13)
+    prof = _profile(rng)
+    d = rng.normal(0, 0.3, size=G)
+    g = int(np.argmax(prof.fraction))
+    spread = []
+    for s in (1.0, 0.5, 0.0):
+        sc = np.ones(G)
+        sc[g] = s
+        _, comp = _cpm(PoissonEmitter(prof, seed=2, lam=0.5).emit_dual(400, d, d, scatter=sc))
+        spread.append(comp[:, g].std())
+    assert spread[0] > spread[1] > spread[2]
+
+
+def test_a_scatter_above_one_widens_a_gene_and_keeps_its_two_moments():
+    rng = np.random.default_rng(16)
+    prof = _profile(rng)
+    d = rng.normal(0, 0.3, size=G)
+    order = np.argsort(-prof.fraction)
+    wide = np.ones(G)
+    wide[order[:6]] = 3.0           # well-expressed genes
+    wide[order[-6:]] = 3.0          # sparse genes: here the floor at zero does the work
+    base_em, wide_em = PoissonEmitter(prof, seed=8, lam=0.5), PoissonEmitter(prof, seed=8, lam=0.5)
+    base, base_comp = _cpm(base_em.emit_dual(400, d, d))
+    out, comp = _cpm(wide_em.emit_dual(400, d, d, scatter=wide))
+    assert wide_em.last_sharpened == 12 and wide_em.last_dual == "dual"
+    assert np.array_equal(out, np.round(out)) and out.min() >= 0
+    assert np.array_equal(base.sum(axis=1), out.sum(axis=1))
+    p_cell = wide_em._fraction(d)
+    assert np.abs(comp.mean(axis=0) - p_cell).sum() < 0.01
+    assert np.abs(out.sum(axis=0) - base.sum(axis=0)).max() <= 2.0
+    top = order[:6]
+    assert (comp[:, top].std(axis=0) > 1.5 * base_comp[:, top].std(axis=0)).all()
+    # a widened sparse gene has more empty cells than the template gave it
+    low = order[-6:]
+    assert (out[:, low] == 0).sum() > (base[:, low] == 0).sum()
+
+
+def test_the_dial_never_changes_what_is_drawn_next():
+    rng = np.random.default_rng(14)
+    prof = _profile(rng)
+    d1, d2 = rng.normal(0, 0.3, size=G), rng.normal(0, 0.3, size=G)
+    a, b = PoissonEmitter(prof, seed=7, lam=0.5), PoissonEmitter(prof, seed=7, lam=0.5)
+    a.emit_dual(200, d1, d1)
+    b.emit_dual(200, d1, d1, scatter=np.zeros(G))
+    assert np.array_equal(a.emit_dual(200, d2, d2).toarray(), b.emit_dual(200, d2, d2).toarray())
+
+
+def test_scatter_is_checked_and_the_template_rung_returns_the_cells_as_drawn():
+    rng = np.random.default_rng(15)
+    prof = _profile(rng)
+    d = rng.normal(0, 0.3, size=G)
+    em = PoissonEmitter(prof, seed=1, lam=0.5)
+    for bad in (np.ones(G - 1), np.full(G, -0.1), np.full(G, np.nan), np.full(G, np.inf)):
+        with pytest.raises(ValueError, match="scatter"):
+            em.emit_dual(50, d, d, scatter=bad)
+    # a bulk profile far outside the depth envelope cannot be met: the last rung is the template,
+    # and it comes back unsharpened and integral
+    far = PoissonEmitter(prof, seed=1, lam=0.5)
+    ref = PoissonEmitter(prof, seed=1, lam=0.5)
+    M = far.emit_dual(120, d, 6.0 * d, on_fail="fallback", scatter=np.zeros(G))
+    assert far.last_dual == "template" and far.last_sharpened == 0
+    assert np.array_equal(M.toarray(), ref.emit(120, d).toarray())
+
+
+def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
+    import anndata as ad
+    import pandas as pd
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    rng = np.random.default_rng(21)
+    genes = np.array([f"g{i}" for i in range(G)], dtype=object)
+    basal = rng.uniform(100, 2000, size=G)
+    mean = np.stack([basal, basal * np.exp2(rng.normal(0, 0.15, G)), basal * np.exp2(rng.normal(0, 0.15, G))])
+    n = np.full(3, 1000, dtype=np.int64)
+    src = PseudobulkSums(labels=["ctrl", "g0", "g1"], genes=genes.copy(), count_sum=mean * n[:, None],
+                         cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2 + mean) * n[:, None],
+                         n_cells=n, libsize_sum=n.astype(float) * 2e4, sources=["t"])
+    rows, labels = [], []
+    for lab, k in (("non-targeting", 60), ("g0", 12), ("g1", 12)):
+        for _ in range(k):
+            rows.append(rng.poisson(basal / basal.sum() * rng.integers(3000, 6000))); labels.append(lab)
+    real = ad.AnnData(X=sp.csr_matrix(np.asarray(rows, dtype=np.float32)),
+                      obs=pd.DataFrame({"perturbation": labels}, index=[f"c{i}" for i in range(len(rows))]),
+                      var=pd.DataFrame(index=genes.astype(str)))
+    real_path = tmp_path / "real.h5ad"
+    real.write_h5ad(real_path)
+    top = [f"g{j}" for j in np.argsort(-basal)[:6] if j not in (0, 1)][:4]      # four well-expressed genes
+    table = tmp_path / "scatter.parquet"
+    pd.DataFrame({"target": ["g0"] * 4 + ["g0", "g0", "zz", "g0"],
+                  "feature": top + ["g0", "nope", "g5", top[0] + "x"],
+                  "scatter": [0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0]}).to_parquet(table)
+    kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
+              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.35, min_libsize=0.0, cells_per_pert=300)
+    plain = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "plain.h5ad", **kw)
+    dialed = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "dialed.h5ad",
+                                            scatter_table=table, **kw)
+    assert "scatter_table" not in plain
+    rec = dialed["scatter_table"]
+    assert rec["rows"] == 8 and rec["pairs_applied"] == 4 and rec["rows_at_scatter_zero"] == 3
+    assert rec["rows_dropped"] == {"target_not_in_this_file": 1, "gene_not_on_the_axis": 2, "the_targets_own_gene": 1}
+    assert rec["targets_with_a_pair"] == 1 and rec["targets_carrying_it"] == 1
+    assert rec["targets_listed_but_not_carrying"] == [] and len(rec["sha256"]) == 64
+    a, b = ad.read_h5ad(tmp_path / "plain.h5ad"), ad.read_h5ad(tmp_path / "dialed.h5ad")
+    lab = a.obs["perturbation"].to_numpy()
+    A, B_ = a.X.toarray().astype(np.float64), b.X.toarray().astype(np.float64)
+    # the target the table does not list is the same cells, bit for bit
+    assert np.array_equal(A[lab == "g1"], B_[lab == "g1"])
+    # the listed target keeps every depth; its listed genes lose spread, the fully sharpened ones most
+    g0 = lab == "g0"
+    assert np.array_equal(A[g0].sum(axis=1), B_[g0].sum(axis=1))
+    comp_a, comp_b = A[g0] / A[g0].sum(axis=1, keepdims=True), B_[g0] / B_[g0].sum(axis=1, keepdims=True)
+    cols = [int(g[1:]) for g in top]
+    ratio = comp_b[:, cols].std(axis=0) / comp_a[:, cols].std(axis=0)
+    assert (ratio[:3] < 0.8).all() and ratio[3] < 1.0 and ratio[:3].mean() < ratio[3]
+    assert np.abs(comp_b[:, cols].mean(axis=0) / comp_a[:, cols].mean(axis=0) - 1).max() < 0.01
+    # refusals: one channel, a pair listed twice, a value outside the dial
+    one = {k: v for k, v in kw.items() if k != "alpha_bulk"}
+    with pytest.raises(SystemExit, match="two-channel"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=table, **one)
+    twice = tmp_path / "twice.parquet"
+    pd.DataFrame({"target": ["g0", "g0"], "feature": [top[0], top[0]], "scatter": [0.0, 0.5]}).to_parquet(twice)
+    with pytest.raises(SystemExit, match="listed twice"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=twice, **kw)
+    wild = tmp_path / "wild.parquet"
+    pd.DataFrame({"target": ["g0"], "feature": [top[0]], "scatter": [-0.5]}).to_parquet(wild)
+    with pytest.raises(SystemExit, match=">= 0"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=wild, **kw)
