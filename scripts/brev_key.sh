@@ -27,6 +27,8 @@
 #
 # Needs brev >= 0.6.335. An older CLI ignores BREV_API_KEY without a word and answers from the
 # saved login instead, which looks like success until the login dies -- so this refuses it.
+# When the brev on PATH is that old, a newer copy kept at ~/.brev/brev-0.6.335 is used in its
+# place, for these calls only, so the shared CLI need not be upgraded under running boxes.
 #
 # The key is never echoed, never written into the repo, and never committed. If you are
 # debugging this script, do NOT add `set -x`.
@@ -36,6 +38,7 @@ SERVICE="sidechain-brev-api-key"
 ACCOUNT="${USER:-$(id -un)}"
 BREV="${BREV_BIN:-brev}"
 MIN_VERSION="0.6.335"
+SIDE_COPY="$HOME/.brev/brev-$MIN_VERSION"   # a release binary beside the installed CLI
 
 die() { echo "brev_key: $*" >&2; exit 1; }
 
@@ -53,15 +56,29 @@ read_expiry() {
   echo "${d:-unknown}"
 }
 
-# Refuse a CLI that would ignore the key.
+# The version of the brev at $1, or nothing.
+version_of() {
+  "$1" --version --no-check-latest 2>/dev/null | sed -n 's/.*Current Version: v\([0-9.]*\).*/\1/p' | head -1
+}
+
+# Is the version $1 at least MIN_VERSION?
+new_enough() {
+  [ -n "$1" ] && [ "$(printf '%s\n%s\n' "$MIN_VERSION" "$1" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" = "$MIN_VERSION" ]
+}
+
+# Refuse a CLI that would ignore the key. With no BREV_BIN given, an old brev on PATH gives
+# way to the side copy when there is one.
 need_version() {
   command -v "$BREV" >/dev/null 2>&1 || die "no \`$BREV\` on PATH"
   local have
-  have="$("$BREV" --version --no-check-latest 2>/dev/null | sed -n 's/.*Current Version: v\([0-9.]*\).*/\1/p' | head -1)"
+  have="$(version_of "$BREV")"
   [ -n "$have" ] || die "could not read the version from \`$BREV --version\`"
-  if [ "$(printf '%s\n%s\n' "$MIN_VERSION" "$have" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" != "$MIN_VERSION" ]; then
-    die "brev $have ignores BREV_API_KEY and would answer from the saved login; needs >= $MIN_VERSION (\`brew upgrade brev\`)"
+  new_enough "$have" && return 0
+  if [ -z "${BREV_BIN:-}" ] && [ -x "$SIDE_COPY" ] && new_enough "$(version_of "$SIDE_COPY")"; then
+    BREV="$SIDE_COPY"
+    return 0
   fi
+  die "brev $have ignores BREV_API_KEY and would answer from the saved login; needs >= $MIN_VERSION (\`brew upgrade brev\`, or a release binary at $SIDE_COPY)"
 }
 
 need_key() {
