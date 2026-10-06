@@ -146,6 +146,7 @@ def build_transfer_prediction(
     dual_fallback: str = "template",
     delta_cache: dict | None = None,
     scatter_table: Path | None = None,
+    emit_shape: str = "template",
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -156,6 +157,9 @@ def build_transfer_prediction(
     """
     if dual_fallback not in ("template", "anchor"):
         raise SystemExit(f"dual_fallback must be 'template' or 'anchor', got {dual_fallback!r}")
+    if emit_shape not in ("template", "controls"):
+        raise SystemExit(f"emit_shape must be 'template' or 'controls', got {emit_shape!r}")
+    shaped = emit_shape == "controls"            # T85: every block is re-rated control cells
     check_shrink_rule(shrink_k, shrink_stage, shrink_rule)     # before any file is written
     # the neighbour pool's adaptive fits, counted apart from the targets'; None keeps the
     # pool's pooled_delta call exactly what it was for every other rule
@@ -167,14 +171,17 @@ def build_transfer_prediction(
     fell_back: dict[str, list] = {"anchor": [], "template": []}
 
     sharpened: dict[str, int] = {}               # target -> genes whose scatter the block carries
+    in_shape: dict[str, bool] = {}               # target -> its block is control cells (not the template rung)
 
     def dual(n, d_cell, d_bulk, label, scatter=None):   # called only inside the write loop, after `em` exists
-        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter)
+        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter, shape=shaped)
         how = getattr(em, "last_dual", "dual")
         if how in ("anchor", "template"):
             fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None)])
         if scatter is not None:
             sharpened[label] = int(em.last_sharpened or 0)
+        if shaped:
+            in_shape[label] = bool(em.last_shaped)
         return block
 
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -221,7 +228,8 @@ def build_transfer_prediction(
     real[labels == control].to_memory().write_h5ad(ctrl_tmp)
     if real.isbacked:
         real.file.close()
-    prof = ContextProfile.from_controls(ctrl_tmp, real_path.stem, min_libsize=min_libsize)
+    prof = ContextProfile.from_controls(ctrl_tmp, real_path.stem, min_libsize=min_libsize,
+                                        keep_cells=shaped)
     if dispersion is None and emit_lambda is None:
         dispersion = "even"    # this function's historical default
     em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda,
@@ -244,6 +252,9 @@ def build_transfer_prediction(
             raise SystemExit("--scatter-table acts on the two-channel emission -- pass --alpha-bulk "
                              "or --bulk-anchor pooled")
         scatter_of, scatter_record = read_scatter_table(scatter_table, axis, perts)
+    if shaped and not two_channel:
+        raise SystemExit("--emit-shape controls acts on the two-channel emission -- pass --alpha-bulk "
+                         "or --bulk-anchor pooled")
     out_h5 = open_anndata_h5(out_path, "w")
     writer = CsrWriter(out_h5, len(axis))
     obs_labels, covered = [], 0
@@ -320,10 +331,14 @@ def build_transfer_prediction(
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
-        if not two_channel or (d is None and bulk_anchor == "mean_cpm"):
+        if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
             writer.append_csr(em.emit(n, d))
         elif d is None:
-            # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile
+            # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile.
+            # --emit-shape controls sends an uncovered target here under either anchor, so that it
+            # is emitted in the controls' shape like every other. Under mean_cpm that is one more
+            # number drawn than `emit` draws, so the targets after it draw other cells than the
+            # run without the flag; under the pooled anchor the path is the same either way.
             writer.append_csr(dual(n, None, None, p))
         else:
             # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
@@ -377,6 +392,12 @@ def build_transfer_prediction(
                                   "targets_listed_but_not_carrying": sorted(t for t, v in sharpened.items() if v == 0),
                                   "targets_listed_but_uncovered": sorted(set(scatter_of) - set(sharpened))}}
                if scatter_record is not None else {}),
+            # T85: present only with --emit-shape controls. A target that ended on the template
+            # rung is not control cells; it is named here and under dual_fallback_targets.
+            **({"emit_shape": {"shape": emit_shape, "control_cells_kept": int(prof.n_cells),
+                               "targets_in_the_controls_shape": int(sum(in_shape.values())),
+                               "targets_left_on_the_template": sorted(t for t, v in in_shape.items() if not v)}}
+               if shaped else {}),
             "gamma": gamma, "var_floor": var_floor,
             # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
             # submission's 1000: an arm scored before that date carries no floor in its
@@ -472,7 +493,25 @@ def main(argv: list[str] | None = None) -> int:
                          "The cells drawn, "
                          "their depths and every unlisted gene's draw are the run's without it. "
                          "Needs the two-channel emission (--alpha-bulk or --bulk-anchor pooled); "
-                         "count_emitters.PoissonEmitter.emit_dual. Not a submit.build knob yet")
+                         "count_emitters.PoissonEmitter.emit_dual. Not a submit.build knob yet. With "
+                         "--emit-shape controls the cells are control cells at other depths and the "
+                         "factor acts on a gene's re-rated counts: 1 is the controls' shape, below 1 "
+                         "narrower, 0 the predicted count in every cell")
+    ap.add_argument("--emit-shape", choices=("template", "controls"), default="template",
+                    help="T85: what the emitted cells are. template (the default, every scored arm) "
+                         "is the emitter's own cells at --emit-lambda. controls emits real control "
+                         "cells whose counts are re-rated to the prediction (thinned where less is "
+                         "predicted, topped up at the cell's own rate where more is), every target "
+                         "and every gene, the knockdown's own included: the rank test then calls a "
+                         "gene for its predicted shift and not for being narrower than a real "
+                         "cell's. The cells take real cells' depths. Both predicted moments are the "
+                         "run's without it, and under --bulk-anchor pooled so is what every target "
+                         "draws; under mean_cpm a target no source covers draws one number more, so "
+                         "the targets after it draw other cells. An --alpha-bulk other than --alpha "
+                         "is carried as a lean of every gene with the cell's depth, which is no "
+                         "longer the controls' shape. Needs the two-channel emission; "
+                         "count_emitters.PoissonEmitter.emit_dual(shape=True). Not a submit.build "
+                         "knob yet")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
@@ -604,7 +643,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_picks=args.neighbour_picks,
                                      dual_fallback=args.dual_fallback,
                                      delta_cache=delta_cache,
-                                     scatter_table=args.scatter_table)
+                                     scatter_table=args.scatter_table,
+                                     emit_shape=args.emit_shape)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -629,6 +669,7 @@ def main(argv: list[str] | None = None) -> int:
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "dual_fallback": args.dual_fallback,
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
+         "emit_shape": args.emit_shape,
          "gamma": args.gamma,
          "var_floor": args.var_floor,
          "similarity_beta": args.similarity_beta,

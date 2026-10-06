@@ -602,3 +602,438 @@ def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
     pd.DataFrame({"target": ["g0"], "feature": [top[0]], "scatter": [-0.5]}).to_parquet(wild)
     with pytest.raises(SystemExit, match=">= 0"):
         loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=wild, **kw)
+
+
+# ── T85: the controls' own shape (private research/ideas/reach-call-set-emitter.md) ──────────────────
+
+GS = 300      # the shape tests need expression classes: sparse, depth-tracking, on/off and minority-carried genes
+KINDS = ("plain", "plain", "plain", "depth-tracking", "on/off", "minority")
+
+
+def _gene_laws(g=GS):
+    """One fixed set of genes: mean counts per cell from 0.02 to 40 at depth 8,000; half over-dispersed
+    gamma genes, a sixth tracking the cell's depth (so the pooled profile is not the mean-CPM one), a
+    sixth off in 60 % of cells, a sixth carried by a minority (5 % of cells at eight times the rest)."""
+    rng = np.random.default_rng(7)
+    base = np.exp(rng.uniform(np.log(2.5e-6), np.log(5e-3), size=g))
+    return base / base.sum(), rng.uniform(1.0, 4.0, size=g), np.array([KINDS[j % 6] for j in range(g)])
+
+
+def _cells_like_real(rng, n, log2fc=None, g=GS):
+    """Cells of those genes; with `log2fc` the same cells at shifted rates, which is the truth a
+    shaped gene is held against."""
+    base, k, kind = _gene_laws(g)
+    depth = rng.lognormal(np.log(8000), 0.45, size=n)
+    rate = base[None, :] * rng.gamma(k[None, :], 1.0 / k[None, :], size=(n, g))
+    rate[:, kind == "depth-tracking"] *= ((depth / 8000) ** 0.5)[:, None]
+    rate[:, kind == "on/off"] *= rng.random((n, int((kind == "on/off").sum()))) < 0.4
+    few = kind == "minority"
+    rate[:, few] = base[None, few] * rng.gamma(25.0, 0.04, size=(n, int(few.sum()))) * np.where(
+        rng.random((n, int(few.sum()))) < 0.05, 8.0, 1.0)
+    if log2fc is not None:
+        rate = rate * np.exp2(log2fc)[None, :]
+    rate /= rate.sum(axis=1, keepdims=True)
+    return rng.poisson(rate * depth[:, None]).astype(np.float32)
+
+
+def _kept_profile(tmp_path, X, **kw):
+    import anndata as ad
+    import pandas as pd
+
+    path = tmp_path / f"ctrl_{len(X)}_{X.shape[1]}.h5ad"
+    ad.AnnData(X=sp.csr_matrix(X), obs=pd.DataFrame(index=[f"c{i}" for i in range(len(X))]),
+               var=pd.DataFrame(index=[f"g{j}" for j in range(X.shape[1])])).write_h5ad(path)
+    return ContextProfile.from_controls(path, "A", **kw)
+
+
+def _rank_test(M, X_ctrl, alpha=0.05):
+    """The scorer's kind of test: a two-sided rank-sum test on per-cell CPM of the emitted cells
+    against every control cell, Benjamini-Hochberg over the genes. Returns (signed z, called)."""
+    from scipy.stats import mannwhitneyu, norm
+
+    cpm = lambda A: A / A.sum(axis=1, keepdims=True) * 1e6
+    a, b = cpm(np.asarray(M, dtype=np.float64)), cpm(X_ctrl.astype(np.float64))
+    r = mannwhitneyu(a, b, axis=0, method="asymptotic", use_continuity=False)
+    z = np.sign(r.statistic - len(a) * len(b) / 2.0) * norm.isf(np.clip(r.pvalue, 1e-300, 1.0) / 2.0)
+    order = np.argsort(r.pvalue)
+    q = np.minimum.accumulate((r.pvalue[order] * len(z) / np.arange(1, len(z) + 1))[::-1])[::-1]
+    called = np.zeros(len(z), dtype=bool)
+    called[order] = q < alpha
+    return z, called
+
+
+def _classes(X):
+    per_cell = X.mean(axis=0)
+    kind = _gene_laws(X.shape[1])[2]
+    plain = kind == "plain"
+    cls = {"sparse": plain & (per_cell < 0.3), "middle": plain & (per_cell >= 0.3) & (per_cell < 3),
+           "high": plain & (per_cell >= 3), "depth-tracking": kind == "depth-tracking", "on/off": kind == "on/off",
+           "minority": (kind == "minority") & (per_cell >= 1)}
+    assert all(m.sum() >= 12 for m in cls.values()), {k: int(m.sum()) for k, m in cls.items()}
+    return cls
+
+
+def test_from_controls_keeps_the_cells_only_when_asked_and_reads_each_genes_spread(tmp_path):
+    import anndata as ad
+    import pandas as pd
+
+    rng = np.random.default_rng(31)
+    X = _cells_like_real(rng, 3000)
+    bare = _kept_profile(tmp_path, X)
+    assert bare.cells is None and bare.dispersion is None and bare.zero_rate is None
+    floor = float(np.median(X.sum(axis=1)))
+    prof = _kept_profile(tmp_path, X, min_libsize=floor, keep_cells=True)
+    assert sp.isspmatrix_csr(prof.cells) and prof.cells.shape == (prof.n_cells, GS)
+    assert np.array_equal(np.asarray(prof.cells.sum(axis=1)).ravel(), prof.libsizes)
+    assert np.array_equal(prof.cells.toarray(), X[X.sum(axis=1) > floor])
+    # the spread a Poisson draw does not explain: a gamma rate of shape 1 to 4 is a squared CV of
+    # 0.25 to 1, and a gene that is off in most cells carries more than any gamma here
+    whole = _kept_profile(tmp_path, X, keep_cells=True)
+    cls = _classes(X)
+    assert whole.dispersion.shape == (GS,) and (whole.dispersion >= 0).all()
+    assert 0.2 < np.median(whole.dispersion[cls["high"]]) < 1.2
+    assert np.median(whole.dispersion[cls["on/off"]]) > np.median(whole.dispersion[cls["high"]])
+    poisson = _kept_profile(tmp_path, rng.poisson(np.tile(np.linspace(0.5, 20, 30), (1500, 1))).astype(np.float32),
+                            keep_cells=True)
+    assert np.median(poisson.dispersion) < 0.02
+    # a gene the controls hold a few counts of has no spread to read (the moment estimate is zero
+    # for a third of such genes and several times too large for most others): it takes the
+    # well-measured genes' typical value
+    small = _kept_profile(tmp_path, X[:400], keep_cells=True)
+    few = X[:400].sum(axis=0) < 100
+    typical = np.median(small.dispersion[X[:400].sum(axis=0) >= 400])
+    assert few.sum() >= 10 and (small.dispersion[few] > 0.3 * typical).all()
+    assert 0.6 < np.median(small.dispersion[few]) / typical < 1.8
+    # what a cell with no count of a gene may expect of it, against the gamma reading: the same for
+    # a gamma-Poisson gene (and a Poisson one), a small part of it for a gene that is off in most cells
+    assert 0.7 < np.median(whole.zero_rate[cls["middle"]]) < 1.3
+    assert np.median(whole.zero_rate[cls["on/off"] & (X.mean(axis=0) > 1)]) < 0.4
+    assert 0.8 < np.median(poisson.zero_rate[:8]) < 1.25
+    # a zero stored in the file is not a count: the same profile with and without stored zeros
+    stored = sp.csr_matrix(X[:400])
+    stored.data[::7] = 0.0
+    clean = stored.copy()
+    clean.eliminate_zeros()
+    profs = []
+    for name, M in (("stored", stored), ("clean", clean)):
+        path = tmp_path / f"{name}.h5ad"
+        ad.AnnData(X=M, obs=pd.DataFrame(index=[f"c{i}" for i in range(400)]),
+                   var=pd.DataFrame(index=[f"g{j}" for j in range(GS)])).write_h5ad(path)
+        profs.append(ContextProfile.from_controls(path, "A", keep_cells=True))
+    assert profs[0].cells.nnz == profs[1].cells.nnz and np.array_equal(profs[0].zero_rate, profs[1].zero_rate)
+
+
+@pytest.mark.parametrize("anchor", ["mean_cpm", "pooled"])
+def test_shape_is_off_by_default_and_false_is_the_same_call(tmp_path, anchor):
+    rng = np.random.default_rng(32)
+    X = _cells_like_real(rng, 900)
+    prof, bare = _kept_profile(tmp_path, X, keep_cells=True), _kept_profile(tmp_path, X)
+    d = rng.normal(0, 0.3, size=GS)
+    sc = np.where(np.arange(GS) % 3 == 0, 0.5, 1.0)
+    em = lambda p: PoissonEmitter(p, seed=4, lam=0.5, bulk_anchor=anchor)
+    plain, off = em(bare), em(prof)
+    a = plain.emit_dual(300, d, d).toarray()
+    assert np.array_equal(a, off.emit_dual(300, d, d, shape=False).toarray())     # keeping the cells changes nothing
+    assert plain.last_shaped is None and off.last_shaped is None
+    assert np.array_equal(em(bare).emit_dual(300, d, d, scatter=sc).toarray(),
+                          em(prof).emit_dual(300, d, d, scatter=sc, shape=False).toarray())
+    on = em(prof)
+    on.emit_dual(300, d, d, shape=True)
+    assert on.last_shaped is True
+    on.emit(10, d)
+    assert on.last_shaped is None
+    # refusals: a profile that kept no cells, or whose cells are not its depths' cells
+    with pytest.raises(ValueError, match="keep_cells=True"):
+        plain.emit_dual(50, d, d, shape=True)
+    short = _kept_profile(tmp_path, X, keep_cells=True)
+    short.cells = short.cells[:-10]
+    with pytest.raises(ValueError, match="one row per depth"):
+        em(short).emit_dual(50, d, d, shape=True)
+
+
+def test_asked_for_every_control_cell_and_nothing_predicted_the_block_is_the_control_cells(tmp_path):
+    """The construction in one line. With as many cells asked for as the profile holds, the draw
+    is every control cell once (no cell twice), their two moments are the prediction already, and
+    nothing is thinned or topped up: what comes back is the control cells."""
+    rng = np.random.default_rng(33)
+    X = _cells_like_real(rng, 500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    out = PoissonEmitter(prof, seed=3, lam=0.5, bulk_anchor="pooled").emit_dual(len(X), None, None, shape=True).toarray()
+    assert np.array_equal(np.sort(out.sum(axis=1)), np.sort(X.sum(axis=1)))
+    ours, theirs = np.sort(out, axis=0), np.sort(X, axis=0)
+    # what differs is the fit's integer rounding: a count in two thousand moved, by one or two,
+    # nearly all of it on counts in the tens and hundreds
+    assert np.abs(ours - theirs).sum() < 0.002 * theirs.sum() and np.abs(ours - theirs).max() <= 4
+    assert (ours == theirs)[theirs <= 5].mean() > 0.99 and abs((out == 0).mean() - (X == 0).mean()) < 0.004
+    # and a depth window is kept: cells drawn inside it, at their own depths
+    lo, hi = np.quantile(prof.libsizes, [0.25, 0.75])
+    mid = PoissonEmitter(prof, seed=3, lam=0.5, bulk_anchor="pooled", libsize_quantiles=(0.25, 0.75))
+    depth = mid.emit_dual(120, None, None, shape=True).toarray().sum(axis=1)
+    assert depth.min() > 0.9 * lo and depth.max() < 1.1 * hi
+
+
+def test_a_shaped_block_is_real_cells_at_real_depths_and_sits_on_both_moments(tmp_path):
+    rng = np.random.default_rng(34)
+    X = _cells_like_real(rng, 4000)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    cls = _classes(X)
+    well = cls["high"] | cls["middle"] | cls["depth-tracking"]
+    delta = lambda b: np.log2((b + 1e-9) / (prof.bulk_fraction + 1e-9))[well]
+    for size in (0.05, 0.4):                       # a weak knockdown and a strong one
+        d = rng.normal(0, size, size=GS)
+        em = PoissonEmitter(prof, seed=9, lam=0.5, bulk_anchor="pooled")
+        ref = PoissonEmitter(prof, seed=9, lam=0.5, bulk_anchor="pooled")
+        _, depth_t, _, bulk_t = _moments(ref.emit_dual(400, d, d))
+        out, depth, per_cell, bulk = _moments(em.emit_dual(400, d, d, shape=True))
+        assert em.last_shaped is True and em.last_dual == "dual"
+        assert np.array_equal(out, np.round(out)) and out.min() >= 0
+        # the cells take real cells' depths: as wide as the controls', where the template's are a quarter of that
+        cv = lambda v: v.std() / v.mean()
+        assert cv(depth) > 0.8 * cv(prof.libsizes) and cv(depth_t) < 0.4 * cv(prof.libsizes)
+        # both moments on the prediction, as for any block
+        assert np.abs(per_cell - em._fraction(d)).sum() < 0.01
+        assert np.abs(bulk - em._fraction(d, bulk=True)).sum() < 0.01
+        # so the summed profile's change is the unshaped call's (the weak knockdown is the hard case)
+        assert np.corrcoef(delta(bulk), delta(bulk_t))[0, 1] > (0.995 if size > 0.1 else 0.9)
+        # and the per-cell-mean fold change is the one asked for, down to the genes that are mostly zeros
+        asked = np.log2(em._fraction(d) / prof.fraction)
+        got = np.log2((per_cell + 1e-12) / (prof.fraction + 1e-12))
+        assert np.median(np.abs(got - asked)[~cls["sparse"]]) < 0.01 and np.median(np.abs(got - asked)[cls["sparse"]]) < 0.08
+
+
+@pytest.mark.parametrize("anchor", ["mean_cpm", "pooled"])
+def test_with_nothing_predicted_a_shaped_block_reads_as_control_cells(tmp_path, anchor):
+    """The actuator's own control. A template gene is called for being narrower than a real cell's,
+    whatever is predicted; a shaped block with nothing predicted must be control cells to the rank
+    test, in every expression class, under either anchor. Two earlier constructions failed it: a
+    control cell's composition scaled to the template's depth (z near -0.8, about twenty calls a
+    knockdown), and a re-rating that took the drawn cells' sampling error out of every cell alike
+    (calls on genes a few cells carry)."""
+    rng = np.random.default_rng(35)
+    X = _cells_like_real(rng, 5000)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    cls = _classes(X)
+    draws = 8
+    em = lambda s: PoissonEmitter(prof, seed=s, lam=0.5, bulk_anchor=anchor)
+    as_emitted = _rank_test(em(0).emit_dual(400, None, None).toarray(), X)
+    assert as_emitted[1].sum() > 0.4 * GS and as_emitted[0][cls["high"]].mean() > 2
+    blocks = [em(s).emit_dual(400, None, None, shape=True).toarray() for s in range(draws)]
+    tests = [_rank_test(b, X) for b in blocks]
+    raw = np.array([_rank_test(X[np.random.default_rng(50 + s).choice(len(X), 400, replace=False)], X)[0] for s in range(draws)])
+    z = np.array([t[0] for t in tests])
+    assert max(int(t[1].sum()) for t in tests) <= 1                 # raw control cells give 0 or 1
+    zeros = np.mean([(b == 0).mean(axis=0) for b in blocks], axis=0) - (X == 0).mean(axis=0)
+    for name, m in cls.items():
+        # a gene the block holds about ten counts of sits a little low (the fit rescales it, and a
+        # rescaled count never fills a zero): the one class with a one-sided allowance
+        lo = -0.45 if name == "sparse" else -0.35
+        assert lo < z[:, m].mean() < 0.35, (name, z[:, m].mean())
+        assert abs(zeros[m].mean()) < 0.012, (name, zeros[m].mean())
+        # never a wider null than a draw of real cells, class by class
+        assert z[:, m].std(axis=0, ddof=1).mean() < 1.15 * raw[:, m].std(axis=0, ddof=1).mean(), name
+
+
+def test_a_predicted_shift_moves_a_shaped_gene_as_it_moves_a_real_one(tmp_path):
+    rng = np.random.default_rng(36)
+    X = _cells_like_real(rng, 5000)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    cls = _classes(X)
+    order = np.random.default_rng(3).permutation(GS)
+    d = np.zeros(GS)
+    up, down = order[:110], order[110:220]
+    d[up], d[down] = 1.0, -1.0
+    # what is asked of the emitter is the per-cell-mean fold change truly shifted cells show
+    comp = lambda A: (A / A.sum(axis=1, keepdims=True)).mean(axis=0)
+    asked = np.log2((comp(_cells_like_real(np.random.default_rng(99), 20000, d)) + 1e-12) / (comp(X) + 1e-12))
+    draws = 4
+    truth = [_cells_like_real(np.random.default_rng(1000 + s), 400, d) for s in range(draws)]
+    ours = [PoissonEmitter(prof, seed=s, lam=0.5, bulk_anchor="pooled").emit_dual(400, asked, asked, shape=True).toarray()
+            for s in range(draws)]
+    z_true = np.mean([_rank_test(b, X)[0] for b in truth], axis=0)
+    z_ours = np.mean([_rank_test(b, X)[0] for b in ours], axis=0)
+    zero = lambda blocks: np.mean([(b == 0).mean(axis=0) for b in blocks], axis=0) - (X == 0).mean(axis=0)
+    for name, m in cls.items():
+        for idx in (up, down):
+            both = idx[m[idx]]
+            assert len(both) >= 3, (name, len(both))                 # an empty class is a broken fixture, not a pass
+            assert 0.7 < z_ours[both].mean() / z_true[both].mean() < 1.4, (name, z_ours[both].mean(), z_true[both].mean())
+    # an up-shift fills zeros and a down-shift makes them, as in the truly shifted cells; a
+    # composition scaled by a factor could never do the first
+    low = cls["sparse"] | cls["middle"] | cls["on/off"]
+    low_up, low_down = up[low[up]], down[low[down]]
+    assert zero(ours)[low_up].mean() < -0.03 and abs(zero(ours)[low_up].mean() - zero(truth)[low_up].mean()) < 0.02
+    assert zero(ours)[low_down].mean() > 0.03 and abs(zero(ours)[low_down].mean() - zero(truth)[low_down].mean()) < 0.02
+
+
+@pytest.mark.parametrize("gap", [1.0, 1.26])
+def test_the_fit_is_handed_cells_that_already_sit_on_both_moments(tmp_path, gap):
+    """Why the re-rating solves for two numbers a gene: the fit can only rescale a count, and a
+    rescaled count never fills a zero, so the fit must have next to nothing left to do, also when
+    the summed profile is asked at another amplitude than the per-cell mean."""
+    import sidechain.models.count_emitters as ce
+
+    rng = np.random.default_rng(37)
+    X = _cells_like_real(rng, 4000)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    d = rng.normal(0, 0.3, size=GS)
+    em = PoissonEmitter(prof, seed=6, lam=0.5, bulk_anchor="pooled")
+    seen, orig = [], ce.dual_moment_counts
+    try:
+        ce.dual_moment_counts = lambda start, *a, **k: seen.append((start.copy(), k["depths"])) or orig(start, *a, **k)
+        out = em.emit_dual(400, d, gap * d, shape=True).toarray()
+    finally:
+        ce.dual_moment_counts = orig
+    assert em.last_dual == "dual" and len(seen) == 1
+    start, depths = seen[0]
+    assert np.array_equal(start, np.round(start)) and np.array_equal(depths, start.sum(axis=1))    # counts, not rescaled ones
+    per_cell = (start / depths[:, None]).mean(axis=0)
+    bulk = start.sum(axis=0) / start.sum()
+    assert np.abs(per_cell - em._fraction(d)).sum() < 0.008
+    assert np.abs(bulk - em._fraction(gap * d, bulk=True)).sum() < 0.008
+    # what the fit then moves: about one count in 150, and one zero-or-not in 400
+    assert np.abs(out - start).sum() < 0.012 * start.sum() and ((out == 0) != (start == 0)).mean() < 0.006
+
+
+def test_two_amplitudes_are_carried_as_a_lean_with_depth_and_no_cell_is_emptied(tmp_path):
+    rng = np.random.default_rng(38)
+    X = _cells_like_real(rng, 4000)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    cls = _classes(X)
+    order = np.random.default_rng(4).permutation(np.flatnonzero(cls["high"]))
+    d = np.zeros(GS)
+    up, down = order[:15], order[15:30]
+    d[up], d[down] = 1.0, -1.0
+    one, two = (PoissonEmitter(prof, seed=2, lam=0.5, bulk_anchor="pooled") for _ in range(2))
+    A = one.emit_dual(400, d, d, shape=True).toarray()
+    B = two.emit_dual(400, d, 1.26 * d, shape=True).toarray()
+    assert two.last_dual == "dual"
+    lean = lambda M, g: np.mean([np.corrcoef(M.sum(axis=1), M[:, j] / M.sum(axis=1))[0, 1] for j in g])
+    assert abs(lean(A, up)) < 0.12 and lean(B, up) > 0.2 and lean(B, down) < -0.2      # the gap, as a lean with depth
+    zeros = lambda M, g: (M[:, g] == 0).mean()
+    assert abs(zeros(B, down) - zeros(A, down)) < 0.03 and abs(zeros(B, up) - zeros(A, up)) < 0.03
+
+
+def test_shape_never_changes_what_is_drawn_next_and_scatter_composes_with_it(tmp_path):
+    rng = np.random.default_rng(39)
+    X = _cells_like_real(rng, 1500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    d1, d2 = rng.normal(0, 0.3, size=GS), rng.normal(0, 0.3, size=GS)
+    a, b = PoissonEmitter(prof, seed=7, lam=0.5), PoissonEmitter(prof, seed=7, lam=0.5)
+    first = a.emit_dual(200, d1, d1).toarray()
+    shaped_first = b.emit_dual(200, d1, d1, shape=True).toarray()
+    assert not np.array_equal(first, shaped_first)
+    assert np.array_equal(a.emit_dual(200, d2, d2).toarray(), b.emit_dual(200, d2, d2).toarray())
+    # the same call twice is the same cells: every draw of the shape is seeded by the call
+    c = PoissonEmitter(prof, seed=7, lam=0.5)
+    assert np.array_equal(shaped_first, c.emit_dual(200, d1, d1, shape=True).toarray())
+    # scatter acts on the re-rated column: 1 is the controls' shape, 0 the predicted count in every
+    # cell, and halfway the spread is half
+    g = int(np.argmax(prof.fraction))
+    spread = []
+    for s in (1.0, 0.5, 0.0):
+        sc = np.ones(GS)
+        sc[g] = s
+        _, comp = _cpm(PoissonEmitter(prof, seed=7, lam=0.5).emit_dual(200, d1, d1, scatter=sc, shape=True))
+        spread.append(comp[:, g].std() / comp[:, g].mean())
+    assert 0.4 < spread[1] / spread[0] < 0.6 and spread[2] < 0.05
+
+
+def test_the_rungs_under_shape_are_control_cells_on_the_anchor_rung_and_the_template_on_the_last(tmp_path):
+    rng = np.random.default_rng(40)
+    X = _cells_like_real(rng, 1500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    d = rng.normal(0, 0.3, size=GS)
+    # the last rung returns the template as drawn
+    far, ref = PoissonEmitter(prof, seed=1, lam=0.5), PoissonEmitter(prof, seed=1, lam=0.5)
+    M = far.emit_dual(120, d, 9.0 * d, on_fail="fallback", shape=True)
+    assert far.last_dual == "template" and far.last_shaped is False
+    assert np.array_equal(M.toarray(), ref.emit(120, d).toarray())
+    # the anchor rung re-rates the same control cells for its own pair of profiles: under the default
+    # anchor that is the one-amplitude shaped block, bit for bit
+    rung, one = PoissonEmitter(prof, seed=1, lam=0.5), PoissonEmitter(prof, seed=1, lam=0.5)
+    R = rung.emit_dual(120, d, 9.0 * d, on_fail="anchor", shape=True).toarray()
+    assert rung.last_dual == "anchor" and rung.last_shaped is True
+    assert np.array_equal(R, one.emit_dual(120, d, d, shape=True).toarray())
+    # and under the pooled anchor it is control cells at control depths, on the anchor's two profiles
+    pooled = PoissonEmitter(prof, seed=1, lam=0.5, bulk_anchor="pooled")
+    _, depth, per_cell, bulk = _moments(pooled.emit_dual(300, d, 9.0 * d, on_fail="anchor", shape=True))
+    assert pooled.last_dual == "anchor" and pooled.last_shaped is True
+    assert np.abs(per_cell - pooled._fraction(d)).sum() < 0.01 and np.abs(bulk - pooled._fraction(d, bulk=True)).sum() < 0.01
+    assert 0.8 < (depth.std() / depth.mean()) / (prof.libsizes.std() / prof.libsizes.mean()) < 1.2
+
+
+def test_loco_emits_control_cells_on_request_and_keeps_the_runs_draws(monkeypatch, tmp_path):
+    import anndata as ad
+    import pandas as pd
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    rng = np.random.default_rng(41)
+    X_ctrl = _cells_like_real(rng, 600, g=G)
+    genes = np.array([f"g{i}" for i in range(G)], dtype=object)
+    basal = X_ctrl.mean(axis=0) + 1.0
+    mean = np.stack([basal, basal * np.exp2(rng.normal(0, 0.15, G)), basal * np.exp2(rng.normal(0, 0.15, G))])
+    n = np.full(3, 1000, dtype=np.int64)
+    src = PseudobulkSums(labels=["ctrl", "g0", "g1"], genes=genes.copy(), count_sum=mean * n[:, None],
+                         cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2 + mean) * n[:, None],
+                         n_cells=n, libsize_sum=n.astype(float) * 2e4, sources=["t"])
+    # the held-out file: the controls, two covered targets, and one no source covers that is emitted FIRST
+    real = ad.AnnData(X=sp.csr_matrix(np.vstack([X_ctrl, X_ctrl[:36]])),
+                      obs=pd.DataFrame({"perturbation": ["non-targeting"] * len(X_ctrl) + ["a00"] * 12 + ["g0"] * 12 + ["g1"] * 12},
+                                       index=[f"c{i}" for i in range(len(X_ctrl) + 36)]),
+                      var=pd.DataFrame(index=genes.astype(str)))
+    real_path = tmp_path / "real.h5ad"
+    real.write_h5ad(real_path)
+    drawn = []
+    orig = loco.PoissonEmitter.emit
+    monkeypatch.setattr(loco.PoissonEmitter, "emit", lambda self, *a, **k: drawn.append(orig(self, *a, **k)) or drawn[-1])
+    kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
+              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.35, bulk_anchor="pooled", min_libsize=0.0, cells_per_pert=300)
+    plain = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "plain.h5ad", **kw)
+    templates, drawn[:] = [t.toarray() for t in drawn], []
+    shaped = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "shaped.h5ad",
+                                            emit_shape="controls", **kw)
+    assert "emit_shape" not in plain
+    assert shaped["emit_shape"] == {"shape": "controls", "control_cells_kept": len(X_ctrl),
+                                    "targets_in_the_controls_shape": 3, "targets_left_on_the_template": []}
+    # under the pooled anchor the flag moves no draw: every target's template is the run's without it,
+    # the targets after an uncovered one included
+    assert len(drawn) == 3 and all(np.array_equal(t, s.toarray()) for t, s in zip(templates, drawn))
+    a, b = ad.read_h5ad(tmp_path / "plain.h5ad"), ad.read_h5ad(tmp_path / "shaped.h5ad")
+    lab = a.obs["perturbation"].to_numpy()
+    A, B_ = a.X.toarray().astype(np.float64), b.X.toarray().astype(np.float64)
+    cv = lambda C: C.std(axis=0) / np.maximum(C.mean(axis=0), 1e-12)
+    comp = lambda M, rows: M[rows] / M[rows].sum(axis=1, keepdims=True)
+    busy = X_ctrl.mean(axis=0) > 3
+    for t in ("a00", "g0", "g1"):                                    # the uncovered target too
+        rows = lab == t
+        assert np.median(cv(comp(B_, rows))[busy] / cv(comp(A, rows))[busy]) > 1.5      # real cells' spread
+        assert np.abs(comp(B_, rows).mean(axis=0) - comp(A, rows).mean(axis=0)).sum() < 0.03   # the same prediction
+        depth = B_[rows].sum(axis=1)
+        assert depth.std() / depth.mean() > 2.0 * A[rows].sum(axis=1).std() / A[rows].sum(axis=1).mean()
+    # the scatter table composes with it on a covered target, and is not applied to an uncovered one
+    top = [f"g{j}" for j in np.argsort(-basal)[:8] if j not in (0, 1)][:2]
+    table = tmp_path / "pairs.parquet"
+    pd.DataFrame({"target": ["g0", "g0", "a00"], "feature": [top[0], top[1], top[0]], "scatter": [0.0, 0.5, 0.0]}).to_parquet(table)
+    both = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "both.h5ad",
+                                          emit_shape="controls", scatter_table=table, **kw)
+    assert both["scatter_table"]["targets_carrying_it"] == 1 and both["scatter_table"]["targets_listed_but_uncovered"] == ["a00"]
+    c = ad.read_h5ad(tmp_path / "both.h5ad").X.toarray().astype(np.float64)
+    assert np.array_equal(B_[lab == "a00"], c[lab == "a00"]) and np.array_equal(B_[lab == "g1"], c[lab == "g1"])
+    j0, j1 = int(top[0][1:]), int(top[1][1:])
+    g0 = lab == "g0"
+    # (at 0 what is left is the depth tilt the pooled anchor asks of the gene)
+    assert cv(comp(c, g0))[j0] < 0.35 * cv(comp(B_, g0))[j0] and 0.3 < cv(comp(c, g0))[j1] / cv(comp(B_, g0))[j1] < 0.75
+    # under the default anchor a target no source covers is control cells too (it leaves the one-channel path)
+    flat = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "flat.h5ad", emit_shape="controls",
+                                          **{**kw, "bulk_anchor": "mean_cpm"})
+    assert flat["emit_shape"]["targets_in_the_controls_shape"] == 3
+    f = ad.read_h5ad(tmp_path / "flat.h5ad").X.toarray().astype(np.float64)[lab == "a00"]
+    assert f.sum(axis=1).std() / f.sum(axis=1).mean() > 0.3
+    # refusals: one channel, an unknown shape
+    single = {k: v for k, v in kw.items() if k not in ("alpha_bulk", "bulk_anchor")}
+    with pytest.raises(SystemExit, match="two-channel"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", emit_shape="controls", **single)
+    with pytest.raises(SystemExit, match="emit_shape must be"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", emit_shape="real", **kw)

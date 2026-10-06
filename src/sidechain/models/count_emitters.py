@@ -60,9 +60,29 @@ class ContextProfile:
     # anchored to `fraction` carries that difference on every perturbation (T84 round 2,
     # private research/ideas/board-methods-survey.md D9). None for a hand-built profile.
     bulk_fraction: np.ndarray | None = None
+    # (n_cells, G) the control cells' own counts, CSR, rows in the order of `libsizes`: the cells
+    # `emit_dual(shape=True)` re-rates (T85). Kept only on request
+    # (`from_controls(keep_cells=True)`): it is the whole control arm in memory, about 8 bytes a
+    # nonzero. None for a hand-built profile and for every path that never shapes.
+    cells: sp.csr_matrix | None = None
+    # (G,) with `cells`: how far each gene's cell-to-cell spread exceeds a Poisson draw's at these
+    # depths, as a squared CV of the cell's own (latent) fraction of the gene -- the inverse shape
+    # of a gamma on it; 0 where sampling alone explains the spread. It says what a cell's count
+    # tells about its own rate, and so where the extra counts of an up-shift land. The moment
+    # estimate is noise for a gene the controls hold a few counts of, so it is drawn toward the
+    # well-measured genes' median with the weight of 200 counts.
+    dispersion: np.ndarray | None = None
+    # (G,) with `cells`: a factor on that rate for a cell that shows NONE of the gene. Whatever
+    # mix of rates and depths the cells have, the cells with no count of a gene expect, summed,
+    # as many counts as there are cells with exactly one (Robbins's identity); this is that
+    # number over what the gamma reading gives the same cells (five counts' weight toward 1).
+    # Near 1 for a gamma-Poisson gene, far below it for a gene that is off in most cells, which
+    # a gamma would keep topping up.
+    zero_rate: np.ndarray | None = None
 
     @classmethod
-    def from_controls(cls, path, name: str, *, min_libsize: float = 0.0) -> ContextProfile:
+    def from_controls(cls, path, name: str, *, min_libsize: float = 0.0,
+                      keep_cells: bool = False) -> ContextProfile:
         a = ad.read_h5ad(path)
         X = sp.csr_matrix(a.X, dtype=np.float64)
         lib = np.asarray(X.sum(axis=1)).ravel()
@@ -78,8 +98,40 @@ class ContextProfile:
         cpm_mean = np.asarray((sp.diags(1e6 / lib[keep]) @ X[keep]).mean(axis=0)).ravel()
         frac = cpm_mean / cpm_mean.sum()
         pooled = np.asarray(X[keep].sum(axis=0)).ravel()
+        cells = dispersion = zero_rate = None
+        if keep_cells:
+            cells = sp.csr_matrix(X[keep], dtype=np.float32)
+            cells.eliminate_zeros()                                # a stored zero is not a count
+            depth = lib[keep]
+            square = np.zeros_like(frac)                           # sum over cells of (count / depth)^2
+            for lo in range(0, cells.shape[0], 2000):              # cells in blocks, genes in blocks: memory
+                block = cells[lo:lo + 2000]
+                part = block.data / np.repeat(depth[lo:lo + 2000], np.diff(block.indptr))
+                square += np.bincount(block.indices, weights=part * part, minlength=len(frac))
+            excess = (square / len(depth) - frac * frac
+                      - frac * float(np.mean(1.0 / depth)))        # variance less the Poisson share
+            dispersion = np.divide(np.maximum(excess, 0.0), frac * frac, out=np.zeros_like(frac),
+                                   where=frac > 0)
+            well = pooled >= 200
+            typical = float(np.median(dispersion[well])) if well.any() else 0.0
+            dispersion = (pooled * dispersion + 200.0 * typical) / (pooled + 200.0)
+            # what the gamma reading expects of the cells with no count, summed: every cell's
+            # expectation at count 0, less that of the cells that do carry the gene
+            gamma_at_zero = np.zeros_like(frac)
+            for lo in range(0, len(frac), 512):
+                m, f = frac[None, lo:lo + 512], dispersion[None, lo:lo + 512]
+                gamma_at_zero[lo:lo + 512] = (depth[:, None] * m / (1.0 + f * m * depth[:, None])).sum(axis=0)
+            for lo in range(0, cells.shape[0], 2000):
+                block = cells[lo:lo + 2000]
+                row = np.repeat(depth[lo:lo + 2000], np.diff(block.indptr))
+                m, f = frac[block.indices], dispersion[block.indices]
+                gamma_at_zero -= np.bincount(block.indices, weights=row * m / (1.0 + f * m * row),
+                                             minlength=len(frac))
+            ones = np.asarray((cells == 1).sum(axis=0)).ravel().astype(np.float64)
+            zero_rate = np.clip((ones + 5.0) / (np.maximum(gamma_at_zero, 0.0) + 5.0), 0.0, 4.0)
         return cls(name=name, genes=a.var_names.astype(str).to_numpy(), fraction=frac,
-                   libsizes=lib[keep], n_cells=int(keep.sum()), bulk_fraction=pooled / pooled.sum())
+                   libsizes=lib[keep], n_cells=int(keep.sum()), bulk_fraction=pooled / pooled.sum(),
+                   cells=cells, dispersion=dispersion, zero_rate=zero_rate)
 
 
 class PoissonEmitter:
@@ -142,6 +194,16 @@ class PoissonEmitter:
     is widened (counts that would fall below zero are held at zero, and the fit re-pins the
     gene's two moments). Which genes the rank test calls, and in what order, is decided gene
     by gene by that scatter.
+
+    `emit_dual(..., shape=True)` changes what that scatter IS for the whole block (T85): the
+    cells are real control cells, and every gene is the cell's own count of it, re-rated to the
+    prediction -- thinned for a predicted fall, topped up at the cell's own rate for a
+    predicted rise. A template gene is narrower than a real cell's at every `lam` below 1, and
+    the rank test calls it for that whatever is predicted; a re-rated gene with nothing
+    predicted is a control gene, and one with a shift predicted moves in the test as a real
+    cell's gene does. What it was measured to do and where it stops: private
+    research/ideas/reach-call-set-emitter.md, Outcome 2026-10-06. It needs a profile that kept
+    its control cells (`ContextProfile.from_controls(keep_cells=True)`).
     """
 
     def __init__(self, profile: ContextProfile, seed: int = 0, *, dispersion: str | None = None,
@@ -170,7 +232,9 @@ class PoissonEmitter:
         self.dispersion = dispersion if dispersion is not None else f"lam={lam:g}"
         self.rng = np.random.default_rng(seed)
         lo, hi = np.quantile(profile.libsizes, libsize_quantiles)
-        self._lib_pool = profile.libsizes[(profile.libsizes >= lo) & (profile.libsizes <= hi)]
+        in_pool = (profile.libsizes >= lo) & (profile.libsizes <= hi)
+        self._lib_pool = profile.libsizes[in_pool]
+        self._lib_rows = np.flatnonzero(in_pool)    # the same cells as rows of `profile.cells`
         self._lib_median = float(np.median(self._lib_pool))
 
     def _fraction(self, log2fc: np.ndarray | None, *, bulk: bool = False) -> np.ndarray:
@@ -184,7 +248,7 @@ class PoissonEmitter:
 
     def emit(self, n: int, log2fc: np.ndarray | None = None, *, max_counts_per_cell: int = 1_000_000) -> sp.csr_matrix:
         self.last_dual, self.last_dual_reason = None, None    # emit_dual sets them after its template
-        self.last_sharpened = None
+        self.last_sharpened, self.last_shaped = None, None
         frac = self._fraction(log2fc)
         w = self.lam * self.lam    # Poisson share of the variance; sd scales as lam
         if w == 0.0:
@@ -205,7 +269,7 @@ class PoissonEmitter:
     def emit_dual(self, n: int, log2fc_cell: np.ndarray | None, log2fc_bulk: np.ndarray | None, *,
                   iterations: int = 100, tolerance: float = 2e-4,
                   max_projection: float = 0.03, on_fail: str = "raise",
-                  scatter: np.ndarray | None = None) -> sp.csr_matrix:
+                  scatter: np.ndarray | None = None, shape: bool = False) -> sp.csr_matrix:
         """Two amplitudes in one count matrix (T84, private research/ideas/two-amplitude-emitter.md).
 
         cell-eval2 reads a perturbation's cells twice: `pds` and `mse` through the depth-weighted
@@ -273,6 +337,43 @@ class PoissonEmitter:
         last rung returns the ORIGINAL template, untouched. `last_sharpened` is the number of
         genes whose scatter was changed (either way) in the block just returned (0 on the
         template rung, None when `scatter` was not passed).
+
+        `shape=True` (T85) emits the block in the CONTROLS' OWN SHAPE. The fit then starts from
+        real control cells in place of the template: as many as are emitted, drawn from the
+        profile's kept cells (inside the emitter's depth window, without replacement while the
+        window holds enough), each at the depth its own counts add up to. Every gene is the
+        cell's own count of it, re-rated so that the block's two moments sit on the prediction
+        (`_rerate`): where less is predicted a count is thinned, each count kept with one
+        probability, which is what a lower rate does to a count; where more is predicted counts
+        are added at the cell's own rate, read from its count under a gamma-Poisson reading of
+        the gene, so a cell that shows none of the gene gains little and the zeros of an
+        up-shifted gene fall as a real one's do. The fit then pins both moments as for any
+        block and has little left to move, which matters because the fit can only rescale a
+        count and a rescaled count never fills a zero.
+
+        With nothing predicted the block is the drawn control cells with their own sampling
+        error taken out, and the rank test calls it no more than it calls raw control cells; for
+        nearly every gene it is a calmer null than a fresh draw, because both moments are
+        pinned, so a shaped gene is called when its predicted shift alone clears the threshold.
+        Four limits, each measured (the private file above has the numbers). A gene the block
+        holds about ten counts of still sits a little low in the test, because for it the fit's
+        rescale is not small. A gene that a small minority of cells carry is as wide a null as
+        raw cells, and a few such genes wider. The gamma reading is right for a gamma-like gene;
+        a heavy-tailed gene's zeros fall a few points short at a doubling. And two different
+        amplitudes are carried as a lean of the gene with the cell's depth, inside every shaped
+        gene: both moments are met, but the gene is then no longer the controls' shape, the more
+        so the narrower the depths.
+
+        The cells take real cells' depths, not the template's. The template is still drawn, and
+        every draw the shape needs comes from a stream of its own, seeded from the integer this
+        call draws for the fit anyway: `self.rng` and the next call's cells are the unshaped
+        call's. `scatter` composes: on a shaped block the factor acts on the re-rated column,
+        around the predicted count at the block's depths, so 1 is the controls' shape, below 1
+        narrower than the controls and 0 the predicted count in every cell. The rungs are the
+        dial's, with one difference: the anchor rung re-rates the same control cells for its own
+        pair of profiles, so its block is real cells too; the last rung returns the template as
+        drawn. `last_shaped` is True when the block just returned is control cells, False on the
+        template rung, None when `shape` was not asked.
         """
         if on_fail not in ("raise", "fallback", "anchor"):
             raise ValueError(f"on_fail must be 'raise', 'fallback' or 'anchor', got {on_fail!r}")
@@ -288,23 +389,39 @@ class PoissonEmitter:
             if not np.isfinite(scatter).all() or (scatter < 0).any():
                 raise ValueError("scatter must be finite and >= 0 (1 = as emitted, 0 = sharp, "
                                  "above 1 = wider)")
+        if shape:
+            kept = self.p.cells
+            if kept is None or self.p.dispersion is None or self.p.zero_rate is None:
+                raise ValueError("shape needs the profile's control cells "
+                                 "(ContextProfile.from_controls(..., keep_cells=True))")
+            if not sp.issparse(kept) or kept.shape != (len(self.p.libsizes), len(p_cell)):
+                raise ValueError("the profile's control cells must be a sparse matrix with one "
+                                 "row per depth in libsizes and one column per gene")
         template = self.emit(n, log2fc_cell).toarray().astype(np.float64)
         depths = np.rint(template.sum(axis=1)).astype(np.int64)
         seed = int(self.rng.integers(0, 2**32 - 1))
-        fit = dict(depths=depths, seed=seed, iterations=iterations, tolerance=tolerance,
-                   max_projection=max_projection)
         self.last_dual, self.last_dual_reason = "dual", None
-        # the per-gene dial acts on what the fit starts from; `template` stays the drawn cells,
-        # because the last fallback rung returns them as they are
-        start, self.last_sharpened = template, None
-        if scatter is not None:
-            move = scatter != 1.0
-            self.last_sharpened = int(move.sum())
-            if move.any():
-                predicted = depths[:, None].astype(np.float64) * p_cell[None, move]
-                start = template.copy()
-                start[:, move] = np.maximum(
-                    predicted + scatter[None, move] * (template[:, move] - predicted), 0.0)
+        self.last_sharpened = None if scatter is None else int((scatter != 1.0).sum())
+        self.last_shaped = True if shape else None
+
+        def start_for(bulk_profile):
+            """What the fit starts from, and its settings: the drawn template, or control cells
+            re-rated to this pair of profiles; then the per-gene dial. `template` itself stays
+            the drawn cells, because the last fallback rung returns them as they are."""
+            start, at = (self._shaped_start(n, p_cell, bulk_profile, seed) if shape
+                         else (template, depths))
+            if scatter is not None:
+                move = scatter != 1.0
+                if move.any():
+                    predicted = at[:, None].astype(np.float64) * p_cell[None, move]
+                    column = start[:, move]
+                    if start is template:
+                        start = template.copy()
+                    start[:, move] = np.maximum(predicted + scatter[None, move] * (column - predicted), 0.0)
+            return start, dict(depths=at, seed=seed, iterations=iterations, tolerance=tolerance,
+                               max_projection=max_projection)
+
+        start, fit = start_for(p_bulk)
         try:
             counts = dual_moment_counts(start, p_cell, p_bulk, **fit)
         except ValueError as err:
@@ -318,6 +435,8 @@ class PoissonEmitter:
             if on_fail == "anchor" and self.last_dual_reason != "other":
                 p_one = self._fraction(log2fc_cell, bulk=True)
                 if not np.array_equal(p_one, p_bulk):     # the request was not already this rung
+                    if shape:                             # the same control cells, re-rated for this pair
+                        start, fit = start_for(p_one)
                     try:
                         counts = dual_moment_counts(start, p_cell, p_one, **fit)
                     except ValueError:
@@ -329,8 +448,98 @@ class PoissonEmitter:
             self.last_dual = "template"
             if self.last_sharpened is not None:
                 self.last_sharpened = 0
+            if self.last_shaped:
+                self.last_shaped = False
             return sp.csr_matrix(template.astype(np.float32))
         return sp.csr_matrix(counts.astype(np.float32))
+
+    def _shaped_start(self, n: int, p_cell: np.ndarray, p_bulk: np.ndarray,
+                      seed: int) -> tuple[np.ndarray, np.ndarray]:
+        """Control cells for `emit_dual(shape=True)`: `n` of the profile's kept cells, their
+        counts re-rated onto the two predicted profiles (`_rerate`), and the depth each then
+        adds up to. Everything random here is seeded by the call's own integer."""
+        rng = np.random.default_rng([seed, 1])    # beside the fit's own default_rng(seed), never self.rng
+        rows = rng.choice(self._lib_rows, size=n, replace=len(self._lib_rows) < n)
+        start = self._rerate(self.p.cells[rows].toarray().astype(np.float64), self.p.libsizes[rows],
+                             p_cell, p_bulk, rng)
+        return start, np.maximum(np.rint(start.sum(axis=1)), 1).astype(np.int64)
+
+    def _rerate(self, counts: np.ndarray, lib: np.ndarray, p_cell: np.ndarray, p_bulk: np.ndarray,
+                rng: np.random.Generator) -> np.ndarray:
+        """Control cells' counts moved onto the predicted moments by what a change of rate does
+        to a count, never by rescaling one.
+
+        Per gene, every cell gets a multiplier `ratio * exp(lift * weight + lean * tilt)`.
+        `ratio` is the predicted per-cell fold change, the same for every cell: the shift
+        itself. `lift` and `lean` are two numbers solved (Newton, eight steps) so that the
+        EXPECTED per-cell mean fraction is `p_cell` and the expected column total is `p_bulk`
+        times the cells' summed depth: with one amplitude they only take out the drawn cells'
+        own sampling error. `tilt` is the cell's depth over the mean depth, less one. `weight`
+        is the square of the cell's expected count of the gene, over the cells' mean square, so
+        the lift falls on the cells that carry the gene: when a few cells hold much of a gene,
+        how many of them were drawn is most of the sampling error, and taking it out of every
+        cell alike would shift the many cells the rank test reads (it then called such genes
+        with nothing predicted). A gene the block holds under twenty counts of gets the lift
+        alone.
+
+        A cell whose multiplier is below one keeps each of its counts with that probability
+        (binomial thinning: exactly what a lower rate gives). A cell whose multiplier is above
+        one gains a Poisson number of counts at (multiplier - 1) times its own rate, the rate
+        drawn from its posterior under a gamma prior with the gene's mean and
+        `profile.dispersion` -- its mean is
+        depth * fraction * (1 + dispersion * count) / (1 + dispersion * fraction * depth) --
+        which under that reading is the exact law of the extra counts; `profile.zero_rate`
+        scales it for a cell with none, so that a gene which is simply off in most cells is not
+        switched on in them. The multiplier is held to 64; past a 64-fold rise the fit delivers
+        the rest as a rescale."""
+        n = len(lib)
+        tilt = lib / lib.mean() - 1.0
+        live = np.flatnonzero(self.p.fraction > 0)    # a gene the controls never show stays empty
+        out = np.zeros_like(counts)
+        for lo in range(0, len(live), 4096):          # genes in blocks: a 38,584-gene axis stays in memory
+            g = live[lo:lo + 4096]
+            c = counts[:, g]
+            m, f = self.p.fraction[None, g], self.p.dispersion[None, g]
+            room = 1.0 + f * m * lib[:, None]
+            none = np.where(c == 0, self.p.zero_rate[None, g], 1.0)
+            own = none * lib[:, None] * m * (1.0 + f * c) / room      # the cell's expected count at its own rate
+            weight = own * own
+            mean_weight = weight.mean(axis=0)
+            weight = np.divide(weight, mean_weight, out=np.ones_like(own), where=mean_weight > 0)
+            ratio = (p_cell[g] / self.p.fraction[g])[None, :]
+            want_cell, want_bulk = n * p_cell[g], p_bulk[g] * lib.sum()
+            lift, lean = np.zeros(len(g)), np.zeros(len(g))
+            for step in range(9):
+                mult = np.clip(ratio * np.exp(lift[None, :] * weight + lean[None, :] * tilt[:, None]), 0.0, 64.0)
+                if step == 8:
+                    break
+                pool = np.where(mult > 1.0, own, c)                   # what a multiplier acts on, in expectation
+                expect = c + (mult - 1.0) * pool
+                miss_cell = (expect / lib[:, None]).sum(axis=0) - want_cell
+                miss_bulk = expect.sum(axis=0) - want_bulk
+                grad = pool * mult
+                a11, a12 = (grad * weight / lib[:, None]).sum(axis=0), (grad * (tilt / lib)[:, None]).sum(axis=0)
+                a21, a22 = (grad * weight).sum(axis=0), (grad * tilt[:, None]).sum(axis=0)
+                det = a11 * a22 - a12 * a21
+                pair = (np.abs(det) > 1e-9 * (np.abs(a11 * a22) + np.abs(a12 * a21))) & (pool.sum(axis=0) >= 20.0)
+                safe = np.where(pair, det, 1.0)
+                d_lift = np.where(pair, (miss_cell * a22 - a12 * miss_bulk) / safe,
+                                  np.divide(miss_cell, a11, out=np.zeros_like(a11), where=a11 > 0))
+                d_lean = np.where(pair, (a11 * miss_bulk - a21 * miss_cell) / safe, 0.0)
+                lift -= np.clip(d_lift, -1.0, 1.0)
+                lean = np.where(pair, lean - np.clip(d_lean, -1.0, 1.0), 0.0)
+            new = c.copy()
+            thin = (mult < 1.0) & (c > 0)
+            new[thin] = rng.binomial(c[thin].astype(np.int64), mult[thin])
+            gain = mult > 1.0
+            rate = np.broadcast_to(lib[:, None] * m, c.shape)[gain]   # a Poisson gene: the same rate in every cell
+            spread = np.broadcast_to(f, c.shape)[gain]
+            wide = spread > 1e-8
+            rate[wide] = rng.gamma(1.0 / spread[wide] + c[gain][wide],
+                                   spread[wide] * rate[wide] / room[gain][wide])
+            new[gain] += rng.poisson((mult[gain] - 1.0) * none[gain] * rate)
+            out[:, g] = new
+        return out
 
     def _emit_even(self, n: int, frac: np.ndarray, depth_frac: float = 1.0) -> np.ndarray:
         # per-gene total over n cells; `depth_frac` carves out the even share of
