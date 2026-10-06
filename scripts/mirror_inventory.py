@@ -39,10 +39,12 @@ SUFFIX = {"_pdex": "CPU/pdex", "_ch272": "challenge 272", "_union": "union panel
           "_d3": "depth probe", "_rule": "rule probe"}
 KNOBS = ("alpha", "alpha_bulk", "bulk_anchor", "dual_fallback", "gamma", "var_floor", "coverage_tiers",
          "similarity_beta", "transfer_floor", "dispersion", "emit_lambda", "shrinkage",
-         "shrink_k", "shrink_stage", "shrink_rule", "neighbour", "min_libsize")
+         "shrink_k", "shrink_stage", "shrink_rule", "neighbour", "min_libsize", "emit_shape",
+         "scatter_table")
 # Knobs whose name's first word would collide or mislead (`alpha_bulk` is not `alpha`).
 LABEL = {"alpha_bulk": "ab", "bulk_anchor": "anchor", "dual_fallback": "fb", "min_libsize": "floor",
-         "neighbour": "nb", "shrink_k": "thr", "shrink_stage": "stage", "shrink_rule": "rule"}
+         "neighbour": "nb", "shrink_k": "thr", "shrink_stage": "stage", "shrink_rule": "rule",
+         "emit_shape": "shape", "scatter_table": "scatter"}
 
 
 def held_out(name: str) -> str:
@@ -140,6 +142,12 @@ def knob_str(build: dict) -> str:
             v = f"{v:g}"
         if k == "min_libsize":
             v = f"{v:g}"
+        # T85: both are recorded only when on, as dicts. Without them a shaped arm, or one carrying a
+        # scatter table, renders as the template arm it is read against.
+        if k == "emit_shape" and isinstance(v, dict):
+            v = v.get("shape")
+        if k == "scatter_table" and isinstance(v, dict):
+            v = f"{Path(v.get('table', '?')).stem}@{str(v.get('sha256', ''))[:8]}"
         if k == "neighbour" and isinstance(v, dict):
             tables = v.get("table") or []
             tables = [tables] if isinstance(tables, str) else tables

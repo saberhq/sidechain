@@ -145,3 +145,14 @@ def test_the_anchor_amplitude_floor_neighbour_and_cell_count_are_shown():
     # the blend shape and the rule stack, in that order
     assert ("nb=string·0.2·k25·med·hyb200"
             in nbs(size="median", select="hybrid", cand=200))
+
+
+def test_a_shaped_arm_and_a_scatter_table_are_shown():
+    """T85: `emit_shape` and `scatter_table` are in an arm's build record only when on. Left out of
+    the knob string, a shaped arm renders as the template arm it is compared with."""
+    assert knob_str({"alpha": 1.35}) == "alpha=1.35"
+    shaped = knob_str({"alpha": 1.35, "emit_shape": {"shape": "controls", "control_cells_kept": 19997}})
+    assert "shape=controls" in shaped
+    dialled = knob_str({"alpha": 1.35, "scatter_table": {"table": "/x/loco_f__top_wide3.parquet", "sha256": "ab12cd34ef"}})
+    assert "scatter=loco_f__top_wide3@ab12cd34" in dialled
+
