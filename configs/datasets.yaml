@@ -1023,10 +1023,12 @@ datasets:
       publisher's own page for exactly this bucket. The S3 listing itself can
       state no terms.
     route: stream               # the 16.79 GB file never lands
-    # OUTPUT ceiling, set against a measurement: 0.45 GB written 2026-09-26 -- the 0.15 GB
-    # per-condition cache plus four views at 0.05-0.08 GB each. 1.0 leaves room for about
-    # seven more views (the scrambled controls a scored arm needs) before it trips.
-    budget_gb: 1.0
+    # OUTPUT ceiling, set against a measurement: 1.09 GB on disk on 2026-10-06 -- the 0.15 GB
+    # per-condition cache, seven views at 0.05-0.08 GB each (0.47 GB), and 0.47 GB for the
+    # replicate fits below (564 rows of ours: six donor-pair fits with three layers each,
+    # two guide fits with two, the full fit's baseMean, as float32). 1.5 leaves room for
+    # about five more views (the scrambled controls a scored arm needs) before it trips.
+    budget_gb: 1.5
     # The bucket publishes a MULTIPART ETag for this file (`...-2002`), which is not a
     # digest: recorded under `s3-etag:` as evidence, never verifiable. Since 2026-09-26 the
     # gate counts such a file as unchecksummed (it always was; it used to pass silently),
@@ -1054,3 +1056,32 @@ datasets:
                effect_col: log_fc, se_col: lfcSE,
                pvalue_col: adj_p_value, pvalue_adjusted: true,
                modality: crispri, role: train}
+      # THE PUBLISHER'S REPLICATE FITS (T84, 2026-10-06). The same PyDESeq2 schema as the
+      # file above, refitted on parts of the data: `by_donors` holds one modality per PAIR
+      # of the four donors (six; 1+2|3+4, 1+3|2+4 and 1+4|2+3 are disjoint, so each is a
+      # split-half on biological replicates), `by_guide` one per guide. Only 2,591 of the
+      # 12,748 targets have donor-pair rows (273 of the 615 we hold). They are a
+      # CALIBRATION set -- how wrong is `lfcSE`, and where -- and never a pool source:
+      # `role: analysis`, and resolve_pull() keeps taking the first lfc_table, the file
+      # above. Read by row range under `mod/<name>/`, like the h5ad.
+      - name: GWCD4i.DE_stats.by_donors.h5mu
+        kind: lfc_table
+        spec: {context: cd4_tcell, context_col: null,
+               target_col: target_contrast_gene_name, condition_col: culture_condition,
+               gene_id_col: gene_ids, gene_symbol_col: gene_name,
+               effect_col: log_fc, se_col: lfcSE,
+               pvalue_col: adj_p_value, pvalue_adjusted: true,
+               modality: crispri, role: analysis}
+      - name: GWCD4i.DE_stats.by_guide.h5mu
+        kind: lfc_table
+        spec: {context: cd4_tcell, context_col: null,
+               target_col: target_contrast_gene_name, condition_col: culture_condition,
+               gene_id_col: gene_ids, gene_symbol_col: gene_name,
+               effect_col: log_fc, se_col: lfcSE,
+               pvalue_col: adj_p_value, pvalue_adjusted: true,
+               modality: crispri, role: analysis}
+      # One row per (target, condition) FIT, not per cell: the publisher's own replicate
+      # summaries (donor and guide correlations of the fold changes, DE counts, cells).
+      - name: suppl_tables/DE_stats.suppl_table.csv
+        kind: sample_metadata
+        spec: {role: analysis}
