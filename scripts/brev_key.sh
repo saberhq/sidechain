@@ -123,9 +123,14 @@ case "${1:-}" in
     OUT="$(HOME="$EMPTY" BREV_API_KEY="$KEY" "$BREV" ls --no-check-latest </dev/null 2>&1)"
     RC=$?
     set -e
-    if [ $RC -ne 0 ] || printf '%s' "$OUT" | grep -q -i -E 'unauthorized|forbidden|logged out|\[error\]'; then
+    if printf '%s' "$OUT" | grep -q -i -E 'unauthorized|forbidden|logged out'; then
       printf '%s\n' "$OUT" | grep -v -E '^(/go/|github\.com/|: \[error\])' | head -5 >&2
-      die "the key did not answer \`brev ls\` on its own (above). Expired or revoked? Check the Brev console"
+      die "Brev refused the key (above). Expired or revoked? Check the Brev console"
+    fi
+    # Anything else that failed is the call, not the key: a TLS or network error passes on a retry.
+    if [ $RC -ne 0 ] || printf '%s' "$OUT" | grep -q -E 'RESTY|\[error\]'; then
+      printf '%s\n' "$OUT" | grep -v -E '^(/go/|github\.com/|: \[error\])' | cut -c1-240 | head -5 >&2
+      die "\`brev ls\` did not get an answer (above), which says nothing about the key: run --check again"
     fi
     echo "OK -- the key answers \`brev ls\` with no login behind it; expires $EXPIRES"
     printf '%s\n' "$OUT"
