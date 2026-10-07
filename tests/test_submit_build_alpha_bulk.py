@@ -205,3 +205,71 @@ def test_the_fallback_rung_is_refused_where_it_cannot_act(challenge):
     with pytest.raises(SystemExit):                                 # one channel: nothing to fall back from
         build.main(_argv(challenge, "inert", ["--alpha", "1.35", "--emit-lambda", "0.5",
                                               "--dual-fallback", "anchor"]))
+
+
+# --emit-shape controls (T85): every block as real control cells re-rated to the prediction. What is
+# pinned here is the builder's wiring; the emitter's numerics are test_dual_moment's.
+
+def test_emit_shape_is_off_by_default_and_refused_on_one_channel(challenge, monkeypatch):
+    seen = []
+    real = build.ContextProfile.from_controls
+
+    def spy_profile(path, name, **kw):
+        seen.append(kw)
+        return real(path, name, **kw)
+    monkeypatch.setattr(build.ContextProfile, "from_controls", staticmethod(spy_profile))
+    assert build.main(_argv(challenge, "off", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.5"])) == 0
+    assert all("keep_cells" not in kw for kw in seen)                  # the default call is the old call
+    assert json.loads((challenge["out"] / "off.args.json").read_text())["emit_shape"] == "template"
+    assert "emit_shape" not in json.loads((challenge["out"] / "off.dual.json").read_text())
+    with pytest.raises(SystemExit):                                    # one channel: nothing to re-rate against
+        build.main(_argv(challenge, "bad", ["--alpha", "1.35", "--emit-lambda", "0.5",
+                                            "--emit-shape", "controls"]))
+
+
+def test_emit_shape_controls_rides_every_block_and_is_recorded(challenge, monkeypatch):
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.p.name, self.p.cells is not None, kw))
+        block = self.emit(n, log2fc_cell)          # emit() clears last_shaped, so set it after
+        self.last_shaped = self.p.name == "X"      # say context Y's block fell to the template rung
+        return block
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    assert build.main(_argv(challenge, "shp", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    assert seen == [("X", True, {"on_fail": "fallback", "shape": True}),
+                    ("Y", True, {"on_fail": "fallback", "shape": True})]     # the cells are kept, the flag rides
+    rec = json.loads((challenge["out"] / "shp.dual.json").read_text())
+    assert rec["emit_shape"] == {"shape": "controls", "contexts": {
+        "X": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 1, "blocks_left_on_the_template": []},
+        "Y": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 0, "blocks_left_on_the_template": ["TP53"]}}}
+    assert json.loads((challenge["out"] / "shp.args.json").read_text())["emit_shape"] == "controls"
+
+
+def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge):
+    assert build.main(_argv(challenge, "real", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    pred = ad.read_h5ad(challenge["out"] / "real.h5ad")
+    assert pred.n_obs == 12 and (np.asarray(pred.X.sum(axis=1)).ravel() > 0).all()
+    ctx = json.loads((challenge["out"] / "real.dual.json").read_text())["emit_shape"]["contexts"]
+    for c in ("X", "Y"):                           # each block is counted on one side or the other
+        assert ctx[c]["blocks_in_the_controls_shape"] + len(ctx[c]["blocks_left_on_the_template"]) == 1
+
+
+def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(challenge, monkeypatch):
+    """The builder gives a target no source covers the generic H1 shift (never no shift), so under
+    --emit-shape controls it goes through the same re-rated path as every other block."""
+    (challenge["data"] / "pert_counts.csv").write_text("target_gene\nTP53\nNOSOURCE1\n")
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.p.name, log2fc_cell is None, log2fc_bulk is None, kw.get("shape")))
+        return self.emit(n, log2fc_cell)
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    assert build.main(_argv(challenge, "unc", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    assert seen == [("X", False, False, True)] * 2 + [("Y", False, False, True)] * 2
+    rec = json.loads((challenge["out"] / "unc.dual.json").read_text())["emit_shape"]["contexts"]
+    assert rec["X"]["blocks_left_on_the_template"] == ["TP53", "NOSOURCE1"]      # the spy never shapes

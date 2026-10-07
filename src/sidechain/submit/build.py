@@ -1094,6 +1094,15 @@ def main(argv: list[str] | None = None) -> int:
                          "under --bulk-anchor mean_cpm it re-pins the column sums to their "
                          "expectation instead (count_emitters.PoissonEmitter.emit_dual). Same knob "
                          "in sidechain.eval.loco, so a mirror-scored arm submits verbatim")
+    ap.add_argument("--emit-shape", choices=["template", "controls"], default="template",
+                    help="what every block of cells starts from (T85). 'template' (default, "
+                         "bit-identical): the emitter's own drawn cells. 'controls': real control "
+                         "cells of the context, each gene's counts re-rated to the prediction, so "
+                         "a gene with nothing predicted reads as control cells do "
+                         "(count_emitters.PoissonEmitter.emit_dual(shape=True)); a target no "
+                         "source covers keeps its generic shift and is re-rated the same way. "
+                         "Needs the two-channel emission (--alpha-bulk or --bulk-anchor pooled). "
+                         "Same knob in sidechain.eval.loco")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -1186,6 +1195,9 @@ def main(argv: list[str] | None = None) -> int:
                   else args.alpha if args.bulk_anchor != "mean_cpm" else None)
     if args.dual_fallback != "template" and bulk_alpha is None:
         ap.error("--dual-fallback only acts on a two-channel emission -- pass --alpha-bulk or "
+                 "--bulk-anchor pooled")
+    if args.emit_shape != "template" and bulk_alpha is None:
+        ap.error("--emit-shape controls needs the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
 
     stem = Path(args.out).name
@@ -1389,23 +1401,34 @@ def main(argv: list[str] | None = None) -> int:
     # which perturbations fell back, per context and per rung, with why the requested pair failed
     fell_back: dict[str, dict[str, list]] = {}
     on_fail = "fallback" if args.dual_fallback == "template" else "anchor"
+    # T85: every block as real control cells re-rated to the prediction. Off, nothing below changes.
+    shaped = args.emit_shape == "controls"
+    shape_kw = {"shape": True} if shaped else {}
+    in_shape: dict[str, dict] = {}
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
-            prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize)
+            prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize,
+                                                **({"keep_cells": True} if shaped else {}))
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
             ctx_shifts, ctx_bulk = ((shifts, bulk_shifts) if per_context_shifts is None
                                     else per_context_shifts(prof))
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
+            left_on_template: list[str] = []
             for k, p in enumerate(perts):
-                if ctx_bulk is None or ctx_shifts[p] is None:
+                # a block with no shift at all is a template block, or, under --emit-shape
+                # controls, control cells with nothing predicted (as eval.loco does)
+                if ctx_bulk is None or (ctx_shifts[p] is None and not shaped):
                     block = em.emit(contract.cells_per_pert, ctx_shifts[p])
                 else:
                     # letter b: two amplitudes in one count matrix; a perturbation whose two
                     # moments are jointly unreachable carries one amplitude and is counted
-                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
-                                         on_fail=on_fail)
+                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p],
+                                         None if ctx_shifts[p] is None else ctx_bulk[p],
+                                         on_fail=on_fail, **shape_kw)
+                    if shaped and not getattr(em, "last_shaped", False):
+                        left_on_template.append(p)
                     how = getattr(em, "last_dual", "dual")
                     if how in ("anchor", "template"):
                         fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
@@ -1413,6 +1436,14 @@ def main(argv: list[str] | None = None) -> int:
                 w.add_block(block, ctx, p)
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
+            if shaped:
+                # a block the fit could not carry in the controls' shape falls to the drawn template
+                # (the last rung), where its genes are called for their shape again: count and name it
+                in_shape[ctx] = {"control_cells_kept": int(prof.n_cells),
+                                 "blocks_in_the_controls_shape": len(perts) - len(left_on_template),
+                                 "blocks_left_on_the_template": left_on_template}
+                print(f"  {ctx}: emit-shape controls: {len(perts) - len(left_on_template)} of {len(perts)} "
+                      f"perturbations emitted as re-rated control cells ({prof.n_cells} kept)", flush=True)
             if ctx_bulk is not None:
                 # (final-phase: knobs) counted, never refused. A/B/C gave 1, 3 and 2 of 300; the
                 # count follows each context's control-depth envelope, so read it on the first
@@ -1443,6 +1474,8 @@ def main(argv: list[str] | None = None) -> int:
             anchor["dual_fallback"] = args.dual_fallback
             if fell_back:
                 anchor["dual_fallback_targets"] = fell_back
+        if shaped:                                 # written only when the knob is on
+            anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
         info = {**info, "alpha_bulk": args.alpha_bulk, **anchor, "dual_fallbacks": dual_fallbacks}
         out.with_suffix(".dual.json").write_text(json.dumps(
             {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, **anchor,
