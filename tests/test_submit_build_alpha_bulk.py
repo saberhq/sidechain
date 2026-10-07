@@ -295,11 +295,23 @@ def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monke
     assert "WARNING X: 1 block(s) fell to the drawn template" in capsys.readouterr().out
 
 
-def test_a_model_named_stem_is_refused_until_the_knob_has_a_letter(challenge, capsys):
-    with pytest.raises(SystemExit):
-        build.main(_argv(challenge, "ser-99aefkw_shapeprobe_v1", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                                                 "--emit-lambda", "0.5", "--emit-shape", "controls"]))
-    assert "--emit-shape off its default has no registered knob letter" in capsys.readouterr().err
+def test_a_model_named_build_in_the_controls_shape_needs_the_letter_r(challenge, capsys):
+    """ADR 0005 (2026-10-07): `r` is what the emitted cells are built from, moved off the emitter's
+    own drawn cells and named in the slug; no letter is the drawn template."""
+    flags = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    shaped = flags + ["--emit-shape", "controls"]
+    assert build.main(_argv(challenge, "ser-99aefkrw_ctrlshape_v1", shaped)) == 0
+    rec = json.loads((challenge["out"] / "ser-99aefkrw_ctrlshape_v1.dual.json").read_text())
+    assert rec["emit_shape"]["shape"] == "controls"
+    capsys.readouterr()
+    for stem, extra, why in (
+            ("ser-99aefkw_ctrlshape_v1", shaped, "must carry the letter r"),      # shaped, no r
+            ("ser-99aefkrw_template_v1", flags, "carries the letter r")):         # r, but the drawn template
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, stem, extra))
+        assert why in capsys.readouterr().err, stem
+    # a freeform stem carries no claim, shaped or not
+    assert build.main(_argv(challenge, "shapeprobe", shaped)) == 0
 
 
 def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(challenge, monkeypatch):

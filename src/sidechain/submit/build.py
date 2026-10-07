@@ -1226,6 +1226,16 @@ def main(argv: list[str] | None = None) -> int:
         if "s" in letters and "n" in letters:
             ap.error(f"'{stem}' carries both n (shrinkage off) and s (another shrinkage rule): one "
                      "object, two states -- pick one")
+        # What the emitted cells are built from is letter `r` (ADR 0005, registered 2026-10-07): no
+        # letter is the emitter's own drawn cells, `r` any other start, named in the slug
+        # (`ctrlshape` = --emit-shape controls, the context's control cells re-rated).
+        shape_moved = args.emit_shape != "template"
+        if shape_moved and "r" not in letters:
+            ap.error(f"'{stem}': --emit-shape is off the drawn template, so the name must carry the "
+                     "letter r (ADR 0005) -- or build under a freeform stem")
+        if "r" in letters and not shape_moved:
+            ap.error(f"'{stem}' carries the letter r, which says the emitted cells start from "
+                     "something other than the drawn template, but --emit-shape is at its default")
     if (CLAIMS_RE.match(stem)
             and (args.neighbour_select != "table" or args.neighbour_picks is not None)):
         # The neighbour arm's letter `k` says "the table's k nearest" (ADR 0005); a moved
@@ -1233,12 +1243,6 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --neighbour-select off its default / "
                  "--neighbour-picks have no registered knob letter yet (ADR 0005): register the "
                  "letter first, or build under a freeform stem")
-    if CLAIMS_RE.match(stem) and args.emit_shape != "template":
-        # What the emitted cells start from has no knob letter yet: a model-named build would carry
-        # letters that say "the emitter's own drawn cells".
-        ap.error(f"'{stem}' is named like a model, and --emit-shape off its default has no "
-                 "registered knob letter yet (ADR 0005): register the letter first, or build under "
-                 "a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "
