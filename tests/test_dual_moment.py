@@ -1112,7 +1112,7 @@ def test_on_ordinary_cells_the_solve_leaves_no_gene_unmet_and_holds_no_cell(tmp_
 
 def test_the_unmet_count_counts_what_the_solve_leaves(tmp_path, monkeypatch):
     """`last_shape_unmet` is a count, not a ceiling: on the long-tailed cells the solve leaves about
-    one gene in eleven more than 1 % off, and with no steps at all several times as many."""
+    one gene in thirteen more than 1 % off, and with no steps at all several times as many."""
     import sidechain.models.count_emitters as ce
 
     X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
@@ -1123,7 +1123,7 @@ def test_the_unmet_count_counts_what_the_solve_leaves(tmp_path, monkeypatch):
     for s in range(11, 23):
         em._shaped_start(400, p_cell, p_bulk, s)
         unmet.append(em.last_shape_unmet)
-    assert 250 <= sum(unmet) <= 380, unmet                  # 326 here; without trust halving 456, at one step 839
+    assert 250 <= sum(unmet) <= 380, unmet                  # 271 of 3,600 here; at SHAPE_SOLVE_STEPS = 2 839, at 1 1,830
     solved = unmet[0]
     monkeypatch.setattr(ce, "SHAPE_SOLVE_STEPS", 0)
     em._shaped_start(400, p_cell, p_bulk, 11)
