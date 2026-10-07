@@ -1085,3 +1085,9 @@ datasets:
       - name: suppl_tables/DE_stats.suppl_table.csv
         kind: sample_metadata
         spec: {role: analysis}
+      # The publisher's regulator clusters (T103, 2026-10-06): one row per cluster, the
+      # knockdowns whose downstream responses it grouped. Read whole (0.12 MB); cite the
+      # file, never a supplementary-table number (the preprint and the bucket disagree).
+      - name: suppl_tables/clustering_results_and_annotations.csv
+        kind: sample_metadata
+        spec: {role: analysis}
