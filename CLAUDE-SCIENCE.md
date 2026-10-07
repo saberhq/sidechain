@@ -26,7 +26,9 @@ Code's hooks, so it runs them as commands (`private/research/protocol/science_se
 - **Remote dispatch with an approval card.** A session prepares inputs locally, submits a job to a
   configured host, parks, and the outputs land back in the artifact store. The box-sharing rule
   becomes a modal you click rather than a `brev ls` convention. The GPU box is configured as an SSH
-  target; a box made for a Science task is named `sidechain-gpu-sci-T<n>` (ADR 0011 § 6).
+  target; a box made for a Science task is named `sidechain-sci-gpu-T<n>` or `sidechain-sci-cpu-T<n>`
+  (Saber, 2026-10-07; until then `sidechain-gpu-sci-T<n>`, ADR 0011 § 6), so `brev ls` tells Science's
+  boxes from Code's at a glance; the app's fixed aliases stay `sidechain-gpu` and `sidechain-cpu`.
 - **Biology connectors that return resolvable identifiers.** Exercised 2026-09-12 and returning
   records: PubMed (`search_articles` → PMIDs), GEO/ArrayExpress (`geo_search_series` → GSE
   accessions with titles and summaries), UniBind (`unibind_search_tfbs` → 982 CTCF datasets).
@@ -56,7 +58,7 @@ Code's hooks, so it runs them as commands (`private/research/protocol/science_se
   Science's network allowlist (the proxy returns 403), so board snapshots and `vcc submit` are Code's.
 - **`saberhq.com` and the site deploy** — same allowlist result.
 - **Creating or deleting a GPU box** — not built for Science yet (ADR 0011 § 6): a Code session
-  creates `sidechain-gpu-sci-T<n>` and Science submits jobs to it.
+  creates `sidechain-sci-gpu-T<n>` (or `-cpu-`) and Science submits jobs to it.
 - **The four Code-only skills**: `sidechain-brev` (the `brev` CLI), `desk`, `wrap`, `compete`.
   Every other project skill is a procedure a Science session follows by reading its `SKILL.md`.
 - **The private/public split.** Do not paste `private/` reasoning into an artifact or a public file.

@@ -11,7 +11,8 @@
 # 2026-09-14). Hostname and port change with every instance, which is why this runs once per box.
 #
 # Why `--as`: the Science app knows ONE host, `sidechain-gpu`, and since 2026-09-28 every box is
-# created per task (`sidechain-gpu-<tid>`, `sidechain-gpu-sci-<tid>`), so the app's alias was left
+# created per task (`sidechain-gpu-<tid>`; Science's `sidechain-sci-gpu-<tid>` / `sidechain-sci-cpu-<tid>`
+# since 2026-10-07, `sidechain-gpu-sci-<tid>` before), so the app's alias was left
 # pointing at a deleted box's port and every probe failed ("Connection closed by <ip> port <p>",
 # 2026-10-05). Mirroring the new box's block UNDER the app's alias re-points the existing entry; the
 # app only has to re-probe, nothing is re-added. The block is written AFTER the Include line, and
