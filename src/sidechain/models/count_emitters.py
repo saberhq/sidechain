@@ -43,6 +43,17 @@ import scipy.sparse as sp
 # caller that wants the project's policy says so by passing this.
 CONTROL_MIN_LIBSIZE = 1000.0
 
+#: `emit_dual(shape=True)`: no re-rated control cell leaves with more than SHAPE_DEPTH_GAIN_CAP times the
+#: depth it came with, nor with more than SHAPE_MAX_COUNTS_PER_CELL counts (cell-eval2's and the
+#: challenge's max_counts_per_cell, the number `emit` holds its own cells to). T85: two box arms died
+#: on that limit when a re-rated HEK293T cell reached 1,684,750 counts. The solve in `_rerate` could
+#: diverge (on the Mac the same blocks held a cell at 4.6 times its depth under the old solve and at
+#: 1.6 under this one); it now keeps its best point, and the two caps hold whatever is predicted.
+SHAPE_DEPTH_GAIN_CAP = 2.0
+SHAPE_MAX_COUNTS_PER_CELL = 1_000_000
+SHAPE_SOLVE_STEPS = 64
+SHAPE_SOLVE_TOL = 1e-6
+
 
 @dataclass
 class ContextProfile:
@@ -249,6 +260,7 @@ class PoissonEmitter:
     def emit(self, n: int, log2fc: np.ndarray | None = None, *, max_counts_per_cell: int = 1_000_000) -> sp.csr_matrix:
         self.last_dual, self.last_dual_reason = None, None    # emit_dual sets them after its template
         self.last_sharpened, self.last_shaped = None, None
+        self.last_shape_held, self.last_shape_unmet = None, None    # set by a shaped block (`_rerate`)
         frac = self._fraction(log2fc)
         w = self.lam * self.lam    # Poisson share of the variance; sd scales as lam
         if w == 0.0:
@@ -373,7 +385,11 @@ class PoissonEmitter:
         dial's, with one difference: the anchor rung re-rates the same control cells for its own
         pair of profiles, so its block is real cells too; the last rung returns the template as
         drawn. `last_shaped` is True when the block just returned is control cells, False on the
-        template rung, None when `shape` was not asked.
+        template rung, None when `shape` was not asked. No re-rated cell leaves with more than
+        SHAPE_DEPTH_GAIN_CAP times the depth of the control cell it is, nor with more than
+        SHAPE_MAX_COUNTS_PER_CELL counts (`_rerate`): `last_shape_held` is how many cells of the
+        block were held to that, and `last_shape_unmet` how many genes the re-rating's solve
+        left more than 1 % off a moment in expectation, for the fit to deliver.
         """
         if on_fail not in ("raise", "fallback", "anchor"):
             raise ValueError(f"on_fail must be 'raise', 'fallback' or 'anchor', got {on_fail!r}")
@@ -450,6 +466,7 @@ class PoissonEmitter:
                 self.last_sharpened = 0
             if self.last_shaped:
                 self.last_shaped = False
+                self.last_shape_held, self.last_shape_unmet = None, None    # no re-rated cell on this rung
             return sp.csr_matrix(template.astype(np.float32))
         return sp.csr_matrix(counts.astype(np.float32))
 
@@ -457,12 +474,31 @@ class PoissonEmitter:
                       seed: int) -> tuple[np.ndarray, np.ndarray]:
         """Control cells for `emit_dual(shape=True)`: `n` of the profile's kept cells, their
         counts re-rated onto the two predicted profiles (`_rerate`), and the depth each then
-        adds up to. Everything random here is seeded by the call's own integer."""
+        adds up to. Everything random here is seeded by the call's own integer.
+
+        The cells are drawn one from each of `n` slices of the kept cells in order of depth
+        (`_depth_spread_rows`), so every block has the controls' own spread of depths, its deep
+        tail included. The profiles a block is re-rated onto are the whole control population's,
+        and the summed one leans on the deepest cells: a block drawn with none of them had to be
+        bent toward cells it does not hold, and was called for it with nothing predicted."""
         rng = np.random.default_rng([seed, 1])    # beside the fit's own default_rng(seed), never self.rng
-        rows = rng.choice(self._lib_rows, size=n, replace=len(self._lib_rows) < n)
+        rows = self._depth_spread_rows(n, rng)
         start = self._rerate(self.p.cells[rows].toarray().astype(np.float64), self.p.libsizes[rows],
                              p_cell, p_bulk, rng)
         return start, np.maximum(np.rint(start.sum(axis=1)), 1).astype(np.int64)
+
+    def _depth_spread_rows(self, n: int, rng: np.random.Generator) -> np.ndarray:
+        """`n` distinct rows of `profile.cells`: the kept cells sorted by depth, cut into `n`
+        slices of equal size (to within one cell), one cell drawn from each. A cell's chance is
+        one over its slice's size, so it differs between cells only where the slices do (1/46
+        or 1/45 at 18,347 kept cells; with under twice `n` kept cells some are in every block).
+        With fewer kept cells than `n` they are drawn with replacement."""
+        pool = self._lib_rows
+        if len(pool) < n:
+            return rng.choice(pool, size=n, replace=True)
+        order = pool[np.argsort(self.p.libsizes[pool], kind="stable")]
+        edge = np.floor(np.linspace(0.0, len(order), n + 1)).astype(np.int64)
+        return order[edge[:-1] + np.floor(rng.random(n) * (edge[1:] - edge[:-1])).astype(np.int64)]
 
     def _rerate(self, counts: np.ndarray, lib: np.ndarray, p_cell: np.ndarray, p_bulk: np.ndarray,
                 rng: np.random.Generator) -> np.ndarray:
@@ -471,10 +507,10 @@ class PoissonEmitter:
 
         Per gene, every cell gets a multiplier `ratio * exp(lift * weight + lean * tilt)`.
         `ratio` is the predicted per-cell fold change, the same for every cell: the shift
-        itself. `lift` and `lean` are two numbers solved (Newton, eight steps) so that the
-        EXPECTED per-cell mean fraction is `p_cell` and the expected column total is `p_bulk`
-        times the cells' summed depth: with one amplitude they only take out the drawn cells'
-        own sampling error. `tilt` is the cell's depth over the mean depth, less one. `weight`
+        itself. `lift` and `lean` are two numbers solved so that the EXPECTED per-cell mean
+        fraction is `p_cell` and the expected column total is `p_bulk` times the cells' summed
+        depth: with one amplitude they only take out the drawn cells' own sampling error.
+        `tilt` is the cell's depth over the mean depth, less one. `weight`
         is the square of the cell's expected count of the gene, over the cells' mean square, so
         the lift falls on the cells that carry the gene: when a few cells hold much of a gene,
         how many of them were drawn is most of the sampling error, and taking it out of every
@@ -491,11 +527,28 @@ class PoissonEmitter:
         which under that reading is the exact law of the extra counts; `profile.zero_rate`
         scales it for a cell with none, so that a gene which is simply off in most cells is not
         switched on in them. The multiplier is held to 64; past a 64-fold rise the fit delivers
-        the rest as a rescale."""
+        the rest as a rescale.
+
+        The solve is Newton's, held so that a gene's larger relative miss of the two moments
+        cannot end above where it began (one of the two may). A step moves no cell's exponent by
+        more than one; a gene whose step left that miss no smaller goes back to its best point
+        and tries half the step; the best point is the one used (up to SHAPE_SOLVE_STEPS steps,
+        done at SHAPE_SOLVE_TOL). Plain Newton diverged where a few very deep cells carry a
+        gene: `weight` and `tilt` are then large in the same cells, the two equations nearly
+        one, and the step threw the deep cells to the 64-fold limit on gene after gene with
+        nothing predicted. What the best point leaves unmet the fit delivers
+        (`last_shape_unmet`: genes whose expected moments the solve left more than 1 % off, of
+        those the block holds twenty counts of; read before the draws and the caps below).
+
+        Last, whatever is predicted, a cell whose re-rated total passes SHAPE_DEPTH_GAIN_CAP
+        times its own depth, or SHAPE_MAX_COUNTS_PER_CELL, keeps only as many of the counts
+        added to it as fit under that, drawn without replacement (`last_shape_held` counts those
+        cells; a control cell that is itself over the limit keeps that many of its own)."""
         n = len(lib)
         tilt = lib / lib.mean() - 1.0
         live = np.flatnonzero(self.p.fraction > 0)    # a gene the controls never show stays empty
         out = np.zeros_like(counts)
+        unmet = 0
         for lo in range(0, len(live), 4096):          # genes in blocks: a 38,584-gene axis stays in memory
             g = live[lo:lo + 4096]
             c = counts[:, g]
@@ -508,26 +561,45 @@ class PoissonEmitter:
             weight = np.divide(weight, mean_weight, out=np.ones_like(own), where=mean_weight > 0)
             ratio = (p_cell[g] / self.p.fraction[g])[None, :]
             want_cell, want_bulk = n * p_cell[g], p_bulk[g] * lib.sum()
-            lift, lean = np.zeros(len(g)), np.zeros(len(g))
-            for step in range(9):
-                mult = np.clip(ratio * np.exp(lift[None, :] * weight + lean[None, :] * tilt[:, None]), 0.0, 64.0)
-                if step == 8:
-                    break
-                pool = np.where(mult > 1.0, own, c)                   # what a multiplier acts on, in expectation
-                expect = c + (mult - 1.0) * pool
-                miss_cell = (expect / lib[:, None]).sum(axis=0) - want_cell
-                miss_bulk = expect.sum(axis=0) - want_bulk
+            # a miss is read relative to what is wanted; a gene predicted to nothing is met by its ratio alone
+            per_cell = np.where(want_cell > 0, want_cell, np.inf)
+            per_bulk = np.where(want_bulk > 0, want_bulk, np.inf)
+            two = np.where(ratio > 1.0, own, c).sum(axis=0) >= 20.0   # under twenty counts: the lift alone
+            at_lift, at_lean = np.zeros(len(g)), np.zeros(len(g))      # each gene's best point so far
+            left = np.full(len(g), np.inf)                             # the larger relative miss it leaves
+            go_lift, go_lean = np.zeros(len(g)), np.zeros(len(g))      # the Newton step from it
+            trust = np.ones(len(g))
+            act = np.arange(len(g))                                    # genes still being solved
+            for _ in range(SHAPE_SOLVE_STEPS + 1):
+                w, ca, oa = weight[:, act], c[:, act], own[:, act]
+                lift, lean = at_lift[act] - trust[act] * go_lift[act], at_lean[act] - trust[act] * go_lean[act]
+                mult = np.clip(ratio[:, act] * np.exp(lift[None, :] * w + lean[None, :] * tilt[:, None]), 0.0, 64.0)
+                pool = np.where(mult > 1.0, oa, ca)                   # what a multiplier acts on, in expectation
+                expect = ca + (mult - 1.0) * pool
+                miss_cell = (expect / lib[:, None]).sum(axis=0) - want_cell[act]
+                miss_bulk = expect.sum(axis=0) - want_bulk[act]
+                miss = np.abs(miss_cell) / per_cell[act]
+                miss = np.where(two[act], np.maximum(miss, np.abs(miss_bulk) / per_bulk[act]), miss)
+                won = miss < left[act]
                 grad = pool * mult
-                a11, a12 = (grad * weight / lib[:, None]).sum(axis=0), (grad * (tilt / lib)[:, None]).sum(axis=0)
-                a21, a22 = (grad * weight).sum(axis=0), (grad * tilt[:, None]).sum(axis=0)
+                a11, a12 = (grad * w / lib[:, None]).sum(axis=0), (grad * (tilt / lib)[:, None]).sum(axis=0)
+                a21, a22 = (grad * w).sum(axis=0), (grad * tilt[:, None]).sum(axis=0)
                 det = a11 * a22 - a12 * a21
-                pair = (np.abs(det) > 1e-9 * (np.abs(a11 * a22) + np.abs(a12 * a21))) & (pool.sum(axis=0) >= 20.0)
+                pair = two[act] & (np.abs(det) > 1e-9 * (np.abs(a11 * a22) + np.abs(a12 * a21)))
                 safe = np.where(pair, det, 1.0)
                 d_lift = np.where(pair, (miss_cell * a22 - a12 * miss_bulk) / safe,
                                   np.divide(miss_cell, a11, out=np.zeros_like(a11), where=a11 > 0))
                 d_lean = np.where(pair, (a11 * miss_bulk - a21 * miss_cell) / safe, 0.0)
-                lift -= np.clip(d_lift, -1.0, 1.0)
-                lean = np.where(pair, lean - np.clip(d_lean, -1.0, 1.0), 0.0)
+                far = np.maximum(np.abs(d_lift[None, :] * w + d_lean[None, :] * tilt[:, None]).max(axis=0), 1.0)
+                k = act[won]
+                at_lift[k], at_lean[k], left[k] = lift[won], lean[won], miss[won]
+                go_lift[k], go_lean[k] = (d_lift / far)[won], (d_lean / far)[won]
+                trust[act] = np.where(won, np.minimum(2.0 * trust[act], 1.0), 0.5 * trust[act])
+                act = act[(left[act] > SHAPE_SOLVE_TOL) & (trust[act] > 1e-3)]
+                if len(act) == 0:
+                    break
+            mult = np.clip(ratio * np.exp(at_lift[None, :] * weight + at_lean[None, :] * tilt[:, None]), 0.0, 64.0)
+            unmet += int(((left > 0.01) & two).sum())
             new = c.copy()
             thin = (mult < 1.0) & (c > 0)
             new[thin] = rng.binomial(c[thin].astype(np.int64), mult[thin])
@@ -539,6 +611,20 @@ class PoissonEmitter:
                                    spread[wide] * rate[wide] / room[gain][wide])
             new[gain] += rng.poisson((mult[gain] - 1.0) * none[gain] * rate)
             out[:, g] = new
+        # no cell leaves with more than SHAPE_DEPTH_GAIN_CAP times the depth it came with, nor over the scorer's limit
+        total = out.sum(axis=1)
+        ceiling = np.minimum(SHAPE_DEPTH_GAIN_CAP * lib, float(SHAPE_MAX_COUNTS_PER_CELL))
+        over = np.flatnonzero(total > ceiling)
+        for i in over:
+            own_kept = np.minimum(out[i], counts[i]).astype(np.int64)      # the cell's own counts that survived
+            added = out[i].astype(np.int64) - own_kept
+            room = int(ceiling[i]) - int(own_kept.sum())
+            if room >= 0:                             # that many of the added counts, drawn without replacement
+                out[i] = own_kept + rng.multivariate_hypergeometric(added, room, method="marginals")
+            else:                                     # a control cell itself over the limit: that many of its own
+                out[i] = rng.multivariate_hypergeometric(own_kept, int(ceiling[i]), method="marginals")
+        self.last_shape_held = int(len(over))
+        self.last_shape_unmet = unmet
         return out
 
     def _emit_even(self, n: int, frac: np.ndarray, depth_frac: float = 1.0) -> np.ndarray:

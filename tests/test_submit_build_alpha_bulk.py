@@ -242,9 +242,10 @@ def test_emit_shape_controls_rides_every_block_and_is_recorded(challenge, monkey
     assert seen == [("X", True, {"on_fail": "fallback", "shape": True}),
                     ("Y", True, {"on_fail": "fallback", "shape": True})]     # the cells are kept, the flag rides
     rec = json.loads((challenge["out"] / "shp.dual.json").read_text())
+    none = {"cells_held_to_the_caps": 0, "genes_left_unmet_a_block": None}     # the spy re-rates nothing
     assert rec["emit_shape"] == {"shape": "controls", "contexts": {
-        "X": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 1, "blocks_left_on_the_template": []},
-        "Y": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 0, "blocks_left_on_the_template": ["TP53"]}}}
+        "X": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 1, "blocks_left_on_the_template": [], **none},
+        "Y": {"control_cells_kept": 12, "blocks_in_the_controls_shape": 0, "blocks_left_on_the_template": ["TP53"], **none}}}
     assert json.loads((challenge["out"] / "shp.args.json").read_text())["emit_shape"] == "controls"
 
 
@@ -257,8 +258,10 @@ def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge, capsys)
     assert "WARNING" not in out
     ctx = json.loads((challenge["out"] / "real.dual.json").read_text())["emit_shape"]["contexts"]
     for c in ("X", "Y"):                           # the real emitter carries the fixture's block in the shape
+        unmet = ctx[c].pop("genes_left_unmet_a_block")                 # and says what its solve left to the fit
+        assert set(unmet) == {"median", "max"} and unmet["max"] >= 0
         assert ctx[c] == {"control_cells_kept": 12, "blocks_in_the_controls_shape": 1,
-                          "blocks_left_on_the_template": []}
+                          "blocks_left_on_the_template": [], "cells_held_to_the_caps": 0}
     shaped, drawn = (ad.read_h5ad(challenge["out"] / f"{s}.h5ad") for s in ("real", "tmpl"))
     assert shaped.n_obs == drawn.n_obs == 12
     assert not np.array_equal(shaped.X.toarray(), drawn.X.toarray())   # other cells than the same seed's template

@@ -1422,6 +1422,7 @@ def main(argv: list[str] | None = None) -> int:
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
             left_on_template: list[str] = []
+            held, unmet = 0, []                    # cells held to the emitter's caps; genes its solve left to the fit
             for k, p in enumerate(perts):
                 if ctx_bulk is None or ctx_shifts[p] is None:
                     block = em.emit(contract.cells_per_pert, ctx_shifts[p])
@@ -1437,6 +1438,9 @@ def main(argv: list[str] | None = None) -> int:
                                          on_fail=on_fail, **shape_kw)
                     if shaped and not getattr(em, "last_shaped", False):
                         left_on_template.append(p)
+                    elif shaped and getattr(em, "last_shape_unmet", None) is not None:
+                        held += int(em.last_shape_held or 0)
+                        unmet.append(int(em.last_shape_unmet))
                     how = getattr(em, "last_dual", "dual")
                     if how in ("anchor", "template"):
                         fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
@@ -1449,9 +1453,13 @@ def main(argv: list[str] | None = None) -> int:
                 # (the last rung), where its genes are called for their shape again: count and name it
                 in_shape[ctx] = {"control_cells_kept": int(prof.n_cells),
                                  "blocks_in_the_controls_shape": len(perts) - len(left_on_template),
-                                 "blocks_left_on_the_template": left_on_template}
+                                 "blocks_left_on_the_template": left_on_template,
+                                 "cells_held_to_the_caps": held,
+                                 "genes_left_unmet_a_block": ({"median": float(np.median(unmet)), "max": max(unmet)}
+                                                              if unmet else None)}
                 print(f"  {ctx}: emit-shape controls: {len(perts) - len(left_on_template)} of {len(perts)} "
-                      f"perturbations emitted as re-rated control cells ({prof.n_cells} kept)", flush=True)
+                      f"perturbations emitted as re-rated control cells ({prof.n_cells} kept)"
+                      + (f"; {held} cell(s) held to the caps" if held else ""), flush=True)
                 if left_on_template:
                     # at one strength there is no middle rung: a failed fit returns the drawn
                     # template, whose genes the scorer calls for their shape again

@@ -913,6 +913,189 @@ def test_two_amplitudes_are_carried_as_a_lean_with_depth_and_no_cell_is_emptied(
     assert abs(zeros(B, down) - zeros(A, down)) < 0.03 and abs(zeros(B, up) - zeros(A, up)) < 0.03
 
 
+def _cells_with_a_long_tail(rng, n, g=GS):
+    """`_cells_like_real` with what broke two box arms on HEK293T: a few cells eight to ten times the
+    mean depth, depth-tracking genes that rise faster than depth, and a few cells holding fifteen times
+    their share of a sixth of the genes."""
+    base, k, kind = _gene_laws(g)
+    depth = rng.lognormal(np.log(8000), 0.45, size=n)
+    deep = rng.choice(n, size=max(n // 100, 4), replace=False)
+    depth[deep] = 8000 * rng.uniform(8.0, 10.0, size=len(deep))
+    rate = base[None, :] * rng.gamma(k[None, :], 1.0 / k[None, :], size=(n, g))
+    rate[:, kind == "depth-tracking"] *= ((depth / 8000) ** 1.0)[:, None]
+    rate[:, kind == "on/off"] *= rng.random((n, int((kind == "on/off").sum()))) < 0.4
+    odd = rng.choice(n, size=max(n // 100, 4), replace=False)
+    rate[np.ix_(odd, np.flatnonzero(kind == "minority"))] *= 15.0
+    rate /= rate.sum(axis=1, keepdims=True)
+    return rng.poisson(rate * depth[:, None]).astype(np.float32)
+
+
+@pytest.mark.parametrize("shift", [False, True])
+def test_no_shaped_cell_runs_away_from_its_own_depth(tmp_path, shift):
+    """T85, 2026-10-06: two box arms died on the scorer's 1,000,000-count limit because a re-rated
+    HEK293T cell reached 1,684,750 counts. The solve that moves the drawn cells onto the two moments
+    diverged where a few very deep cells carry a gene, and threw those cells to its 64-fold limit.
+    On cells with that long tail, predicted shift or none: the re-rated cells end no further from
+    the two moments than the drawn cells began (a solve that takes every step ends far further),
+    no cell needs holding to the depth cap, and none is near the scorer's limit."""
+    import sidechain.models.count_emitters as ce
+
+    X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    d = np.zeros(GS)
+    if shift:
+        d[::3] = np.where(np.arange(GS)[::3] % 2 == 0, 1.0, -1.0)
+    p_cell, p_bulk = em._fraction(d), em._fraction(d, bulk=True)
+    gain, deep_in, held = [], 0, 0
+    for s in range(11, 23):
+        rows = em._depth_spread_rows(400, np.random.default_rng([s, 1]))
+        own = prof.libsizes[rows]
+        start, depths = em._shaped_start(400, p_cell, p_bulk, s)
+        assert np.array_equal(depths, np.maximum(np.rint(start.sum(axis=1)), 1).astype(np.int64))
+        gain.append(float((start.sum(axis=1) / own).max()))
+        deep_in += int((own > 6 * prof.libsizes.mean()).sum())
+        held += em.last_shape_held
+        # the largest relative miss of either moment over the well-counted genes, after and before
+        drawn = prof.cells[rows].toarray().astype(np.float64) * (p_cell / prof.fraction)[None, :]
+        off = lambda M: max(np.abs((M / own[:, None]).mean(axis=0) / p_cell - 1.0)[prof.fraction > 2e-4].max(),
+                            np.abs(M.sum(axis=0) / (p_bulk * own.sum()) - 1.0)[prof.fraction > 2e-4].max())
+        assert off(start) <= off(drawn) + 0.05, (off(start), off(drawn))
+    assert deep_in >= 12                                   # the deep cells are in the draws
+    assert max(gain) <= ce.SHAPE_DEPTH_GAIN_CAP and held == 0, (gain, held)
+    assert max(gain) * prof.libsizes.max() < 250_000       # a quarter of the scorer's limit; the old solve passed two million
+
+
+def test_a_shaped_block_holds_the_controls_own_spread_of_depths(tmp_path):
+    """A block is one cell from each of 400 slices of the control cells in order of depth: distinct
+    cells, every slice represented, so the deep tail the summed profile leans on is in every block
+    (a plain random draw of these cells leaves it out of about one block in eighty)."""
+    X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    order = np.sort(prof.libsizes)
+    deep = prof.libsizes > 6 * prof.libsizes.mean()
+    for s in range(40):
+        rows = em._depth_spread_rows(400, np.random.default_rng([s, 1]))
+        assert len(np.unique(rows)) == 400
+        got = np.sort(prof.libsizes[rows])
+        lo, hi = order[np.floor(np.linspace(0, 2500, 401)).astype(int)[:-1]], order[np.floor(np.linspace(0, 2500, 401)).astype(int)[1:] - 1]
+        assert (got >= lo).all() and (got <= hi).all()          # one cell from every slice
+        assert 3 <= deep[rows].sum() <= 5                       # 25 deep cells in 2,500: four a block
+    assert sum(deep[np.random.default_rng([s, 1]).choice(2500, 400, replace=False)].sum() == 0 for s in range(400)) > 0
+    # the same draw for the same seed, another for another; too few cells: with replacement, as before
+    a, b = em._depth_spread_rows(400, np.random.default_rng([1, 1])), em._depth_spread_rows(400, np.random.default_rng([1, 1]))
+    assert np.array_equal(a, b) and not np.array_equal(a, em._depth_spread_rows(400, np.random.default_rng([2, 1])))
+    assert len(em._depth_spread_rows(3000, np.random.default_rng(0))) == 3000
+
+
+def test_a_cell_asked_for_more_than_twice_its_depth_is_held_to_that(tmp_path, monkeypatch):
+    """The guarantee under the solve: whatever is predicted, no re-rated cell leaves with more than
+    SHAPE_DEPTH_GAIN_CAP times the depth it came with. A sixteen-fold rise of the genes a few cells
+    hold most of asks those cells for far more; they are held exactly, counted, and without the cap
+    they are not (which is what makes this a test of the cap). The emitted cells keep the depths."""
+    import sidechain.models.count_emitters as ce
+
+    X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    up = np.zeros(GS)
+    up[_gene_laws(GS)[2] == "minority"] = 4.0
+    p_cell, p_bulk = em._fraction(up), em._fraction(up, bulk=True)
+    rows = em._depth_spread_rows(400, np.random.default_rng([5, 1]))
+    own = prof.libsizes[rows]
+    start, depths = em._shaped_start(400, p_cell, p_bulk, 5)
+    assert (start.sum(axis=1) <= ce.SHAPE_DEPTH_GAIN_CAP * own).all()
+    held = em.last_shape_held
+    assert held > 0 and (start.sum(axis=1) == ce.SHAPE_DEPTH_GAIN_CAP * own).sum() == held      # held exactly, not about
+    assert (start >= 0).all() and np.array_equal(start, np.rint(start))
+    # a held cell lost only counts that were added to it: none of its own beyond what the re-rating thinned
+    drawn = prof.cells[rows].toarray()
+    at_cap = start.sum(axis=1) == ce.SHAPE_DEPTH_GAIN_CAP * own
+    assert (start[at_cap][:, up == 0] <= drawn[at_cap][:, up == 0] + 1e-9).mean() > 0.9
+    monkeypatch.setattr(ce, "SHAPE_DEPTH_GAIN_CAP", 1e30)
+    free, _ = em._shaped_start(400, p_cell, p_bulk, 5)
+    assert (free.sum(axis=1) / own).max() > 2.5 and em.last_shape_held == 0
+    monkeypatch.undo()
+    # through the public call: the fit keeps every row's total, so each emitted cell is under ITS cap
+    seen = {}
+    inner = em._shaped_start
+    monkeypatch.setattr(em, "_shaped_start", lambda *a: seen.setdefault("out", inner(*a)))
+    block = em.emit_dual(400, up, up, on_fail="raise", shape=True).toarray()
+    assert em.last_shaped is True and em.last_shape_held > 0
+    assert np.array_equal(np.sort(block.sum(axis=1)), np.sort(seen["out"][1]))
+
+
+def test_no_shaped_cell_passes_the_scorers_count_limit_whatever_its_own_depth(tmp_path, monkeypatch):
+    """Twice a cell's own depth is not the scorer's limit: a control cell over half of
+    max_counts_per_cell could still leave above it. The second cap is absolute. With the limit set
+    inside this fixture's depths (30,000, where its deep cells hold 64,000 to 80,000), no cell
+    leaves over it, a control cell that is itself over it keeps that many of its own counts, and a
+    cell under both caps is untouched by either."""
+    import sidechain.models.count_emitters as ce
+
+    X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    p_cell, p_bulk = em._fraction(None), em._fraction(None, bulk=True)
+    free, _ = em._shaped_start(400, p_cell, p_bulk, 7)
+    monkeypatch.setattr(ce, "SHAPE_MAX_COUNTS_PER_CELL", 30_000)
+    start, depths = em._shaped_start(400, p_cell, p_bulk, 7)
+    own = prof.libsizes[em._depth_spread_rows(400, np.random.default_rng([7, 1]))]
+    assert (own > 30_000).sum() >= 3                        # control cells that are themselves over the limit
+    assert start.sum(axis=1).max() == 30_000 and em.last_shape_held >= (own > 30_000).sum()
+    assert (start >= 0).all() and np.array_equal(start, np.rint(start))
+    low = free.sum(axis=1) <= 30_000                        # the same draws up to the caps: those cells are the same cells
+    assert low.sum() > 380 and np.array_equal(start[low], free[low])
+    block = em.emit_dual(400, None, None, on_fail="raise", shape=True).toarray()
+    assert block.sum(axis=1).max() <= 30_000
+    assert ce.SHAPE_MAX_COUNTS_PER_CELL == 30_000 and PoissonEmitter.emit.__kwdefaults__["max_counts_per_cell"] == 1_000_000
+
+
+def test_a_gene_predicted_to_nothing_is_met_and_the_solve_runs_to_its_end(tmp_path):
+    """Two things the solve's record must not get wrong. A gene whose predicted fraction is exactly
+    zero is delivered by its ratio alone (every count thinned away) and is not a miss. And with two
+    amplitudes on ordinary cells the solve has the steps to finish: all but a handful of genes end
+    within 1 % of both moments (at sixteen steps eight a block did not)."""
+    X = _cells_like_real(np.random.default_rng(4), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    gone = np.arange(GS) % 2 == 0
+    p_cell = np.where(gone, 0.0, prof.fraction); p_cell = p_cell / p_cell.sum()
+    p_bulk = np.where(gone, 0.0, prof.bulk_fraction); p_bulk = p_bulk / p_bulk.sum()
+    start, _ = em._shaped_start(400, p_cell, p_bulk, 3)
+    assert start[:, gone].sum() == 0 and start[:, ~gone].sum() > 0
+    assert em.last_shape_unmet <= 5, em.last_shape_unmet
+    rng = np.random.default_rng(9)
+    d = np.where(rng.random(GS) < 0.4, rng.normal(0, 0.6, GS), 0.0)
+    unmet = []
+    for s in range(6):
+        e = PoissonEmitter(prof, seed=s, lam=0.5, bulk_anchor="pooled")
+        e.emit_dual(400, d, 1.4 * d, on_fail="anchor", shape=True)
+        unmet.append(e.last_shape_unmet)
+    assert np.mean(unmet) <= 3, unmet
+
+
+def test_on_long_tailed_depths_a_shaped_block_with_nothing_predicted_still_reads_as_control_cells(tmp_path):
+    """The fix must not buy safety with a worse null: on the long-tailed cells a shaped block with
+    nothing predicted is called no more than control cells are, and the emitted cells sit on both
+    moments."""
+    X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
+    prof = _kept_profile(tmp_path, X, keep_cells=True)
+    em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
+    calls = []
+    for _ in range(6):
+        block = em.emit_dual(400, None, None, on_fail="raise", shape=True).toarray()
+        assert em.last_shaped is True and em.last_shape_held <= 2
+        calls.append(int(_rank_test(block, X)[1].sum()))
+        depth = block.sum(axis=1)
+        assert np.abs((block / depth[:, None]).mean(axis=0) - prof.fraction).sum() < 2e-3      # per-cell mean
+        assert np.abs(block.sum(axis=0) / depth.sum() - em._fraction(None, bulk=True)).sum() < 2e-3   # summed profile
+        assert depth.max() <= 2.0 * prof.libsizes.max()
+    raw = [int(_rank_test(X[np.random.default_rng(50 + s).choice(len(X), 400, replace=False)], X)[1].sum()) for s in range(6)]
+    assert max(calls) <= max(raw), (calls, raw)
+
+
 def test_shape_never_changes_what_is_drawn_next_and_scatter_composes_with_it(tmp_path):
     rng = np.random.default_rng(39)
     X = _cells_like_real(rng, 1500)
@@ -995,8 +1178,11 @@ def test_loco_emits_control_cells_on_request_and_keeps_the_runs_draws(monkeypatc
     shaped = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "shaped.h5ad",
                                             emit_shape="controls", **kw)
     assert "emit_shape" not in plain
+    unmet = shaped["emit_shape"].pop("genes_left_unmet_a_target")
+    assert set(unmet) == {"median", "max"} and 0 <= unmet["median"] <= unmet["max"]      # what the solve left to the fit
     assert shaped["emit_shape"] == {"shape": "controls", "control_cells_kept": len(X_ctrl),
-                                    "targets_in_the_controls_shape": 3, "targets_left_on_the_template": []}
+                                    "targets_in_the_controls_shape": 3, "targets_left_on_the_template": [],
+                                    "cells_held_to_the_caps": 0, "targets_with_a_held_cell": []}
     # under the pooled anchor the flag moves no draw: every target's template is the run's without it,
     # the targets after an uncovered one included
     assert len(drawn) == 3 and all(np.array_equal(t, s.toarray()) for t, s in zip(templates, drawn))

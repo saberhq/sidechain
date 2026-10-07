@@ -172,6 +172,8 @@ def build_transfer_prediction(
 
     sharpened: dict[str, int] = {}               # target -> genes whose scatter the block carries
     in_shape: dict[str, bool] = {}               # target -> its block is control cells (not the template rung)
+    shape_held: dict[str, int] = {}              # target -> cells of its block held to the emitter's caps
+    shape_unmet: dict[str, int] = {}             # target -> genes the re-rating's solve left over 1 % off a moment
 
     def dual(n, d_cell, d_bulk, label, scatter=None):   # called only inside the write loop, after `em` exists
         block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter, shape=shaped)
@@ -182,6 +184,8 @@ def build_transfer_prediction(
             sharpened[label] = int(em.last_sharpened or 0)
         if shaped:
             in_shape[label] = bool(em.last_shaped)
+            if em.last_shaped and getattr(em, "last_shape_unmet", None) is not None:
+                shape_held[label], shape_unmet[label] = int(em.last_shape_held or 0), int(em.last_shape_unmet)
         return block
 
     # Backed, and the control cells are the only rows brought into memory. The X-Atlas
@@ -394,9 +398,16 @@ def build_transfer_prediction(
                if scatter_record is not None else {}),
             # T85: present only with --emit-shape controls. A target that ended on the template
             # rung is not control cells; it is named here and under dual_fallback_targets.
+            # `cells_held_to_the_caps`: cells the emitter cut back to twice their own depth or to the
+            # scorer's per-cell limit; `genes_left_unmet_a_target`: what its solve left to the fit.
             **({"emit_shape": {"shape": emit_shape, "control_cells_kept": int(prof.n_cells),
                                "targets_in_the_controls_shape": int(sum(in_shape.values())),
-                               "targets_left_on_the_template": sorted(t for t, v in in_shape.items() if not v)}}
+                               "targets_left_on_the_template": sorted(t for t, v in in_shape.items() if not v),
+                               "cells_held_to_the_caps": int(sum(shape_held.values())),
+                               "targets_with_a_held_cell": sorted(t for t, v in shape_held.items() if v),
+                               "genes_left_unmet_a_target": ({"median": float(np.median(list(shape_unmet.values()))),
+                                                              "max": int(max(shape_unmet.values()))}
+                                                             if shape_unmet else None)}}
                if shaped else {}),
             "gamma": gamma, "var_floor": var_floor,
             # Recorded because it moved on 2026-09-20 (T18 check 5) from 500 to the
