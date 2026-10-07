@@ -29,13 +29,15 @@ denominator beats a flattering one (Saber, 2026-09-11). ``log_submission.py`` ta
 snapshot itself at record time, so the window is only ever missed when nobody was there.
 
 ``sidechain_class`` is present on a **calibration run** and absent on everything else: an
-entry known in advance not to be competitive, spent to measure the scoring itself
-(``log_submission.py --calibration``, declared before the score). There is no opposite label,
-because every submission asks a question — Saber, 2026-09-11: "there is nothing like climb
-the ranking ladder, I never submit a model to climb it". Nothing is ever filtered on it; it
-decides only that such an entry is drawn apart, because one off-scale bar on a shared axis
-destroys the resolution of everything else — PHE-2 scored -0.9807 against a field running
-0.0730 to 0.1078. It is metadata, never part of a model's name (ADR 0005 is untouched).
+entry sent purely to test a new method and its performance on the official board
+(``log_submission.py --calibration``; which entries are calibration runs is Saber's choice).
+There is no opposite label, because every submission asks a question — Saber, 2026-09-11:
+"there is nothing like climb the ranking ladder, I never submit a model to climb it". No
+entry is left out of the outputs on it; it decides only that such an entry is drawn
+apart in the site's bars, because one off-scale bar on a shared axis destroys the resolution
+of everything else — PHE-2 scored -0.9807 against a field running 0.0730 to 0.1078 — and is
+left out of its rank plot (Saber, 2026-10-07). It is metadata, never part of a model's name
+(ADR 0005 is untouched).
 
 Outputs, all fully generated — never edit them by hand:
 
@@ -102,11 +104,10 @@ ABOUT = (
     "when scored) and teams is that snapshot's full team count, not the ~50 rows the page "
     "embeds; an entry below the embed takes its status record's scoring-time rank. The README "
     "table between the standings markers is the same rows. class is 'calibration' on an entry "
-    "known in advance not to be competitive and sent to measure the scoring itself, and empty "
-    "on every other entry -- there is no opposite label. class_retro marks one written after "
-    "the fact, the field postdating it. NOTHING is filtered on class: it decides only that "
-    "such an entry is drawn apart, because one off-scale bar on a shared axis destroys the "
-    "resolution of every other bar."
+    "sent purely to test a new method and its performance on the official board, and empty "
+    "on every other entry -- there is no opposite label. No entry is left out of this file "
+    "on class: it decides only that such an entry is drawn apart in the bars and left out of "
+    "the rank plot."
 )
 
 
@@ -294,7 +295,6 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             "card": card,
             "card_retro": card_retro,
             "class": klass,
-            "class_retro": bool(s.get("sidechain_class_retro")),
         })
     rows.sort(key=lambda r: r.pop("_submitted"))  # submission order; the key leaves the output
     return rows

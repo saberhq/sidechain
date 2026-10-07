@@ -188,8 +188,9 @@ a.sq-card:hover {
 .sc-intro { margin-top: var(--space-5); max-width: 60ch; }
 .sc-intro p { margin: 0; color: var(--ink-2); }
 
-/* The plot: one point per ranked entry in submission order, at its rank as a share of the
-   field when scored -- lower is better -- with one dotted reference at the top 10%. The line
+/* The plot: one point per ranked entry in submission order, calibration runs left out, at
+   its rank as a share of the field when scored -- lower is better -- with one dotted
+   reference at the top 10%. The line
    and the reference are a stretched SVG (non-scaling strokes); the points and the label are
    HTML placed by percentage, so the dots stay round at any width. Drawn at build time;
    assets/standing.js only adds the hover readout. */
@@ -203,8 +204,8 @@ a.sq-card:hover {
 .sc-ref { fill: none; stroke: var(--ink-4); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
 .sc-ref-label { position: absolute; right: 0; transform: translateY(-100%); padding-bottom: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
 .sc-line { fill: none; stroke: var(--ink-2); stroke-width: 1.25; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-/* A point: hollow, with a 25px target around it. The best share is green, the latest entry
-   is carmine (--mark, the bar's own) and a size up; the two are also the first and last
+/* A point: hollow, with a 25px target around it. The best share is green, the last point
+   plotted is carmine (--mark, the bar's own) and a size up; the two are also the first and last
    things a reader meets, so neither rests on colour alone. */
 a.sc-pt, a.sc-pt:visited {
   position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;

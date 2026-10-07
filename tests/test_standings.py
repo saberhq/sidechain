@@ -8,10 +8,11 @@ ranked below the embed appears in no snapshot and falls back to its status recor
 scoring-time rank, with the board size from the first snapshot after the submission.
 
 Also the `sidechain_class` rule (Saber, 2026-09-11, vocabulary settled 2026-09-12): the key is
-present and reads `calibration` on an entry known in advance not to be competitive, and absent
-on every other one. There is no opposite label — every submission asks a question. Nothing is
-filtered on it and it is not part of a model's name: it decides only whether an entry shares
-the main axis or sits in the strip below.
+present and reads `calibration` on an entry sent purely to test a new method on the official
+board, and absent on every other one. There is no opposite label — every submission asks a
+question. No entry is left out of the outputs on it and it is not part of a model's name. It
+decides only how the site draws an entry: in the bars a calibration run sits in the strip
+below instead of sharing the main axis, and the rank plot leaves it out (Saber, 2026-10-07).
 """
 import importlib.util
 import json
@@ -171,10 +172,10 @@ def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
     assert (live["card"], live["card_retro"]) == ("SER-9 = a live board card.", False)
 
 
-def test_a_calibration_run_is_marked_and_nothing_is_filtered(tmp_path):
-    """Both rows reach the output. The class travels with the row so the surfaces can draw
-    them apart; it never removes an entry -- hiding a submission after seeing its score is
-    the failure this design exists to avoid (Saber, 2026-09-11)."""
+def test_a_calibration_run_is_marked_and_stays_in_the_outputs(tmp_path):
+    """Both rows reach the generated outputs. The class travels with the row so the site can
+    draw them apart (a strip in the bars, no point on the rank plot); it never removes a row
+    from the JSON or the README."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
@@ -209,15 +210,17 @@ def test_an_unknown_class_is_not_trusted(tmp_path):
     assert len(standings.CLASS_WARNINGS) == 1 and "contender" in standings.CLASS_WARNINGS[0]
 
 
-def test_class_retro_marks_the_entries_that_predate_the_field(tmp_path):
+def test_a_row_carries_the_class_and_nothing_else_about_it(tmp_path):
+    """A generated row's only class key is `class`: any other key on a record does not travel."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z",
-           klass="calibration", sidechain_class_retro=True)
+           klass="calibration", sidechain_class_note="x")
     status(subs, "2026-08-25", "b_v1", "e2", "2026-08-25T20:10:41Z", klass="calibration")
-    old, new = standings.load_rows(subs, snaps)
-    assert (old["class_retro"], new["class_retro"]) == (True, False)
+    for row in standings.load_rows(subs, snaps):
+        assert row["class"] == "calibration"
+        assert [k for k in row if k.startswith("class")] == ["class"]
 
 
 def test_the_readme_marks_only_the_calibration_run(tmp_path):

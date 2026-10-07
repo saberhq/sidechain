@@ -65,7 +65,6 @@
     readout.appendChild(piece('span', ' · ' + d.date, 'sc-wide'));
     readout.appendChild(document.createTextNode(' · ' + d.overall + ' · ' + d.rank));
     readout.appendChild(piece('span', ' · ' + d.share, 'sc-wide'));
-    if (d.class) readout.appendChild(document.createTextNode(' · ' + d.class));
     if (pt === chosen) {
       var close = piece('button', '×', 'sc-spark-close');
       close.type = 'button';

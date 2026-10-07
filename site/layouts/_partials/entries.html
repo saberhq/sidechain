@@ -18,11 +18,13 @@
           says so in words. An entry that simply scores badly is drawn the same way, because
           nobody can know in advance which entries will need this.
 
-       2. `class`, which is `calibration` on an entry known in advance not to be competitive
-          and absent on every other one. There is no opposite label: every submission asks a
-          question (Saber, 2026-09-11). It is metadata, never part of a model's name (ADR
-          0005 is untouched), and it decides only GROUPING — the rest set the axis ceiling
-          and share it, a calibration run sits in its own strip. Nothing is hidden on it.
+       2. `class`, which is `calibration` on an entry sent purely to test a new method on the
+          official board (Saber's choice, entry by entry) and empty on every other one.
+          There is no opposite label: every submission asks a question (Saber, 2026-09-11).
+          It is metadata, never part of a model's name (ADR 0005 is untouched). It decides
+          GROUPING in the bars — the rest set the axis ceiling and share it, a calibration
+          run sits in its own strip — and the rank plot above leaves it out (Saber,
+          2026-10-07). No row is hidden on it.
           The models page carries the one-line explanation, so this page does not repeat
           it (Saber, 2026-09-12). */ -}}
 {{ $d := .Site.Data.submissions }}

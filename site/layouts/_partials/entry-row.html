@@ -19,7 +19,7 @@
         <span class="sc-bar" style="width: {{ printf "%.1f" $w }}%"></span>
         {{- end -}}
       </span>
-      <span class="sc-bar-value">{{ printf "%.4f" $e.overall }}</span>
+      <span class="sc-bar-value">{{ replace (printf "%.4f" $e.overall) "-" "−" }}</span>
     </span>
   </summary>
   <div class="sc-entry-body">

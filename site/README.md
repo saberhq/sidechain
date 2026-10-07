@@ -8,7 +8,8 @@ its own wordmark and layout, built and deployed from this repo.
 the writing in a sticky right rail of post cards; no header nav (the hero buttons and footer
 carry the links). The work column is the hero and one section, "Where we stand", in this
 order (Saber, 2026-10-05): the plot (the ledger dashboard's sparkline of rank percentile over
-entries; choosing a point shows its model card under the plot), four figures at the
+entries; calibration runs are not plotted; choosing a point shows its model card under the
+plot), four figures at the
 dashboard's sizes, the paragraph, a bar per submission, latest first, whose name opens its
 model card, date and rank, and the calibration runs in a strip of their own. The page ends
 with the posts' own "↑ Back to top".

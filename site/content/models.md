@@ -12,10 +12,25 @@ attached to.
 
 ## Calibration runs
 
-A **calibration run** is an entry sent to measure something a local test cannot: how the
-scoring itself behaves, or how much of a gain on our own held-out tests carries over to the
-challenge's cell contexts. Marked as one before it goes in, never after.
-There have been two so far: PHE-2 and SER-8abefkn.
+Some models are sent purely as **calibration runs**: entries that test a new method and its
+performance on the official board.
+
+## SER-15aefkrsw — submitted 2026-10-07 · calibration run
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
+genes blended in · r = cells built from real control cells · s = shrinkage rule moved · w = summed
+profile on the pooled control profile.** SER-14aefksw with one change, in how each knockdown's 400
+cells are written. In SER-14aefksw all 400 were drawn around one profile: the context's control
+profile, moved by the predicted change. Here each one starts as a real control cell of that
+context and has its counts moved to the predicted change (`r`), so the 400 keep the cell-to-cell
+variation real cells have. The emission dial (`e`) stays in the name and shapes no cell here. This
+submission is a calibration run, to measure how much of a gain on our own held-out tests carries
+over to the challenge's cell contexts.
+
+It scored −0.0039 against its parent SER-14aefksw's 0.1626. One of the six scores is more than
+the whole fall: the one that counts the genes the differential-expression test calls in the right
+direction. The other five rose or held. Locally, on four held-out test sets from three cell
+lines, it had scored above SER-14aefksw's recipe on every one.
 
 ## SER-14aefksw — submitted 2026-10-03
 
