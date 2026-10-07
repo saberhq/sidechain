@@ -270,6 +270,17 @@ def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge, capsys)
     assert np.ptp(depth(shaped)[:6]) > 2 * np.ptp(depth(drawn)[:6])
 
 
+def test_the_build_record_counts_the_cells_held_to_the_caps(challenge, monkeypatch, capsys):
+    from sidechain.models import count_emitters
+
+    monkeypatch.setattr(count_emitters, "SHAPE_DEPTH_GAIN_CAP", 1.0)       # a cap this fixture's cells do reach
+    assert build.main(_argv(challenge, "held", ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5",
+                                                "--emit-shape", "controls"])) == 0
+    ctx = json.loads((challenge["out"] / "held.dual.json").read_text())["emit_shape"]["contexts"]
+    assert {c: ctx[c]["cells_held_to_the_caps"] for c in ctx} == {"X": 1, "Y": 3}, ctx
+    assert "held to the caps" in capsys.readouterr().out
+
+
 def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monkeypatch, capsys):
     from sidechain.models import count_emitters
 
