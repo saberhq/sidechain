@@ -248,14 +248,44 @@ def test_emit_shape_controls_rides_every_block_and_is_recorded(challenge, monkey
     assert json.loads((challenge["out"] / "shp.args.json").read_text())["emit_shape"] == "controls"
 
 
-def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge):
-    assert build.main(_argv(challenge, "real", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                                "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
-    pred = ad.read_h5ad(challenge["out"] / "real.h5ad")
-    assert pred.n_obs == 12 and (np.asarray(pred.X.sum(axis=1)).ravel() > 0).all()
+def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge, capsys):
+    common = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    assert build.main(_argv(challenge, "tmpl", common)) == 0
+    assert build.main(_argv(challenge, "real", [*common, "--emit-shape", "controls"])) == 0
+    out = capsys.readouterr().out
+    assert "X: emit-shape controls: 1 of 1 perturbations emitted as re-rated control cells (12 kept)" in out
+    assert "WARNING" not in out
     ctx = json.loads((challenge["out"] / "real.dual.json").read_text())["emit_shape"]["contexts"]
-    for c in ("X", "Y"):                           # each block is counted on one side or the other
-        assert ctx[c]["blocks_in_the_controls_shape"] + len(ctx[c]["blocks_left_on_the_template"]) == 1
+    for c in ("X", "Y"):                           # the real emitter carries the fixture's block in the shape
+        assert ctx[c] == {"control_cells_kept": 12, "blocks_in_the_controls_shape": 1,
+                          "blocks_left_on_the_template": []}
+    shaped, drawn = (ad.read_h5ad(challenge["out"] / f"{s}.h5ad") for s in ("real", "tmpl"))
+    assert shaped.n_obs == drawn.n_obs == 12
+    assert not np.array_equal(shaped.X.toarray(), drawn.X.toarray())   # other cells than the same seed's template
+    # a shaped block is control cells: its depths spread as theirs do, the template's sit near one depth
+    depth = lambda a: np.asarray(a.X.sum(axis=1)).ravel()
+    assert np.ptp(depth(shaped)[:6]) > 2 * np.ptp(depth(drawn)[:6])
+
+
+def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monkeypatch, capsys):
+    from sidechain.models import count_emitters
+
+    def fail(*a, **k):
+        raise ValueError("moment fitting failed: forced by the test")
+    monkeypatch.setattr(count_emitters, "dual_moment_counts", fail)
+    assert build.main(_argv(challenge, "lost", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    ctx = json.loads((challenge["out"] / "lost.dual.json").read_text())["emit_shape"]["contexts"]
+    for c in ("X", "Y"):                           # the real emitter's last rung, read off its own flag
+        assert ctx[c]["blocks_in_the_controls_shape"] == 0 and ctx[c]["blocks_left_on_the_template"] == ["TP53"]
+    assert "WARNING X: 1 block(s) fell to the drawn template" in capsys.readouterr().out
+
+
+def test_a_model_named_stem_is_refused_until_the_knob_has_a_letter(challenge, capsys):
+    with pytest.raises(SystemExit):
+        build.main(_argv(challenge, "ser-99aefkw_shapeprobe_v1", ["--alpha", "1.35", "--bulk-anchor", "pooled",
+                                                                 "--emit-lambda", "0.5", "--emit-shape", "controls"]))
+    assert "--emit-shape off its default has no registered knob letter" in capsys.readouterr().err
 
 
 def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(challenge, monkeypatch):
@@ -272,4 +302,5 @@ def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(cha
                                                "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
     assert seen == [("X", False, False, True)] * 2 + [("Y", False, False, True)] * 2
     rec = json.loads((challenge["out"] / "unc.dual.json").read_text())["emit_shape"]["contexts"]
-    assert rec["X"]["blocks_left_on_the_template"] == ["TP53", "NOSOURCE1"]      # the spy never shapes
+    for c in ("X", "Y"):                           # the spy never shapes
+        assert rec[c]["blocks_left_on_the_template"] == ["TP53", "NOSOURCE1"]

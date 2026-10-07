@@ -510,8 +510,8 @@ def main(argv: list[str] | None = None) -> int:
                          "the targets after it draw other cells. An --alpha-bulk other than --alpha "
                          "is carried as a lean of every gene with the cell's depth, which is no "
                          "longer the controls' shape. Needs the two-channel emission; "
-                         "count_emitters.PoissonEmitter.emit_dual(shape=True). Not a submit.build "
-                         "knob yet")
+                         "count_emitters.PoissonEmitter.emit_dual(shape=True). The same knob "
+                         "in sidechain.submit.build")
     ap.add_argument("--similarity-beta", type=float, default=0.0,
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."

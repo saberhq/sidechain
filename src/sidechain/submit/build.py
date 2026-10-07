@@ -1233,6 +1233,12 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --neighbour-select off its default / "
                  "--neighbour-picks have no registered knob letter yet (ADR 0005): register the "
                  "letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.emit_shape != "template":
+        # What the emitted cells start from has no knob letter yet: a model-named build would carry
+        # letters that say "the emitter's own drawn cells".
+        ap.error(f"'{stem}' is named like a model, and --emit-shape off its default has no "
+                 "registered knob letter yet (ADR 0005): register the letter first, or build under "
+                 "a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "
@@ -1417,15 +1423,17 @@ def main(argv: list[str] | None = None) -> int:
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
             left_on_template: list[str] = []
             for k, p in enumerate(perts):
-                # a block with no shift at all is a template block, or, under --emit-shape
-                # controls, control cells with nothing predicted (as eval.loco does)
-                if ctx_bulk is None or (ctx_shifts[p] is None and not shaped):
+                if ctx_bulk is None or ctx_shifts[p] is None:
                     block = em.emit(contract.cells_per_pert, ctx_shifts[p])
                 else:
                     # letter b: two amplitudes in one count matrix; a perturbation whose two
-                    # moments are jointly unreachable carries one amplitude and is counted
-                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p],
-                                         None if ctx_shifts[p] is None else ctx_bulk[p],
+                    # moments are jointly unreachable carries one amplitude and is counted.
+                    # (final-phase: knobs) Under --emit-shape controls a target no source covers is
+                    # re-rated to the generic shift it carries here, a block of a kind no mirror arm
+                    # has scored: eval.loco emits such a target as control cells with nothing
+                    # predicted. A/B/C have none (the log's fallback-to-generic: 0); read that count
+                    # on the first D/E/F build before a shaped entry goes up.
+                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
                                          on_fail=on_fail, **shape_kw)
                     if shaped and not getattr(em, "last_shaped", False):
                         left_on_template.append(p)
@@ -1444,6 +1452,11 @@ def main(argv: list[str] | None = None) -> int:
                                  "blocks_left_on_the_template": left_on_template}
                 print(f"  {ctx}: emit-shape controls: {len(perts) - len(left_on_template)} of {len(perts)} "
                       f"perturbations emitted as re-rated control cells ({prof.n_cells} kept)", flush=True)
+                if left_on_template:
+                    # at one strength there is no middle rung: a failed fit returns the drawn
+                    # template, whose genes the scorer calls for their shape again
+                    print(f"  WARNING {ctx}: {len(left_on_template)} block(s) fell to the drawn template "
+                          f"and are NOT in the controls' shape: {', '.join(left_on_template)}", flush=True)
             if ctx_bulk is not None:
                 # (final-phase: knobs) counted, never refused. A/B/C gave 1, 3 and 2 of 300; the
                 # count follows each context's control-depth envelope, so read it on the first
