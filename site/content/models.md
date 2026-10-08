@@ -15,6 +15,24 @@ attached to.
 Some models are sent purely as **calibration runs**: entries that test a new method and its
 performance on the official board.
 
+## SER-16aefhkrsw — submitted 2026-10-08 · calibration run
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
+list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
+SER-15aefkrsw with one change. There the 400 cells of a knockdown kept the cell-to-cell variation
+real cells have, and the differential-expression test called only a handful of genes in a typical
+knockdown. Here, for each knockdown, the 300 genes whose predicted change stands out most have
+that variation narrowed (`h`), so the test calls most of them; each gene's total count is
+unchanged. This submission is a calibration run, to measure what a short list of called genes
+scores on the challenge's cell contexts.
+
+It scored 0.1423 against its parent SER-15aefkrsw's −0.0039 and SER-14aefksw's 0.1626. The score
+that counts the genes the test calls in the right direction won back most of what SER-15aefkrsw
+had lost on it and stayed below SER-14aefksw's. The overlap between the genes called and the
+genes that really changed fell below both. The test reached slightly fewer of the genes that
+really changed than in SER-15aefkrsw, and the other three scores held.
+
 ## SER-15aefkrsw — submitted 2026-10-07 · calibration run
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
