@@ -295,6 +295,29 @@ def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monke
     assert "WARNING X: 1 block(s) fell to the drawn template" in capsys.readouterr().out
 
 
+def test_a_model_named_build_with_a_scatter_table_needs_the_letter_h(challenge, tmp_path, capsys):
+    """ADR 0005: `h` is which genes a block's cells are made callable for, a per-gene dial table
+    named in the slug; no letter is every gene as the emission writes it. It rides with or without
+    `r`, and a name may not carry it without the table."""
+    table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0)])
+    shaped = [*DUAL, "--emit-shape", "controls"]
+    for stem, flags in (("ser-99aefhkrw_ctrlshape_head_v1", shaped), ("ser-99aefhkw_head_v1", DUAL)):
+        assert build.main(_argv(challenge, stem, [*flags, "--scatter-table", str(table)])) == 0, stem
+        assert json.loads((challenge["out"] / f"{stem}.dual.json").read_text())["scatter_table"]["contexts"]["X"]["pairs_applied"] == 1, stem
+    capsys.readouterr()
+    for stem, flags, why in (
+            ("ser-99aefhkrw_ctrlshape_v1", shaped, "carries the letter h"),          # h, but no table
+            ("ser-99aefhkw_plain_v1", DUAL, "carries the letter h"),
+            ("ser-99aefkrw_ctrlshape_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter h"),
+            ("ser-99aefhkw_ctrlshape_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter r")):  # h does not stand in for r
+        with pytest.raises(SystemExit):
+            build.main(_argv(challenge, stem, flags))
+        assert why in capsys.readouterr().err, stem
+        assert not (challenge["out"] / f"{stem}.args.json").exists(), stem
+    # a freeform stem carries no claim, with the table or without
+    assert build.main(_argv(challenge, "headprobe", [*shaped, "--scatter-table", str(table)])) == 0
+
+
 def test_a_model_named_build_in_the_controls_shape_needs_the_letter_r(challenge, capsys):
     """ADR 0005 (2026-10-07): `r` is what the emitted cells are built from, moved off the emitter's
     own drawn cells and named in the slug; no letter is the drawn template."""
@@ -400,8 +423,8 @@ def test_scatter_table_is_off_by_default_and_refused_where_it_cannot_act(challen
     capsys.readouterr()
     for stem, flags, tab, why in (
             ("one", ["--alpha", "1.35", "--emit-lambda", "0.5"], table, "two-channel"),     # one channel: no fit to act in
-            ("ser-99aefkw_head_v1", DUAL, table, "no registered knob letter"),              # a model name claims its letters
-            ("ser-99aefkrw_ctrlshape_v1", [*DUAL, "--emit-shape", "controls"], table, "no registered knob letter"),
+            ("ser-99aefkw_head_v1", DUAL, table, "must carry the letter h"),                # a model name claims its letters
+            ("ser-99aefkrw_ctrlshape_v1", [*DUAL, "--emit-shape", "controls"], table, "must carry the letter h"),
             ("twice", DUAL, twice, "twice.parquet (context X): a (target, feature) pair is listed twice"),
             ("bare", DUAL, bare, "no column"),
             ("wild", DUAL, wild, ">= 0"),

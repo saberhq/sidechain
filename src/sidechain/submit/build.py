@@ -1224,8 +1224,8 @@ def main(argv: list[str] | None = None) -> int:
                          "factor acts on a gene's re-rated counts: 1 is the controls' shape, 0 the "
                          "predicted count in every cell. Needs the two-channel emission "
                          "(--alpha-bulk or --bulk-anchor pooled). A table without a context column "
-                         "is the one sidechain.eval.loco reads. No registered knob letter yet "
-                         "(ADR 0005), so a model-named stem is refused with it")
+                         "is the one sidechain.eval.loco reads. Knob letter h (ADR 0005): a "
+                         "model-named stem must carry it with this flag, and may not without")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -1362,6 +1362,17 @@ def main(argv: list[str] | None = None) -> int:
         if "r" in letters and not shape_moved:
             ap.error(f"'{stem}' carries the letter r, which says the emitted cells start from "
                      "something other than the drawn template, but --emit-shape is at its default")
+        # Which genes a block's cells are made callable for is letter `h` (ADR 0005, registered
+        # 2026-10-08): no letter is every gene as the emission writes it, `h` a per-gene dial
+        # table (--scatter-table), named in the slug. It is its own object: `r` is what the cells
+        # are built from, `e` the emission dial for every gene alike.
+        head_moved = args.scatter_table is not None
+        if head_moved and "h" not in letters:
+            ap.error(f"'{stem}': --scatter-table makes a chosen set of genes callable, so the name "
+                     "must carry the letter h (ADR 0005) -- or build under a freeform stem")
+        if "h" in letters and not head_moved:
+            ap.error(f"'{stem}' carries the letter h, which says a per-gene table makes a chosen "
+                     "set of genes callable, but --scatter-table is not given")
     if (CLAIMS_RE.match(stem)
             and (args.neighbour_select != "table" or args.neighbour_picks is not None)):
         # The neighbour arm's letter `k` says "the table's k nearest" (ADR 0005); a moved
@@ -1369,11 +1380,6 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --neighbour-select off its default / "
                  "--neighbour-picks have no registered knob letter yet (ADR 0005): register the "
                  "letter first, or build under a freeform stem")
-    if CLAIMS_RE.match(stem) and args.scatter_table is not None:
-        # Which genes a block's cells are made callable for is a knob of its own (ADR 0005: `r` is
-        # what the cells are built from, `e` the emission dial for every gene alike).
-        ap.error(f"'{stem}' is named like a model, and --scatter-table has no registered knob "
-                 "letter yet (ADR 0005): register the letter first, or build under a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "
