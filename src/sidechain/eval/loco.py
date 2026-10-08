@@ -57,6 +57,8 @@ from sidechain.submit.build import (
     parse_coverage_tiers,
     parse_transfer_floor,
     pooled_delta,
+    read_scatter_frame,
+    scatter_pairs,
     shrink_kwargs,
     sources_from_specs,
 )
@@ -73,41 +75,20 @@ def read_scatter_table(path: Path, axis: np.ndarray, perts: list[str]) -> tuple[
     a perturbation of this file, whose gene is not on its axis, or whose gene IS the target (its
     pin is not the table's to move) are dropped and counted; a pair listed twice is refused.
     Returns `{target: (gene positions, values)}` for the pairs that change something (scatter
-    other than 1) and the record that goes into the run's summary.
+    other than 1) and the record that goes into the run's summary. The rules are
+    `sidechain.submit.build.scatter_pairs`, which a build's table goes through as well.
     """
     import hashlib
 
-    import pandas as pd
-
     path = Path(path).expanduser()
-    tab = pd.read_parquet(path, columns=["target", "feature", "scatter"])
-    tab["target"], tab["feature"] = tab["target"].astype(str), tab["feature"].astype(str)
-    val = tab["scatter"].to_numpy(dtype=np.float64)
-    if not np.isfinite(val).all() or (val < 0).any():
-        raise SystemExit(f"--scatter-table {path.name}: scatter must be finite and >= 0")
-    if tab.duplicated(["target", "feature"]).any():
-        raise SystemExit(f"--scatter-table {path.name}: a (target, feature) pair is listed twice")
-    pos = {g: i for i, g in enumerate(axis)}
-    known = set(perts)
-    off_target = ~tab["target"].isin(known).to_numpy()
-    off_axis = ~tab["feature"].isin(pos).to_numpy()
-    own = (tab["target"] == tab["feature"]).to_numpy()
-    keep = ~(off_target | off_axis | own) & (val != 1.0)
-    out = {}
-    for target, block in tab[keep].groupby("target", sort=False):
-        out[target] = (np.array([pos[g] for g in block["feature"]], dtype=np.int64),
-                       block["scatter"].to_numpy(dtype=np.float64))
-    sizes = [len(v[0]) for v in out.values()]
-    record = {"table": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-              "rows": len(tab), "pairs_applied": int(keep.sum()),
-              "targets_with_a_pair": len(out), "pairs_per_target_median": float(np.median(sizes)) if sizes else 0.0,
-              "rows_at_scatter_zero": int(((val == 0.0) & keep).sum()),
-              "rows_below_one": int(((val < 1.0) & keep).sum()),
-              "rows_above_one": int(((val > 1.0) & keep).sum()),
-              "rows_dropped": {"target_not_in_this_file": int(off_target.sum()),
-                               "gene_not_on_the_axis": int((off_axis & ~off_target).sum()),
-                               "the_targets_own_gene": int((own & ~off_target & ~off_axis).sum())}}
-    return out, record
+    tab = read_scatter_frame(path)
+    if "context" in tab.columns:
+        # a build's table (sidechain.submit.build): read here its contexts would be merged, or
+        # refused as one pair listed twice with no word of why
+        raise SystemExit(f"--scatter-table {path.name}: it carries a context column, which makes it "
+                         "a build's table; a fold has one set of control cells and no context")
+    out, record = scatter_pairs(tab[["target", "feature", "scatter"]], axis, perts, path.name)
+    return out, {"table": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), **record}
 
 
 def build_transfer_prediction(
@@ -504,7 +485,9 @@ def main(argv: list[str] | None = None) -> int:
                          "The cells drawn, "
                          "their depths and every unlisted gene's draw are the run's without it. "
                          "Needs the two-channel emission (--alpha-bulk or --bulk-anchor pooled); "
-                         "count_emitters.PoissonEmitter.emit_dual. Not a submit.build knob yet. With "
+                         "count_emitters.PoissonEmitter.emit_dual. Same table in "
+                         "sidechain.submit.build, where it may also carry a context column (a "
+                         "table with one is refused here). With "
                          "--emit-shape controls the cells are control cells at other depths and the "
                          "factor acts on a gene's re-rated counts: 1 is the controls' shape, below 1 "
                          "narrower, 0 the predicted count in every cell")

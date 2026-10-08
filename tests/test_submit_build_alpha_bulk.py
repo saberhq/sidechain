@@ -330,3 +330,252 @@ def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(cha
     rec = json.loads((challenge["out"] / "unc.dual.json").read_text())["emit_shape"]["contexts"]
     for c in ("X", "Y"):                           # the spy never shapes
         assert rec[c]["blocks_left_on_the_template"] == ["TP53", "NOSOURCE1"]
+
+
+# --scatter-table (T85): a per-(context, perturbation, gene) dial on the emitted cell-to-cell scatter,
+# the table sidechain.eval.loco reads with a context beside it. What is pinned here is the builder's
+# wiring and its record; the dial's numerics are test_dual_moment's.
+
+DUAL = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+
+
+def _scatter_table(path, rows, columns=("context", "target", "feature", "scatter")):
+    pd.DataFrame(rows, columns=list(columns)).to_parquet(path)
+    return path
+
+
+def _spy_on_emit_dual(monkeypatch):
+    """Every emit_dual call as (context, keywords), the scatter vector as a list; the block is a plain
+    emit, and the dial count is set as the emitter sets it."""
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.p.name, {k: (v.tolist() if k == "scatter" else v) for k, v in kw.items()}))
+        block = self.emit(n, log2fc_cell)          # emit() clears last_sharpened, so set it after
+        self.last_sharpened = None if "scatter" not in kw else int((kw["scatter"] != 1.0).sum())
+        return block
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    return seen
+
+
+def test_scatter_pairs_keeps_what_changes_something_and_counts_the_rest():
+    tab = pd.DataFrame(
+        [("P1", "g0", 0.0), ("P1", "g1", 2.5), ("P1", "g2", 1.0),          # 1 changes nothing: not a pair
+         ("P2", "g0", 0.5), ("P2", "g1", 0.5), ("P2", "g2", 0.25),
+         ("g0", "g1", 0.5), ("g0", "g2", 2.0), ("g0", "g3", 0.0), ("g0", "g0", 0.0),      # a target's own gene
+         ("ZZ", "ZZ", 0.0), ("ZZ", "g1", 0.0),                              # off the panel (the first off the axis and its own gene too)
+         ("P3", "P3", 0.0), ("P1", "QQ", 0.0)],                             # off the axis (the first its own gene too)
+        columns=["target", "feature", "scatter"])
+    out, rec = build.scatter_pairs(tab, np.array(["g0", "g1", "g2", "g3"]), ["P1", "P2", "g0", "P3"], "t.parquet")
+    assert list(out) == ["P1", "P2", "g0"]
+    assert out["P1"][0].tolist() == [0, 1] and out["P1"][1].tolist() == [0.0, 2.5]
+    assert out["P2"][0].tolist() == [0, 1, 2] and out["P2"][1].tolist() == [0.5, 0.5, 0.25]
+    assert out["g0"][0].tolist() == [1, 2, 3] and out["g0"][1].tolist() == [0.5, 2.0, 0.0]
+    # a dropped row is counted once, by the first reason it meets; the median is over targets (2, 3, 3)
+    assert rec == {"rows": 14, "pairs_applied": 8, "targets_with_a_pair": 3, "pairs_per_target_median": 3.0,
+                   "rows_at_scatter_zero": 2, "rows_below_one": 6, "rows_above_one": 2,
+                   "rows_dropped": {"target_not_in_this_file": 2, "gene_not_on_the_axis": 2, "the_targets_own_gene": 1}}
+    for bad, why in ((pd.DataFrame({"target": ["P1", "P1"], "feature": ["g0", "g0"], "scatter": [0.0, 0.5]}), "listed twice"),
+                     (pd.DataFrame({"target": ["P1"], "feature": ["g0"], "scatter": [-0.5]}), ">= 0"),
+                     (pd.DataFrame({"target": ["P1"], "feature": ["g0"], "scatter": [np.nan]}), ">= 0")):
+        with pytest.raises(SystemExit, match=why):
+            build.scatter_pairs(bad, np.array(["g0", "g1", "g2", "g3"]), ["P1"], "t.parquet")
+
+
+def test_scatter_table_is_off_by_default_and_refused_where_it_cannot_act(challenge, tmp_path, capsys):
+    assert build.main(_argv(challenge, "off", DUAL)) == 0
+    assert json.loads((challenge["out"] / "off.args.json").read_text())["scatter_table"] is None
+    assert "scatter_table" not in json.loads((challenge["out"] / "off.dual.json").read_text())
+    table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0)])
+    twice = _scatter_table(tmp_path / "twice.parquet", [("X", "TP53", "B", 0.0), ("X", "TP53", "B", 0.5)])
+    bare = _scatter_table(tmp_path / "bare.parquet", [("TP53", "B")], columns=("target", "feature"))
+    wild = _scatter_table(tmp_path / "wild.parquet", [("X", "TP53", "B", 0.0), ("Q", "TP53", "B", -1.0)])   # in a context not built
+    hole = _scatter_table(tmp_path / "hole.parquet", [("X", "TP53", "B", 0.0), ("Q", "TP53", "B", np.nan)])
+    gone = _scatter_table(tmp_path / "gone.parquet", [("X", "NOPE", "B", 0.0)])                             # another panel's target
+    named = _scatter_table(tmp_path / "named.parquet", [("X", "TP53", "B", 0.0)], columns=("Context", "target", "feature", "scatter"))
+    lost = _scatter_table(tmp_path / "lost.parquet", [("x", "TP53", "B", 0.0), ("context_X", "TP53", "C", 0.0)])
+    idle = _scatter_table(tmp_path / "idle.parquet", [("TP53", "B", 1.0)], columns=("target", "feature", "scatter"))
+    again = _scatter_table(tmp_path / "again.parquet", [("TP53", "B", 0.0), ("TP53", "B", 0.5)],
+                           columns=("target", "feature", "scatter"))
+    capsys.readouterr()
+    for stem, flags, tab, why in (
+            ("one", ["--alpha", "1.35", "--emit-lambda", "0.5"], table, "two-channel"),     # one channel: no fit to act in
+            ("ser-99aefkw_head_v1", DUAL, table, "no registered knob letter"),              # a model name claims its letters
+            ("ser-99aefkrw_ctrlshape_v1", [*DUAL, "--emit-shape", "controls"], table, "no registered knob letter"),
+            ("twice", DUAL, twice, "twice.parquet (context X): a (target, feature) pair is listed twice"),
+            ("bare", DUAL, bare, "no column"),
+            ("wild", DUAL, wild, ">= 0"),
+            ("hole", DUAL, hole, ">= 0"),
+            ("gone", DUAL, gone, "none of its pairs applies"),
+            ("named", DUAL, named, "spelled 'context'"),      # read as no context it would act on every context
+            ("lost", DUAL, lost, "none of its pairs applies"),          # its contexts are not this build's
+            ("idle", DUAL, idle, "none of its pairs applies"),          # every value is 1
+            ("again", DUAL, again, "again.parquet: a (target, feature) pair is listed twice")):
+        with pytest.raises(SystemExit) as err:
+            build.main(_argv(challenge, stem, [*flags, "--scatter-table", str(tab)]))
+        io = capsys.readouterr()
+        assert why in io.err + str(err.value), stem
+        assert "WARNING" not in io.out, stem               # a refused table warns of nothing
+        # refused before any work: no record, no cells
+        assert not (challenge["out"] / f"{stem}.args.json").exists() and not (challenge["out"] / f"{stem}.h5ad").exists(), stem
+    # the same pair in two contexts is two rows, not one listed twice
+    both = _scatter_table(tmp_path / "both.parquet", [("X", "TP53", "B", 0.0), ("Y", "TP53", "B", 0.5)])
+    assert build.main(_argv(challenge, "both", [*DUAL, "--scatter-table", str(both)])) == 0
+    # a context kept as the table's index is its context column all the same
+    pd.read_parquet(both).set_index("context").to_parquet(tmp_path / "indexed.parquet")
+    assert build.main(_argv(challenge, "indexed", [*DUAL, "--scatter-table", str(tmp_path / "indexed.parquet")])) == 0
+    rec = json.loads((challenge["out"] / "indexed.dual.json").read_text())["scatter_table"]
+    assert rec["context_column"] is True and [rec["contexts"][c]["pairs_applied"] for c in ("X", "Y")] == [1, 1]
+
+
+def test_scatter_table_rides_the_listed_blocks_and_is_recorded(challenge, monkeypatch, tmp_path):
+    import hashlib
+
+    seen = _spy_on_emit_dual(monkeypatch)
+    table = _scatter_table(tmp_path / "t.parquet", [
+        ("X", "TP53", "B", 0.0), ("X", "TP53", "C", 1.0),            # 1 changes nothing: not a pair
+        ("Y", "TP53", "A", 0.25),
+        ("Z", "TP53", "A", 0.0),                                     # a context this build does not write
+        ("X", "NOPE", "A", 0.0), ("X", "TP53", "Q", 0.0)])           # no such perturbation; no such gene
+    assert build.main(_argv(challenge, "dial", [*DUAL, "--scatter-table", str(table)])) == 0
+    assert seen == [("X", {"on_fail": "fallback", "scatter": [1.0, 0.0, 1.0]}),
+                    ("Y", {"on_fail": "fallback", "scatter": [0.25, 1.0, 1.0]})]
+    rec = json.loads((challenge["out"] / "dial.dual.json").read_text())["scatter_table"]
+    assert rec["table"] == str(table) and rec["sha256"] == hashlib.sha256(table.read_bytes()).hexdigest()
+    assert (rec["rows"], rec["context_column"], rec["rows_naming_a_context_not_built"]) == (6, True, 1)
+    carried = {"targets_carrying_it": 1, "pairs_carried": 1, "targets_listed_but_not_carrying": []}
+    assert rec["contexts"]["X"] == {
+        "rows": 4, "pairs_applied": 1, "targets_with_a_pair": 1, "pairs_per_target_median": 1.0,
+        "rows_at_scatter_zero": 1, "rows_below_one": 1, "rows_above_one": 0,
+        "rows_dropped": {"target_not_in_this_file": 1, "gene_not_on_the_axis": 1, "the_targets_own_gene": 0}, **carried}
+    assert rec["contexts"]["Y"] == {
+        "rows": 1, "pairs_applied": 1, "targets_with_a_pair": 1, "pairs_per_target_median": 1.0,
+        "rows_at_scatter_zero": 0, "rows_below_one": 1, "rows_above_one": 0,
+        "rows_dropped": {"target_not_in_this_file": 0, "gene_not_on_the_axis": 0, "the_targets_own_gene": 0}, **carried}
+    assert json.loads((challenge["out"] / "dial.args.json").read_text())["scatter_table"] == str(table)
+    # the other knobs of the two-channel call ride beside it: the controls' shape, the anchor rung,
+    # and shifts pooled per context (--gamma)
+    for stem, extra, kw in (("shaped", ["--emit-shape", "controls"], {"on_fail": "fallback", "shape": True}),
+                            ("rung", ["--dual-fallback", "anchor"], {"on_fail": "anchor"}),
+                            ("gamma", ["--gamma", "0.5"], {"on_fail": "fallback"})):
+        seen.clear()
+        assert build.main(_argv(challenge, stem, [*DUAL, *extra, "--scatter-table", str(table)])) == 0
+        assert seen == [("X", {**kw, "scatter": [1.0, 0.0, 1.0]}), ("Y", {**kw, "scatter": [0.25, 1.0, 1.0]})], stem
+
+
+def test_each_target_takes_its_own_pairs_and_an_unlisted_one_none(challenge, monkeypatch, tmp_path, capsys):
+    """Three perturbations (two have no source and carry the generic shift): each listed block gets
+    its own genes at its own values in its own context, and an unlisted block's call is the call
+    without a table."""
+    (challenge["data"] / "pert_counts.csv").write_text("target_gene\nTP53\nNOSRC1\nNOSRC2\n")
+    seen = _spy_on_emit_dual(monkeypatch)
+    table = _scatter_table(tmp_path / "t.parquet", [
+        (1, "TP53", "B", 0.0), (1, "TP53", "C", 0.5), (1, "NOSRC1", "A", 2.0), (1, "NOSRC1", "C", 0.25),
+        (2, "NOSRC1", "B", 0.75)])
+    cfg = yaml.safe_load(challenge["cfg"].read_text())               # contexts named by integers, as a table may write them
+    cfg["phases"]["p1"]["contexts"] = ["1", "2"]
+    cfg["control_files"] = {"1": "ctx_x.h5ad", "2": "ctx_y.h5ad"}
+    challenge["cfg"].write_text(yaml.safe_dump(cfg))
+    assert build.main(_argv(challenge, "three", [*DUAL, "--scatter-table", str(table)])) == 0
+    plain = {"on_fail": "fallback"}
+    assert seen == [("1", {**plain, "scatter": [1.0, 0.0, 0.5]}), ("1", {**plain, "scatter": [2.0, 1.0, 0.25]}), ("1", plain),
+                    ("2", plain), ("2", {**plain, "scatter": [1.0, 0.75, 1.0]}), ("2", plain)]
+    rec = json.loads((challenge["out"] / "three.dual.json").read_text())["scatter_table"]["contexts"]
+    assert (rec["1"]["targets_carrying_it"], rec["1"]["pairs_carried"], rec["1"]["pairs_per_target_median"]) == (2, 4, 2.0)
+    assert (rec["2"]["targets_carrying_it"], rec["2"]["pairs_carried"]) == (1, 1)
+    assert "1: scatter table: 2 of 3 perturbations carry it (4 of the 4 pairs that apply to this context)" in capsys.readouterr().out
+    # --limit-perts cuts the panel before the table is read: the second target's rows are another panel's
+    seen.clear()
+    assert build.main(_argv(challenge, "cut", [*DUAL, "--limit-perts", "1", "--scatter-table", str(table)])) == 0
+    assert seen == [("1", {**plain, "scatter": [1.0, 0.0, 0.5]}), ("2", plain)]
+    cut = json.loads((challenge["out"] / "cut.dual.json").read_text())["scatter_table"]["contexts"]
+    assert cut["1"]["rows_dropped"]["target_not_in_this_file"] == 2 and cut["2"]["targets_with_a_pair"] == 0
+
+
+def test_a_scatter_table_without_a_context_acts_on_every_context(challenge, monkeypatch, tmp_path, capsys):
+    seen = []
+
+    def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.p.name, kw["scatter"].tolist()))
+        return self.emit(n, log2fc_cell)
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
+    table = _scatter_table(tmp_path / "t.parquet", [("TP53", "C", 0.5)], columns=("target", "feature", "scatter"))
+    assert build.main(_argv(challenge, "all", [*DUAL, "--scatter-table", str(table)])) == 0
+    assert seen == [("X", [1.0, 1.0, 0.5]), ("Y", [1.0, 1.0, 0.5])]
+    rec = json.loads((challenge["out"] / "all.dual.json").read_text())["scatter_table"]
+    assert rec["context_column"] is False and rec["rows_naming_a_context_not_built"] == 0
+    # the spy's emit() leaves no dial count, so the record says the block did not carry it
+    assert rec["contexts"]["X"]["targets_listed_but_not_carrying"] == ["TP53"]
+    assert "WARNING" not in capsys.readouterr().out
+    # a context none of the table's pairs applies to (it has no row for it, or its rows all drop) is emitted
+    # without the table, and said so; the first context is no different from the last
+    def spy2(self, n, log2fc_cell, log2fc_bulk, **kw):
+        seen.append((self.p.name, "scatter" in kw))
+        return self.emit(n, log2fc_cell)
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", spy2)
+    for stem, rows, dialled, silent in (
+            ("part", [("X", "TP53", "C", 0.5)], "X", "Y"),
+            ("last", [("Y", "TP53", "C", 0.5)], "Y", "X"),
+            ("drop", [("X", "TP53", "C", 0.5), ("Y", "NOPE", "C", 0.0), ("Y", "TP53", "Q", 0.0)], "X", "Y")):
+        seen.clear()
+        tab = _scatter_table(tmp_path / f"{stem}.parquet", rows)
+        assert build.main(_argv(challenge, stem, [*DUAL, "--scatter-table", str(tab)])) == 0
+        assert seen == [("X", dialled == "X"), ("Y", dialled == "Y")], stem
+        out = capsys.readouterr().out
+        assert f"WARNING --scatter-table {stem}.parquet: no pair of it applies to context {silent}" in out, stem
+        assert f"applies to context {dialled}" not in out, stem
+
+
+def test_scatter_table_runs_the_real_emitter_and_touches_only_the_listed_context(challenge, tmp_path, capsys):
+    table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0), ("X", "TP53", "C", 0.0)])
+    assert build.main(_argv(challenge, "plain", DUAL)) == 0
+    assert build.main(_argv(challenge, "dial", [*DUAL, "--scatter-table", str(table)])) == 0
+    assert "X: scatter table: 1 of 1 perturbations carry it (2 of the 2 pairs that apply to this context)" in capsys.readouterr().out
+    rec = json.loads((challenge["out"] / "dial.dual.json").read_text())["scatter_table"]["contexts"]
+    assert rec["X"]["targets_carrying_it"] == 1 and rec["Y"]["targets_carrying_it"] == 0
+    a, b = (ad.read_h5ad(challenge["out"] / f"{s}.h5ad") for s in ("plain", "dial"))
+    A, B = a.X.toarray().astype(np.float64), b.X.toarray().astype(np.float64)
+    x, y = (a.obs["context"] == "X").to_numpy(), (a.obs["context"] == "Y").to_numpy()
+    assert np.array_equal(A[y], B[y])                                  # the unlisted context: the same cells, bit for bit
+    assert np.array_equal(A[x].sum(axis=1), B[x].sum(axis=1))          # the listed one keeps every cell's depth
+    spread = lambda M: (M[:, 1] / M.sum(axis=1)).std()                 # gene B's share of a cell, over the block
+    assert spread(B[x]) < spread(A[x])                                 # and its dialled gene is narrower
+    # the controls' shape carries the same table
+    assert build.main(_argv(challenge, "shaped", [*DUAL, "--emit-shape", "controls", "--scatter-table", str(table)])) == 0
+    assert json.loads((challenge["out"] / "shaped.dual.json").read_text())["scatter_table"]["contexts"]["X"]["targets_carrying_it"] == 1
+
+
+def test_a_dialled_block_on_a_fallback_rung_is_recorded_as_it_ended(challenge, monkeypatch, tmp_path, capsys):
+    """The template rung carries none of the table and is named; the anchor rung is fitted on the
+    dialled cells and counts as carrying it."""
+    from sidechain.models import count_emitters
+
+    table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0), ("Y", "TP53", "B", 0.0)])
+    # the real emitter, two amplitudes this fixture cannot always meet: who lands on which rung is its own record
+    two = ["--alpha", "1.35", "--alpha-bulk", "1.5", "--bulk-anchor", "pooled", "--emit-lambda", "0.5",
+           "--dual-fallback", "anchor", "--scatter-table", str(table)]
+    assert build.main(_argv(challenge, "rungs", two)) == 0
+    rec = json.loads((challenge["out"] / "rungs.dual.json").read_text())
+    fell = rec.get("dual_fallback_targets", {})
+    on_anchor = {c for c, r in fell.items() if any(t == "TP53" for t, _ in r["anchor"])}
+    on_template = {c for c, r in fell.items() if any(t == "TP53" for t, _ in r["template"])}
+    assert on_anchor, "the fixture is expected to put a block on the anchor rung"
+    for c in ("X", "Y"):
+        st = rec["scatter_table"]["contexts"][c]
+        assert st["targets_carrying_it"] == (0 if c in on_template else 1), (c, fell)
+        assert st["targets_listed_but_not_carrying"] == (["TP53"] if c in on_template else [])
+
+    def fail(*a, **k):
+        raise ValueError("moment fitting failed: forced by the test")
+    monkeypatch.setattr(count_emitters, "dual_moment_counts", fail)
+    more = _scatter_table(tmp_path / "more.parquet", [("X", "TP53", "B", 0.0), ("X", "NOPE", "A", 0.0), ("X", "TP53", "Q", 0.0),
+                                                      ("Y", "TP53", "B", 0.0), ("Y", "TP53", "C", 0.5)])
+    capsys.readouterr()
+    assert build.main(_argv(challenge, "lost", [*DUAL, "--scatter-table", str(more)])) == 0
+    lost = json.loads((challenge["out"] / "lost.dual.json").read_text())["scatter_table"]["contexts"]
+    for c in ("X", "Y"):
+        assert lost[c]["targets_carrying_it"] == 0 and lost[c]["pairs_carried"] == 0
+        assert lost[c]["targets_listed_but_not_carrying"] == ["TP53"]
+    out = capsys.readouterr().out                 # the line counts what was carried, of the pairs that apply (rows dropped apart)
+    assert "X: scatter table: 0 of 1 perturbations carry it (0 of the 1 pairs that apply to this context)" in out
+    assert "Y: scatter table: 0 of 1 perturbations carry it (0 of the 2 pairs that apply to this context)" in out

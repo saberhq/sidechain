@@ -576,7 +576,9 @@ def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
     assert rec["rows"] == 8 and rec["pairs_applied"] == 4 and rec["rows_at_scatter_zero"] == 3
     assert rec["rows_dropped"] == {"target_not_in_this_file": 1, "gene_not_on_the_axis": 2, "the_targets_own_gene": 1}
     assert rec["targets_with_a_pair"] == 1 and rec["targets_carrying_it"] == 1
-    assert rec["targets_listed_but_not_carrying"] == [] and len(rec["sha256"]) == 64
+    import hashlib
+
+    assert rec["targets_listed_but_not_carrying"] == [] and rec["sha256"] == hashlib.sha256(table.read_bytes()).hexdigest()
     a, b = ad.read_h5ad(tmp_path / "plain.h5ad"), ad.read_h5ad(tmp_path / "dialed.h5ad")
     lab = a.obs["perturbation"].to_numpy()
     A, B_ = a.X.toarray().astype(np.float64), b.X.toarray().astype(np.float64)
@@ -602,6 +604,25 @@ def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
     pd.DataFrame({"target": ["g0"], "feature": [top[0]], "scatter": [-0.5]}).to_parquet(wild)
     with pytest.raises(SystemExit, match=">= 0"):
         loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=wild, **kw)
+    # a build's table names contexts; a fold has none, and merging them would be silent
+    built = tmp_path / "built.parquet"
+    pd.DataFrame({"context": ["A", "B"], "target": ["g0", "g0"], "feature": [top[0], top[0]],
+                  "scatter": [0.0, 0.5]}).to_parquet(built)
+    with pytest.raises(SystemExit, match="context column"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=built, **kw)
+    pd.read_parquet(built).set_index("context").to_parquet(tmp_path / "indexed.parquet")      # kept as the index: the same table
+    with pytest.raises(SystemExit, match="context column"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=tmp_path / "indexed.parquet", **kw)
+    pd.read_parquet(table)[["target", "feature"]].to_parquet(tmp_path / "bare.parquet")
+    with pytest.raises(SystemExit, match="no column"):
+        loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "x.h5ad", scatter_table=tmp_path / "bare.parquet", **kw)
+    # columns beside the three are a designer's notes and are not read
+    noted = tmp_path / "noted.parquet"
+    pd.read_parquet(table).assign(rank=range(8), z0=4.5).to_parquet(noted)
+    again = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "noted.h5ad", scatter_table=noted, **kw)
+    assert {k: v for k, v in again["scatter_table"].items() if k not in ("table", "sha256")} == \
+           {k: v for k, v in rec.items() if k not in ("table", "sha256")}
+    assert np.array_equal(ad.read_h5ad(tmp_path / "noted.h5ad").X.toarray(), B_)
 
 
 # ── T85: the controls' own shape (private research/ideas/reach-call-set-emitter.md) ──────────────────

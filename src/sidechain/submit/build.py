@@ -50,6 +50,7 @@ pert_counts CSV so `vcc prep --dry-run --perts <that>` can validate the layout l
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import time
@@ -1040,6 +1041,114 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
     return record
 
 
+def scatter_pairs(tab: pd.DataFrame, axis: np.ndarray, perts: list[str], name: str) -> tuple[dict, dict]:
+    """The pairs of one per-(perturbation, gene) scatter table that change something, and its counts.
+
+    `tab` carries `target`, `feature` and `scatter` >= 0 for `PoissonEmitter.emit_dual(scatter=)` (T85):
+    1 leaves the gene as the emitter emits it, 0 removes its sampling scatter, above 1 widens it. Rows
+    whose target is not one of `perts`, whose gene is not on `axis`, or whose gene IS the target (its
+    pin is not the table's to move) are dropped and counted; a pair listed twice is refused. `name`
+    is the file's, for the refusals. Returns `{target: (gene positions, values)}` for the pairs that
+    change something (scatter other than 1) and the counts. Shared by `sidechain.eval.loco`
+    (`read_scatter_table`) and by `read_context_scatter_table` below, so a mirror arm and a build
+    read one table the same way.
+    """
+    target, feature = tab["target"].astype(str), tab["feature"].astype(str)
+    val = tab["scatter"].to_numpy(dtype=np.float64)
+    if not np.isfinite(val).all() or (val < 0).any():
+        raise SystemExit(f"--scatter-table {name}: scatter must be finite and >= 0")
+    if pd.DataFrame({"target": target, "feature": feature}).duplicated().any():
+        raise SystemExit(f"--scatter-table {name}: a (target, feature) pair is listed twice")
+    pos = {g: i for i, g in enumerate(axis)}
+    known = set(perts)
+    off_target = ~target.isin(known).to_numpy()
+    off_axis = ~feature.isin(pos).to_numpy()
+    own = (target == feature).to_numpy()
+    keep = ~(off_target | off_axis | own) & (val != 1.0)
+    out = {}
+    kept = pd.DataFrame({"target": target[keep], "feature": feature[keep], "scatter": val[keep]})
+    for t, block in kept.groupby("target", sort=False):
+        out[t] = (np.array([pos[g] for g in block["feature"]], dtype=np.int64),
+                  block["scatter"].to_numpy(dtype=np.float64))
+    sizes = [len(v[0]) for v in out.values()]
+    record = {"rows": len(tab), "pairs_applied": int(keep.sum()),
+              "targets_with_a_pair": len(out), "pairs_per_target_median": float(np.median(sizes)) if sizes else 0.0,
+              "rows_at_scatter_zero": int(((val == 0.0) & keep).sum()),
+              "rows_below_one": int(((val < 1.0) & keep).sum()),
+              "rows_above_one": int(((val > 1.0) & keep).sum()),
+              "rows_dropped": {"target_not_in_this_file": int(off_target.sum()),
+                               "gene_not_on_the_axis": int((off_axis & ~off_target).sum()),
+                               "the_targets_own_gene": int((own & ~off_target & ~off_axis).sum())}}
+    return out, record
+
+
+def read_scatter_frame(path: Path) -> pd.DataFrame:
+    """A scatter table off disk, with the checks both of its readers need before they split it: the
+    three columns are there, a context kept as the index is a column, a context column under
+    another spelling is refused (read as no context, its rows would act on every context), and
+    every value, whichever context it is for, is finite and not negative."""
+    tab = pd.read_parquet(path)
+    if "context" in tab.index.names:
+        tab = tab.reset_index()
+    odd = [c for c in tab.columns if str(c).casefold() == "context" and c != "context"]
+    if odd:
+        raise SystemExit(f"--scatter-table {path.name}: a column named {odd[0]!r} -- the context "
+                         "column is spelled 'context'")
+    missing = [c for c in ("target", "feature", "scatter") if c not in tab.columns]
+    if missing:
+        raise SystemExit(f"--scatter-table {path.name}: no column {missing}; it needs target, "
+                         "feature and scatter (and may carry context)")
+    val = pd.to_numeric(tab["scatter"], errors="coerce").to_numpy(dtype=np.float64)
+    if not np.isfinite(val).all() or (val < 0).any():
+        raise SystemExit(f"--scatter-table {path.name}: scatter must be finite and >= 0")
+    return tab
+
+
+def read_context_scatter_table(path: Path, axis: np.ndarray, perts: list[str],
+                               contexts: list[str]) -> tuple[dict, dict]:
+    """`--scatter-table` for a build: `sidechain.eval.loco`'s table, with a context.
+
+    A parquet with `target`, `feature`, `scatter` and, optionally, `context`. With a `context`
+    column a row acts on that context's block only, and a row naming a context this build does not
+    write is dropped and counted; without one every row acts on every context. Within a context
+    the rules are `scatter_pairs`'s. A table none of whose pairs applies to any context of the
+    build is refused: its targets, genes or contexts are another panel's, and the build it would
+    make is the build without it. A context none of its pairs applies to is emitted without it,
+    and said so. Returns `{context: {target: (gene positions, values)}}` and the record that goes into
+    the build's `.dual.json`.
+
+    (final-phase: knobs) A table is one panel's and one phase's: its targets and its contexts are
+    the ones it was designed on. A build of other contexts needs a table designed on their own
+    control cells; one made for another panel is refused here only when NONE of its pairs applies.
+    """
+    path = Path(path).expanduser()
+    cols = ["target", "feature", "scatter"]
+    tab = read_scatter_frame(path)
+    has_context = "context" in tab.columns
+    named = tab["context"].astype(str) if has_context else None
+    out, per_context = {}, {}
+    for ctx in contexts:
+        part = tab[named == ctx] if has_context else tab
+        out[ctx], per_context[ctx] = scatter_pairs(
+            part[cols], axis, perts, f"{path.name} (context {ctx})" if has_context else path.name)
+    if not any(out[ctx] for ctx in contexts):
+        its = f"; the table names {', '.join(sorted(set(named))[:8])}" if has_context else ""
+        raise SystemExit(f"--scatter-table {path.name}: none of its pairs applies to a context of "
+                         f"this build ({', '.join(contexts)}{its}) -- its targets, genes or "
+                         "contexts are another panel's, --limit-perts cut its targets, or every "
+                         "value is 1")
+    if has_context:
+        for ctx in contexts:
+            if not out[ctx]:
+                print(f"WARNING --scatter-table {path.name}: no pair of it applies to context "
+                      f"{ctx}; its blocks are emitted without the table", flush=True)
+    off_context = int((~named.isin(set(contexts))).sum()) if has_context else 0
+    record = {"table": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              "rows": len(tab), "context_column": has_context,
+              "rows_naming_a_context_not_built": off_context, "contexts": per_context}
+    return out, record
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--challenge-config", default="challenges/vcc2026/config.yaml")
@@ -1103,6 +1212,20 @@ def main(argv: list[str] | None = None) -> int:
                          "source covers keeps its generic shift and is re-rated the same way. "
                          "Needs the two-channel emission (--alpha-bulk or --bulk-anchor pooled). "
                          "Same knob in sidechain.eval.loco")
+    ap.add_argument("--scatter-table", type=Path, default=None, metavar="PARQUET",
+                    help="T85: a per-(context, perturbation, gene) dial on the emitted cell-to-cell "
+                         "scatter. A parquet with target, feature, scatter >= 0 and, optionally, "
+                         "context: 1 = as the gene is emitted, 0 = no sampling scatter (the gene "
+                         "keeps its per-cell mean, its column total and the depth tilt the two "
+                         "moments need), above 1 = wider. With a context column a row acts on that "
+                         "context's block only; without one, on every context. The cells drawn, "
+                         "their depths and every unlisted gene's draw are the build's without it "
+                         "(count_emitters.PoissonEmitter.emit_dual). With --emit-shape controls the "
+                         "factor acts on a gene's re-rated counts: 1 is the controls' shape, 0 the "
+                         "predicted count in every cell. Needs the two-channel emission "
+                         "(--alpha-bulk or --bulk-anchor pooled). A table without a context column "
+                         "is the one sidechain.eval.loco reads. No registered knob letter yet "
+                         "(ADR 0005), so a model-named stem is refused with it")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio (see "
                          "gamma_transfer; same knob in sidechain.eval.loco, so a mirror-scored "
@@ -1199,6 +1322,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.emit_shape != "template" and bulk_alpha is None:
         ap.error("--emit-shape controls needs the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
+    if args.scatter_table is not None and bulk_alpha is None:
+        ap.error("--scatter-table acts on the two-channel emission -- pass --alpha-bulk or "
+                 "--bulk-anchor pooled")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -1243,6 +1369,11 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --neighbour-select off its default / "
                  "--neighbour-picks have no registered knob letter yet (ADR 0005): register the "
                  "letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.scatter_table is not None:
+        # Which genes a block's cells are made callable for is a knob of its own (ADR 0005: `r` is
+        # what the cells are built from, `e` the emission dial for every gene alike).
+        ap.error(f"'{stem}' is named like a model, and --scatter-table has no registered knob "
+                 "letter yet (ADR 0005): register the letter first, or build under a freeform stem")
     if not CLAIMS_RE.match(stem):
         print(f"note: out stem '{stem}' carries no series tag -- fine for a probe, but a "
               "board submission's stem starts with its lowercased short name (ADR 0005), "
@@ -1266,6 +1397,9 @@ def main(argv: list[str] | None = None) -> int:
         max_stored_entries=int(sub["max_stored_entries"]),
     )
     axis = np.asarray(genes)
+    # T85: read before the pooling, so a table the build cannot take stops it in seconds
+    scatter_of, scatter_record = (read_context_scatter_table(args.scatter_table, axis, perts, contexts)
+                                  if args.scatter_table is not None else (None, None))
 
     # Machine record of what produced this artifact. The stem and the stdout
     # are indistinguishable between, say, a shrunk and an unshrunk build of the
@@ -1427,6 +1561,7 @@ def main(argv: list[str] | None = None) -> int:
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
             left_on_template: list[str] = []
             held, unmet = 0, []                    # cells held to the emitter's caps; genes its solve left to the fit
+            dialled: dict[str, int] = {}           # target -> genes whose scatter its block carries
             for k, p in enumerate(perts):
                 if ctx_bulk is None or ctx_shifts[p] is None:
                     block = em.emit(contract.cells_per_pert, ctx_shifts[p])
@@ -1438,8 +1573,15 @@ def main(argv: list[str] | None = None) -> int:
                     # has scored: eval.loco emits such a target as control cells with nothing
                     # predicted. A/B/C have none (the log's fallback-to-generic: 0); read that count
                     # on the first D/E/F build before a shaped entry goes up.
+                    scatter_kw = {}
+                    if scatter_of is not None and p in scatter_of[ctx]:
+                        scatter = np.ones(len(axis))
+                        scatter[scatter_of[ctx][p][0]] = scatter_of[ctx][p][1]
+                        scatter_kw = {"scatter": scatter}
                     block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
-                                         on_fail=on_fail, **shape_kw)
+                                         on_fail=on_fail, **shape_kw, **scatter_kw)
+                    if scatter_kw:                 # 0 on the template rung: that block carries none of it
+                        dialled[p] = int(getattr(em, "last_sharpened", 0) or 0)
                     if shaped and not getattr(em, "last_shaped", False):
                         left_on_template.append(p)
                     elif shaped and getattr(em, "last_shape_unmet", None) is not None:
@@ -1469,6 +1611,17 @@ def main(argv: list[str] | None = None) -> int:
                     # template, whose genes the scorer calls for their shape again
                     print(f"  WARNING {ctx}: {len(left_on_template)} block(s) fell to the drawn template "
                           f"and are NOT in the controls' shape: {', '.join(left_on_template)}", flush=True)
+            if scatter_record is not None:
+                # `targets_carrying_it` counts the blocks whose fit took the table's genes; a target
+                # that ended on the template rung carries none
+                scatter_record["contexts"][ctx] |= {
+                    "targets_carrying_it": int(sum(v > 0 for v in dialled.values())),
+                    "pairs_carried": int(sum(dialled.values())),
+                    "targets_listed_but_not_carrying": sorted(t for t, v in dialled.items() if v == 0)}
+                print(f"  {ctx}: scatter table: {sum(v > 0 for v in dialled.values())} of {len(perts)} "
+                      f"perturbations carry it ({sum(dialled.values())} of the "
+                      f"{scatter_record['contexts'][ctx]['pairs_applied']} pairs that apply to this "
+                      "context)", flush=True)
             if ctx_bulk is not None:
                 # (final-phase: knobs) counted, never refused. A/B/C gave 1, 3 and 2 of 300; the
                 # count follows each context's control-depth envelope, so read it on the first
@@ -1501,6 +1654,8 @@ def main(argv: list[str] | None = None) -> int:
                 anchor["dual_fallback_targets"] = fell_back
         if shaped:                                 # written only when the knob is on
             anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
+        if scatter_record is not None:             # likewise
+            anchor["scatter_table"] = scatter_record
         info = {**info, "alpha_bulk": args.alpha_bulk, **anchor, "dual_fallbacks": dual_fallbacks}
         out.with_suffix(".dual.json").write_text(json.dumps(
             {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, **anchor,
