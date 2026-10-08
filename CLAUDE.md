@@ -83,6 +83,8 @@ published (`PROVENANCE.json`; re-downloadable, delete first under disk pressure)
 is ours (`LINEAGE.json`; expensive, back it up); plus `vcc2025/`, `vcc2026/`, `cache/`, `runs/`.
 **A streamed dataset's `external/` dir holds only `PROVENANCE.json`: correct, not a failed
 download.** `route:` and the stream gate: the `configs/datasets.yaml` header and ADR 0003.
+**A file that should be there and is not** was archived, not lost: read `~/data/sidechain/README.md`
+§ Backups (Lamin nightly, MEDIA archive, the SSD) before rebuilding or re-downloading anything.
 
 ## House rules
 
