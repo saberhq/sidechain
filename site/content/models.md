@@ -15,6 +15,22 @@ attached to.
 Some models are sent purely as **calibration runs**: entries that test a new method and its
 performance on the official board.
 
+## SER-17aefhkrsw — submitted 2026-10-08
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
+list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
+SER-16aefhkrsw with a longer list: for each knockdown, the 1,500 genes whose predicted change
+stands out most have their cell-to-cell variation narrowed, in place of 300.
+
+The best entry so far — 0.1657 against SER-14aefksw's 0.1626 and SER-16aefhkrsw's 0.1423. Against
+SER-16aefhkrsw the gain is in the score that counts the genes the test calls in the right
+direction; the overlap between the genes called and the genes that really changed rose a little,
+the test reached slightly fewer of the genes that really changed, and the other three scores
+held. Against SER-14aefksw the summed-profile and expression-accuracy scores are higher and the
+test reached more of the genes that really changed; the direction score is lower by about as much
+as that last gain, and the overlap is a little lower.
+
 ## SER-16aefhkrsw — submitted 2026-10-08 · calibration run
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
@@ -60,7 +76,7 @@ Here the changes are first combined across the source cell lines, and each one i
 how believable it is against all of that knockdown's genes together, so a weak change ends small
 rather than zero.
 
-The best entry so far — 0.1626 against its parent SER-12aefkw's 0.1438. The predicted profiles sit
+The best entry at the time — 0.1626 against its parent SER-12aefkw's 0.1438. The predicted profiles sit
 closer to the control cells, and the expression-accuracy score left zero for the first time; that
 score is more than the whole gain. The summed-profile score rose a little, fold-change accuracy
 fell, and the differential-expression test reached slightly fewer of the genes that really changed.
@@ -87,7 +103,7 @@ carries the borrowed response at the same strength as the cells themselves (`b` 
 borrowed gene change is shrunk toward zero by its own measurement noise, so a change no larger
 than its noise is dropped (`n` off).
 
-The best entry so far — 0.1438 against its parent SER-11abefknw's 0.1360. The summed-profile score
+The best entry at the time — 0.1438 against its parent SER-11abefknw's 0.1360. The summed-profile score
 and fold-change accuracy rose; the differential-expression test reached fewer of the genes that
 really changed. Locally the two settings had read as a small gain for one strength and a trade for
 shrinkage.
@@ -102,7 +118,7 @@ the same STRING protein-interaction map, chosen from the same fixed list of 842 
 slightly weaker nudge. As there, the nudge turns the part of the response specific to this knockdown
 and keeps its size.
 
-The best entry so far — 0.1360 against its parent SER-10abefnw's 0.1353. The differential-expression
+The best entry at the time — 0.1360 against its parent SER-10abefnw's 0.1353. The differential-expression
 test reached more of the genes that really changed; fold-change accuracy and the summed-profile score
 each fell a little. Locally, on five held-out test sets from three cell lines, the gain was about ten
 times as large.

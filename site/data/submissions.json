@@ -266,6 +266,18 @@
       "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": "calibration"
+    },
+    {
+      "date": "2026-10-08",
+      "partition": "val",
+      "name": "SER-17aefhkrsw",
+      "board_name": "Sidechain SER-17aefhkrsw",
+      "overall": 0.1657,
+      "rank": 344,
+      "teams": 1408,
+      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": ""
     }
   ]
 }
