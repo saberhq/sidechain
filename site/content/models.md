@@ -7,8 +7,18 @@ Every submission's board card points here. The name grammar in one line: a **ser
 (`SER` — cross-line delta transfer; `PHE` — the deep generative models), a **model number**
 (new sources or structure; since SER-4afn, every new entry), and lowercase **knob letters**, each marking exactly one setting
 moved off the series baseline — so `SER-3fn` reads as "SER model 3, with knobs `f` and `n`
-on". Scores live in the [standings table](../#standings) — this page is what the numbers are
-attached to.
+on". Scores live in the [standings table](../#standings) and, member by member, in the table
+below — the rest of this page is what the numbers are attached to.
+
+## Every entry on one board
+
+The leaderboard's table with Sidechain's entries alone on it, calibration runs included, ordered by
+overall score. Each of the six members shows the scaled score the board ranks on over the raw value,
+coloured on a scale these entries set: in each column the best score here is the full green and the
+worst score below zero the full red. The rank is the one the entry held on the full board when it was
+scored.
+
+{{< board >}}
 
 ## Calibration runs
 

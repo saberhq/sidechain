@@ -373,3 +373,82 @@ def test_no_series_on_this_machine_is_none_not_a_raise(tmp_path):
     only_page = tmp_path / "ticks.json"
     only_page.write_text(json.dumps([tick("20260820T2218Z", 6, source="page")]))
     assert standings.load_field(only_page) is None       # nothing to head the file with yet
+
+
+# --------------------------------------------------------------------------- the members and the Sidechain-only board (T79, 2026-10-08)
+
+
+def members(**over):
+    """The twelve member keys of a status record, as Arc writes them; override any by key."""
+    base = {"score_pds": 0.6, "pds_cosine": 0.8, "score_mse": 0.15, "expr_mse_unbiased_capped_norm": 0.85,
+            "score_jac": 0.01, "de_wilcoxon_sig_jaccard": 0.03, "score_nmae": 0.09, "de_wilcoxon_lfc_nmae": 0.94,
+            "score_fid": -0.02, "de_wilcoxon_direction_fidelity_yield_raw": 0.5, "score_reach": 0.1,
+            "de_wilcoxon_direction_reach_raw": 0.17}
+    base.update(over)
+    return base
+
+
+def test_a_row_carries_the_six_members_scaled_over_raw(tmp_path):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-10-08", "a_v1", "e1", "2026-10-08T16:53:57Z", score_avg=0.1657, **members())
+    (row,) = standings.load_rows(subs, snaps)
+    assert list(row["members"]) == ["pds", "mse", "jac", "nmae", "fid", "reach"]
+    assert row["members"]["pds"] == {"scaled": 0.6, "raw": 0.8}
+    assert row["members"]["fid"] == {"scaled": -0.02, "raw": 0.5}
+
+
+def test_a_submit_shaped_record_has_scaled_members_and_no_raw(tmp_path):
+    """The `--wait --json` shape nests only the scaled members under `scores`; raw is None, never 0."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    (subs / "2026-08-30_probe_v1.status.json").write_text(json.dumps({
+        "entry_id": "p1", "model_name": "Sidechain SER-3afgn",
+        "scores": {"score_avg": 0.09, "rank": 12, "score_pds": 0.4, "score_mse": 0.0, "score_jac": 0.001,
+                   "score_nmae": 0.05, "score_fid": -0.01, "score_reach": 0.06}}))
+    (row,) = standings.load_rows(subs, snaps)
+    assert row["members"]["pds"] == {"scaled": 0.4, "raw": None}
+    assert row["members"]["mse"] == {"scaled": 0.0, "raw": None}
+
+
+def test_the_board_is_sorted_by_overall_and_tinted_per_column_by_the_non_calibration_entries(tmp_path):
+    """Per column: the best non-calibration score is the full green (+1), the worst negative non-calibration
+    score the full red (-1); a calibration run is painted on that scale (clamped) and never sets it; a
+    scaled 0 is the floor and reads full red."""
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-08-21", "r1_delta_even_v1", "e1", "2026-08-21T07:51:06Z", score_avg=0.0788,
+           model_name="sidechain r1-delta-even v1", **members(score_pds=0.3, score_mse=0.0, score_fid=-0.04))
+    status(subs, "2026-10-03", "b_v1", "e2", "2026-10-03T10:00:00Z", score_avg=0.1626,
+           model_name="Sidechain SER-14aefksw", **members(score_pds=0.6, score_mse=0.15, score_fid=-0.02))
+    status(subs, "2026-10-08", "c_v1", "e3", "2026-10-08T15:23:27Z", score_avg=0.1423, klass="calibration",
+           model_name="Sidechain SER-16aefhkrsw", **members(score_pds=0.9, score_mse=0.15, score_fid=-0.17))
+    rows = standings.load_rows(subs, snaps)
+    b = standings.board(rows)
+    assert b["columns"] == ["pds", "mse", "jac", "nmae", "fid", "reach"]
+    assert [r["n"] for r in b["rows"]] == [1, 2, 3]
+    assert [r["overall"] for r in b["rows"]] == [0.1626, 0.1423, 0.0788]
+    assert b["scale"]["pds"] == {"ceiling": 0.6, "floor": None}      # the calibration run's 0.9 sets nothing
+    assert b["scale"]["fid"] == {"ceiling": None, "floor": -0.04}
+    cell = {(r["name"], c["key"]): c["tint"] for r in b["rows"] for c in r["cells"]}
+    assert cell[("SER-14aefksw", "pds")] == 1.0
+    assert cell[("SER-1", "pds")] == 0.5
+    assert cell[("SER-1", "mse")] == -1.0                            # a scaled 0 is the floor
+    assert cell[("SER-1", "fid")] == -1.0 and cell[("SER-14aefksw", "fid")] == -0.5
+    calib = next(r for r in b["rows"] if r["class"] == "calibration")
+    assert {c["key"]: c["tint"] for c in calib["cells"]}["pds"] == 1.0     # clamped, not 1.5
+    assert {c["key"]: c["tint"] for c in calib["cells"]}["fid"] == -1.0    # clamped
+    assert calib["rank_when_scored"] is None and calib["name"] == "SER-16aefhkrsw"
+
+
+def test_the_site_json_carries_the_board(tmp_path, monkeypatch):
+    subs, snaps = tmp_path / "subs", tmp_path / "snaps"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-10-08", "a_v1", "e1", "2026-10-08T16:53:57Z", score_avg=0.1657, **members())
+    readme = tmp_path / "README.md"
+    readme.write_text("x\n<!-- standings:begin -->\n<!-- standings:end -->\n")
+    monkeypatch.setattr(standings, "README", readme)
+    monkeypatch.setattr(standings, "SITE_JSON", tmp_path / "submissions.json")
+    _, site = standings.render(standings.load_rows(subs, snaps))
+    d = json.loads(site)
+    assert d["board"]["rows"][0]["cells"][0] == {"key": "pds", "scaled": 0.6, "raw": 0.8, "tint": 1.0}

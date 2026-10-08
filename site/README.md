@@ -113,6 +113,12 @@ commit, push — the push redeploys the page. Rank rule (Saber, 2026-08-23): the
 that contains the entry; the board re-ranks continuously, so a later look is not the rank when
 scored. `--check` on either generator reports drift without writing.
 
+**The models page's table is generated too.** `{{</* board */>}}` (`layouts/shortcodes/board.html`)
+draws the leaderboard page's table for Sidechain alone from `data/submissions.json`'s `board`: every
+entry, calibration runs included, by overall score, each member scaled over raw and washed green or
+red at the tint the script computed (per column, scaled to our own entries). The rule is in
+`scripts/standings.py`; the template only paints.
+
 **The field is generated too.** The same script writes `assets/data/field.json`: the number of
 teams on the leaderboard at every snapshot we hold (since 2026-08-20; the whole field twice a
 day since 2026-09-15), the score at rank 20 and rank 100 where a snapshot reaches that far,

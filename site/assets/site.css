@@ -33,6 +33,11 @@
    apart for red-green colour-blind readers. Each sits near 2.7:1 on one of the two grounds,
    which is why every bar has its number beside it. */
 :root { --mark: #A62B4D; --bar-rest: var(--viz-8); }
+/* --down is the red of a member cell that scored at or below zero on the models page's table, a wash only and
+   never text (the sign stays in the figures). A plain red, kept apart from carmine, which marks the best bar on
+   the landing page; --up is the green of the cells above zero. Lifted in the dark theme like --up. */
+:root { --down: #B42318; }
+[data-theme="dark"] { --down: #F97066; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -287,6 +292,33 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 
 /* ---------- Tables ---------- */
 .sc-table-wrap { overflow-x: auto; margin-top: var(--space-5); }
+/* The models page's table: the leaderboard page's table for Sidechain alone (T79, 2026-10-08). A member cell is the
+   scaled score over the raw value; its wash is --up or --down at --p of full strength, which the `board` shortcode
+   sets per cell from the tint scripts/standings.py computed. The overall column is plain and bold, as on the
+   leaderboard page. Where color-mix is unsupported the wash is one flat tint, so the sign still reads. */
+/* The wrapper steps out of the prose column: eleven columns need ~830px and the column is ~660px, so it takes up to
+   1040px centred on the column (a scrollbar only where the window is narrower), and never more than the window less
+   the 16px gutters, so a phone keeps no horizontal page scroll. */
+.sq-prose .sc-table-wrap.sc-board-wrap { width: min(100vw - 32px, 1040px); position: relative; left: 50%; transform: translateX(-50%); }
+.sq-prose .sc-board { width: 100%; border-collapse: collapse; margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sq-prose .sc-board th { font-size: 10.5px; letter-spacing: var(--meta-track); text-transform: uppercase; color: var(--ink-3); font-weight: 500; padding: 4px 8px 4px 0; border-bottom: var(--rule-w) solid var(--rule-strong); white-space: nowrap; }
+.sq-prose .sc-board td { font-size: var(--meta-size); padding: 5px 8px 5px 0; border-bottom: var(--rule-w) solid var(--rule); white-space: nowrap; vertical-align: middle; }
+.sq-prose .sc-board th.r, .sq-prose .sc-board td.r { text-align: right; }
+.sq-prose .sc-board td.sc-board-name a { color: var(--accent); text-decoration: none; }
+.sq-prose .sc-board td.sc-board-name a:hover { text-decoration: underline; }
+.sq-prose .sc-board td.sc-board-overall { font-weight: 600; color: var(--ink); }
+.sq-prose .sc-board td.sc-board-cell { padding: 4px 8px; line-height: 1.2; min-width: 58px; }
+.sq-prose .sc-board td.sc-board-cell b { display: block; font-weight: 500; color: var(--ink); }
+.sq-prose .sc-board td.sc-board-cell small { display: block; font-size: 10px; color: var(--ink-3); }
+.sq-prose .sc-board td.sc-board-cell.up { background: color-mix(in srgb, var(--up) calc(var(--p) * 0.42), transparent); }
+.sq-prose .sc-board td.sc-board-cell.dn { background: color-mix(in srgb, var(--down) calc(var(--p) * 0.42), transparent); }
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .sq-prose .sc-board td.sc-board-cell.up { background: rgba(0, 115, 79, 0.18); }
+  .sq-prose .sc-board td.sc-board-cell.dn { background: rgba(180, 35, 24, 0.14); }
+}
+.sq-prose .sc-board tr.sc-board-calib td { color: var(--ink-3); }
+.sq-prose .sc-board tr.sc-board-calib td.sc-board-overall { font-weight: 500; color: var(--ink-2); }
+.sc-board-tag { display: inline-block; margin-left: 4px; padding: 0 5px; font-size: 10px; letter-spacing: var(--meta-track); text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 999px; vertical-align: 1px; }
 .sc-table { width: 100%; border-collapse: collapse; margin: var(--space-5) 0 0; }
 .sc-table-wrap .sc-table { margin-top: 0; }
 .sc-table th {
