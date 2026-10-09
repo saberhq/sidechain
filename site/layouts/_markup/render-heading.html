@@ -1,0 +1,7 @@
+{{- /* Headings render as Hugo would, with one addition on the models page (Saber, 2026-10-08):
+       every model's section heading (`<name> — submitted <date>`) carries an "↑ back to top" link
+       to the table of every entry at the top of the page, so a reader who followed a name down
+       can come back. Other pages, and the page's other headings, are untouched. */ -}}
+{{- $models := site.GetPage "/models" -}}
+{{- $entry := and (eq .Level 2) $models (eq .Page.RelPermalink $models.RelPermalink) (in .PlainText "submitted") -}}
+<h{{ .Level }} id="{{ .Anchor | safeURL }}">{{ .Text }}{{ if $entry }} <a class="sc-top" href="#every-entry-on-one-board" title="back to the table of every entry">↑ back to top</a>{{ end }}</h{{ .Level }}>

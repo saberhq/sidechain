@@ -12,11 +12,9 @@ below — the rest of this page is what the numbers are attached to.
 
 ## Every entry on one board
 
-The leaderboard's table with Sidechain's entries alone on it, calibration runs included, ordered by
-overall score. Each of the six members shows the scaled score the board ranks on over the raw value,
-coloured on a scale these entries set: in each column the best score here is the full green and the
-worst score below zero the full red. The rank is the one the entry held on the full board when it was
-scored.
+The leaderboard's table with Sidechain's entries alone on it, newest first, calibration runs
+included. Each of the six members shows the scaled score the board ranks on over the raw value,
+coloured as the leaderboard colours them or, with the second chip, on a scale these entries set.
 
 {{< board >}}
 

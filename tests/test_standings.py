@@ -426,18 +426,25 @@ def test_the_board_is_sorted_by_overall_and_tinted_per_column_by_the_non_calibra
     rows = standings.load_rows(subs, snaps)
     b = standings.board(rows)
     assert b["columns"] == ["pds", "mse", "jac", "nmae", "fid", "reach"]
-    assert [r["n"] for r in b["rows"]] == [1, 2, 3]
-    assert [r["overall"] for r in b["rows"]] == [0.1626, 0.1423, 0.0788]
+    # newest first; n is the place by overall
+    assert [r["name"] for r in b["rows"]] == ["SER-16aefhkrsw", "SER-14aefksw", "SER-1"]
+    assert [r["n"] for r in b["rows"]] == [2, 1, 3]
     assert b["scale"]["pds"] == {"ceiling": 0.6, "floor": None}      # the calibration run's 0.9 sets nothing
     assert b["scale"]["fid"] == {"ceiling": None, "floor": -0.04}
-    cell = {(r["name"], c["key"]): c["tint"] for r in b["rows"] for c in r["cells"]}
+    assert b["fixed"] == {"ceiling": 1.0, "floors": {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}}
+    # the leaderboard page's scale: /1 above zero, /floor below, a scaled 0 the floor
+    fixed = {(r["name"], c["key"]): c["tint"] for r in b["rows"] for c in r["cells"]}
+    assert fixed[("SER-14aefksw", "pds")] == 0.6 and fixed[("SER-16aefhkrsw", "pds")] == 0.9
+    assert fixed[("SER-1", "mse")] == -1.0 and fixed[("SER-14aefksw", "fid")] == -0.02
+    assert fixed[("SER-16aefhkrsw", "fid")] == -0.17
+    cell = {(r["name"], c["key"]): c["tint_own"] for r in b["rows"] for c in r["cells"]}
     assert cell[("SER-14aefksw", "pds")] == 1.0
     assert cell[("SER-1", "pds")] == 0.5
     assert cell[("SER-1", "mse")] == -1.0                            # a scaled 0 is the floor
     assert cell[("SER-1", "fid")] == -1.0 and cell[("SER-14aefksw", "fid")] == -0.5
     calib = next(r for r in b["rows"] if r["class"] == "calibration")
-    assert {c["key"]: c["tint"] for c in calib["cells"]}["pds"] == 1.0     # clamped, not 1.5
-    assert {c["key"]: c["tint"] for c in calib["cells"]}["fid"] == -1.0    # clamped
+    assert {c["key"]: c["tint_own"] for c in calib["cells"]}["pds"] == 1.0     # clamped, not 1.5
+    assert {c["key"]: c["tint_own"] for c in calib["cells"]}["fid"] == -1.0    # clamped
     assert calib["rank_when_scored"] is None and calib["name"] == "SER-16aefhkrsw"
 
 
@@ -451,4 +458,4 @@ def test_the_site_json_carries_the_board(tmp_path, monkeypatch):
     monkeypatch.setattr(standings, "SITE_JSON", tmp_path / "submissions.json")
     _, site = standings.render(standings.load_rows(subs, snaps))
     d = json.loads(site)
-    assert d["board"]["rows"][0]["cells"][0] == {"key": "pds", "scaled": 0.6, "raw": 0.8, "tint": 1.0}
+    assert d["board"]["rows"][0]["cells"][0] == {"key": "pds", "scaled": 0.6, "raw": 0.8, "tint": 0.6, "tint_own": 1.0}

@@ -42,14 +42,19 @@ left out of its rank plot (Saber, 2026-10-07). It is metadata, never part of a m
 Every row also carries the six cell-eval2 members (``members``: the scaled score the
 leaderboard ranks on and the raw value under it, in the leaderboard's own column order), and the
 file carries ``board``: the same entries as a leaderboard of Sidechain alone (Saber, 2026-10-08,
-T79) -- sorted by overall, numbered 1..N, every calibration run in, each member cell with a
-``tint`` in [-1, 1] that says how deep its green (positive) or red (zero or negative) wash is.
-The scale is PER COLUMN and set by our own entries: the column's best non-calibration score is
-the full green, its worst negative non-calibration score the full red, and anything beyond the
-scale clamps -- the leaderboard page colours the same way against a fixed 1 and 0, which on a
-Sidechain-only board would paint every jaccard cell white. A scaled 0 is the floor (the mse
-member is clamped there) and reads full red, as it does on the leaderboard page. Calibration
-runs are painted on that scale but never set it, the rule the site's bars already follow.
+T79) -- newest first, ``n`` the entry's place among ours by overall, every calibration run in,
+each member cell with two tints in [-1, 1] that say how deep its green (positive) or red (zero
+or negative) wash is. ``tint`` is the leaderboard page's own scale: green from 0 up to the
+ceiling 1 (a replicate of the experiment), red from 0 down to the member's floor -- 0 for mse,
+which the scorer clamps there, -6 for nmae, which it floors there, and -1 for the four
+unclamped members (the spec's "Clamps" paragraph; -1 is the score as far below the baseline as
+the replicate sits above it, a choice of ours written in ``OFFICIAL_FLOORS``). ``tint_own`` is
+PER COLUMN and set by our own entries: the column's best non-calibration score is the full
+green, its worst negative non-calibration score the full red. Both clamp beyond their scale; a
+scaled 0 is the floor and reads full red on both, as it does on the leaderboard page.
+Calibration runs are painted on either scale but never set the per-column one, the rule the
+site's bars already follow. The renderers default to ``tint`` and offer ``tint_own`` as a
+switch (Saber, 2026-10-08).
 
 Outputs, all fully generated — never edit them by hand:
 
@@ -117,14 +122,19 @@ MEMBERS = (
     ("fid", "score_fid", "de_wilcoxon_direction_fidelity_yield_raw"),
     ("reach", "score_reach", "de_wilcoxon_direction_reach_raw"),
 )
+# The leaderboard page's colour scale per member: ceiling 1 for all; the floor the scorer clamps or floors
+# the member at (mse 0, nmae -6; the metric spec's "Clamps" paragraph), and -1 for the four unclamped ones.
+OFFICIAL_CEILING = 1.0
+OFFICIAL_FLOORS = {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}
 BOARD_ABOUT = (
-    "The same entries as a leaderboard of Sidechain alone, sorted by overall and numbered 1..N, every "
-    "calibration run in. Each member cell carries tint in [-1, 1]: the depth of its green (positive) or "
-    "red (zero or negative) wash. The scale is per column and set by Sidechain's own entries: the "
-    "column's best non-calibration scaled score is the full green and its worst negative non-calibration "
-    "score the full red; a scaled 0 is the floor and reads full red; anything beyond the scale clamps. "
-    "Calibration runs are painted on that scale and never set it. rank_when_scored is the entry's rank "
-    "on the official leaderboard when it was scored (see _about)."
+    "The same entries as a leaderboard of Sidechain alone, newest first, n the entry's place among them by "
+    "overall, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green "
+    "(positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the "
+    "ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set "
+    "by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its "
+    "worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the "
+    "floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on "
+    "the official leaderboard when it was scored (see _about)."
 )
 
 DEFAULTS = {"deadline": "2026-11-05", "final_test_set": "2026-10-22"}
@@ -364,18 +374,20 @@ def board(rows: list[dict]) -> dict:
         ceiling = max([v for v in vals if v > 0], default=None) or max([v for v in every if v > 0], default=None)
         floor = min([v for v in vals if v < 0], default=None) or min([v for v in every if v < 0], default=None)
         scale[key] = {"ceiling": ceiling, "floor": floor}
-    ordered = sorted(rows, key=lambda r: (-r["overall"], r["date"]))
+    place = {id(r): i for i, r in enumerate(sorted(rows, key=lambda r: -r["overall"]), 1)}
     out = []
-    for i, r in enumerate(ordered, 1):
+    for r in reversed(rows):                      # load_rows sorted them by submission time: newest first
         cells = []
         for key, _, _ in MEMBERS:
             m = r["members"][key]
             cells.append({"key": key, "scaled": m["scaled"], "raw": m["raw"],
-                          "tint": _tint(m["scaled"], scale[key]["ceiling"], scale[key]["floor"])})
-        out.append({"n": i, "name": r["name"], "board_name": r["board_name"], "date": r["date"],
+                          "tint": _tint(m["scaled"], OFFICIAL_CEILING, OFFICIAL_FLOORS[key]),
+                          "tint_own": _tint(m["scaled"], scale[key]["ceiling"], scale[key]["floor"])})
+        out.append({"n": place[id(r)], "name": r["name"], "board_name": r["board_name"], "date": r["date"],
                     "overall": r["overall"], "rank_when_scored": r["rank"], "teams": r["teams"],
                     "class": r["class"], "partition": r["partition"], "cells": cells})
-    return {"_about": BOARD_ABOUT, "columns": [k for k, _, _ in MEMBERS], "scale": scale, "rows": out}
+    return {"_about": BOARD_ABOUT, "columns": [k for k, _, _ in MEMBERS],
+            "fixed": {"ceiling": OFFICIAL_CEILING, "floors": OFFICIAL_FLOORS}, "scale": scale, "rows": out}
 
 
 def rank_label(rank, teams) -> str:
