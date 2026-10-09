@@ -421,7 +421,7 @@ def merge(a: PseudobulkSums, b: PseudobulkSums) -> PseudobulkSums:
     out = PseudobulkSums(labels, a.genes, np.zeros((L, G)), np.zeros((L, G)), np.zeros((L, G)),
                          np.zeros(L, dtype=np.int64), np.zeros(L), a.sources + b.sources)
     for src in (a, b):
-        pos = np.array([labels.index(lab) for lab in src.labels])
+        pos = np.array([labels.index(lab) for lab in src.labels], dtype=np.int64)
         out.count_sum[pos] += src.count_sum; out.cpm_sum[pos] += src.cpm_sum
         out.cpm_sq_sum[pos] += src.cpm_sq_sum; out.n_cells[pos] += src.n_cells
         out.libsize_sum[pos] += src.libsize_sum

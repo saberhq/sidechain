@@ -64,6 +64,20 @@ LICENSE_POLICY: dict[str, str] = {
     # that quote and date are recorded. It is a citation obligation, not a
     # commercial or redistribution restriction, so neither flag below applies.
     "free-for-research-with-citation": "Free-for-research-with-citation",
+    # Not SPDX either: the HOST's stated policy for a deposit whose record states no
+    # terms of its own. GEO is the case (Pan 2026, GSE295214): the series and sample
+    # records carry no licence, and the depositing preprint's CC-BY footer governs the
+    # manuscript, not the deposit (the scBaseCount note below is the same trap). What
+    # does cover the data is NCBI's policy for its molecular databases, gene expression
+    # named among them: "NCBI itself places no restrictions on the use or distribution
+    # of the data contained therein. Nor do we accept data when the submitter has
+    # requested restrictions on reuse or redistribution" (ncbi.nlm.nih.gov/home/about/
+    # policies/, read 2026-10-09). The same paragraph says a submitter may still claim
+    # rights that NCBI cannot assess or transfer, so this is the host's word and not a
+    # grant from the depositor; a block reaches it only through
+    # `license_override_source`, which records that and what the depositor says.
+    # Neither flag below applies.
+    "ncbi-no-restrictions": "NCBI-no-restrictions",
 }
 
 # The accepted set, derived from the policy above so the two cannot drift.

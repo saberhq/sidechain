@@ -322,7 +322,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(missing)} file(s) to fetch. Run:\n")
     print(f"  cd {dest}")
     for f in missing:
-        print(f"  curl -sSL -C - -o {f.name} '{f.url}'")
+        # --create-dirs: a name may carry directories (`GSM8943713/suppl/x.h5` on GEO),
+        # and curl will not make them for -o. -C - lets a re-run of the same line carry
+        # on from the bytes already there, which a host that closes long transfers
+        # mid-file (GEO) needs.
+        print(f"  curl -sSL -C - --create-dirs -o {f.name} '{f.url}'")
     print(f"\nthen: uv run python -m sidechain.ingest.fetch --dataset {args.dataset} --check")
     return 0
 

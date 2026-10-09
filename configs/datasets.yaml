@@ -1091,3 +1091,320 @@ datasets:
       - name: suppl_tables/clustering_results_and_annotations.csv
         kind: sample_metadata
         spec: {role: analysis}
+
+  # ==========================================================================
+  # Pan 2026's H1 hESC CRISPRi Perturb-seq screen (GEO GSE295214) -- a SECOND
+  # screen in H1, the line of the 2025 challenge data, from another laboratory
+  # (Zhuang / Weissman): Zim3-dCas9, 10x 5' with direct guide capture, 6,638
+  # guides (6,268 targeting 2,978 genes, 370 non-targeting), 85 lanes, eight
+  # days after induction. 131 of the 2025 H1 targets and 66 of the 2026 panel
+  # are in its library. research/ideas/pan-2026-h1-crispri-screen.md (private);
+  # task T114.
+  #
+  # THE FIRST CORPUS ON `host: https`, and the first that is Cell Ranger h5.
+  # GEO has no record API the gate can ask, so the file list below IS the
+  # listing and each name is HEAD-probed (probe_https). Three things follow,
+  # all declared rather than defaulted:
+  #
+  #   license            the GEO record states none (series and samples, read
+  #                      2026-10-05 and 2026-10-09), and a header cannot state
+  #                      terms, so the probe returns `unknown` and the block
+  #                      passes only through license_override_source. The terms
+  #                      recorded are the HOST's policy for its molecular data,
+  #                      `NCBI-no-restrictions` (ingest/provenance.py,
+  #                      LICENSE_POLICY). The paper's CC-BY footer is not used:
+  #                      it governs the manuscript, the same trap the
+  #                      scBaseCount block records.
+  #   allow_missing_checksum
+  #                      a web server publishes no digest. The per-file size and
+  #                      Last-Modified stamp in PROVENANCE.json are the drift
+  #                      guard; the sha256 of what landed is recorded in the
+  #                      derived artifact's LINEAGE.json by the reader.
+  #   no version to pin  the GEO series was last updated 2026-08-06 while every
+  #                      lane file is stamped October 2024; a file replaced in
+  #                      place changes its stamp and is refused on the next run.
+  #
+  # THE 85 LANE FILES, NOT THE TAR. GEO serves the same bytes twice: one
+  # `GSE295214_RAW.tar` (8,340,520,960 bytes) under geo/series/, and one
+  # `filtered_feature_bc_matrix.h5` per sample under geo/samples/ (8,340,448,451
+  # bytes together). The lanes are taken because the lane is the unit everything
+  # downstream works in -- the reader opens one lane at a time, the batch is the
+  # lane, the split-half is by lanes -- so the gate records a size and a stamp
+  # for EACH of them and `fetch --check` verifies exactly the files the reader
+  # opens. The tar would be one stamp over all 85, an untar step, and either
+  # 8.34 GB held twice or a `--check` that reports the tar MISSING once it is
+  # deleted. The cost is 85 HEAD requests per gate run and this list. GEO drops
+  # long transfers mid-file (seen 2026-10-09 on an 18 MB lane), so each lane is
+  # also its own resumable unit.
+  #
+  # `record` is GEO's directory for accessions GSM8943000 to 999, which holds
+  # all 85 of this series' samples (713 to 797) among others, so a name is
+  # `<GSM>/suppl/<file>` and lands at that path under `dest`.
+  #
+  # `kind: expression` WITH NO LABEL COLUMN IN THE BYTES. A Cell Ranger h5 has
+  # no obs table: the guide counts are rows of the SAME matrix (6,638 features
+  # of type `CRISPR Guide Capture` beside 38,606 `Gene Expression`), so the
+  # perturbation label is derived by the reader, sidechain.data.stream_10x_h5,
+  # from the rules below -- each one read from the paper's Methods (page numbers
+  # in private research/reading/pan-2026-hesc-perturbseq-gene-programs.md
+  # § Control arm), none inferred from the data:
+  #
+  #   min_genes: 500     "at least 500 genes with non-zero counts" (p. 60)
+  #   guide_min_umi: 20  "targeted by only one sgRNA with at least 20 barcode
+  #   guide_rule           counts" (p. 60): a cell is kept when EXACTLY ONE guide
+  #                        feature has >= 20 UMIs, and takes that guide's label.
+  #   guide_target_regex the target is the guide id's prefix: ids are CRISPRi-v2
+  #                      names, `<GENE>_<strand>_<position>.<length>-<TSS>`
+  #                      (`GTF3C5_-_135906397.23-P1P2`). The h5 carries no
+  #                      target_gene tag (its feature tags are genome, read,
+  #                      pattern, sequence), so the name is the only place the
+  #                      target is written.
+  #   control_guide_regex / n_control_guides
+  #                      the shift is taken against "the cells receiving
+  #                      non-targeting control sgRNAs" and the library has "370
+  #                      negative control sgRNAs" (pp. 60-61); the feature list
+  #                      names exactly 370 `non-targeting_NNNNN`. There is no
+  #                      safe-targeting arm. The reader collapses them to
+  #                      `control_label` and refuses a lane whose count of
+  #                      matching guides is not the number declared here.
+  #
+  # `pert_col` therefore names a column of the reader's per-cell table (which
+  # keeps every barcode with its lane, its guide call and its top two guide
+  # UMI counts), not of the h5.
+  #
+  # THE RULES ARE THE METHODS', AND THE AUTHORS' OWN NOTEBOOK DIFFERS FROM THEM.
+  # The paper's code repository (github.com/xingjiepan/SCMG_scripts,
+  # manuscript2025; its clean_dataset notebook, read 2026-10-09) starts from
+  # Cell Ranger's own per-cell guide call (`feature_call`, `num_umis`), keeps
+  # `num_umis > 20`, a strict threshold, and then drops cells with 20 % or more
+  # mitochondrial counts, a filter the Methods do not mention; it has no
+  # 500-gene line. This block replays the Methods as worded. Both differences
+  # are countable from the per-cell table (`top_guide_umi == 20`,
+  # `pct_mt >= 20`) without re-reading a lane.
+  #
+  # role: analysis, not train: no build reads this source. Flipping it to
+  # `train` is a decision, and this is where it would be recorded.
+  # ==========================================================================
+  - name: pan2026_h1_crispri
+    enabled: true
+    host: https
+    record: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM8943nnn"
+    license: NCBI-no-restrictions
+    license_override_source: >
+      The GEO record of GSE295214 states no licence, on the series or on the
+      samples (read 2026-10-05 and again 2026-10-09). The terms recorded are
+      the host's own policy for its molecular databases, gene expression named
+      among them: "NCBI itself places no restrictions on the use or
+      distribution of the data contained therein. Nor do we accept data when
+      the submitter has requested restrictions on reuse or redistribution"
+      (https://www.ncbi.nlm.nih.gov/home/about/policies/, read 2026-10-09). The
+      same paragraph adds that a submitter may still claim rights NCBI cannot
+      assess or transfer; the depositors' own statement on this screen is
+      their paper's Data availability line, which names the accession and
+      states no terms (Pan, Saunders et al., bioRxiv 10.64898/2026.05.16.725005
+      v1). That paper's CC-BY 4.0 footer covers the manuscript and is NOT the
+      basis of this record. A web server header can state no terms.
+    allow_missing_checksum: true
+    budget_gb: 12.0             # 8.34 GB selected; ~40 % headroom
+    dest: external/geo-GSE295214
+    derived: derived/pan2026-h1   # pseudobulks, the per-cell table, the QC sidecar + LINEAGE.json (ours)
+    notes: >
+      Read with sidechain.data.stream_10x_h5, one lane at a time. Cell Ranger
+      8.0.1, GRCh38, "Single Cell 5' R2-only"; Ultima UG 100 sequencing. Lane
+      names carry a date token (`jan_3` to `jan_17`, eleven values, six to
+      eight lanes each); neither GEO nor the paper says what it dates. Gene
+      symbols are Cell Ranger's CURRENT ones while the 2026 axis speaks the
+      old dialect, so sidechain.data.gene_aliases is read in reverse there
+      (its docstring, "Direction matters"), widened by a table built from
+      HGNC before the read (`--axis-aliases`). Depth: median 13,859 UMI per
+      kept cell over the 85 lanes, lane medians from 1,661 to 63,366.
+
+    files:
+      # One spec, 85 lanes: `&pan2026_lane` is defined on the first entry and
+      # every later entry refers to it, so the rules cannot drift between lanes.
+      - name: GSM8943713/suppl/GSM8943713_jan_10_GEX_A7_sg_H6_filtered_feature_bc_matrix.h5
+        spec: &pan2026_lane
+          context: h1
+          pert_col: target_gene            # derived by the reader; see the header
+          control_label: non-targeting
+          gene_id_col: id                  # matrix/features/id is the Ensembl id; `name` the symbol
+          modality: crispri
+          role: analysis
+          granularity: cell
+          batch_col: lane                  # the GEO sample, 85 of them
+          expression_feature_type: "Gene Expression"
+          guide_feature_type: "CRISPR Guide Capture"
+          min_genes: 500
+          guide_min_umi: 20
+          guide_rule: exactly_one
+          guide_target_regex: '^(?P<target>.+)_[+-]_\d+\.\d+-.+$'
+          control_guide_regex: '^non-targeting_\d+$'
+          n_control_guides: 370
+      - name: GSM8943714/suppl/GSM8943714_jan_10_GEX_B7_sg_G6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943715/suppl/GSM8943715_jan_10_GEX_C7_sg_F6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943716/suppl/GSM8943716_jan_10_GEX_D7_sg_E6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943717/suppl/GSM8943717_jan_10_GEX_E7_sg_D6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943718/suppl/GSM8943718_jan_10_GEX_G7_sg_B6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943719/suppl/GSM8943719_jan_10_GEX_H7_sg_A6_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943720/suppl/GSM8943720_jan_12_GEX_A8_sg_H5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943721/suppl/GSM8943721_jan_12_GEX_B8_sg_G5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943722/suppl/GSM8943722_jan_12_GEX_C8_sg_F5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943723/suppl/GSM8943723_jan_12_GEX_D8_sg_E5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943724/suppl/GSM8943724_jan_12_GEX_E8_sg_D5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943725/suppl/GSM8943725_jan_12_GEX_F8_sg_C5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943726/suppl/GSM8943726_jan_12_GEX_G8_sg_B5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943727/suppl/GSM8943727_jan_12_GEX_H8_sg_A5_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943728/suppl/GSM8943728_jan_13_GEX_A9_sg_H4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943729/suppl/GSM8943729_jan_13_GEX_B9_sg_G4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943730/suppl/GSM8943730_jan_13_GEX_C9_sg_F4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943731/suppl/GSM8943731_jan_13_GEX_D9_sg_E4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943732/suppl/GSM8943732_jan_13_GEX_E9_sg_D4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943733/suppl/GSM8943733_jan_13_GEX_F9_sg_C4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943734/suppl/GSM8943734_jan_13_GEX_G9_sg_B4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943735/suppl/GSM8943735_jan_13_GEX_H9_sg_A4_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943736/suppl/GSM8943736_jan_14_GEX_A10_sg_H3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943737/suppl/GSM8943737_jan_14_GEX_B10_sg_G3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943738/suppl/GSM8943738_jan_14_GEX_C10_sg_F3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943739/suppl/GSM8943739_jan_14_GEX_D10_sg_E3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943740/suppl/GSM8943740_jan_14_GEX_E10_sg_D3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943741/suppl/GSM8943741_jan_14_GEX_F10_sg_C3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943742/suppl/GSM8943742_jan_14_GEX_G10_sg_B3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943743/suppl/GSM8943743_jan_14_GEX_H10_sg_A3_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943744/suppl/GSM8943744_jan_16_GEX_A11_sg_H2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943745/suppl/GSM8943745_jan_16_GEX_B11_sg_G2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943746/suppl/GSM8943746_jan_16_GEX_C11_sg_F2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943747/suppl/GSM8943747_jan_16_GEX_D11_sg_E2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943748/suppl/GSM8943748_jan_16_GEX_E11_sg_D2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943749/suppl/GSM8943749_jan_16_GEX_F11_sg_C2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943750/suppl/GSM8943750_jan_16_GEX_G11_sg_B2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943751/suppl/GSM8943751_jan_16_GEX_H11_sg_A2_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943752/suppl/GSM8943752_jan_17_GEX_A12_sg_H1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943753/suppl/GSM8943753_jan_17_GEX_B12_sg_G1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943754/suppl/GSM8943754_jan_17_GEX_C12_sg_F1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943755/suppl/GSM8943755_jan_17_GEX_D12_sg_E1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943756/suppl/GSM8943756_jan_17_GEX_E12_sg_D1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943757/suppl/GSM8943757_jan_17_GEX_F12_sg_C1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943758/suppl/GSM8943758_jan_17_GEX_G12_sg_B1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943759/suppl/GSM8943759_jan_17_GEX_H12_sg_A1_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943760/suppl/GSM8943760_jan_3_GEX_A1_sg_H12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943761/suppl/GSM8943761_jan_3_GEX_B1_sg_G12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943762/suppl/GSM8943762_jan_3_GEX_C1_sg_F12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943763/suppl/GSM8943763_jan_3_GEX_D1_sg_E12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943764/suppl/GSM8943764_jan_3_GEX_E1_sg_D12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943765/suppl/GSM8943765_jan_3_GEX_F1_sg_C12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943766/suppl/GSM8943766_jan_3_GEX_G1_sg_B12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943767/suppl/GSM8943767_jan_3_GEX_H1_sg_A12_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943768/suppl/GSM8943768_jan_4_GEX_A2_sg_H11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943769/suppl/GSM8943769_jan_4_GEX_B2_sg_G11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943770/suppl/GSM8943770_jan_4_GEX_C2_sg_F11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943771/suppl/GSM8943771_jan_4_GEX_D2_sg_E11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943772/suppl/GSM8943772_jan_4_GEX_E2_sg_D11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943773/suppl/GSM8943773_jan_4_GEX_F2_sg_C11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943774/suppl/GSM8943774_jan_4_GEX_G2_sg_B11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943775/suppl/GSM8943775_jan_4_GEX_H2_sg_A11_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943776/suppl/GSM8943776_jan_6_GEX_A3_sg_H10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943777/suppl/GSM8943777_jan_6_GEX_B3_sg_G10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943778/suppl/GSM8943778_jan_6_GEX_C3_sg_F10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943779/suppl/GSM8943779_jan_6_GEX_D3_sg_E10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943780/suppl/GSM8943780_jan_6_GEX_E3_sg_D10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943781/suppl/GSM8943781_jan_6_GEX_F3_sg_C10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943782/suppl/GSM8943782_jan_6_GEX_G3_sg_B10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943783/suppl/GSM8943783_jan_6_GEX_H3_sg_A10_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943784/suppl/GSM8943784_jan_7_GEX_A4_sg_H9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943785/suppl/GSM8943785_jan_7_GEX_B4_sg_G9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943786/suppl/GSM8943786_jan_7_GEX_C4_sg_F9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943787/suppl/GSM8943787_jan_7_GEX_D4_sg_E9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943788/suppl/GSM8943788_jan_7_GEX_E4_sg_D9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943789/suppl/GSM8943789_jan_7_GEX_F4_sg_C9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943790/suppl/GSM8943790_jan_7_GEX_G4_sg_B9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943791/suppl/GSM8943791_jan_7_GEX_H4_sg_A9_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943792/suppl/GSM8943792_jan_8_GEX_A5_sg_H8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943793/suppl/GSM8943793_jan_8_GEX_B5_sg_G8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943794/suppl/GSM8943794_jan_8_GEX_C5_sg_F8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943795/suppl/GSM8943795_jan_8_GEX_D5_sg_E8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943796/suppl/GSM8943796_jan_8_GEX_E5_sg_D8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
+      - name: GSM8943797/suppl/GSM8943797_jan_8_GEX_F5_sg_C8_filtered_feature_bc_matrix.h5
+        spec: *pan2026_lane
