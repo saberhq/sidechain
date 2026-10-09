@@ -62,8 +62,10 @@ same thing. The multiplier scales the floored shipped variance as given: a facto
 1-10 CPM deflates it below the floor by design (the no-effect sets read z^2 under 1 there).
 
 The fit is attached to the source once (`apply_dispersion_fits`, the way `transfer_floor`
-travels) and checked against it: the fit's gene axis must equal the source's and its recorded
-sha256 must be the source file's. The per-source variance function is built once per source
+travels) and checked against it: the fit's gene axis must equal the source's, and either its
+recorded sha256 is the source file's or the source is a label subset of the fitted artifact (the
+same corpus files, every label present with the same cell count; `apply_dispersion_fits`). The
+per-source variance function is built once per source
 and model and cached on the artifact, because `as_delta_source` rebuilds its wrapper on every
 `pooled_delta` call.
 
@@ -357,8 +359,10 @@ class VarianceModel:
                                  f"{name!r} are in it; a split needs both groups")
             if rng is not None:
                 # the labels move within expression bins: each bin keeps its in and out counts, so the
-                # shuffled in-group has the real one's expression support (the same null § 6 of the
-                # pre-registration uses; a label-only deal reads composition as category)
+                # shuffled in-group has the real one's expression support (the design of § 6 of T98's
+                # pre-registration, at SHUFFLE_BINS bins with no bin dropped; § 6's own gate leaves out
+                # bins with fewer than 5 genes in either group. A label-only deal reads composition as
+                # category.)
                 code = code[permutation_within_bins(rng, gd.mean_count, ok)]
                 rec["shuffle"] = f"category labels permuted within {SHUFFLE_BINS} quantile bins of mean count, each bin's in and out counts kept"
             curves = []
@@ -395,6 +399,13 @@ class VarianceModel:
                 raise SystemExit(f"--variance-model multiplier names {missing}, which match no "
                                  f"pseudobulk source; have {sorted(named)}")
             return
+        if self.kind == "flat" and self.flat_thetas:
+            # a per-source flat value on a name nobody loaded would silently fall back to the
+            # size-matched default for every real source (round-3 critic of T98's pre-registration)
+            missing = sorted(set(self.flat_thetas) - set(named))
+            if missing:
+                raise SystemExit(f"--variance-model flat names {missing}, which match no "
+                                 f"pseudobulk source; have {sorted(named)}")
         if self.needs_fit:
             unfit = sorted(n for n, pb in named.items() if getattr(pb, "dispersion_fit", None) is None)
             if unfit:
@@ -652,7 +663,9 @@ def add_variance_args(ap, *, twin: str) -> None:
                          "glmGamPoi-style dispersion curve over expression, read at the row's mean); "
                          "own[:shuffle=SEED] (the gene's own all-group dispersion); sql[:shuffle=SEED] "
                          "(GeneDispersion.variance_cpm as built); category:list=PATH[,shuffle=SEED] "
-                         "(one curve per gene category); multiplier:NAME=K1/K2/K3[,NAME=K,...] (the "
+                         "(one curve per gene category); flat[:NAME=V,...] (one dispersion for every gene, "
+                         "the trend's mean-count-squared-weighted mean per source unless NAME=V sets "
+                         "it); multiplier:NAME=K1/K2/K3[,NAME=K,...] (the "
                          "shipped perturbed-arm variance of source NAME times K per stratum of its "
                          "control mean CPM, 1-10 / 10-100 / >=100; NAME=K is flat). Dispersion models "
                          "need --dispersion-fit per pseudobulk source and --var-floor poisson "
@@ -666,7 +679,7 @@ def add_variance_args(ap, *, twin: str) -> None:
                     help="T98: the saved per-gene dispersion fit of pseudobulk source NAME (its file "
                          "stem), made once by `python -m sidechain.data.dispersion SRC.npz --out "
                          "FIT.npz` and checked here against the source's gene axis and sha256 "
-                         "(repeatable). Needed by trend, own, sql and category; refused otherwise.")
+                         "(repeatable). Needed by trend, own, sql, flat and category; refused otherwise.")
 
 
 def check_variance_args(ap, args) -> VarianceModel:

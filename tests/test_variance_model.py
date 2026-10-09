@@ -307,6 +307,9 @@ def test_a_multiplier_leaves_an_unnamed_source_on_the_shipped_variance_and_count
     # naming a source nobody loaded is refused once the sources are known
     with pytest.raises(SystemExit, match="match no pseudobulk source"):
         VarianceModel.parse("multiplier:nobody=2").check_sources([(pb, "control"), (other, "control")])
+    # and a per-source flat value on a name nobody loaded, which would otherwise fall back to the default
+    with pytest.raises(SystemExit, match="flat names .* match no pseudobulk source"):
+        VarianceModel.parse("flat:nobody=0.1").check_sources([(pb, "control"), (other, "control")])
 
 
 def test_rule_variance_shipped_holds_the_pooled_rule_on_the_shipped_den_while_the_weights_move():

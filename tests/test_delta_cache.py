@@ -245,6 +245,21 @@ def test_a_cache_built_under_one_variance_model_is_refused_by_every_other(fold):
     src.dispersion_fit_sha256 = "cd" * 32                                                            # another fit, same spec
     with pytest.raises(SystemExit, match="no cache for this fold and these knobs"):
         _arm(fold, "refused_fit", delta_cache=use, variance_model=vm, rule_variance="model")
+    # the category list's CONTENTS are in the key (its sha256 rides in identity()): the same path with other
+    # genes in it is another model, so an edited list never reads a cache built for the old one
+    src.dispersion_fit_sha256 = "ab" * 32
+    genes = [str(g) for g in src.genes]
+    lst = tmp / "cat.txt"
+    lst.write_text("\n".join(genes[: len(genes) // 2]) + "\n")
+    cat = VarianceModel.parse(f"category:list={lst}")
+    built_c = _build(fold, root="ccache", variance_model=cat, rule_variance="model")
+    use_c = {"dir": tmp / "ccache", "sources": IDS}
+    got_c, _ = _arm(fold, "cat_arm", delta_cache=use_c, variance_model=cat, rule_variance="model")
+    assert got_c["delta_cache"]["key"] == built_c["key"]
+    lst.write_text("\n".join(genes[: len(genes) // 2 + 1]) + "\n")
+    with pytest.raises(SystemExit, match="no cache for this fold and these knobs"):
+        _arm(fold, "cat_refused", delta_cache=use_c, variance_model=VarianceModel.parse(f"category:list={lst}"),
+             rule_variance="model")
 
 
 def test_the_flags_are_refused_where_they_cannot_act(fold, capsys):
