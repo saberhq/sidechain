@@ -431,8 +431,9 @@ def test_the_board_is_sorted_by_overall_and_tinted_per_column_by_the_non_calibra
     assert [r["n"] for r in b["rows"]] == [1, 2, 3]
     assert b["scale"]["pds"] == {"ceiling": 0.6, "floor": None}      # the calibration run's 0.9 sets nothing
     assert b["scale"]["fid"] == {"ceiling": None, "floor": -0.04}
-    assert b["fixed"] == {"ceiling": 1.0, "floors": {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}}
-    # the leaderboard page's scale: /1 above zero, /floor below, a scaled 0 the floor
+    assert b["fixed"] == {"ceiling": 1.0, "floors": {"mse": 0.0, "nmae": -6.0}}     # the scorer's two; no floor elsewhere
+    # the leaderboard page's scale: /1 above zero, /floor below where there is one and at green's rate where not,
+    # a scaled 0 the floor
     fixed = {(r["name"], c["key"]): c["tint"] for r in b["rows"] for c in r["cells"]}
     assert fixed[("SER-14aefksw", "pds")] == 0.6 and fixed[("SER-16aefhkrsw", "pds")] == 0.9
     assert fixed[("SER-1", "mse")] == -1.0 and fixed[("SER-14aefksw", "fid")] == -0.02

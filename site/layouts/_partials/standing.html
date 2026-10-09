@@ -60,7 +60,7 @@
 {{ end }}
 {{ $refY := sub 100 (mul 100 (div 0.1 $max)) }}
 <figure class="sc-spark" data-standing aria-label="Each ranked entry's rank as a share of the field when it was scored, in submission order, calibration runs left out; lower is better. Every point links to its row below.">
-  <figcaption class="sc-spark-title">Rank percentile over entries <span>· lower is better</span></figcaption>
+  <figcaption class="sc-spark-title">Chasing top 10% for the fun of it ;)</figcaption>
   <div class="sc-plot" data-plot>
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
       <path class="sc-ref" d="M0,{{ printf "%.2f" $refY }} L100,{{ printf "%.2f" $refY }}"/>

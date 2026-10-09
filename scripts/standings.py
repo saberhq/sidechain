@@ -45,10 +45,11 @@ file carries ``board``: the same entries as a leaderboard of Sidechain alone (Sa
 T79) -- by overall, ``n`` the entry's place among ours on it, every calibration run in,
 each member cell with two tints in [-1, 1] that say how deep its green (positive) or red (zero
 or negative) wash is. ``tint`` is the leaderboard page's own scale: green from 0 up to the
-ceiling 1 (a replicate of the experiment), red from 0 down to the member's floor -- 0 for mse,
-which the scorer clamps there, -6 for nmae, which it floors there, and -1 for the four
-unclamped members (the spec's "Clamps" paragraph; -1 is the score as far below the baseline as
-the replicate sits above it, a choice of ours written in ``OFFICIAL_FLOORS``). ``tint_own`` is
+ceiling 1 (a replicate of the experiment), red from 0 down to the member's floor where the scorer
+has one -- 0 for mse, which it clamps there, -6 for nmae, which it floors there -- and, for the
+four members the scorer leaves unclamped (the spec's "Clamps" paragraph), deepening below 0 at
+the rate green deepens above it, which is the same as a floor of -1 (``OFFICIAL_FLOORS`` holds
+exactly the scorer's two; Saber, 2026-10-08). ``tint_own`` is
 PER COLUMN and set by our own entries: the column's best non-calibration score is the full
 green, its worst negative non-calibration score the full red. Both clamp beyond their scale; a
 scaled 0 is the floor and reads full red on both, as it does on the leaderboard page.
@@ -123,14 +124,16 @@ MEMBERS = (
     ("reach", "score_reach", "de_wilcoxon_direction_reach_raw"),
 )
 # The leaderboard page's colour scale per member: ceiling 1 for all; the floor the scorer clamps or floors
-# the member at (mse 0, nmae -6; the metric spec's "Clamps" paragraph), and -1 for the four unclamped ones.
+# the member at (mse 0, nmae -6; the metric spec's "Clamps" paragraph). The other four are unclamped and
+# have no floor: their red deepens at green's rate (`_tint` with floor None), the same as a floor of -1.
 OFFICIAL_CEILING = 1.0
-OFFICIAL_FLOORS = {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}
+OFFICIAL_FLOORS = {"mse": 0.0, "nmae": -6.0}
 BOARD_ABOUT = (
     "The same entries as a leaderboard of Sidechain alone, by overall, n the entry's place among them on it, "
     "every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green "
     "(positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the "
-    "ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set "
+    "ceiling 1, red from 0 down to the member's floor in fixed.floors, or at green's rate for a member with "
+    "none) and tint_own on a per-column scale set "
     "by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its "
     "worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the "
     "floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on "
@@ -351,14 +354,19 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
 
 
 def _tint(scaled, ceiling, floor) -> float | None:
-    """How deep a member cell's wash is: +1 at the column's ceiling, -1 at its floor, 0 unpainted."""
+    """How deep a member cell's wash is: +1 at the column's ceiling, -1 at its floor, 0 unpainted. With no
+    floor (None) red deepens at green's rate; a floor of 0 means a scaled 0 is as low as the member goes."""
     if scaled is None:
         return None
     if scaled > 0:
         return round(min(1.0, scaled / ceiling), 3) if ceiling else 1.0
     if scaled == 0:
         return -1.0                                   # the floor: the mse member is clamped at 0
-    return round(-min(1.0, scaled / floor), 3) if floor else -1.0
+    if floor is None:
+        return round(-min(1.0, -scaled / ceiling), 3) if ceiling else -1.0
+    if floor >= 0:
+        return -1.0
+    return round(-min(1.0, scaled / floor), 3)
 
 
 def board(rows: list[dict]) -> dict:
@@ -382,7 +390,7 @@ def board(rows: list[dict]) -> dict:
         for key, _, _ in MEMBERS:
             m = r["members"][key]
             cells.append({"key": key, "scaled": m["scaled"], "raw": m["raw"],
-                          "tint": _tint(m["scaled"], OFFICIAL_CEILING, OFFICIAL_FLOORS[key]),
+                          "tint": _tint(m["scaled"], OFFICIAL_CEILING, OFFICIAL_FLOORS.get(key)),
                           "tint_own": _tint(m["scaled"], scale[key]["ceiling"], scale[key]["floor"])})
         out.append({"n": n, "name": r["name"], "board_name": r["board_name"], "date": r["date"],
                     "overall": r["overall"], "rank_when_scored": r["rank"], "teams": r["teams"],

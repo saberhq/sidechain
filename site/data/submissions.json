@@ -879,7 +879,7 @@
     }
   ],
   "board": {
-    "_about": "The same entries as a leaderboard of Sidechain alone, by overall, n the entry's place among them on it, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green (positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on the official leaderboard when it was scored (see _about).",
+    "_about": "The same entries as a leaderboard of Sidechain alone, by overall, n the entry's place among them on it, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green (positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the ceiling 1, red from 0 down to the member's floor in fixed.floors, or at green's rate for a member with none) and tint_own on a per-column scale set by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on the official leaderboard when it was scored (see _about).",
     "columns": [
       "pds",
       "mse",
@@ -891,12 +891,8 @@
     "fixed": {
       "ceiling": 1.0,
       "floors": {
-        "pds": -1.0,
         "mse": 0.0,
-        "jac": -1.0,
-        "nmae": -6.0,
-        "fid": -1.0,
-        "reach": -1.0
+        "nmae": -6.0
       }
     },
     "scale": {

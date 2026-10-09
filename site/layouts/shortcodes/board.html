@@ -38,7 +38,7 @@
 </tbody>
 </table>
 </div>
-<p class="sc-board-legend" id="calibration-runs">* a <b>calibration run</b>: an entry sent purely to test a new method and its performance on the official board. # is the entry's place among Sidechain's entries by overall score; a column head sorts by that column. In each cell the scaled score the board ranks on sits over the raw value. On the leaderboard's scale green runs from 0 to 1 and red from 0 down to the member's floor (0 for mse, −6 for nmae, −1 for the rest); scaled to our entries, each column's best score here is the full green and its worst score below zero the full red.</p>
+<p class="sc-board-legend" id="calibration-runs">* a <b>calibration run</b>: an entry sent purely to test a new method and its performance on the official board. # is the entry's place among Sidechain's entries by overall score; a column head sorts by that column. In each cell the scaled score the board ranks on sits over the raw value. On the leaderboard's scale green runs from 0 to 1 and red from 0 down to the member's floor where the scorer has one (0 for mse, −6 for nmae), deepening at green's rate for the four it leaves unclamped; scaled to our entries, each column's best score here is the full green and its worst score below zero the full red.</p>
 <script>
 (function(){var g=document.querySelector('.sc-board-scale');if(!g)return;var t=g.nextElementSibling.querySelector('table.sc-board');
 g.addEventListener('click',function(e){var b=e.target.closest('[data-scale]');if(!b)return;

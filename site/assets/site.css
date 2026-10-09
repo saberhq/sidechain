@@ -36,10 +36,11 @@
 /* The washes of the models page's table: --wash-up behind a member cell above zero, --wash-dn behind one at or
    below, mixed into the ground at --wash-k of the cell's tint, never as text (the sign stays in the figures). In the
    light theme they are --up and a plain red kept apart from carmine, which marks the best bar on the landing page.
-   The dark theme takes brighter, more saturated pair and a stronger mix: the dark --up at 42 % read as an olive
-   barely apart from the sheet (Saber, 2026-10-08). */
+   The dark theme takes a brighter, more saturated pair at 72 %: the dark --up at 42 % read as an olive barely apart
+   from the sheet, and a first cut at 56 % still did (Saber, 2026-10-08, twice). A full-green cell now mixes to about
+   rgb(41,151,96) on the dark sheet. */
 :root { --wash-up: var(--up); --wash-dn: #B42318; --wash-k: 0.42; }
-[data-theme="dark"] { --wash-up: #3DD68C; --wash-dn: #F2655C; --wash-k: 0.56; }
+[data-theme="dark"] { --wash-up: #2FC97E; --wash-dn: #E0564E; --wash-k: 0.72; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
