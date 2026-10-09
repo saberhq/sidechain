@@ -70,6 +70,9 @@ DATA_ROOT = Path.home() / "data" / "sidechain"
 REGISTRY = "configs/data_sources.yaml"
 HUMAN = 9606
 USER_AGENT = "sidechain-ingest/0.1 (+https://github.com/saberhq/sidechain)"
+FETCH_CHUNK = 1 << 16         # bytes per read: what a stalled connection had delivered is kept
+FETCH_STALL_S = 60            # a connection silent for this long is dropped and the file resumed
+FETCH_ATTEMPTS = 20           # connections tried per file before giving up with the .part kept
 
 #: The per-gene columns `utr_load_table` produces, and what each one is.
 UTR_LOAD_COLUMNS = {
@@ -199,6 +202,12 @@ def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress
     a changed block or upstream state and rewrites PROVENANCE.json -- it is what widening
     a file list needs.
 
+    A connection that goes silent is dropped after ``FETCH_STALL_S`` and the file resumed on
+    a new one, up to ``FETCH_ATTEMPTS`` times; what it had delivered stays in the ``.part``.
+    Figshare's file host hands out connections that stop after about 0.26 MB (DepMap 24Q4,
+    2026-10-09, T113): with one long read per megabyte and no retry, such a connection wrote
+    nothing and the fetch sat until its timeout, twice.
+
     Module-level rather than a method because every prior block that carries
     ``host / record / files / dest`` fetches identically: ``MiRNATargetSource`` (TargetScan)
     and ``MRNAStabilitySource`` (``posttx_stability``, the Springer and eLife blocks) both
@@ -216,24 +225,36 @@ def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress
         if target.exists() and target.stat().st_size == f.size_bytes:
             continue
         tmp = target.with_suffix(target.suffix + ".part")
-        have = tmp.stat().st_size if tmp.exists() else 0
-        headers = {"User-Agent": USER_AGENT}
-        if have:
-            headers["Range"] = f"bytes={have}-"
-        req = urllib.request.Request(f.url, headers=headers)
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            if have and resp.status != 206:
-                # the host ignored the range: start over rather than append twice
-                have = 0
-                tmp.unlink()
-            with tmp.open("ab" if have else "wb") as out:
-                done = have
-                while chunk := resp.read(1 << 20):
-                    out.write(chunk)
-                    done += len(chunk)
-                    if progress and done % (64 << 20) < (1 << 20):
-                        print(f"  {f.name}: {done / 1e6:.0f} / {f.size_bytes / 1e6:.0f} MB",
-                              flush=True)
+        for attempt in range(1, FETCH_ATTEMPTS + 1):
+            have = tmp.stat().st_size if tmp.exists() else 0
+            headers = {"User-Agent": USER_AGENT}
+            if have:
+                headers["Range"] = f"bytes={have}-"
+            req = urllib.request.Request(f.url, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=FETCH_STALL_S) as resp:
+                    if have and resp.status != 206:
+                        # the host ignored the range: start over rather than append twice
+                        have = 0
+                        tmp.unlink()
+                    with tmp.open("ab" if have else "wb") as out:
+                        done = have
+                        while chunk := resp.read(FETCH_CHUNK):
+                            out.write(chunk)
+                            done += len(chunk)
+                            if progress and done % (64 << 20) < FETCH_CHUNK:
+                                print(f"  {f.name}: {done / 1e6:.0f} / {f.size_bytes / 1e6:.0f} MB",
+                                      flush=True)
+                break                       # the response ended; the size check below judges it
+            except (TimeoutError, ConnectionError) as exc:
+                if attempt == FETCH_ATTEMPTS:
+                    raise RuntimeError(
+                        f"{f.name}: {FETCH_ATTEMPTS} connections stalled or dropped ({exc!r}); "
+                        f"{tmp.stat().st_size if tmp.exists() else 0} of {f.size_bytes} bytes are "
+                        f"in {tmp.name} and the next run resumes from there") from exc
+                if progress:
+                    print(f"  {f.name}: connection {attempt} stalled or dropped, resuming",
+                          flush=True)
         got = tmp.stat().st_size
         if got != f.size_bytes:
             tmp.unlink()

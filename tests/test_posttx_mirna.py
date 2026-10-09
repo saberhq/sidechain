@@ -363,3 +363,79 @@ def test_utr_features_table_joins_load_and_sequence(source):
 
 def test_revcomp_rna():
     assert revcomp_rna("GGAAUGU") == "ACAUUCC"
+
+
+# ------------------------------------------- the fetch loop: stalls and resumes --
+
+
+class _FakeResponse:
+    """One connection: serves `payload` from the Range offset in 3-byte reads, and raises
+    TimeoutError once `stall_after` bytes of this connection have gone out."""
+
+    def __init__(self, payload: bytes, start: int, status: int, stall_after: int | None):
+        self._data, self.status, self._stall_after, self._sent = payload[start:], status, stall_after, 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, n: int) -> bytes:
+        if self._stall_after is not None and self._sent >= self._stall_after:
+            raise TimeoutError("The read operation timed out")
+        n = min(n, 3) if self._stall_after is None else min(n, 3, self._stall_after - self._sent)
+        chunk, self._data = self._data[:n], self._data[n:]
+        self._sent += len(chunk)
+        return chunk
+
+
+def _fake_fetch(monkeypatch, tmp_path, payload: bytes, stalls: list[int | None]):
+    """Wire `fetch_gated_files` to a gate that selects one file and a host whose k-th
+    connection stalls after `stalls[k]` bytes (None = serves to the end)."""
+    import urllib.request
+
+    import sidechain.ingest.fetch as fetch_mod
+    from sidechain.ingest.provenance import RemoteFile
+
+    dest = tmp_path / "external" / "host-record"
+    dest.mkdir(parents=True)
+    selected = [RemoteFile(name="table.csv", size_bytes=len(payload), checksum=None,
+                           url="https://host.example/table.csv")]
+    monkeypatch.setattr(fetch_mod, "run_gate", lambda spec, root, **kw: (None, selected, dest))
+    ranges: list[str | None] = []
+
+    def urlopen(req, timeout=None):
+        rng = req.get_header("Range")
+        ranges.append(rng)
+        start = int(rng.removeprefix("bytes=").rstrip("-")) if rng else 0
+        stall = stalls[len(ranges) - 1] if len(ranges) <= len(stalls) else None
+        return _FakeResponse(payload, start, 206 if rng else 200, stall)
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    return dest, ranges
+
+
+def test_fetch_resumes_a_stalled_connection_from_the_bytes_it_delivered(monkeypatch, tmp_path):
+    from sidechain.priors.posttx_mirna import fetch_gated_files
+
+    payload = bytes(range(40))
+    dest, ranges = _fake_fetch(monkeypatch, tmp_path, payload, stalls=[7, 0, 12, None])
+    out = fetch_gated_files({"name": "x", "host": "https"}, tmp_path)
+    assert out == dest and (dest / "table.csv").read_bytes() == payload
+    assert not (dest / "table.csv.part").exists()
+    # each new connection asked for exactly what the stalled ones had not delivered
+    assert ranges == [None, "bytes=7-", "bytes=7-", "bytes=19-"]
+
+
+def test_fetch_gives_up_after_the_attempt_cap_and_keeps_the_part(monkeypatch, tmp_path):
+    import sidechain.priors.posttx_mirna as mod
+
+    monkeypatch.setattr(mod, "FETCH_ATTEMPTS", 3)
+    payload = bytes(range(40))
+    dest, ranges = _fake_fetch(monkeypatch, tmp_path, payload, stalls=[5, 0, 0])
+    with pytest.raises(RuntimeError, match="3 connections stalled or dropped"):
+        mod.fetch_gated_files({"name": "x", "host": "https"}, tmp_path)
+    assert len(ranges) == 3
+    assert (dest / "table.csv.part").read_bytes() == payload[:5]      # resumable, not deleted
+    assert not (dest / "table.csv").exists()
