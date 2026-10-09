@@ -42,7 +42,7 @@ left out of its rank plot (Saber, 2026-10-07). It is metadata, never part of a m
 Every row also carries the six cell-eval2 members (``members``: the scaled score the
 leaderboard ranks on and the raw value under it, in the leaderboard's own column order), and the
 file carries ``board``: the same entries as a leaderboard of Sidechain alone (Saber, 2026-10-08,
-T79) -- newest first, ``n`` the entry's place among ours by overall, every calibration run in,
+T79) -- by overall, ``n`` the entry's place among ours on it, every calibration run in,
 each member cell with two tints in [-1, 1] that say how deep its green (positive) or red (zero
 or negative) wash is. ``tint`` is the leaderboard page's own scale: green from 0 up to the
 ceiling 1 (a replicate of the experiment), red from 0 down to the member's floor -- 0 for mse,
@@ -127,8 +127,8 @@ MEMBERS = (
 OFFICIAL_CEILING = 1.0
 OFFICIAL_FLOORS = {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}
 BOARD_ABOUT = (
-    "The same entries as a leaderboard of Sidechain alone, newest first, n the entry's place among them by "
-    "overall, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green "
+    "The same entries as a leaderboard of Sidechain alone, by overall, n the entry's place among them on it, "
+    "every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green "
     "(positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the "
     "ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set "
     "by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its "
@@ -374,16 +374,17 @@ def board(rows: list[dict]) -> dict:
         ceiling = max([v for v in vals if v > 0], default=None) or max([v for v in every if v > 0], default=None)
         floor = min([v for v in vals if v < 0], default=None) or min([v for v in every if v < 0], default=None)
         scale[key] = {"ceiling": ceiling, "floor": floor}
-    place = {id(r): i for i, r in enumerate(sorted(rows, key=lambda r: -r["overall"]), 1)}
     out = []
-    for r in reversed(rows):                      # load_rows sorted them by submission time: newest first
+    # load_rows sorted the rows by submission time; the board is by overall, the newer first on a tie. The
+    # renderers start there (Saber, 2026-10-08) and sort by any column on a click.
+    for n, r in enumerate(sorted(reversed(rows), key=lambda r: -r["overall"]), 1):
         cells = []
         for key, _, _ in MEMBERS:
             m = r["members"][key]
             cells.append({"key": key, "scaled": m["scaled"], "raw": m["raw"],
                           "tint": _tint(m["scaled"], OFFICIAL_CEILING, OFFICIAL_FLOORS[key]),
                           "tint_own": _tint(m["scaled"], scale[key]["ceiling"], scale[key]["floor"])})
-        out.append({"n": place[id(r)], "name": r["name"], "board_name": r["board_name"], "date": r["date"],
+        out.append({"n": n, "name": r["name"], "board_name": r["board_name"], "date": r["date"],
                     "overall": r["overall"], "rank_when_scored": r["rank"], "teams": r["teams"],
                     "class": r["class"], "partition": r["partition"], "cells": cells})
     return {"_about": BOARD_ABOUT, "columns": [k for k, _, _ in MEMBERS],

@@ -426,9 +426,9 @@ def test_the_board_is_sorted_by_overall_and_tinted_per_column_by_the_non_calibra
     rows = standings.load_rows(subs, snaps)
     b = standings.board(rows)
     assert b["columns"] == ["pds", "mse", "jac", "nmae", "fid", "reach"]
-    # newest first; n is the place by overall
-    assert [r["name"] for r in b["rows"]] == ["SER-16aefhkrsw", "SER-14aefksw", "SER-1"]
-    assert [r["n"] for r in b["rows"]] == [2, 1, 3]
+    # by overall; n is the place on it
+    assert [r["name"] for r in b["rows"]] == ["SER-14aefksw", "SER-16aefhkrsw", "SER-1"]
+    assert [r["n"] for r in b["rows"]] == [1, 2, 3]
     assert b["scale"]["pds"] == {"ceiling": 0.6, "floor": None}      # the calibration run's 0.9 sets nothing
     assert b["scale"]["fid"] == {"ceiling": None, "floor": -0.04}
     assert b["fixed"] == {"ceiling": 1.0, "floors": {"pds": -1.0, "mse": 0.0, "jac": -1.0, "nmae": -6.0, "fid": -1.0, "reach": -1.0}}

@@ -12,16 +12,11 @@ below — the rest of this page is what the numbers are attached to.
 
 ## Every entry on one board
 
-The leaderboard's table with Sidechain's entries alone on it, newest first, calibration runs
+The leaderboard's table with Sidechain's entries alone on it, by overall score, calibration runs
 included. Each of the six members shows the scaled score the board ranks on over the raw value,
 coloured as the leaderboard colours them or, with the second chip, on a scale these entries set.
 
 {{< board >}}
-
-## Calibration runs
-
-Some models are sent purely as **calibration runs**: entries that test a new method and its
-performance on the official board.
 
 ## SER-17aefhkrsw — submitted 2026-10-08
 

@@ -879,7 +879,7 @@
     }
   ],
   "board": {
-    "_about": "The same entries as a leaderboard of Sidechain alone, newest first, n the entry's place among them by overall, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green (positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on the official leaderboard when it was scored (see _about).",
+    "_about": "The same entries as a leaderboard of Sidechain alone, by overall, n the entry's place among them on it, every calibration run in. Each member cell carries two tints in [-1, 1], the depth of its green (positive) or red (zero or negative) wash: tint on the leaderboard page's scale (green from 0 to the ceiling 1, red from 0 down to the member's floor in fixed.floors) and tint_own on a per-column scale set by Sidechain's own entries (the column's best non-calibration scaled score is the full green and its worst negative non-calibration score the full red; calibration runs never set it). A scaled 0 is the floor and reads full red on both; anything beyond a scale clamps. rank_when_scored is the entry's rank on the official leaderboard when it was scored (see _about).",
     "columns": [
       "pds",
       "mse",
@@ -982,116 +982,6 @@
         ]
       },
       {
-        "n": 4,
-        "name": "SER-16aefhkrsw",
-        "board_name": "Sidechain SER-16aefhkrsw",
-        "date": "2026-10-08",
-        "overall": 0.1423,
-        "rank_when_scored": 471,
-        "teams": 1403,
-        "class": "calibration",
-        "partition": "val",
-        "cells": [
-          {
-            "key": "pds",
-            "scaled": 0.6778,
-            "raw": 0.8058,
-            "tint": 0.678,
-            "tint_own": 1.0
-          },
-          {
-            "key": "mse",
-            "scaled": 0.1507,
-            "raw": 0.8447,
-            "tint": 0.151,
-            "tint_own": 1.0
-          },
-          {
-            "key": "jac",
-            "scaled": -0.0175,
-            "raw": 0.0241,
-            "tint": -0.018,
-            "tint_own": -1.0
-          },
-          {
-            "key": "nmae",
-            "scaled": 0.0949,
-            "raw": 0.9436,
-            "tint": 0.095,
-            "tint_own": 0.725
-          },
-          {
-            "key": "fid",
-            "scaled": -0.1703,
-            "raw": 0.4617,
-            "tint": -0.17,
-            "tint_own": -1.0
-          },
-          {
-            "key": "reach",
-            "scaled": 0.1185,
-            "raw": 0.184,
-            "tint": 0.118,
-            "tint_own": 1.0
-          }
-        ]
-      },
-      {
-        "n": 22,
-        "name": "SER-15aefkrsw",
-        "board_name": "Sidechain SER-15aefkrsw",
-        "date": "2026-10-07",
-        "overall": -0.0039,
-        "rank_when_scored": 917,
-        "teams": 1377,
-        "class": "calibration",
-        "partition": "val",
-        "cells": [
-          {
-            "key": "pds",
-            "scaled": 0.6784,
-            "raw": 0.8061,
-            "tint": 0.678,
-            "tint_own": 1.0
-          },
-          {
-            "key": "mse",
-            "scaled": 0.1507,
-            "raw": 0.8447,
-            "tint": 0.151,
-            "tint_own": 1.0
-          },
-          {
-            "key": "jac",
-            "scaled": 0.057,
-            "raw": 0.0521,
-            "tint": 0.057,
-            "tint_own": 1.0
-          },
-          {
-            "key": "nmae",
-            "scaled": 0.0948,
-            "raw": 0.9437,
-            "tint": 0.095,
-            "tint_own": 0.724
-          },
-          {
-            "key": "fid",
-            "scaled": -1.1381,
-            "raw": 0.173,
-            "tint": -1.0,
-            "tint_own": -1.0
-          },
-          {
-            "key": "reach",
-            "scaled": 0.134,
-            "raw": 0.198,
-            "tint": 0.134,
-            "tint_own": 1.0
-          }
-        ]
-      },
-      {
         "n": 2,
         "name": "SER-14aefksw",
         "board_name": "Sidechain SER-14aefksw",
@@ -1143,61 +1033,6 @@
             "raw": 0.1567,
             "tint": 0.088,
             "tint_own": 0.777
-          }
-        ]
-      },
-      {
-        "n": 6,
-        "name": "SER-13aefknw",
-        "board_name": "Sidechain SER-13aefknw",
-        "date": "2026-10-02",
-        "overall": 0.136,
-        "rank_when_scored": 443,
-        "teams": 1292,
-        "class": "",
-        "partition": "val",
-        "cells": [
-          {
-            "key": "pds",
-            "scaled": 0.6125,
-            "raw": 0.7764,
-            "tint": 0.613,
-            "tint_own": 0.904
-          },
-          {
-            "key": "mse",
-            "scaled": 0.0,
-            "raw": 6.1085,
-            "tint": -1.0,
-            "tint_own": -1.0
-          },
-          {
-            "key": "jac",
-            "scaled": 0.0017,
-            "raw": 0.0309,
-            "tint": 0.002,
-            "tint_own": 0.472
-          },
-          {
-            "key": "nmae",
-            "scaled": 0.0979,
-            "raw": 0.9404,
-            "tint": 0.098,
-            "tint_own": 0.748
-          },
-          {
-            "key": "fid",
-            "scaled": -0.0066,
-            "raw": 0.5108,
-            "tint": -0.007,
-            "tint_own": -0.152
-          },
-          {
-            "key": "reach",
-            "scaled": 0.1104,
-            "raw": 0.1765,
-            "tint": 0.11,
-            "tint_own": 0.975
           }
         ]
       },
@@ -1257,7 +1092,117 @@
         ]
       },
       {
+        "n": 4,
+        "name": "SER-16aefhkrsw",
+        "board_name": "Sidechain SER-16aefhkrsw",
+        "date": "2026-10-08",
+        "overall": 0.1423,
+        "rank_when_scored": 471,
+        "teams": 1403,
+        "class": "calibration",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.6778,
+            "raw": 0.8058,
+            "tint": 0.678,
+            "tint_own": 1.0
+          },
+          {
+            "key": "mse",
+            "scaled": 0.1507,
+            "raw": 0.8447,
+            "tint": 0.151,
+            "tint_own": 1.0
+          },
+          {
+            "key": "jac",
+            "scaled": -0.0175,
+            "raw": 0.0241,
+            "tint": -0.018,
+            "tint_own": -1.0
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0949,
+            "raw": 0.9436,
+            "tint": 0.095,
+            "tint_own": 0.725
+          },
+          {
+            "key": "fid",
+            "scaled": -0.1703,
+            "raw": 0.4617,
+            "tint": -0.17,
+            "tint_own": -1.0
+          },
+          {
+            "key": "reach",
+            "scaled": 0.1185,
+            "raw": 0.184,
+            "tint": 0.118,
+            "tint_own": 1.0
+          }
+        ]
+      },
+      {
         "n": 5,
+        "name": "SER-13aefknw",
+        "board_name": "Sidechain SER-13aefknw",
+        "date": "2026-10-02",
+        "overall": 0.136,
+        "rank_when_scored": 443,
+        "teams": 1292,
+        "class": "",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.6125,
+            "raw": 0.7764,
+            "tint": 0.613,
+            "tint_own": 0.904
+          },
+          {
+            "key": "mse",
+            "scaled": 0.0,
+            "raw": 6.1085,
+            "tint": -1.0,
+            "tint_own": -1.0
+          },
+          {
+            "key": "jac",
+            "scaled": 0.0017,
+            "raw": 0.0309,
+            "tint": 0.002,
+            "tint_own": 0.472
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0979,
+            "raw": 0.9404,
+            "tint": 0.098,
+            "tint_own": 0.748
+          },
+          {
+            "key": "fid",
+            "scaled": -0.0066,
+            "raw": 0.5108,
+            "tint": -0.007,
+            "tint_own": -0.152
+          },
+          {
+            "key": "reach",
+            "scaled": 0.1104,
+            "raw": 0.1765,
+            "tint": 0.11,
+            "tint_own": 0.975
+          }
+        ]
+      },
+      {
+        "n": 6,
         "name": "SER-11abefknw",
         "board_name": "Sidechain SER-11abefknw",
         "date": "2026-09-30",
@@ -1587,57 +1532,57 @@
         ]
       },
       {
-        "n": 23,
-        "name": "PHE-2",
-        "board_name": "Sidechain PHE-2",
-        "date": "2026-09-07",
-        "overall": -0.9807,
-        "rank_when_scored": 746,
-        "teams": null,
-        "class": "calibration",
+        "n": 12,
+        "name": "SER-4afn",
+        "board_name": "Sidechain SER-4afn",
+        "date": "2026-08-31",
+        "overall": 0.1078,
+        "rank_when_scored": 85,
+        "teams": 481,
+        "class": "",
         "partition": "val",
         "cells": [
           {
             "key": "pds",
-            "scaled": 0.0029,
-            "raw": 0.5013,
-            "tint": 0.003,
-            "tint_own": 0.004
+            "scaled": 0.4703,
+            "raw": 0.7134,
+            "tint": 0.47,
+            "tint_own": 0.694
           },
           {
             "key": "mse",
             "scaled": 0.0,
-            "raw": 1156.2684,
+            "raw": 6.6504,
             "tint": -1.0,
             "tint_own": -1.0
           },
           {
             "key": "jac",
-            "scaled": 0.0018,
-            "raw": 0.031,
-            "tint": 0.002,
-            "tint_own": 0.5
+            "scaled": 0.0003,
+            "raw": 0.0304,
+            "tint": 0.0,
+            "tint_own": 0.083
           },
           {
             "key": "nmae",
-            "scaled": -6.0,
-            "raw": 24.4566,
-            "tint": -1.0,
-            "tint_own": -1.0
+            "scaled": 0.1003,
+            "raw": 0.9389,
+            "tint": 0.1,
+            "tint_own": 0.766
           },
           {
             "key": "fid",
-            "scaled": -0.0388,
-            "raw": 0.5009,
-            "tint": -0.039,
-            "tint_own": -0.892
+            "scaled": -0.0136,
+            "raw": 0.5086,
+            "tint": -0.014,
+            "tint_own": -0.313
           },
           {
             "key": "reach",
-            "scaled": 0.1497,
-            "raw": 0.211,
-            "tint": 0.15,
-            "tint_own": 1.0
+            "scaled": 0.0893,
+            "raw": 0.1577,
+            "tint": 0.089,
+            "tint_own": 0.789
           }
         ]
       },
@@ -1697,61 +1642,6 @@
         ]
       },
       {
-        "n": 12,
-        "name": "SER-4afn",
-        "board_name": "Sidechain SER-4afn",
-        "date": "2026-08-31",
-        "overall": 0.1078,
-        "rank_when_scored": 85,
-        "teams": 481,
-        "class": "",
-        "partition": "val",
-        "cells": [
-          {
-            "key": "pds",
-            "scaled": 0.4703,
-            "raw": 0.7134,
-            "tint": 0.47,
-            "tint_own": 0.694
-          },
-          {
-            "key": "mse",
-            "scaled": 0.0,
-            "raw": 6.6504,
-            "tint": -1.0,
-            "tint_own": -1.0
-          },
-          {
-            "key": "jac",
-            "scaled": 0.0003,
-            "raw": 0.0304,
-            "tint": 0.0,
-            "tint_own": 0.083
-          },
-          {
-            "key": "nmae",
-            "scaled": 0.1003,
-            "raw": 0.9389,
-            "tint": 0.1,
-            "tint_own": 0.766
-          },
-          {
-            "key": "fid",
-            "scaled": -0.0136,
-            "raw": 0.5086,
-            "tint": -0.014,
-            "tint_own": -0.313
-          },
-          {
-            "key": "reach",
-            "scaled": 0.0893,
-            "raw": 0.1577,
-            "tint": 0.089,
-            "tint_own": 0.789
-          }
-        ]
-      },
-      {
         "n": 14,
         "name": "SER-3afn",
         "board_name": "Sidechain SER-3afn",
@@ -1807,61 +1697,6 @@
         ]
       },
       {
-        "n": 16,
-        "name": "SER-3afgn",
-        "board_name": "Sidechain SER-3afgn",
-        "date": "2026-08-30",
-        "overall": 0.0992,
-        "rank_when_scored": 101,
-        "teams": 476,
-        "class": "",
-        "partition": "val",
-        "cells": [
-          {
-            "key": "pds",
-            "scaled": 0.4561,
-            "raw": null,
-            "tint": 0.456,
-            "tint_own": 0.673
-          },
-          {
-            "key": "mse",
-            "scaled": 0.0,
-            "raw": null,
-            "tint": -1.0,
-            "tint_own": -1.0
-          },
-          {
-            "key": "jac",
-            "scaled": 0.0001,
-            "raw": null,
-            "tint": 0.0,
-            "tint_own": 0.028
-          },
-          {
-            "key": "nmae",
-            "scaled": 0.0632,
-            "raw": null,
-            "tint": 0.063,
-            "tint_own": 0.483
-          },
-          {
-            "key": "fid",
-            "scaled": -0.0151,
-            "raw": null,
-            "tint": -0.015,
-            "tint_own": -0.347
-          },
-          {
-            "key": "reach",
-            "scaled": 0.0912,
-            "raw": null,
-            "tint": 0.091,
-            "tint_own": 0.806
-          }
-        ]
-      },
-      {
         "n": 15,
         "name": "SER-3fn",
         "board_name": "Sidechain SER-3fn",
@@ -1913,6 +1748,61 @@
             "raw": 0.1496,
             "tint": 0.08,
             "tint_own": 0.708
+          }
+        ]
+      },
+      {
+        "n": 16,
+        "name": "SER-3afgn",
+        "board_name": "Sidechain SER-3afgn",
+        "date": "2026-08-30",
+        "overall": 0.0992,
+        "rank_when_scored": 101,
+        "teams": 476,
+        "class": "",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.4561,
+            "raw": null,
+            "tint": 0.456,
+            "tint_own": 0.673
+          },
+          {
+            "key": "mse",
+            "scaled": 0.0,
+            "raw": null,
+            "tint": -1.0,
+            "tint_own": -1.0
+          },
+          {
+            "key": "jac",
+            "scaled": 0.0001,
+            "raw": null,
+            "tint": 0.0,
+            "tint_own": 0.028
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0632,
+            "raw": null,
+            "tint": 0.063,
+            "tint_own": 0.483
+          },
+          {
+            "key": "fid",
+            "scaled": -0.0151,
+            "raw": null,
+            "tint": -0.015,
+            "tint_own": -0.347
+          },
+          {
+            "key": "reach",
+            "scaled": 0.0912,
+            "raw": null,
+            "tint": 0.091,
+            "tint_own": 0.806
           }
         ]
       },
@@ -2082,6 +1972,61 @@
         ]
       },
       {
+        "n": 20,
+        "name": "SER-1",
+        "board_name": "sidechain r1-delta-even v1",
+        "date": "2026-08-21",
+        "overall": 0.0788,
+        "rank_when_scored": 2,
+        "teams": 42,
+        "class": "",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.3657,
+            "raw": 0.6662,
+            "tint": 0.366,
+            "tint_own": 0.54
+          },
+          {
+            "key": "mse",
+            "scaled": 0.0,
+            "raw": 3.6079,
+            "tint": -1.0,
+            "tint_own": -1.0
+          },
+          {
+            "key": "jac",
+            "scaled": 0.0036,
+            "raw": 0.0316,
+            "tint": 0.004,
+            "tint_own": 1.0
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0573,
+            "raw": 0.9653,
+            "tint": 0.057,
+            "tint_own": 0.438
+          },
+          {
+            "key": "fid",
+            "scaled": -0.0211,
+            "raw": 0.5063,
+            "tint": -0.021,
+            "tint_own": -0.485
+          },
+          {
+            "key": "reach",
+            "scaled": 0.0673,
+            "raw": 0.1384,
+            "tint": 0.067,
+            "tint_own": 0.595
+          }
+        ]
+      },
+      {
         "n": 21,
         "name": "SER-1p",
         "board_name": "Sidechain SER-1p",
@@ -2137,57 +2082,112 @@
         ]
       },
       {
-        "n": 20,
-        "name": "SER-1",
-        "board_name": "sidechain r1-delta-even v1",
-        "date": "2026-08-21",
-        "overall": 0.0788,
-        "rank_when_scored": 2,
-        "teams": 42,
-        "class": "",
+        "n": 22,
+        "name": "SER-15aefkrsw",
+        "board_name": "Sidechain SER-15aefkrsw",
+        "date": "2026-10-07",
+        "overall": -0.0039,
+        "rank_when_scored": 917,
+        "teams": 1377,
+        "class": "calibration",
         "partition": "val",
         "cells": [
           {
             "key": "pds",
-            "scaled": 0.3657,
-            "raw": 0.6662,
-            "tint": 0.366,
-            "tint_own": 0.54
+            "scaled": 0.6784,
+            "raw": 0.8061,
+            "tint": 0.678,
+            "tint_own": 1.0
+          },
+          {
+            "key": "mse",
+            "scaled": 0.1507,
+            "raw": 0.8447,
+            "tint": 0.151,
+            "tint_own": 1.0
+          },
+          {
+            "key": "jac",
+            "scaled": 0.057,
+            "raw": 0.0521,
+            "tint": 0.057,
+            "tint_own": 1.0
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0948,
+            "raw": 0.9437,
+            "tint": 0.095,
+            "tint_own": 0.724
+          },
+          {
+            "key": "fid",
+            "scaled": -1.1381,
+            "raw": 0.173,
+            "tint": -1.0,
+            "tint_own": -1.0
+          },
+          {
+            "key": "reach",
+            "scaled": 0.134,
+            "raw": 0.198,
+            "tint": 0.134,
+            "tint_own": 1.0
+          }
+        ]
+      },
+      {
+        "n": 23,
+        "name": "PHE-2",
+        "board_name": "Sidechain PHE-2",
+        "date": "2026-09-07",
+        "overall": -0.9807,
+        "rank_when_scored": 746,
+        "teams": null,
+        "class": "calibration",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.0029,
+            "raw": 0.5013,
+            "tint": 0.003,
+            "tint_own": 0.004
           },
           {
             "key": "mse",
             "scaled": 0.0,
-            "raw": 3.6079,
+            "raw": 1156.2684,
             "tint": -1.0,
             "tint_own": -1.0
           },
           {
             "key": "jac",
-            "scaled": 0.0036,
-            "raw": 0.0316,
-            "tint": 0.004,
-            "tint_own": 1.0
+            "scaled": 0.0018,
+            "raw": 0.031,
+            "tint": 0.002,
+            "tint_own": 0.5
           },
           {
             "key": "nmae",
-            "scaled": 0.0573,
-            "raw": 0.9653,
-            "tint": 0.057,
-            "tint_own": 0.438
+            "scaled": -6.0,
+            "raw": 24.4566,
+            "tint": -1.0,
+            "tint_own": -1.0
           },
           {
             "key": "fid",
-            "scaled": -0.0211,
-            "raw": 0.5063,
-            "tint": -0.021,
-            "tint_own": -0.485
+            "scaled": -0.0388,
+            "raw": 0.5009,
+            "tint": -0.039,
+            "tint_own": -0.892
           },
           {
             "key": "reach",
-            "scaled": 0.0673,
-            "raw": 0.1384,
-            "tint": 0.067,
-            "tint_own": 0.595
+            "scaled": 0.1497,
+            "raw": 0.211,
+            "tint": 0.15,
+            "tint_own": 1.0
           }
         ]
       }
