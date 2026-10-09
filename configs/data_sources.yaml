@@ -106,6 +106,53 @@ sources:
     enabled: false
     notes: "The featurizer until 2026-09-16; superseded by esm2_3b_gene_table (T90). Still the geometry gate's default comparator (scripts/esm2_geometry_gate.py EMB, which reads the external/hf-arcinstitute-SE-600M/protein_embeddings.pt original). The derived path is a byte-identical copy (same sha256 as the HF LFS oid at commit 5a9a80f4) so it can live in lamin (ADR 0007 keeps external/ out); LINEAGE.json beside it. Covers 300/300 challenge targets and 842/842 of the neighbour pool (T103, 2026-09-29)."
 
+  # ------------ PHENOTYPE layer: what losing the gene does to the cell ------------
+  # A gene table read from fitness screens rather than from sequence, binding or regulation:
+  # two genes whose knockout hurts the same cell lines sit close. `layer: phenotype` is new
+  # with this block (priors/base.py `Layer`); none of cis / posttx / trans describes it.
+  - name: depmap_24q4_gene_effect
+    kind: node_feature
+    layer: phenotype
+    relation: gene_effect_profile
+    entity: gene
+    loader: GeneTableSource        # not written; see T19. The table is built by a script (T113)
+    provider: "DepMap Public 24Q4 (Broad Institute), Chronos gene effect"
+    url: "https://doi.org/10.25452/figshare.plus.27993248.v1"
+    key_type: hgnc_symbol          # DepMap heads a column `SYMBOL (Entrez)`; retired symbols via sidechain.data.gene_aliases
+    precompute: true
+    enabled: false                 # nothing in the shipping path consumes it; gated as a neighbour table only (T113)
+    notes: "One fitness-effect score per gene per screened cell line (Chronos: about 0 for a gene the line does not need, about -1 for a common-essential one). Used two ways (T113): each gene's profile across lines, centred, as a co-essentiality neighbour table read against STRING node2vec on scripts/esm2_geometry_gate.py; and the common-essential flag as a gene class for the T98 dispersion thread. HEK293T and H1 are not among DepMap's models, so the table is a property of genes across cancer lines, never a reading of a challenge line."
+    # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
+    # by sidechain.priors.posttx_mirna.fetch_gated_files, as the targetscan block
+    # is. Figshare lists the record (73 files, 30.8 GB) and publishes a computed
+    # md5 for every file selected here, so no checksum exception is asked for.
+    host: figshare
+    record: "27993248.v1"                    # `.v1` PINS it. A bare Figshare id follows "latest".
+    dest: external/figshare-27993248
+    derived: derived/depmap-24q4             # gene_effect_table.pt, common_essential.tsv + LINEAGE.json (ours)
+    budget_gb: 0.7                           # 0.45 GB selected; the gate refuses a selection over this
+    license: CC-BY-4.0
+    files:
+      # One row per screened model (`ACH-…`), one column per gene headed
+      # `SYMBOL (Entrez)`. 428.7 MB. The host delivers about 100 kB/s.
+      - name: CRISPRGeneEffect.csv
+      # Genes Chronos infers as common-essential from this release's own screens:
+      # the class flag. 20.8 kB.
+      - name: CRISPRInferredCommonEssentials.csv
+      # The curated positive controls (essential in every line by prior knowledge)
+      # and their negative counterpart, the non-essential controls. 17.0 + 11.5 kB.
+      - name: AchillesCommonEssentialControls.csv
+      - name: AchillesNonessentialControls.csv
+      # One row per model: name, lineage, disease. Names which lines the profile
+      # is taken across. 0.65 MB.
+      - name: Model.csv
+      # HGNC's gene table as the release ships it (symbol, previous and alias
+      # symbols, Entrez id, Ensembl id): the check on the symbol bridge, and the
+      # previous-symbol bridge of the flag onto the 2026 axis. 16.6 MB.
+      - name: Gene.csv
+      # The release's description of every file. 43 kB.
+      - name: README.txt
+
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
   - name: mirbind2

@@ -10,7 +10,7 @@ from typing import Literal
 
 import numpy as np
 
-Layer = Literal["trans", "cis", "posttx", "epigenomic"]
+Layer = Literal["trans", "cis", "posttx", "epigenomic", "phenotype"]
 Kind = Literal["node_feature", "edge"]
 
 
