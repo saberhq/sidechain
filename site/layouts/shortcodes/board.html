@@ -1,11 +1,11 @@
 {{- /* The `board` shortcode — the leaderboard page's table, listing Sidechain alone (Saber,
        2026-10-08, T79): every scored entry by overall score, calibration runs marked with an
        asterisk; `#` the entry's place among ours; the six members as the scaled score the board
-       ranks on over the raw value, each cell washed green or red. Two scales, both computed by
-       scripts/standings.py and carried on the cell (`--pf`, `--po`): the leaderboard page's own
-       (default: green 0..1, red 0..the member's floor) and ours (per column, set by these
-       entries), switched by the two chips above the table; the sign of a cell is the same on
-       both, only the depth differs. A column head sorts the rows by that column and a second
+       ranks on over the raw value, each cell washed green or red on the leaderboard page's own
+       scale (green 0..1, red 0..the member's floor), the tint computed by scripts/standings.py and
+       carried on the cell (`--pf`). The script also computes a per-column scale set by our own
+       entries (`tint_own`); the board's S0 offers it behind a chip, this page does not (Saber,
+       2026-10-08: a second scale would confuse a visitor). A column head sorts the rows by that column and a second
        click turns it round (the small script below; the build order, by overall, is what a
        reader without scripts gets). Rendered at build time from data/submissions.json's `board`;
        the rules live in the script, never here. Never hand-edited. A model's name links to its
@@ -14,10 +14,6 @@
        the landing page links to. */ -}}
 {{ $b := site.Data.submissions.board }}
 {{ if and $b $b.rows }}
-<div class="sc-board-scale" role="group" aria-label="colour scale">
-  <button type="button" class="sc-board-chip" data-scale="fixed" aria-pressed="true">leaderboard's scale</button>
-  <button type="button" class="sc-board-chip" data-scale="own" aria-pressed="false">scaled to our entries</button>
-</div>
 <div class="sc-table-wrap sc-board-wrap" tabindex="0">
 <table class="sc-board">
 <thead><tr><th class="r on" data-sort="n" data-dir="1" title="the entry's place among Sidechain's entries by overall">#</th><th data-sort="name">model</th><th class="r" data-sort="overall">overall</th>{{ range $b.columns }}<th class="r" data-sort="{{ . }}">{{ . }}</th>{{ end }}</tr></thead>
@@ -30,20 +26,17 @@
 <td class="sc-board-name" data-v="{{ .name }}"><a href="#{{ $id }}">{{ .name }}</a>{{ if $calib }}<span class="sc-board-star" title="calibration run">*</span>{{ end }}{{ if ne .partition "val" }} <span class="sc-board-tag">{{ .partition }}</span>{{ end }}</td>
 <td class="r sc-board-overall" data-v="{{ .overall }}">{{ replace (printf "%.4f" .overall) "-" "−" }}</td>
 {{- range .cells }}
-{{- $t := .tint }}{{ $o := .tint_own }}
-<td class="r sc-board-cell{{ if $t }}{{ if gt $t 0.0 }} up{{ else }} dn{{ end }}{{ end }}"{{ if $t }} style="--pf: {{ printf "%.0f" (mul (math.Abs $t) 100) }}%; --po: {{ printf "%.0f" (mul (math.Abs (default 0.0 $o)) 100) }}%"{{ end }} data-v="{{ if eq (printf "%v" .scaled) "<nil>" }}{{ else }}{{ .scaled }}{{ end }}"><b>{{ if eq (printf "%v" .scaled) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .scaled) "-" "−" }}{{ end }}</b><small>{{ if eq (printf "%v" .raw) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .raw) "-" "−" }}{{ end }}</small></td>
+{{- $t := .tint }}
+<td class="r sc-board-cell{{ if $t }}{{ if gt $t 0.0 }} up{{ else }} dn{{ end }}{{ end }}"{{ if $t }} style="--pf: {{ printf "%.0f" (mul (math.Abs $t) 100) }}%"{{ end }} data-v="{{ if eq (printf "%v" .scaled) "<nil>" }}{{ else }}{{ .scaled }}{{ end }}"><b>{{ if eq (printf "%v" .scaled) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .scaled) "-" "−" }}{{ end }}</b><small>{{ if eq (printf "%v" .raw) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .raw) "-" "−" }}{{ end }}</small></td>
 {{- end }}
 </tr>
 {{ end }}
 </tbody>
 </table>
 </div>
-<p class="sc-board-legend" id="calibration-runs">* a <b>calibration run</b>: an entry sent purely to test a new method and its performance on the official board. # is the entry's place among Sidechain's entries by overall score; a column head sorts by that column. In each cell the scaled score the board ranks on sits over the raw value. On the leaderboard's scale green runs from 0 to 1 and red from 0 down to the member's floor where the scorer has one (0 for mse, −6 for nmae), deepening at green's rate for the four it leaves unclamped; scaled to our entries, each column's best score here is the full green and its worst score below zero the full red.</p>
+<p class="sc-board-legend" id="calibration-runs">* a <b>calibration run</b>: an entry sent purely to test a new method and its performance on the official board. # is the entry's place among Sidechain's entries by overall score; a column head sorts by that column. In each cell the scaled score the board ranks on sits over the raw value, coloured as the leaderboard colours it: green runs from 0 to 1 and red from 0 down to the member's floor where the scorer has one (0 for mse, −6 for nmae), deepening at green's rate for the four it leaves unclamped.</p>
 <script>
-(function(){var g=document.querySelector('.sc-board-scale');if(!g)return;var t=g.nextElementSibling.querySelector('table.sc-board');
-g.addEventListener('click',function(e){var b=e.target.closest('[data-scale]');if(!b)return;
-t.classList.toggle('sc-board--own',b.dataset.scale==='own');
-g.querySelectorAll('[data-scale]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))})});
+(function(){var t=document.querySelector('table.sc-board');if(!t)return;
 var heads=t.querySelectorAll('th[data-sort]'),body=t.tBodies[0];
 heads.forEach(function(h,i){h.addEventListener('click',function(){
 var dir=h.dataset.dir?-(+h.dataset.dir):(h.dataset.sort==='n'||h.dataset.sort==='name'?1:-1);

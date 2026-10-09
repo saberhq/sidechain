@@ -297,14 +297,10 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-table-wrap { overflow-x: auto; margin-top: var(--space-5); }
 /* The models page's table: the leaderboard page's table for Sidechain alone (T79, 2026-10-08), nine columns kept
    to the prose column's width (Saber's note: no date, no rank, calibration as an asterisk). A member cell is the
-   scaled score over the raw value; its wash is --up or --down at --pf (the leaderboard's scale, default) or --po
-   (ours) of full strength, which the `board` shortcode sets per cell from the tints scripts/standings.py computed.
+   scaled score over the raw value; its wash is --wash-up or --wash-dn at --pf (the leaderboard's scale) of full
+   strength, which the `board` shortcode sets per cell from the tint scripts/standings.py computed.
    The overall column is plain and bold, as on the leaderboard page. Without color-mix the wash is one flat tint. */
-.sq-prose .sc-board-scale { display: flex; gap: 6px; margin: 0 0 8px; }
-.sc-board-chip, .sc-board-tag { display: inline-block; padding: 1px 8px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); text-transform: uppercase; color: var(--ink-3); background: none; border: 1px solid var(--rule); border-radius: 999px; line-height: 1.6; }
-.sc-board-chip { cursor: pointer; }
-.sc-board-chip:hover { color: var(--accent); border-color: var(--accent); }
-.sc-board-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink-3); }
+.sc-board-tag { display: inline-block; padding: 1px 8px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); text-transform: uppercase; color: var(--ink-3); background: none; border: 1px solid var(--rule); border-radius: 999px; line-height: 1.6; }
 .sq-prose .sc-board { width: 100%; border-collapse: collapse; margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .sq-prose .sc-board th { font-size: 10px; letter-spacing: var(--meta-track); text-transform: uppercase; color: var(--ink-3); font-weight: 500; padding: 3px 5px; border-bottom: var(--rule-w) solid var(--rule-strong); white-space: nowrap; cursor: pointer; user-select: none; }
 .sq-prose .sc-board th:hover { color: var(--accent); }
@@ -321,11 +317,9 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sq-prose .sc-board td.sc-board-cell { padding: 2px 5px; line-height: 1.15; min-width: 50px; }
 .sq-prose .sc-board td.sc-board-cell b { display: block; font-weight: 500; color: var(--ink); }
 .sq-prose .sc-board td.sc-board-cell small { display: block; font-size: 9.5px; color: var(--ink-3); }
-/* --pf is the leaderboard's scale, --po ours; the table's class says which one paints */
+/* --pf is the cell's tint on the leaderboard's scale, the one scale this page shows (Saber, 2026-10-08) */
 .sq-prose .sc-board td.sc-board-cell.up { background: color-mix(in srgb, var(--wash-up) calc(var(--pf) * var(--wash-k)), transparent); }
 .sq-prose .sc-board td.sc-board-cell.dn { background: color-mix(in srgb, var(--wash-dn) calc(var(--pf) * var(--wash-k)), transparent); }
-.sq-prose .sc-board.sc-board--own td.sc-board-cell.up { background: color-mix(in srgb, var(--wash-up) calc(var(--po) * var(--wash-k)), transparent); }
-.sq-prose .sc-board.sc-board--own td.sc-board-cell.dn { background: color-mix(in srgb, var(--wash-dn) calc(var(--po) * var(--wash-k)), transparent); }
 @supports not (background: color-mix(in srgb, red 50%, transparent)) {
   .sq-prose .sc-board td.sc-board-cell.up { background: rgba(0, 115, 79, 0.18); }
   .sq-prose .sc-board td.sc-board-cell.dn { background: rgba(180, 35, 24, 0.14); }

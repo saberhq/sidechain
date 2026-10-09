@@ -14,7 +14,7 @@ below — the rest of this page is what the numbers are attached to.
 
 The leaderboard's table with Sidechain's entries alone on it, by overall score, calibration runs
 included. Each of the six members shows the scaled score the board ranks on over the raw value,
-coloured as the leaderboard colours them or, with the second chip, on a scale these entries set.
+coloured as the leaderboard colours them.
 
 {{< board >}}
 

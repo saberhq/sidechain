@@ -116,8 +116,8 @@ scored. `--check` on either generator reports drift without writing.
 **The models page's table is generated too.** `{{</* board */>}}` (`layouts/shortcodes/board.html`)
 draws the leaderboard page's table for Sidechain alone from `data/submissions.json`'s `board`: every
 entry by overall, a calibration run marked with an asterisk, each member scaled over raw and washed
-green or red at the tints the script computed — the leaderboard's own scale by default, ours (per
-column, set by our entries) behind a chip; a column head sorts the rows. The legend under it says what a
+green or red at the tint the script computed on the leaderboard's own scale (the per-column scale the
+script also computes is the board's S0's, not this page's); a column head sorts the rows. The legend under it says what a
 calibration run is and carries the `calibration-runs` id the landing page links to. The rules are in
 `scripts/standings.py`; the template only paints. `layouts/_markup/render-heading.html` adds "↑ back to top" beside each model heading on that
 page and leaves every other heading alone.
