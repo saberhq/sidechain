@@ -49,7 +49,9 @@ THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
 # every module a pooled delta's arithmetic passes through: the pool and the garrote, the
 # adaptive fit, the per-source log2FC and the axis remap, and the reader of the source files
 CODE_MODULES = ("sidechain.submit.build", "sidechain.models.adaptive_shrink",
-                "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk")
+                "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk",
+                # T98: the variance behind the pooling weight, and the dispersion math its fits carry
+                "sidechain.submit.variance_model", "sidechain.data.dispersion")
 
 
 def file_sha256(path: str | Path) -> str:

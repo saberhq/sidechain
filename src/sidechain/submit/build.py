@@ -76,6 +76,14 @@ from sidechain.models.count_emitters import (
     log2fc_from_cpm,
     remap_to_axis,
 )
+from sidechain.submit.variance_model import (
+    RULE_VARIANCES,
+    VarianceModel,
+    add_variance_args,
+    apply_dispersion_fits,
+    check_variance_args,
+    parse_dispersion_fits,
+)
 from sidechain.submit.writer import Contract, SubmissionWriter, pack_vcc, verify_h5ad
 from sidechain.utils.naming import CLAIMS_RE, STEM_RE, check_out_leaf
 from sidechain.utils.paths import resolve_config
@@ -126,8 +134,17 @@ def gamma_transfer(fc: np.ndarray, ctrl_src_cpm: np.ndarray, ctrl_tgt_cpm: np.nd
 
 
 def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: float = 1.0,
-                     var_floor: str = "none", log_bias_correct: bool = False):
+                     var_floor: str = "none", log_bias_correct: bool = False,
+                     variance=None, return_shipped: bool = False, stats: dict | None = None):
     """Per-gene log2FC of mean CPM and its delta-method variance, for one source.
+
+    `variance` (T98; `sidechain.submit.variance_model.SourceVariance`) swaps the two per-cell
+    variances `vi`, `vc` for a model's -- the glmGamPoi-style dispersion curve, the gene's own
+    dispersion, a per-stratum multiplier -- and keeps everything around them: the Poisson floor
+    as a `max` for the dispersion models (their Poisson term IS the floor, so the max only guards
+    the quasi-likelihood form where `theta_sql < 1` would dip under it), the `+ pseudocount`, the
+    `/ ln2^2` and the `n < 2` abstention. It needs `var_floor="poisson"`. `return_shipped=True`
+    also returns the shipped variance, for `--rule-variance shipped`. None is bit-identical.
 
     Computed ROW-WISE, not by slicing `pb.mean_cpm()` / `pb.var_cpm()`. Those build the whole
     (labels x genes) matrix and this function needs exactly two of its rows -- which was
@@ -172,11 +189,32 @@ def _log2fc_with_var(pb: PseudobulkSums, label: str, control: str, pseudocount: 
     fc = log2fc_from_cpm(mi, mc, pseudocount)
     if log_bias_correct:
         # + the perturbed arm's downward bias, - the control's: what is left of E[log2 m_hat].
+        # Reads the SHIPPED per-cell variances whatever `variance` says: the correction is a
+        # property of the observed moments, and it is off in every recipe this knob is read on.
         fc = fc + ((vi / ni) / (mi + pseudocount) ** 2
                    - (vc / nc) / (mc + pseudocount) ** 2) / (2.0 * LN2)
     var = (vi / ni) / (mi + pseudocount) ** 2 + (vc / nc) / (mc + pseudocount) ** 2
+    var_shipped = var
+    if variance is not None:
+        if var_floor != "poisson":
+            raise ValueError("a variance model needs var_floor='poisson': its Poisson term is that "
+                             "floor, and under 'none' the two paths would not measure the same thing")
+        si = 1e6 / (pb.libsize_sum[i] / ni)
+        sc = 1e6 / (pb.libsize_sum[c] / nc)
+        vi_m = variance.cell_variance(mi, si, vi, pseudocount, perturbed=True)
+        vc_m = variance.cell_variance(mc, sc, vc, pseudocount, perturbed=False)
+        if variance.floor_max:
+            fi, fcc = (mi + pseudocount) * si, (mc + pseudocount) * sc
+            if stats is not None:
+                stats["variance_floor_bound_gene_arms"] = (
+                    stats.get("variance_floor_bound_gene_arms", 0) + int(((vi_m < fi) | (vc_m < fcc)).sum()))
+            vi_m, vc_m = np.maximum(vi_m, fi), np.maximum(vc_m, fcc)
+        var = (vi_m / ni) / (mi + pseudocount) ** 2 + (vc_m / nc) / (mc + pseudocount) ** 2
     if var_floor == "poisson" and (ni < 2 or nc < 2):
         var = np.full_like(var, np.inf)
+        var_shipped = var
+    if return_shipped:
+        return fc, var / LN2_SQ, var_shipped / LN2_SQ
     return fc, var / LN2_SQ
 
 
@@ -354,10 +392,11 @@ class _PseudobulkDeltaSource:
     delete.
     """
 
-    __slots__ = ("control", "log_bias_correct", "pb", "shrink", "var_floor")
+    __slots__ = ("control", "log_bias_correct", "pb", "shrink", "var_floor", "variance_model")
 
     def __init__(self, pb: PseudobulkSums, control: str, shrink: bool | None = None,
-                 var_floor: str = "none", log_bias_correct: bool = False):
+                 var_floor: str = "none", log_bias_correct: bool = False,
+                 variance_model: VarianceModel | None = None):
         # Refused, not coerced: the third tuple slot sits beside var_floor in
         # this signature, and a stray string there ('poisson') would otherwise
         # silently force shrinkage ON -- crash-to-wrong is the bad direction.
@@ -366,6 +405,15 @@ class _PseudobulkDeltaSource:
                             "-- var_floor is keyword-only in the tuple form")
         self.pb, self.control, self.var_floor = pb, control, var_floor
         self.shrink, self.log_bias_correct = shrink, log_bias_correct
+        # T98: None or `shipped` is the historical path. The per-source variance function is
+        # built once per source and model and cached on the artifact (`VarianceModel.for_source`).
+        self.variance_model = (None if variance_model is None or variance_model.is_shipped
+                               else variance_model)
+
+    def _variance(self):
+        if self.variance_model is None:
+            return None
+        return self.variance_model.for_source(self.pb, self.control)
 
     @property
     def genes(self) -> np.ndarray:
@@ -386,11 +434,20 @@ class _PseudobulkDeltaSource:
         c = self.pb.labels.index(self.control)
         return self.pb.cpm_sum[c] / max(int(self.pb.n_cells[c]), 1)
 
-    def effect(self, target: str):
+    def effect(self, target: str, stats: dict | None = None):
         if target not in self.pb.labels:
             return None
         return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor,
-                                log_bias_correct=self.log_bias_correct)
+                                log_bias_correct=self.log_bias_correct,
+                                variance=self._variance(), stats=stats)
+
+    def effect_pair(self, target: str, stats: dict | None = None):
+        """`(fc, var, var_shipped)`: the model's variance and the shipped one, for `--rule-variance`."""
+        if target not in self.pb.labels:
+            return None
+        return _log2fc_with_var(self.pb, target, self.control, var_floor=self.var_floor,
+                                log_bias_correct=self.log_bias_correct,
+                                variance=self._variance(), return_shipped=True, stats=stats)
 
     def n_eff(self, target: str) -> np.ndarray | None:
         """Cells' worth of evidence behind each gene of this contrast, on this source's axis.
@@ -408,7 +465,8 @@ class _PseudobulkDeltaSource:
         return np.minimum(self.pb.n_eff(i), self.pb.n_eff(c))
 
 
-def as_delta_source(src, var_floor: str = "none", log_bias_correct: bool = False):
+def as_delta_source(src, var_floor: str = "none", log_bias_correct: bool = False,
+                    variance_model: VarianceModel | None = None):
     """Normalise a source into something with `.genes` and `.effect(target)`.
 
     Accepts the historical `(PseudobulkSums, control_label)` tuple so every
@@ -423,7 +481,8 @@ def as_delta_source(src, var_floor: str = "none", log_bias_correct: bool = False
     """
     if isinstance(src, tuple):
         return _PseudobulkDeltaSource(*src, var_floor=var_floor,
-                                      log_bias_correct=log_bias_correct)
+                                      log_bias_correct=log_bias_correct,
+                                      variance_model=variance_model)
     if hasattr(src, "effect") and hasattr(src, "genes"):
         return src
     raise TypeError(
@@ -447,10 +506,12 @@ def sources_from_specs(source_specs: list[str], shrink_source_specs: list[str]) 
     for spec, shrunk in [(s, False) for s in source_specs] + [(s, True) for s in shrink_source_specs]:
         path, _, ctrl = spec.rpartition(":")
         pb = PseudobulkSums.load(path)
-        # The stem is how `--transfer-floor NAME=TAU2` finds this source. Recorded here, at
-        # the one place a source is built from a path, so the two flags cannot disagree about
-        # what a source is called.
+        # The stem is how `--transfer-floor NAME=TAU2` and `--dispersion-fit NAME=PATH` find this
+        # source. Recorded here, at the one place a source is built from a path, so the flags
+        # cannot disagree about what a source is called; the path lets a fit be checked against
+        # the file it was made from.
         pb.sidechain_name = Path(path).expanduser().stem
+        pb.sidechain_path = Path(path).expanduser()
         sources.append((pb, ctrl or "control", True) if shrunk else (pb, ctrl or "control"))
     return sources
 
@@ -503,8 +564,18 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  similarity_beta: float = 0.0, log_bias_correct: bool = False,
                  stats: dict | None = None, shrink_k: float = 1.0,
                  shrink_stage: str = "source",
-                 shrink_rule: str = "garrote") -> np.ndarray | None:
+                 shrink_rule: str = "garrote",
+                 variance_model: VarianceModel | None = None,
+                 rule_variance: str = "model") -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
+
+    `variance_model` (T98; `sidechain.submit.variance_model`) swaps the per-cell variance behind
+    each pseudobulk source's weight for a model of it -- the dispersion curve, the gene's own
+    dispersion, a per-stratum multiplier, or a shuffled control of any of them -- and
+    `rule_variance` says which variance a shrinkage rule then reads: the swapped one (`model`)
+    or the shipped one (`shipped`), with a second `1 / sum(w)` accumulated from the shipped
+    variances for the pooled stage. A source with no cells (an `LfcTable`) keeps its own
+    variance and is counted. None and `shipped` are bit-identical to every historical call.
 
     A source may be a `(PseudobulkSums, control_label)` tuple -- counts we
     accumulated, variance from the per-cell CPM spread -- or an `LfcTable`,
@@ -601,15 +672,42 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
         raise ValueError("shrink_stage='pooled' divides by the pooled sampling variance "
                          "1/sum(w); gamma != 1, coverage tiers and a similarity weight each "
                          "make sum(w) something else -- run the stage without them")
+    if rule_variance not in RULE_VARIANCES:
+        raise ValueError(f"unknown rule_variance {rule_variance!r}: expected one of {RULE_VARIANCES}")
+    vm = None if variance_model is None or variance_model.is_shipped else variance_model
+    if vm is None and rule_variance != "model":
+        raise ValueError("rule_variance='shipped' without a variance model: there is no swapped "
+                         "variance for the rule to leave")
+    if vm is not None and var_floor != "poisson":
+        raise ValueError(f"variance_model {vm.spec()!r} needs var_floor='poisson' (see variance_model)")
+    # a second denominator from the shipped variances, for a rule held on them while the weights move
+    split_rule = vm is not None and rule_variance == "shipped"
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
+    den_rule = np.zeros(len(axis)) if split_rule else None
     for src in (as_delta_source(s, var_floor=var_floor,
-                                log_bias_correct=log_bias_correct) for s in sources):
-        got = src.effect(target)
-        if got is None:
-            continue
+                                log_bias_correct=log_bias_correct, variance_model=vm) for s in sources):
+        if vm is not None and hasattr(src, "effect_pair"):
+            got = src.effect_pair(target, stats=stats)
+            if got is None:
+                continue
+            fc, var, var_shipped = got
+            if stats is not None and src._variance() is None:
+                # a pseudobulk source the model does not reach (a multiplier naming other sources)
+                stats["variance_model_sources_unmodelled"] = (
+                    stats.get("variance_model_sources_unmodelled", 0) + 1)
+        else:
+            got = src.effect(target)
+            if got is None:
+                continue
+            fc, var = got
+            var_shipped = var
+            if vm is not None and stats is not None:
+                # an LfcTable has no cells to model: its p-value variance stands, and is counted
+                stats["variance_model_sources_unmodelled"] = (
+                    stats.get("variance_model_sources_unmodelled", 0) + 1)
         any_src = True
-        fc, var = got
+        var_rule = var_shipped if rule_variance == "shipped" else var
         want = getattr(src, "shrink", None)
         if shrink_stage == "pooled" and want is not None:
             # whatever the global flag says: an override here would run the rule per source
@@ -624,7 +722,7 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
             if want is None:
                 want = shrinkage
             if want:
-                fc = shrink(fc, var, shrink_k)
+                fc = shrink(fc, var_rule, shrink_k)
         if gamma != 1.0:
             get_ctrl = getattr(src, "control_cpm", None)
             if get_ctrl is None:
@@ -711,6 +809,13 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                 stats["source_arms_abstained"] = stats.get("source_arms_abstained", 0) + 1
         num += remap_to_axis(fc * w, src.genes, axis, fill=0.0)
         den += remap_to_axis(w, src.genes, axis, fill=0.0)
+        if den_rule is not None:
+            # the shipped variances' own 1/sum(w), with the same abstention pattern: a model
+            # variance is finite exactly where the shipped one is
+            with np.errstate(divide="ignore"):
+                w_rule = 1.0 / np.maximum(var_rule, clamp)
+            w_rule = np.where(np.isfinite(var_rule), w_rule, 0.0)
+            den_rule += remap_to_axis(w_rule, src.genes, axis, fill=0.0)
     if not any_src:
         return None
     out = np.zeros(len(axis))
@@ -720,10 +825,22 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
     out[nz] = num[nz] / den[nz]
     if after:
         # one rule on the pooled vector, with the variance of an inverse-variance mean
-        pooled_var = 1.0 / den[nz]
+        if den_rule is not None:
+            with np.errstate(divide="ignore"):
+                pooled_var = np.where(den_rule[nz] > 0, 1.0 / np.maximum(den_rule[nz], 1e-300), np.inf)
+        else:
+            pooled_var = 1.0 / den[nz]
         out[nz] = (adaptive_shrink(out[nz], pooled_var, stats=stats) if shrink_rule == "adaptive"
                    else shrink(out[nz], pooled_var, shrink_k))
     return out
+
+
+def variance_kwargs(args) -> dict:
+    """The parsed variance flags as `pooled_delta`'s keyword arguments (T98)."""
+    vm = getattr(args, "_variance_model", None)
+    if vm is None:
+        vm = VarianceModel.parse(getattr(args, "variance_model", "shipped"))
+    return {"variance_model": vm, "rule_variance": getattr(args, "rule_variance", "model")}
 
 
 def add_shrink_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
@@ -1025,7 +1142,7 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
     def delta_of(label):
         if label in done:
             return shifts[label]
-        return pooled_delta(label, sources, axis, **shrink_kwargs(args),
+        return pooled_delta(label, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
                             log_bias_correct=args.log_bias_correct, var_floor=args.var_floor,
                             coverage_tiers=cov_tiers, stats=fit_stats)
 
@@ -1258,6 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
                          "held-out line supports. Fitted, never tuned. Same knob in "
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     add_neighbour_args(ap, twin="sidechain.eval.loco")
+    add_variance_args(ap, twin="sidechain.eval.loco")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -1279,10 +1397,15 @@ def main(argv: list[str] | None = None) -> int:
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     check_neighbour_args(ap, args)
     check_shrink_args(ap, args)
+    args._variance_model = check_variance_args(ap, args)     # T98; parsed once, read by variance_kwargs
+    variance_moved = not args._variance_model.is_shipped
     if ((args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")
             and args.emitter != "delta-transfer"):
         ap.error("--shrink-k, --shrink-stage and --shrink-rule act on pooled per-target deltas, "
                  "so they only apply to delta-transfer")
+    if variance_moved and args.emitter != "delta-transfer":
+        ap.error("--variance-model acts on the pooling weights of per-target deltas, so it only "
+                 "applies to delta-transfer")
     if args.neighbour_w and args.emitter != "delta-transfer":
         ap.error("--neighbour-w fuses pooled per-target deltas, so it only applies to "
                  "delta-transfer")
@@ -1373,6 +1496,13 @@ def main(argv: list[str] | None = None) -> int:
         if "h" in letters and not head_moved:
             ap.error(f"'{stem}' carries the letter h, which says a per-gene table makes a chosen "
                      "set of genes callable, but --scatter-table is not given")
+    if CLAIMS_RE.match(stem) and variance_moved:
+        # T98: the variance behind the pooling weight has no registered letter yet (ADR 0005): an
+        # arm is scored on the mirror under a freeform label, and the letter is minted only when
+        # one first reaches the board.
+        ap.error(f"'{stem}' is named like a model, and --variance-model / --rule-variance have no "
+                 "registered knob letter yet (ADR 0005): register the letter first, or build under "
+                 "a freeform stem")
     if (CLAIMS_RE.match(stem)
             and (args.neighbour_select != "table" or args.neighbour_picks is not None)):
         # The neighbour arm's letter `k` says "the table's k nearest" (ADR 0005); a moved
@@ -1432,6 +1562,7 @@ def main(argv: list[str] | None = None) -> int:
         # pool are the only ones `--transfer-floor` cannot address -- and H1 is the arm whose
         # variance the calibration measurement found most wrong.
         h1.sidechain_name = Path(args.h1_cache).expanduser().stem
+        h1.sidechain_path = Path(args.h1_cache).expanduser()
         generic = h1_mean_shift(h1, cfg["control_label"], axis)
         shifts = {p: generic.copy() for p in perts}
     sources = None
@@ -1444,6 +1575,7 @@ def main(argv: list[str] | None = None) -> int:
         # K562-gwps once with no --keep, then narrow it per panel (scripts/subset_pseudobulk_labels.py).
         gwps = PseudobulkSums.load(args.gwps_cache)
         gwps.sidechain_name = Path(args.gwps_cache).expanduser().stem
+        gwps.sidechain_path = Path(args.gwps_cache).expanduser()
         sources = [(gwps, args.gwps_control), (h1, cfg["control_label"])]
         sources += sources_from_specs(args.source, args.shrink_source)
         # Appended, not special-cased: `pooled_delta` normalises both forms, so a
@@ -1454,10 +1586,17 @@ def main(argv: list[str] | None = None) -> int:
             tab.sidechain_name = Path(path).expanduser().stem
             sources.append(tab)
         sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
+        # T98: the per-source dispersion fits, checked against each source's axis and sha256
+        sources = apply_dispersion_fits(sources, parse_dispersion_fits(args.dispersion_fit))
+        args._variance_model.check_sources(sources)
+        if variance_moved:
+            out.with_suffix(".variance.json").write_text(json.dumps(
+                {**args._variance_model.record(sources), "rule_variance": args.rule_variance},
+                indent=1) + "\n")
         if args.gamma == 1.0:
             covered = []
             for p in perts:
-                d = pooled_delta(p, sources, axis, **shrink_kwargs(args),
+                d = pooled_delta(p, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  stats=pool_stats)
@@ -1469,6 +1608,14 @@ def main(argv: list[str] | None = None) -> int:
             if args.neighbour_w:
                 fuse_neighbours(args, shifts, covered, sources, axis, cov_tiers,
                                 out.with_suffix(".neighbour.json"), fit_stats=pool_fit_stats)
+            if variance_moved:
+                # the counts the model left behind, targets and neighbour pool apart (T98)
+                rec_path = out.with_suffix(".variance.json")
+                rec = json.loads(rec_path.read_text())
+                rec["target_counts"] = {k: v for k, v in pool_stats.items() if k.startswith("variance_")}
+                rec["neighbour_pool_counts"] = {k: v for k, v in (pool_fit_stats or {}).items()
+                                                if k.startswith("variance_")}
+                rec_path.write_text(json.dumps(rec, indent=1) + "\n")
     gene_pos = {g: i for i, g in enumerate(genes)}
 
     def finalize(shift_map):
@@ -1519,7 +1666,7 @@ def main(argv: list[str] | None = None) -> int:
             fb = 0
             ctrl_cpm = prof.fraction * 1e6
             for p in perts:
-                d = pooled_delta(p, sources, axis, **shrink_kwargs(args),
+                d = pooled_delta(p, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,

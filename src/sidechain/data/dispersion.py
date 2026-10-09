@@ -49,12 +49,13 @@ orders of magnitude larger for the same cached bytes.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import f as f_dist
 
-from sidechain.data.stream_pseudobulk import PseudobulkSums
+from sidechain.data.stream_pseudobulk import PseudobulkSums, iter_npz_row_blocks
 
 # A dispersion is non-negative; exactly zero is the Poisson case and breaks the ratios in
 # `quasi_dispersion`, so the trend is clamped here rather than at each call site.
@@ -84,6 +85,49 @@ class GeneDispersion:
     df0: float               # the prior's degrees of freedom -- its strength, fitted
     tau0_sq: float           # the prior's scale, fitted
     n_groups_used: int
+    # Provenance, filled by `fit_gene_dispersion_file` and carried through `save`/`load`: the
+    # source artifact's stem and its sha256, so a fit handed to the pooling knob
+    # (`submit.variance_model`) can be checked against the source it is attached to rather
+    # than trusted by file name. Empty for a fit made from an in-memory object.
+    source: str = ""
+    fitted_on_sha256: str = ""
+    # sha256 of the artifact's `sources` member (the corpus files it was accumulated from): a label
+    # subset of the same artifact (`scripts/subset_pseudobulk_labels.py`) carries the same list, so a
+    # full-arm fit can be attached to the subset a fold pools from, while a fit from another corpus
+    # or another gene axis cannot.
+    fitted_on_sources_sha256: str = ""
+    # every label of the fitted artifact with its cell count: a label subset of that artifact (the file
+    # a fold pools from) is recognised by these, and a different accumulation over the same corpus files
+    # (a construct-level file, another QC) is not
+    fitted_labels: np.ndarray | None = None
+    fitted_n_cells: np.ndarray | None = None
+
+    def save(self, path: str | Path) -> None:
+        """One `.npz` holding the arrays and the scalars; `load` is its exact inverse."""
+        np.savez_compressed(
+            Path(path).expanduser(),
+            genes=np.asarray(self.genes, dtype=object), mean_count=self.mean_count,
+            theta_ml=self.theta_ml, theta_trend=self.theta_trend, theta_ql=self.theta_ql,
+            theta_sql=self.theta_sql,
+            scalars=np.array([self.df, self.df0, self.tau0_sq, float(self.n_groups_used)]),
+            provenance=np.array([self.source, self.fitted_on_sha256, self.fitted_on_sources_sha256],
+                                dtype=object),
+            fitted_labels=np.asarray([] if self.fitted_labels is None else self.fitted_labels, dtype=object),
+            fitted_n_cells=np.asarray([] if self.fitted_n_cells is None else self.fitted_n_cells, dtype=np.int64),
+        )
+
+    @classmethod
+    def load(cls, path: str | Path) -> GeneDispersion:
+        z = np.load(Path(path).expanduser(), allow_pickle=True)
+        df, df0, tau0_sq, n_used = (float(v) for v in z["scalars"])
+        prov = [str(v) for v in z["provenance"]] + ["", "", ""]
+        labels = z["fitted_labels"].astype(str) if "fitted_labels" in z.files and z["fitted_labels"].size else None
+        n_cells = z["fitted_n_cells"] if "fitted_n_cells" in z.files and z["fitted_n_cells"].size else None
+        return cls(genes=z["genes"].astype(str), mean_count=z["mean_count"],
+                   theta_ml=z["theta_ml"], theta_trend=z["theta_trend"], theta_ql=z["theta_ql"],
+                   theta_sql=z["theta_sql"], df=df, df0=df0, tau0_sq=tau0_sq,
+                   n_groups_used=int(n_used), source=prov[0], fitted_on_sha256=prov[1],
+                   fitted_on_sources_sha256=prov[2], fitted_labels=labels, fitted_n_cells=n_cells)
 
     def variance_counts(self, mean_count: np.ndarray) -> np.ndarray:
         """`sigma^2 = theta_QL * (mu + theta_trend * mu^2)` -- the paper's variance function.
@@ -314,3 +358,183 @@ def fit_gene_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
                           theta_ml=theta_ml, theta_trend=theta_trend, theta_ql=theta_ql,
                           theta_sql=theta_sql, df=df, df0=df0, tau0_sq=tau0_sq,
                           n_groups_used=n_used)
+
+
+# ------------------------------------------------------------- the same fit, streamed from disk
+
+
+def _small_members(path: Path) -> dict:
+    """labels, genes, n_cells, libsize_sum, sources of a saved `PseudobulkSums` -- the cheap members."""
+    import io
+    import zipfile
+
+    out = {}
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        for name in ("labels", "genes", "n_cells", "libsize_sum", "sources"):
+            if f"{name}.npy" not in names:
+                out[name] = np.array([], dtype=object)
+                continue
+            with z.open(f"{name}.npy") as fh:
+                out[name] = np.load(io.BytesIO(fh.read()), allow_pickle=True)
+    return out
+
+
+def sources_sha256(sources) -> str:
+    """The identity of the corpus files an artifact was accumulated from (its `sources` member)."""
+    import hashlib
+
+    return hashlib.sha256("\n".join(str(s) for s in sources).encode()).hexdigest()
+
+
+def moment_dispersion_file(path: str | Path, *, exclude: tuple[str, ...] = (),
+                           min_cells: int = MIN_CELLS_PER_GROUP, block_rows: int = 128,
+                           progress: bool = False) -> tuple[np.ndarray, np.ndarray, float, int, np.ndarray]:
+    """`moment_dispersion` on a saved artifact, one row block at a time, never loading it whole.
+
+    Every quantity the in-memory estimator needs is a SUM over groups -- `sum_l w_l * excess_lg`,
+    `sum_l w_l * m_lg^2`, `sum_l count_sum_lg`, `sum_l (n_l - 1)` -- so the three (L, G) members
+    are walked in lockstep (`stream_pseudobulk.iter_npz_row_blocks`) and only the per-gene
+    accumulators are kept. On the full X-Atlas arm (18,294 labels x 38,584 genes) the in-memory
+    form wants about five 5.65 GB arrays and does not fit a 16 GB Mac; this form peaks under
+    200 MB and is I/O bound.
+
+    Equal to `moment_dispersion(PseudobulkSums.load(path))` to floating-point rounding (held by
+    `tests/test_variance_model.py`). Refuses an artifact whose `count_sum` is all zero -- the
+    signature of a `load_subset` product, whose fit would silently flatten the trend to
+    `MIN_DISPERSION` because `mean_count` reads that member.
+
+    Returns `(mean_count, theta_ml, df, n_groups_used, genes)`.
+    """
+    path = Path(path).expanduser()
+    small = _small_members(path)
+    labels = [str(x) for x in small["labels"]]
+    genes = small["genes"].astype(str)
+    n_all = small["n_cells"].astype(np.float64)
+    lib_all = small["libsize_sum"].astype(np.float64)
+    keep = np.array([lab not in exclude and int(n_all[i]) >= min_cells
+                     for i, lab in enumerate(labels)])
+    if int(keep.sum()) < 2:
+        raise ValueError(
+            f"need at least 2 groups with >= {min_cells} cells to fit a dispersion, "
+            f"got {int(keep.sum())} -- a single group cannot separate sampling noise from dispersion")
+    G = len(genes)
+    num = np.zeros(G); den = np.zeros(G); count_total = np.zeros(G)
+    n_total = 0.0; df = 0.0; count_any = False
+    members = ("cpm_sum", "cpm_sq_sum", "count_sum")
+    for r0, blk in iter_npz_row_blocks(path, [f"{m}.npy" for m in members], block_rows=block_rows):
+        k = blk["cpm_sum.npy"].shape[0]
+        rows = np.flatnonzero(keep[r0:r0 + k])
+        if progress and (r0 // block_rows) % 20 == 0:
+            print(f"  rows {r0}/{len(labels)}", flush=True)
+        if rows.size == 0:
+            continue
+        n = n_all[r0 + rows]
+        cs = blk["cpm_sum.npy"][rows]
+        cq = blk["cpm_sq_sum.npy"][rows]
+        ct = blk["count_sum.npy"][rows]
+        if not count_any and ct.any():
+            count_any = True
+        m_cpm = cs / n[:, None]
+        # the same Bessel correction as `moment_dispersion`, for the same reason
+        v_cpm = np.maximum(cq / n[:, None] - m_cpm * m_cpm, 0.0)
+        v_cpm = v_cpm * (n / np.maximum(n - 1.0, 1.0))[:, None]
+        scale = (1e6 / (lib_all[r0 + rows] / n))[:, None]
+        excess = v_cpm - m_cpm * scale
+        w = np.maximum(n - 1.0, 0.0)[:, None]
+        num += (w * excess).sum(axis=0)
+        den += (w * m_cpm * m_cpm).sum(axis=0)
+        count_total += ct.sum(axis=0)
+        n_total += float(n.sum())
+        df += float(np.maximum(n - 1.0, 0.0).sum())
+    if not count_any:
+        raise ValueError(f"{path.name}: count_sum is all zero -- a load_subset product, not a "
+                         "fit-able artifact (the trend would flatten to MIN_DISPERSION)")
+    with np.errstate(divide="ignore", invalid="ignore"):
+        theta = np.where(den > 0, num / den, 0.0)
+    theta = np.maximum(np.nan_to_num(theta, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
+    mean_count = count_total / n_total
+    return mean_count, theta, df, int(keep.sum()), genes
+
+
+def file_sha256(path: str | Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with Path(path).expanduser().open("rb") as f:
+        for block in iter(lambda: f.read(1 << 22), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def fit_gene_dispersion_file(path: str | Path, *, exclude: tuple[str, ...] = (), window: int = 301,
+                             min_cells: int = MIN_CELLS_PER_GROUP, df0: float | None = None,
+                             block_rows: int = 128, progress: bool = False,
+                             sha256: str | None = None) -> GeneDispersion:
+    """`fit_gene_dispersion` on a saved artifact through `moment_dispersion_file`, with provenance.
+
+    The fit is stamped with the artifact's stem and sha256 (`sha256` may be passed in when the
+    caller has already hashed the file), which is what lets the pooling knob refuse a fit
+    attached to the wrong source.
+    """
+    path = Path(path).expanduser()
+    mean_count, theta_ml, df, n_used, genes = moment_dispersion_file(
+        path, exclude=exclude, min_cells=min_cells, block_rows=block_rows, progress=progress)
+    theta_trend = dispersion_trend(mean_count, theta_ml, window=window)
+    theta_ql = quasi_dispersion(mean_count, theta_ml, theta_trend)
+    fitted_df0, tau0_sq = fit_variance_prior(theta_ql, df)
+    if df0 is None:
+        df0 = fitted_df0
+    elif df0 < 0:
+        raise ValueError(f"df0 must be non-negative, got {df0}")
+    theta_sql = shrink_quasi_dispersion(theta_ql, df, df0, tau0_sq)
+    small = _small_members(path)
+    return GeneDispersion(genes=np.asarray(genes), mean_count=mean_count, theta_ml=theta_ml,
+                          theta_trend=theta_trend, theta_ql=theta_ql, theta_sql=theta_sql,
+                          df=df, df0=df0, tau0_sq=tau0_sq, n_groups_used=n_used,
+                          source=path.stem, fitted_on_sha256=sha256 or file_sha256(path),
+                          fitted_on_sources_sha256=sources_sha256(small["sources"]),
+                          fitted_labels=np.asarray([str(x) for x in small["labels"]], dtype=object),
+                          fitted_n_cells=np.asarray(small["n_cells"], dtype=np.int64))
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Fit one artifact and save the fit: `python -m sidechain.data.dispersion SRC.npz --out FIT.npz`."""
+    import argparse
+    import json
+    import time
+
+    ap = argparse.ArgumentParser(description=main.__doc__)
+    ap.add_argument("source", type=Path, help="a saved PseudobulkSums (.npz), read in row blocks")
+    ap.add_argument("--out", type=Path, required=True, help="where the fit (.npz) is written")
+    ap.add_argument("--exclude", action="append", default=[], metavar="LABEL",
+                    help="label rows left out of the fit (repeatable); default: none")
+    ap.add_argument("--window", type=int, default=301)
+    ap.add_argument("--min-cells", type=int, default=MIN_CELLS_PER_GROUP)
+    ap.add_argument("--block-rows", type=int, default=128)
+    args = ap.parse_args(argv)
+    t0 = time.time()
+    gd = fit_gene_dispersion_file(args.source, exclude=tuple(args.exclude), window=args.window,
+                                  min_cells=args.min_cells, block_rows=args.block_rows, progress=True)
+    args.out.expanduser().parent.mkdir(parents=True, exist_ok=True)
+    gd.save(args.out)
+    ok = gd.mean_count > 0
+    q = np.quantile(gd.mean_count[ok], [0.1, 0.5, 0.9])
+    trend_at = [float(np.interp(np.log(x), np.log(np.sort(gd.mean_count[ok])),
+                                gd.theta_trend[ok][np.argsort(gd.mean_count[ok], kind="stable")]))
+                for x in q]
+    rec = {"source": str(args.source), "source_sha256": gd.fitted_on_sha256, "out": str(args.out),
+           "exclude": args.exclude, "window": args.window, "min_cells": args.min_cells,
+           "genes": int(len(gd.genes)), "genes_expressed": int(ok.sum()),
+           "n_groups_used": gd.n_groups_used, "df": gd.df, "df0": gd.df0, "tau0_sq": gd.tau0_sq,
+           "theta_trend_at_p10_p50_p90_mean_count": trend_at,
+           "theta_sql_median": float(np.median(gd.theta_sql[ok])),
+           "theta_sql_max_shift_from_ql": float(np.max(np.abs(gd.theta_sql[ok] - gd.theta_ql[ok]))),
+           "seconds": round(time.time() - t0, 1)}
+    args.out.expanduser().with_suffix(".json").write_text(json.dumps(rec, indent=1) + "\n")
+    print(json.dumps(rec, indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

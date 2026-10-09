@@ -161,10 +161,12 @@ def test_the_key_moves_with_the_threads_and_the_axis(fold, monkeypatch):
     with monkeypatch.context() as m:                            # another machine
         m.setattr(dc.platform, "node", lambda: "elsewhere")
         assert base != dc.key_of(dc.key_fields(IDS, axis, pooling))
-    # the code that does the arithmetic: these four files, and an edit to any moves the key
+    # the code that does the arithmetic: these six files, and an edit to any moves the key (the
+    # last two since T98: the variance model behind the weight and the dispersion math its fits carry)
     assert set(dc.code_digests()) == {
         "sidechain.submit.build", "sidechain.models.adaptive_shrink",
-        "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk"}
+        "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk",
+        "sidechain.submit.variance_model", "sidechain.data.dispersion"}
     for mod in dc.CODE_MODULES:
         with monkeypatch.context() as m:
             real = dc.code_digests()
@@ -207,12 +209,42 @@ def test_a_read_is_a_copy_and_the_main_entry_builds_what_an_arm_reads(fold, caps
     axis = np.array([f"g{i}" for i in range(G)])
     cache = dc.DeltaCache(tmp / "cli", dc.key_fields(use["sources"], axis, {
         "shrinkage": True, "shrink_k": 1.0, "shrink_stage": "pooled", "shrink_rule": "adaptive",
-        "var_floor": "poisson", "log_bias_correct": False}))
+        "var_floor": "poisson", "log_bias_correct": False,
+        # T98: the variance model and, per source, the fit it carries (none here)
+        "variance_model": "shipped", "rule_variance": "model", "dispersion_fits": [None]}))
     one, two = cache.get("g0"), cache.get("g0")
     assert one is not two and not np.shares_memory(one, two) and one.flags.writeable
     one[:] = 0.0
     assert np.array_equal(two, cache.get("g0")) and two.any()
     assert cache.get("zz") is None
+
+
+def test_a_cache_built_under_one_variance_model_is_refused_by_every_other(fold):
+    """T98's gate 4: the variance model, the rule setting and the fit behind a cached delta are in the key, so
+    an arm under another model, another --rule-variance or another fit finds no cache -- and the same arm does."""
+    from sidechain.data.dispersion import fit_gene_dispersion
+    from sidechain.submit.variance_model import VarianceModel
+
+    tmp, real, sources, nb = fold
+    src = sources[0][0]
+    src.sidechain_name = "src"
+    src.dispersion_fit = fit_gene_dispersion(src)
+    src.dispersion_fit_sha256 = "ab" * 32
+    vm = VarianceModel.parse("trend")
+    built = _build(fold, root="vcache", variance_model=vm, rule_variance="model")
+    assert built["built"]
+    use = {"dir": tmp / "vcache", "sources": IDS}
+    got, _ = _arm(fold, "trend_arm", delta_cache=use, variance_model=vm, rule_variance="model")   # the same arm reads it
+    assert got["delta_cache"]["key"] == built["key"]
+    for other in ({"variance_model": None, "rule_variance": "model"},                              # shipped
+                  {"variance_model": VarianceModel.parse("trend:shuffle=1"), "rule_variance": "model"},
+                  {"variance_model": vm, "rule_variance": "shipped"},
+                  {"variance_model": VarianceModel.parse("flat"), "rule_variance": "model"}):
+        with pytest.raises(SystemExit, match="no cache for this fold and these knobs"):
+            _arm(fold, "refused", delta_cache=use, **other)
+    src.dispersion_fit_sha256 = "cd" * 32                                                            # another fit, same spec
+    with pytest.raises(SystemExit, match="no cache for this fold and these knobs"):
+        _arm(fold, "refused_fit", delta_cache=use, variance_model=vm, rule_variance="model")
 
 
 def test_the_flags_are_refused_where_they_cannot_act(fold, capsys):

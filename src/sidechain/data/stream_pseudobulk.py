@@ -230,6 +230,54 @@ def _read_npz_rows(npz_path: Path, member: str, rows: np.ndarray,
     return out
 
 
+def iter_npz_row_blocks(npz_path: str | Path, members: Sequence[str], *, block_rows: int = 128):
+    """Yield ``(row0, {member: block})`` over the rows of several (L, G) members in lockstep.
+
+    The row-wise complement of `_read_npz_rows`: that one keeps a few rows of one member,
+    this one walks EVERY row of several members together, `block_rows` at a time, so a
+    per-gene statistic that is a sum over labels (`dispersion.moment_dispersion_file`) can be
+    accumulated without ever holding a whole member. Peak memory is `len(members) x
+    block_rows x G` floats -- 40 MB a member at 128 rows on the 38,584-gene X-Atlas axis,
+    against 5.65 GB for one member loaded whole.
+
+    Each member is opened on its own handle and read start to finish exactly once (the npz
+    members are DEFLATE'd, so there is no seeking). The members must agree on shape.
+    """
+    npz_path = Path(npz_path).expanduser()
+    if block_rows < 1:
+        raise ValueError(f"block_rows must be >= 1, got {block_rows}")
+    handles, readers, meta = [], {}, {}
+    try:
+        for member in members:
+            z = zipfile.ZipFile(npz_path)
+            fh = z.open(member)
+            handles += [z, fh]
+            dt, shape, fortran = _npy_header(fh)
+            if fortran:
+                raise ValueError(f"{member}: fortran-order, this reader assumes C order")
+            if len(shape) != 2:
+                raise ValueError(f"{member}: expected a 2-D member, got shape {shape}")
+            readers[member] = io.BufferedReader(fh, buffer_size=1 << 22)
+            meta[member] = (dt, tuple(int(s) for s in shape))
+        shapes = {m: s for m, (_, s) in meta.items()}
+        if len(set(shapes.values())) != 1:
+            raise ValueError(f"members differ in shape: {shapes}")
+        n_rows, n_cols = next(iter(shapes.values()))
+        for r0 in range(0, n_rows, block_rows):
+            k = min(block_rows, n_rows - r0)
+            out = {}
+            for member in members:
+                dt = meta[member][0]
+                raw = readers[member].read(k * n_cols * dt.itemsize)
+                if len(raw) != k * n_cols * dt.itemsize:
+                    raise EOFError(f"{member}: short read at row {r0}")
+                out[member] = np.frombuffer(raw, dtype=dt).reshape(k, n_cols)
+            yield r0, out
+    finally:
+        for h in reversed(handles):
+            h.close()
+
+
 def _obs_labels(f: h5py.File, label_col: str) -> np.ndarray:
     obs = read_elem(f["obs"])
     if label_col not in obs.columns:
