@@ -1165,6 +1165,34 @@ datasets:
       - name: suppl_tables/clustering_results_and_annotations.csv
         kind: sample_metadata
         spec: {role: analysis}
+      # The publisher's per-sgRNA tables (T117, 2026-10-09): one row per (sgRNA, condition).
+      # They are what says WHICH sgRNA a `guide_1` / `guide_2` fit above belongs to -- the
+      # by_guide file names no sgRNA, and its readme's "sorted alphanumerically" does not
+      # hold row by row (measured; private research/ideas/shared-guide-constructs.md).
+      # Read whole (13 MB, 2 MB, 10 MB); the readme is the bucket's data dictionary.
+      - name: suppl_tables/guide_kd_efficiency.suppl_table.csv
+        kind: sample_metadata
+        spec: {role: analysis}
+      - name: suppl_tables/guide_offtarget_analysis_results.csv
+        kind: sample_metadata
+        spec: {role: analysis}
+      - name: suppl_tables/sgrna_library_metadata.suppl_table.csv
+        kind: sample_metadata
+        spec: {role: analysis}
+      - name: data_sharing_readme.md
+        kind: sample_metadata
+        spec: {role: analysis}
+      # The publisher's pseudobulks, one row per (sgRNA, donor, condition): summed UMI counts,
+      # 278,684 rows x 18,129 genes, CSR, uncompressed (T117, 2026-10-09). The only file that
+      # ties counts to a NAMED sgRNA (`guide_id`), so it is what labels the two by_guide fits
+      # row by row. Rows are range-read by `indptr` for the sgRNAs wanted; never read whole.
+      # Control rows: `guide_type == non-targeting`, where `perturbed_gene_name` is `NTC`
+      # (984 guides; the publisher's readme, and the obs read 2026-10-09).
+      - name: GWCD4i.pseudobulk_merged.h5ad
+        kind: expression
+        spec: {context: cd4_tcell, pert_col: perturbed_gene_name, control_label: [NTC],
+               gene_id_col: gene_ids, modality: crispri, role: analysis,
+               granularity: pseudobulk, batch_col: donor_id}
 
   # ==========================================================================
   # Pan 2026's H1 hESC CRISPRi Perturb-seq screen (GEO GSE295214) -- a SECOND
