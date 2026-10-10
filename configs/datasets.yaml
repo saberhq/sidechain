@@ -385,6 +385,12 @@ datasets:
       barcode was matched to the wrong cell, and rows that disagree are dropped
       rather than trusted.
 
+      ALREADY JOINED to our two whole X-Atlas fold files (which carry no cell
+      barcode of their own; `stream_cells` keeps it only from 2026-10-09):
+      derived/xatlas-orion/cell_guide_umis/guide_umis_{hct116,hek293t}.parquet,
+      one row per cell in the fold file's row order, with the recovered
+      `cell_barcode` and both guides' UMI counts. Read that before re-joining.
+
     files:
       # kind: cell_metadata, not expression -- these carry no counts at all, so
       # asking them for a control label or a gene axis is meaningless. They are
