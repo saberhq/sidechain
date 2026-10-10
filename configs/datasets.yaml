@@ -330,6 +330,74 @@ datasets:
         spec: {role: reference, id_cols: [gene_token_id, ensembl_id, gene_name]}
 
   # ==========================================================================
+  # X-Atlas/Orion's PER-CELL GUIDE CALLS -- the one fact about that corpus the
+  # Hugging Face parquet does not carry: how many UMIs each of a cell's two
+  # guides contributed. The HF files say WHICH construct a cell got
+  # (`guide_target`) and whether it passed the call filter; the dose -- which is
+  # what Huang 2025 stratifies on and what T111 is testing as a cell weight --
+  # is published only in these two CSVs, on Figshare, keyed on the 10x barcode.
+  #
+  # Separate block from `xatlas_orion` rather than two more files on it, because
+  # every gate input differs: another HOST (figshare, not huggingface), another
+  # RECORD (the processed-data deposit, not the HF dataset) and another ROUTE
+  # (160 MB that we hold, against 126 GB we only ever read). A block declares
+  # one host and one route, so this is a block.
+  #
+  # route: download, deliberately, on a redistribution-encumbered licence. The
+  # bytes are 0.16 GB and are joined row-by-row against local h5ads, which a
+  # stream cannot do cheaply; the terms are the same CC-BY-NC-SA-4.0 as the
+  # corpus (Saber's X-Atlas sign-off, 2026-08-31), so these files live on the
+  # Mac and in the private lamin bucket ONLY -- never the public repo, the site,
+  # or a published bundle, and nothing derived from them is redistributed.
+  #
+  # The record is pinned at `.v3`, the version that published these md5s. Note
+  # the big h5ads in the same record are NOT selected (209 GB and 350 GB, and
+  # the HCT116 one carries no host-computed checksum at all -- the ADR 0003 §1
+  # finding, still unfixed upstream): the only reason to touch this record is
+  # the two guide-call tables.
+  # ==========================================================================
+  - name: xatlas_orion_guide_calls
+    enabled: true
+    host: figshare
+    record: "29190726.v3"       # `.v3` PINS it. A bare Figshare id follows "latest".
+    license: CC-BY-NC-SA-4.0    # same terms as the corpus; NC + ShareAlike, so no redistribution
+    budget_gb: 0.25             # 0.16 GB selected (69.6 MB + 90.9 MB); ~55 % headroom
+    dest: external/figshare-29190726
+    notes: >
+      One row per cell that passed X-Atlas/Orion's dual-guide call, for the two
+      genome-wide lines. Columns (header read 2026-10-09):
+      cell_barcode, num_features, feature_call, num_umis, gene_target,
+      pass_guide_filter.
+
+      THE JOIN KEY IS NOT A BARE BARCODE. `cell_barcode` is
+      `<10x barcode>-<sample>` -- the GEM batch is inside the string -- so a
+      join must use it whole. The HF parquet's `sample` column is that suffix.
+
+      `num_umis` and `feature_call` are PIPE-SEPARATED PAIRS (`a|b`): every
+      called cell carries two guides, and the two numbers are the UMI count of
+      each. `num_umis` summed over the pair is the cell's guide dose; the
+      supported use is a filter on dose BINS within one batch (Huang 2025's own
+      analysis, private research/reading/huang-2025-x-atlas-orion.md), not a
+      per-cell regression.
+
+      `gene_target` here must agree with the HF parquet's `gene_target` for the
+      same barcode. It is the join's own check: a disagreeing row means the
+      barcode was matched to the wrong cell, and rows that disagree are dropped
+      rather than trusted.
+
+    files:
+      # kind: cell_metadata, not expression -- these carry no counts at all, so
+      # asking them for a control label or a gene axis is meaningless. They are
+      # the guide sidecar for cells whose expression lives in another record
+      # (the HF parquet), which is exactly what this kind is for.
+      - name: HCT116_filtered_guide_calls_per_cell.csv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+      - name: HEK293T_filtered_guide_calls_per_cell.csv.gz
+        kind: cell_metadata
+        spec: {role: reference}
+
+  # ==========================================================================
   # The first two LAMIN-STREAMED datasets (T28's first stream), picked by the
   # 2026-08-27 fifth-context sweep over laminlabs/pertdata (27 probeable
   # datasets) and altoslabs/perturbench (3): the two best panel-coverage

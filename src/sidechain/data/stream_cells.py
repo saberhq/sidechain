@@ -179,7 +179,10 @@ class CellSink:
             "gene_target": labs.astype(str),
             "batch": batch,
         })
-        for col in ("guide_target", "sample", "pct_counts_mt", "total_counts",
+        # `cell_barcode` is the source's own id for the cell (`<10x barcode>-<sample>` in X-Atlas)
+        # and the only key that joins a cell to tables the corpus publishes beside the counts
+        # (per-cell guide UMI calls). The index stays `cell_<i>`: readers use it positionally.
+        for col in ("cell_barcode", "guide_target", "sample", "pct_counts_mt", "total_counts",
                     "n_genes_by_counts"):
             if col in sub_frame.columns:
                 obs[col] = sub_frame[col].to_numpy()
@@ -319,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     sink = CellSink(axis, quota, relabel={CONTROL_IN_CORPUS: CONTROL_HARMONISED})
     columns = ["gene_token_id", "gene_expression", "gene_target", "guide_target",
                "pass_guide_filter", "sample", "pct_counts_mt", "total_counts",
-               "n_genes_by_counts"]
+               "n_genes_by_counts", "cell_barcode"]
     # Resolved BEFORE the loop: a spilled shard needs the same var frame as the last one.
     ids = None
     if "gene_id" in gene_map.columns:
