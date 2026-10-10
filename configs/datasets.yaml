@@ -1097,11 +1097,13 @@ datasets:
       publisher's own page for exactly this bucket. The S3 listing itself can
       state no terms.
     route: stream               # the 16.79 GB file never lands
-    # OUTPUT ceiling, set against a measurement: 1.09 GB on disk on 2026-10-06 -- the 0.15 GB
-    # per-condition cache, seven views at 0.05-0.08 GB each (0.47 GB), and 0.47 GB for the
+    # OUTPUT ceiling, set against a measurement: 1.17 GB on disk on 2026-10-09 -- the 0.15 GB
+    # per-condition cache, seven views at 0.05-0.08 GB each (0.47 GB), 0.47 GB for the
     # replicate fits below (564 rows of ours: six donor-pair fits with three layers each,
-    # two guide fits with two, the full fit's baseMean, as float32). 1.5 leaves room for
-    # about five more views (the scrambled controls a scored arm needs) before it trips.
+    # two guide fits with two, the full fit's baseMean, as float32), and 0.08 GB for the
+    # per-sgRNA tables and pseudobulks added under T117. 1.5 leaves room for about four more
+    # views (the scrambled controls a scored arm needs) before it trips.
+    # (Was "1.09 GB on 2026-10-06 ... about five more views" before the T117 files landed.)
     budget_gb: 1.5
     # The bucket publishes a MULTIPART ETag for this file (`...-2002`), which is not a
     # digest: recorded under `s3-etag:` as evidence, never verifiable. Since 2026-09-26 the
