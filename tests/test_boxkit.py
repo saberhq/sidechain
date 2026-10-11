@@ -4,6 +4,7 @@ import importlib.util
 import os
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 KIT = Path(__file__).resolve().parents[1] / "scripts" / "boxkit"
@@ -95,3 +96,236 @@ def test_scorer_caps_env_and_args(tmp_path):
         check=False,
     ).stdout
     assert "ARGS score --x\n" in out and "gather_threads" not in out
+
+
+# --------------------------------------------------------------------------- the scoring gate
+
+
+def _stub(tmp_path, seconds):
+    """A fake cell-eval2: logs its start and end to a shared file, sleeps, exits 0."""
+    stub = tmp_path / "ce"
+    log = tmp_path / "events.log"
+    stub.write_text(
+        f'#!/bin/bash\necho "start $$ card=$CUDA_VISIBLE_DEVICES $1" >> {log}\nsleep {seconds}\necho "end $$" >> {log}\n'
+    )
+    stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+    return stub, log
+
+
+def _gate(tmp_path, stub, args, **env):
+    e = {
+        **os.environ,
+        "BOX_STATE": str(tmp_path / "state"),
+        "BOX_LIVENESS": "none",
+        "BOX_POLL_S": "1",
+        "BOX_BUDGET_GIB": "100",
+        **env,
+    }
+    return subprocess.Popen(
+        ["bash", str(KIT / "box_scorer_gate.sh"), str(stub), *args],
+        env=e,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _max_concurrent(log):
+    cur = best = 0
+    for ln in log.read_text().splitlines():
+        cur += 1 if ln.startswith("start") else -1
+        best = max(best, cur)
+    return best
+
+
+def test_gate_passes_other_subcommands_straight_through(tmp_path):
+    stub, log = _stub(tmp_path, 0)
+    p = _gate(tmp_path, stub, ["score", "--x"], BOX_SCORER_GIB="10")
+    assert p.wait(timeout=20) == 0
+    assert (
+        "start" in log.read_text()
+        and not (tmp_path / "state" / "scorer_gate.log").exists()
+    )
+
+
+def test_gate_admits_one_step_per_card(tmp_path):
+    stub, log = _stub(tmp_path, 1)
+    ps = [
+        _gate(tmp_path, stub, ["run", "-ap", "p"], BOX_SCORER_GIB="10", BOX_CARDS="2")
+        for _ in range(4)
+    ]
+    assert all(p.wait(timeout=60) == 0 for p in ps)
+    assert log.read_text().count("start") == 4 and _max_concurrent(log) == 2
+    assert not list((tmp_path / "state" / "gpu").glob("card*")) and not list(
+        (tmp_path / "state" / "resv").glob("s.*")
+    )
+
+
+def test_gate_admits_what_the_memory_budget_allows(tmp_path):
+    stub, log = _stub(tmp_path, 1)
+    ps = [
+        _gate(
+            tmp_path,
+            stub,
+            ["run"],
+            BOX_SCORER_GIB="40",
+            BOX_CARDS="4",
+            BOX_BUDGET_GIB="100",
+        )
+        for _ in range(4)
+    ]
+    assert all(p.wait(timeout=60) == 0 for p in ps)
+    assert _max_concurrent(log) == 2  # 40 + 40 fits 100, a third does not
+
+
+def test_gate_caps_the_pools_and_picks_a_card(tmp_path):
+    stub, log = _stub(tmp_path, 0)
+    p = _gate(
+        tmp_path,
+        stub,
+        ["run"],
+        BOX_SCORER_GIB="10",
+        BOX_CARDS="1",
+        BOX_SCORER_THREADS="4",
+    )
+    assert p.wait(timeout=20) == 0
+    assert "card=0" in log.read_text()
+
+
+def test_gate_does_not_end_a_waiting_step_on_stop(tmp_path):
+    stub, _log = _stub(tmp_path, 0)
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "STOP").write_text("")
+    p = _gate(tmp_path, stub, ["run"], BOX_SCORER_GIB="10", BOX_CARDS="1")
+    assert (
+        p.wait(timeout=20) == 0
+    )  # T111's gate exited 75 here and discarded hours of emission
+    assert "STOP seen" in (tmp_path / "state" / "scorer_gate.log").read_text()
+
+
+def test_gate_times_out_a_hung_step_and_gives_everything_back(tmp_path):
+    stub, _log = _stub(tmp_path, 30)
+    t0 = time.time()
+    p = _gate(
+        tmp_path,
+        stub,
+        ["run"],
+        BOX_SCORER_GIB="10",
+        BOX_CARDS="1",
+        BOX_SCORER_TIMEOUT_S="2",
+    )
+    assert p.wait(timeout=30) == 124 and time.time() - t0 < 20
+    assert "SCORER_TIMEOUT" in (tmp_path / "state" / "scorer_gate.log").read_text()
+    assert not list((tmp_path / "state" / "gpu").glob("card*")) and not list(
+        (tmp_path / "state" / "resv").glob("s.*")
+    )
+
+
+# --------------------------------------------------------------------------- longest-first ordering
+def _makespan(durations, machines):
+    free = [0.0] * machines
+    for d in durations:
+        i = free.index(min(free))
+        free[i] += d
+    return max(free)
+
+
+def test_longest_first_keeps_layers_and_shortens_the_tail(tmp_path):
+    order = _load("box_order")
+    lines = [
+        "short|a|x|list",
+        "long|b|x|list",
+        "mid|c|x|list",
+        "mid|d|x|tmpl",
+        "long|e|x|tmpl",
+        "unknown|f|x|tmpl",
+    ]
+    est = {"short": 5.0, "mid": 10.0, "long": 20.0}
+    out = order.longest_first(
+        lines,
+        lambda ln: est.get(ln.split("|")[0]),
+        lambda ln: 0 if ln.endswith("tmpl") else 1,
+    )
+    assert out == [
+        "long|e|x|tmpl",
+        "mid|d|x|tmpl",
+        "unknown|f|x|tmpl",
+        "long|b|x|list",
+        "mid|c|x|list",
+        "short|a|x|list",
+    ]
+    durations = [2, 2, 2, 2, 2, 2, 12]  # one long arm among short ones: the tail
+    assert (
+        _makespan(sorted(durations, reverse=True), 2) == 12
+        and _makespan(sorted(durations), 2) == 18
+    )
+
+
+def test_box_order_cli_reads_a_queue_file(tmp_path):
+    q = tmp_path / "q.txt"
+    q.write_text(
+        "loco_k562gwps_union|n1|ref|design:0/1\nloco_hek293t|n2|ref|design:0/4\nloco_hek293t|n3|ref|tmpl\n"
+    )
+    r = subprocess.run(
+        [
+            "python3",
+            str(KIT / "box_order.py"),
+            str(q),
+            "--est",
+            "loco_hek293t=59,loco_k562gwps_union=21",
+            "--layers",
+            "tmpl,design",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.stdout.splitlines() == [
+        "loco_hek293t|n3|ref|tmpl",
+        "loco_hek293t|n2|ref|design:0/4",
+        "loco_k562gwps_union|n1|ref|design:0/1",
+    ]
+
+
+# --------------------------------------------------------------------------- the done check
+def test_done_verdict_only_ends_a_box_that_is_safe_and_registered():
+    done = _load("box_done")
+    ok, lines = done.verdict(
+        {"safe_to_delete": True, "not_in_lamin": []}, "b1", fetched=True
+    )
+    assert (
+        ok
+        and lines[0] == "scripts/brev_key.sh delete b1"
+        and "ledger.py box stop b1" in lines[1]
+    )
+    ok, lines = done.verdict({"safe_to_stop": True}, "b2", stoppable=True)
+    assert (
+        ok
+        and any(ln.startswith("brev stop b2") for ln in lines)
+        and "fetch" in lines[0]
+    )
+    ok, lines = done.verdict({"safe_to_delete": False}, "b3")
+    assert not ok and "NOT READY" in lines[0]
+    ok, lines = done.verdict({"safe_to_delete": True, "not_in_lamin": ["a", "b"]}, "b4")
+    assert not ok and "2 file(s)" in lines[0]
+
+
+def test_done_cli_reads_the_marker_over_ssh(tmp_path):
+    fake = tmp_path / "ssh"
+    fake.write_text(
+        '#!/bin/bash\necho \'{"safe_to_stop": true, "not_in_lamin": []}\'\n'
+    )
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    r = subprocess.run(
+        ["python3", str(KIT / "box_done.py"), "bx", "--marker", "m.json", "--fetched"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert (
+        r.returncode == 0
+        and r.stdout.splitlines()[0] == "READY"
+        and "brev_key.sh delete bx" in r.stdout
+    )
