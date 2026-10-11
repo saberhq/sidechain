@@ -120,10 +120,15 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   `site/data/submissions.json`, `site/assets/data/field.json` or `RESULTS.md` ranks.
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);
   `check_modelname.py --propose` gates every submit.
-- **The GPU box is shared like this checkout:** `brev ls` first, message the owning session, box
-  lifetime is Saber's call, pull → register → verify → delete (`/sidechain-brev`). A stop you set
-  never ends running work, and a renewed `brev login` cancels it; CPU-only tails leave the GPU box
-  (trap 17).
+- **A GPU box belongs to one task** (`sidechain-gpu-<tid>`): `brev ls` first, and never a job on a
+  box another session's job is using. Before Saber's GO a box request card: the queue, the predicted
+  hours and billed dollars on two machines (`private/research/protocol/box_plan.py`), the plan for
+  the end and who closes the box if the session stalls. The machine follows the queue's size, AMD
+  by `lscpu` before anything is pulled; a second task's lines ride on a running box only on his
+  word, one ledger note each. Box lifetime is his call: no timer, no kill, no self-delete; a stop
+  you set never ends running work, and a renewed `brev login` cancels it; pull → register → verify →
+  delete, or stop where the type allows (`/sidechain-brev`, trap 17). CPU-only tails leave the GPU
+  box. Final-phase builds need no GPU; the stoppable CPU box `sidechain-cpu-t118-s4` is the standby candidate (T118).
 
 ## Replying to Saber
 
@@ -192,7 +197,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
 | a hand-off to the next session (a context window ending, or Saber's ask) | `private/handoffs/README.md` — the shape, the rules, the index | — |
-| the GPU box, more RAM, a full-corpus stream | `/sidechain-brev` | — |
+| the GPU box, more RAM, a full-corpus stream | `/sidechain-brev` | `box_plan.py` prices a queue before the GO; `scripts/boxkit/` |
 | a data download, disk, a new corpus, a licence | this file § Data · `configs/datasets.yaml` | ADR 0003 |
 | the website, a post, LinkedIn | `site/README.md` · `/post` | `private/site/NOTES.md` · `private/site/VOICE.md` |
 | the board, `ledger.py`, asks, status, the queue | `private/HOWTO-desk.md` §1 and §8 (the desk is Saber's own session; §2–§7 are his vocabulary) | `reports/12` |
