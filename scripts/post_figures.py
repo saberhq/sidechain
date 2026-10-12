@@ -56,20 +56,20 @@ MEMBER_TITLE = {
 }
 
 # Cells per published screen, as released after the authors' own QC; one row per screen,
-# the paper and the line in our reading note that states it. Atlases of unperturbed cells
-# are a separate list: they are not screens.
+# the year of its first public release (preprint or data) and a public citation. The
+# citation becomes the label's hover text, so it names papers and public records only.
+# Atlases of unperturbed cells are a separate list: they are not screens.
 SCREENS = [
     # (year, label, cells, source)
-    (2022, "Replogle · K562 genome-wide", 1_989_578, "scPerturb's K562 genome-wide file; research/ingest-findings-scperturb.md"),
-    (2025, "Nadig · Jurkat", 262_956, "research/reading/nadig-2025-trade-transcriptome-wide-impact.md"),
-    (2025, "Nadig · HepG2", 145_473, "research/reading/nadig-2025-trade-transcriptome-wide-impact.md"),
-    (2025, "Arc · H1 (VCC 2025)", 221_273, "research/master.md Appendix"),
-    (2025, "X-Atlas/Orion · HCT116 + HEK293T", 7_943_468, "measured on the stream; reports/07"),
-    (2025, "GWCD4i · primary CD4 T", 33_400_000, "QC-passing cells; research/reading/zhu-2025-gwcd4i.md"),
-    (2025, "Song · Jurkat (374-gene readout)", 586_000, "research/ideas/jurkat-same-line-source.md"),
-    (2026, "Feng · iPSC pool (genome-wide arm)", 719_204, "configs/datasets.yaml feng_2026_counts"),
-    (2026, "Pan · H1", 928_267, "cells kept; research/ideas/pan-2026-h1-crispri-screen.md"),
-    (2026, "X-Atlas/Pisces · 16 contexts", 25_600_000, "research/reading/wang-2026-x-cell-pisces.md"),
+    (2022, "Replogle · K562 genome-wide", 1_989_578, "Replogle et al. 2022, Cell; the scPerturb file (Zenodo)"),
+    (2024, "Nadig · Jurkat", 262_956, "Nadig et al. 2024 (bioRxiv) / 2025, Nature Genetics; the scPerturb file (Zenodo)"),
+    (2024, "Nadig · HepG2", 145_473, "Nadig et al. 2024 (bioRxiv) / 2025, Nature Genetics; the scPerturb file (Zenodo)"),
+    (2025, "Arc · H1 (VCC 2025)", 221_273, "Arc Institute, Virtual Cell Challenge 2025 training file"),
+    (2025, "X-Atlas/Orion · HCT116 + HEK293T", 7_943_468, "Huang et al. 2025 (bioRxiv); Xaira's Hugging Face release"),
+    (2025, "GWCD4i · primary CD4 T", 33_400_000, "Zhu et al. 2025 (bioRxiv) / 2026, Cell; QC-passing cells"),
+    (2026, "Feng · iPSC pool (genome-wide arm)", 719_204, "Feng et al. 2026, Cell Genomics; Figshare 27989294"),
+    (2026, "Pan · H1", 928_267, "Pan et al. 2026; GEO GSE295214; cells Sidechain kept"),
+    (2026, "X-Atlas/Pisces · 16 contexts", 25_600_000, "Wang et al. 2026 (bioRxiv); includes Orion's two screens"),
 ]
 HELD = {"Replogle · K562 genome-wide", "Nadig · Jurkat", "Nadig · HepG2", "Arc · H1 (VCC 2025)",
         "X-Atlas/Orion · HCT116 + HEK293T", "GWCD4i · primary CD4 T", "Feng · iPSC pool (genome-wide arm)", "Pan · H1"}
