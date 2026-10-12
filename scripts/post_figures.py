@@ -402,7 +402,7 @@ ARROW_DEF = ('<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" marke
              f'<path d="M 0 0 L 10 5 L 0 10 z" fill="{INK2}"/></marker></defs>')
 
 RECIPE = [
-    ("Borrow", "a log2 fold change per gene\nfrom every screen that silenced it", [("n", "shrinkage off"), ("d", "shrink scope"), ("g", "exponent γ")]),
+    ("Borrow", "a log2 fold change per gene\nfrom every screen that silenced it", [("n", "shrinkage off"), ("d", "shrink scope, never sent"), ("g", "exponent γ")]),
     ("Pool", "one weighted average per gene\nsure sources count for more", [("f", "floor"), ("c", "tiers"), ("t", "τ², retired"), ("s", "adaptive rule")]),
     ("Adjust", "resize or nudge\nthe pooled change", [("a", "strength α"), ("k", "neighbours")]),
     ("Emit", "400 cells of counts per knockdown\non the context's own controls", [("p", "Poisson"), ("e", "dial λ"), ("b", "two strengths"), ("w", "pooled anchor"), ("r", "real cells"), ("h", "callable list")]),
@@ -440,10 +440,10 @@ def fig_recipe(recipe=RECIPE):
 
 LOOP = [
     ("a session", "ends its turn with a\nthree-line STATUS block"),
-    ("the Stop hook", "status_hook.py reads\nthe block, refuses a fake"),
-    ("three stores", "status · asks · claims\nJSONL under agents/"),
+    ("the Stop hook", "status_hook.py reads the\nblock, refuses one that\nnames another session"),
+    ("the stores", "asks · status · queue\nJSONL under agents/,\nledger.py the only writer"),
     ("the board", "one page on the Mac\nreads the stores, never\nkeeps a second record"),
-    ("Saber", "answers an ask on the\nboard or in the session"),
+    ("me", "answers on the board\nor in the session's chat"),
 ]
 
 
@@ -455,7 +455,7 @@ def fig_loop(loop=LOOP):
     L = (W - (n * BW + (n - 1) * GAP)) / 2
     y0 = 56
     body = [ARROW_DEF, text(L, 14, "how a session's state reaches me, and how my answer reaches it back", 9.5, INK3)]
-    labels = ["STATUS · T<n> · state\n→ file · ASK: …", "lifts the block,\nfiles the ask as A<n>", "read on every render", "A12: b · seen · snooze"]
+    labels = ["STATUS · T<n> · state\n→ file · ASK: …", "lifts the block,\nfiles the ask as A<n>", "read on every request", "A12: b · seen · snooze"]
     for i, (name, sub) in enumerate(loop):
         x = L + i * (BW + GAP)
         body += _box(x, y0, BW, BH, name, None, accent=(name == "the board"))
@@ -469,7 +469,7 @@ def fig_loop(loop=LOOP):
     xs, xe = L + (n - 1) * (BW + GAP) + BW / 2, L + BW / 2
     yb = y0 + BH + 70
     body.append(f'<path d="M {xs:.1f} {yb - 20:.1f} L {xs:.1f} {yb:.1f} L {xe:.1f} {yb:.1f} L {xe:.1f} {yb - 18:.1f}" fill="none" stroke="{MARK}" stroke-width="1.1" marker-end="url(#arr)"/>')
-    body.append(text((xs + xe) / 2, yb + 13, "ledger.py ask answer · the only writer of the stores · the session reads its rows and consumes the ask once it has acted", 8, INK2, "middle"))
+    body.append(text((xs + xe) / 2, yb + 13, "ledger.py ask answer · the owning session consumes the ask once it has acted", 8, INK2, "middle"))
     return svg(W, H, body, "The reporting loop: a session ends its turn with a STATUS block, the Stop hook lifts it into three stores, the board reads them, Saber answers, the answer returns through ledger.py")
 
 
