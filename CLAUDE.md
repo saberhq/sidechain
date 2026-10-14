@@ -4,7 +4,7 @@ Entry for the Arc **Virtual Cell Challenge 2026**: predict how a cell's transcri
 a gene is silenced. Solo entry: Saber, the one human, plus Claude Code sessions working together.
 
 This file is **the rules every session must follow — code and coordination.** The *why* lives in
-`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~180 lines / ~3.4k tokens today,
+`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~235 lines / ~4.7k tokens today,
 against the audit's ~120 / ~2k. Trim what is stale, never what a session needs; anything loaded
 every session counts, so a new rule earns its lines.
 
@@ -130,6 +130,30 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   delete, or stop where the type allows (`/sidechain-brev`, trap 17). CPU-only tails leave the GPU
   box. Final-phase builds need no GPU; the stoppable CPU box `sidechain-cpu-t118-s4` is the standby candidate (T118).
 
+## Review tiers — how much review, and when none
+
+A reviewer agent re-reads what the mother already holds, so review goes where an error would
+otherwise survive, never by habit (Saber, 2026-10-14; the measured cost:
+`private/research/token-usage-audit-2026-10-14.md`). The tier is set by what is claimed or done,
+and it is the most review that work gets:
+
+- **0 · none.** Code covered by its tests, pipeline output (a run, a scoring pass, a generated
+  table), mechanical edits, ledger and file housekeeping. The tests and the mirror are the review.
+- **1 · one cheap pass.** A reading whose numbers sit in a generated table or `results.json`: the
+  mother, or one Sonnet child, checks each sentence against that table. Nobody re-derives numbers
+  from the run directory.
+- **2 · one critic round on Opus.** A new statistic or instrument, a pre-registration, box scripts
+  before a paid run, a "this will tell us whether X" put to Saber for a spend: one critic, two
+  lenses at most; a refuter only for a finding marked blocking; a second round only when a fix
+  changed the design.
+- **3 · full adversarial round.** A `vcc submit`, and anything published under Saber's name (site,
+  README prose, posts): lensed critics and a refuter per serious finding.
+
+After a review the mother checks her rewrite against the findings list herself; a rewrite is not a
+new round. Write a reading's summary last, from its body, and lead with the registered contrast.
+Workflows run when Saber asks for one or tier 3 calls for it. Ultracode stays off unless he turns it
+on for a phase (`/effort ultracode`), and a hand-off never tells the next session to use either.
+
 ## Replying to Saber
 
 Saber is a research scientist in bioinformatics, not an ML engineer: biology as technical as it
@@ -165,11 +189,13 @@ no block; a peer (a separate session you message) files its own. Every brief you
 with `T<n> · from <your session id> · one line`; a session with no task writes `—` in place of the
 id (Saber, 2026-09-21 — not every session works a pre-determined task), and work you will discard
 is `— · throwaway`. The mother is the part the board cannot do without.**
-**Models:** a mother runs Saber's session model (Fable 5.1, 1M window) — the only place the whole
-picture is held; a child runs Opus by default (`CLAUDE_CODE_SUBAGENT_MODEL`), its wrapper's
-`model:` when wired (Researcher on Sonnet), or the `model` a Workflow stage passes: sweeps and
-schema-bound reading on Sonnet, counting and converting on Haiku, verify / judge / synthesis on
-Opus. Say why when you override. The queue, the mother session and dispatch: `private/CLAUDE.md` → The mother session.
+**Models and effort** (Saber, 2026-10-14): a mother runs Saber's session model at `xhigh` — the
+only place the whole picture is held; a child runs at effort `high` (pass `effort: "high"` to an
+unwired Agent or a Workflow `agent()`, which otherwise inherit `xhigh`). The model follows the
+kind of work: code, box scripts, measurement and design review on Opus 5.5 (the default,
+`CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-5-5`; Analyst, Critic); a write-up checked against its
+artefacts, documents and literature on Sonnet 5.5 (Researcher, Verifier, or `model: "sonnet"` on
+a Critic); counting and converting on Haiku. Say why when you override. The queue, the mother session and dispatch: `private/CLAUDE.md` → The mother session.
 
 ## Env
 

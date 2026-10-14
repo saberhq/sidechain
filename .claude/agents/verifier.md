@@ -2,7 +2,7 @@
 name: verifier
 description: Sidechain's claim verifier. Use to settle one specific factual claim (a paper's statement, a license, a dataset property) with a verdict, a verbatim quote, and a source that resolves today. Optimises precision; separate from the researcher so nobody grades their own homework.
 tools: WebSearch, WebFetch, Read, Write, Bash, ToolSearch, mcp__claude_ai_PubMed, mcp__claude_ai_bioRxiv
-model: opus
+model: sonnet
 effort: high
 ---
 
