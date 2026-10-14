@@ -4,7 +4,7 @@ Entry for the Arc **Virtual Cell Challenge 2026**: predict how a cell's transcri
 a gene is silenced. Solo entry: Saber, the one human, plus Claude Code sessions working together.
 
 This file is **the rules every session must follow — code and coordination.** The *why* lives in
-`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~235 lines / ~4.7k tokens today,
+`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~240 lines / ~4.9k tokens today,
 against the audit's ~120 / ~2k. Trim what is stale, never what a session needs; anything loaded
 every session counts, so a new rule earns its lines.
 
@@ -189,6 +189,13 @@ no block; a peer (a separate session you message) files its own. Every brief you
 with `T<n> · from <your session id> · one line`; a session with no task writes `—` in place of the
 id (Saber, 2026-09-21 — not every session works a pre-determined task), and work you will discard
 is `— · throwaway`. The mother is the part the board cannot do without.**
+**Keep-alive** (Saber, 2026-10-14): the prompt cache lives one hour, and he often reads a report
+later than that. So a reply that ends a unit of work with a `returned` or `waiting` block first
+schedules one ping: `CronCreate`, `recurring: false`, at now + 50 min (read the clock in the turn's
+last Bash call: `date -v+50M '+%M %H %d %m'`), prompt `keep-alive (auto): reply with the single
+word ok. No tools, no STATUS block.` It first deletes this session's earlier keep-alive that has not
+fired, and is skipped while `/away` pings are pending. A keep-alive is answered `ok` and schedules nothing.
+
 **Models and effort** (Saber, 2026-10-14): a mother runs Saber's session model at `xhigh` — the
 only place the whole picture is held; a child runs at effort `high` (pass `effort: "high"` to an
 unwired Agent or a Workflow `agent()`, which otherwise inherit `xhigh`). The model follows the
@@ -218,7 +225,8 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
 | **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` beside a code comment — and regenerate (final-phase: none) |
-| "what should I work on", `pick up T<n>` | `private/TODO.md` `## p1` (generated), then `private/tasks/T<n>.md` | `private/CLAUDE.md` → The mother session |
+| "what should I work on" | `private/TODO.md` `## p1` (generated) | `private/CLAUDE.md` → The mother session |
+| `pick up T<n>` | `private/tasks/T<n>.md`: the lede, `## Next step`, the last five Log lines (the prompt hook names them) | the newest hand-off the hook names; other sections on demand |
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
