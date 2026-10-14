@@ -130,7 +130,7 @@ sources:
     record: "27993248.v1"                    # `.v1` PINS it. A bare Figshare id follows "latest".
     dest: external/figshare-27993248
     derived: derived/depmap-24q4             # gene_effect_table.pt, common_essential.tsv + LINEAGE.json (ours)
-    budget_gb: 0.7                           # 0.45 GB selected; the gate refuses a selection over this
+    budget_gb: 1.1                           # 0.96 GB selected; the gate refuses a selection over this
     license: CC-BY-4.0
     files:
       # One row per screened model (`ACH-…`), one column per gene headed
@@ -152,6 +152,16 @@ sources:
       - name: Gene.csv
       # The release's description of every file. 43 kB.
       - name: README.txt
+      # Bulk RNA-seq of every model, one row per `ACH-…`, one column per
+      # protein-coding gene headed `SYMBOL (Entrez)`, values log2(TPM + 1).
+      # 506.6 MB. Not a prior: the reference library for naming the line behind
+      # a context's control cells (the named-line match, private
+      # research/ideas/scbasecount-context-matching.md), where the scBaseCount
+      # panel holds 48 lines and this table holds nearly every line in culture,
+      # CAL-33 and HeLa among them. Read as a rank within the table against our
+      # own lines' controls as positive controls; the absolute cosine between a
+      # single-cell CPM profile and a bulk TPM profile means nothing on its own.
+      - name: OmicsExpressionProteinCodingGenesTPMLogp1.csv
 
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
