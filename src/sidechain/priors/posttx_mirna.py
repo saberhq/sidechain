@@ -213,12 +213,19 @@ def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress
     and ``MRNAStabilitySource`` (``posttx_stability``, the Springer and eLife blocks) both
     call it, and a second copy of this loop is how the two would drift.
     """
-    from sidechain.ingest.fetch import run_gate
+    from sidechain.ingest.fetch import block_route, run_gate
+    from sidechain.ingest.provenance import STREAM
 
     name = spec.get("name", "<unnamed>")
     if "host" not in spec:
         raise ValueError(f"{name}: the registry block declares no host/record/files, "
                          "so there is nothing to fetch through the gate")
+    if block_route(spec) == STREAM:
+        # A stream block's bytes must never land (ADR 0003; unstated terms are tolerated only
+        # there), and this loop is a download. Refused before the gate or any connection, so a
+        # stream block cannot pass the gate here and then be written to disk in full.
+        raise ValueError(f"{name}: route: stream -- this is the download loop; a stream block is "
+                         "read once by a streaming reader and only its derived table is kept")
     record, selected, dest = run_gate(spec, root, refresh=refresh, config=registry)
     for f in selected:
         target = dest / f.name

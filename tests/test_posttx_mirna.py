@@ -428,6 +428,22 @@ def test_fetch_resumes_a_stalled_connection_from_the_bytes_it_delivered(monkeypa
     assert ranges == [None, "bytes=7-", "bytes=7-", "bytes=19-"]
 
 
+def test_fetch_refuses_a_stream_block_before_the_gate_or_any_connection(monkeypatch, tmp_path):
+    import urllib.request
+
+    import sidechain.ingest.fetch as fetch_mod
+    from sidechain.priors.posttx_mirna import fetch_gated_files
+
+    def boom(*a, **kw):
+        raise AssertionError("a stream block reached the gate or the network")
+
+    monkeypatch.setattr(fetch_mod, "run_gate", boom)
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(ValueError, match="route: stream"):
+        fetch_gated_files({"name": "x", "host": "https", "route": "stream"}, tmp_path)
+    assert not any(tmp_path.iterdir())
+
+
 def test_fetch_gives_up_after_the_attempt_cap_and_keeps_the_part(monkeypatch, tmp_path):
     import sidechain.priors.posttx_mirna as mod
 
