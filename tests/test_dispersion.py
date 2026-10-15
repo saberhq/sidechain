@@ -252,3 +252,54 @@ def test_a_negative_prior_strength_is_refused_not_clamped():
     pb, _ = synthetic(n_genes=40, n_groups=20)
     with pytest.raises(ValueError, match="df0 must be non-negative"):
         fit_gene_dispersion(pb, window=11, df0=-1.0)
+
+
+def synthetic_varying_libsize(n_genes=200, n_groups=150, n_cells=150, seed=3, log_sd=0.5,
+                              theta_true=0.0):
+    """Pure Poisson (or Gamma-Poisson at one `theta_true`) counts whose cells differ in library
+    size, log-normal with sd `log_sd` about `LIBSIZE`, plus the per-group `sum(1/L)`."""
+    rng = np.random.default_rng(seed)
+    base_cpm = np.exp(rng.uniform(np.log(3.0), np.log(3000.0), size=n_genes))
+    cpm_sum = np.zeros((n_groups, n_genes)); cpm_sq_sum = np.zeros((n_groups, n_genes))
+    count_sum = np.zeros((n_groups, n_genes))
+    libsize_sum = np.zeros(n_groups); inv_libsize_sum = np.zeros(n_groups)
+    for g in range(n_groups):
+        L = LIBSIZE * np.exp(rng.normal(-0.5 * log_sd ** 2, log_sd, size=n_cells))
+        mu = base_cpm[None, :] * L[:, None] / 1e6
+        lam = mu if theta_true == 0.0 else rng.gamma(1.0 / theta_true, theta_true * mu)
+        counts = rng.poisson(lam)
+        cpm = counts * 1e6 / L[:, None]
+        cpm_sum[g] = cpm.sum(axis=0); cpm_sq_sum[g] = (cpm ** 2).sum(axis=0)
+        count_sum[g] = counts.sum(axis=0)
+        libsize_sum[g] = L.sum(); inv_libsize_sum[g] = (1.0 / L).sum()
+    pb = PseudobulkSums(
+        labels=[f"T{i}" for i in range(n_groups)],
+        genes=np.array([f"G{i}" for i in range(n_genes)]),
+        count_sum=count_sum, cpm_sum=cpm_sum, cpm_sq_sum=cpm_sq_sum,
+        n_cells=np.full(n_groups, n_cells, dtype=np.int64), libsize_sum=libsize_sum,
+    )
+    return pb, base_cpm, inv_libsize_sum
+
+
+def test_varying_library_sizes_read_as_dispersion_unless_the_per_group_inverse_sum_is_given():
+    # A cell's CPM carries Poisson noise mu*1e6/L_i, so over a group the Poisson term is
+    # mu*1e6*mean(1/L), larger than mu*1e6/mean(L) by kappa = mean(1/L)*mean(L). Without
+    # sum(1/L) the estimator attributes (kappa-1)*s/mu to dispersion -- large at low
+    # expression, where the fitted trend's level on the real arms is half this term (T98
+    # re-assessment, 2026-10-13). With it, pure Poisson counts read as dispersion 0.
+    pb, base_cpm, inv = synthetic_varying_libsize(theta_true=0.0)
+    kappa = float(np.mean(inv / pb.n_cells) * np.mean(pb.libsize_sum / pb.n_cells))
+    assert 1.2 < kappa < 1.4
+    _, theta_biased, _ = moment_dispersion(pb)
+    _, theta_fixed, _ = moment_dispersion(pb, inv_libsize_sum=inv)
+    low = base_cpm < 30.0
+    predicted = (kappa - 1.0) * (1e6 / LIBSIZE) / base_cpm[low]
+    assert np.median(theta_biased[low] / predicted) == pytest.approx(1.0, abs=0.15)
+    assert np.median(theta_fixed[low]) < 0.05 * np.median(theta_biased[low])
+    # and a real dispersion is recovered only with the correction
+    pb2, base2, inv2 = synthetic_varying_libsize(theta_true=0.3, seed=4)
+    _, t_biased, _ = moment_dispersion(pb2)
+    _, t_fixed, _ = moment_dispersion(pb2, inv_libsize_sum=inv2)
+    mid = (base2 > 30.0) & (base2 < 300.0)
+    assert np.median(t_fixed[mid]) == pytest.approx(0.3, rel=0.1)
+    assert np.median(t_biased[mid]) > 0.4

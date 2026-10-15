@@ -138,21 +138,26 @@ class GeneDispersion:
         mu = np.asarray(mean_count, dtype=np.float64)
         return self.theta_sql * (mu + self.theta_trend * mu * mu)
 
-    def variance_cpm(self, mean_cpm: np.ndarray, mean_libsize: float) -> np.ndarray:
+    def variance_cpm(self, mean_cpm: np.ndarray, mean_libsize: float,
+                     mean_inv_libsize: float | None = None) -> np.ndarray:
         """The same variance in the CPM units `_log2fc_with_var` works in.
 
         One count is `1e6 / mean_libsize` CPM, and a variance scales by the square of that,
         so the Poisson term becomes `mean_cpm * 1e6 / mean_libsize` -- which is precisely the
         expression `var_floor="poisson"` already floors at, with the pseudocount dropped.
         The dispersion term is scale-free by construction and carries over unchanged.
+        `mean_inv_libsize` (the group's `mean(1/L_i)`) puts the Poisson term at its true size
+        under varying library sizes; pass it only with a fit made the same way
+        (`moment_dispersion`'s `inv_libsize_sum`), or the two stop cancelling.
         """
         m = np.asarray(mean_cpm, dtype=np.float64)
-        scale = 1e6 / float(mean_libsize)
+        scale = 1e6 / float(mean_libsize) if mean_inv_libsize is None else 1e6 * float(mean_inv_libsize)
         return self.theta_sql * (m * scale + self.theta_trend * m * m)
 
 
 def moment_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
-                      min_cells: int = MIN_CELLS_PER_GROUP
+                      min_cells: int = MIN_CELLS_PER_GROUP,
+                      inv_libsize_sum: np.ndarray | None = None,
                       ) -> tuple[np.ndarray, np.ndarray, float]:
     """Per-gene dispersion from the mean-variance relation, pooled over every group.
 
@@ -163,6 +168,18 @@ def moment_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
     Done in CPM space because that is what the cache stores, then converted: a group's CPM
     variance is `mu*s + theta*(mu*s)^2` where `s = 1e6/mean_libsize`, so dividing the excess
     by `(mu*s)^2` returns the same scale-free `theta` either way.
+
+    **`inv_libsize_sum`, the per-group `sum(1/L_i)` over its cells, when the caller has it.**
+    A cell's CPM carries Poisson noise `m_cpm * 1e6 / L_i`, so over a group the Poisson term
+    is `m_cpm * 1e6 * mean(1/L_i)`, which exceeds `m_cpm * 1e6 / mean(L)` by
+    `kappa = mean(1/L) * mean(L)` -- 1.26 to 1.29 on real control cells, whose library sizes
+    spread about 0.5 in log. Without it the estimator reads `(kappa - 1) * s / m_cpm` as
+    dispersion: 2.4 at 10 CPM on pure Poisson counts, and 50 to 83 % of the fitted trend's
+    level at 10 to 100 CPM on the X-Atlas and K562 GWPS arms (T98 re-assessment, 2026-10-13).
+    The caches hold `libsize_sum` only, so the default keeps the biased form the T98 fits
+    were made with; a cache that carries `sum(1/L)` per group should pass it here, and the
+    model that reads the fit (`variance_cpm`, `submit.variance_model`) must then scale its
+    own Poisson term by the same `kappa`, or the two no longer cancel.
 
     Weighted by `n - 1`, each group's degrees of freedom. Optimal weights would also divide
     by the square of the group's own variance, which needs `theta` to compute -- the paper
@@ -190,7 +207,11 @@ def moment_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
     # N(N-1) on the E-distance, and the same reason -- the statistic is a difference.
     v_cpm = np.maximum(pb.cpm_sq_sum[rows] / n[:, None] - m_cpm * m_cpm, 0.0)
     v_cpm = v_cpm * (n / np.maximum(n - 1.0, 1.0))[:, None]
-    scale = (1e6 / (pb.libsize_sum[rows] / n))[:, None]      # CPM per raw count, per group
+    if inv_libsize_sum is None:
+        scale = (1e6 / (pb.libsize_sum[rows] / n))[:, None]  # CPM per raw count, per group
+    else:
+        # Poisson noise per cell is m_cpm * 1e6 / L_i; its group mean is m_cpm * 1e6 * mean(1/L)
+        scale = (1e6 * np.asarray(inv_libsize_sum, dtype=np.float64)[rows] / n)[:, None]
 
     # Var_cpm = mu*scale^2 + theta*(mu*scale)^2, and mu*scale is m_cpm, so the part Poisson
     # does not explain is exactly theta * m_cpm^2. One ratio per gene, pooled over groups and
@@ -324,7 +345,8 @@ def shrink_quasi_dispersion(theta_ql: np.ndarray, df: float, df0: float,
 
 def fit_gene_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
                         window: int = 301, min_cells: int = MIN_CELLS_PER_GROUP,
-                        df0: float | None = None) -> GeneDispersion:
+                        df0: float | None = None,
+                        inv_libsize_sum: np.ndarray | None = None) -> GeneDispersion:
     """The whole of step 8 on one arm: moments, trend, quasi-dispersion, prior, shrinkage.
 
     `exclude` drops label rows before fitting -- pass the control label when the dispersion
@@ -343,7 +365,8 @@ def fit_gene_dispersion(pb: PseudobulkSums, *, exclude: tuple[str, ...] = (),
     formula -- so anything found that way is a tuned knob and owes a letter at ADR 0005, not a
     citation to the paper.
     """
-    mean_count, theta_ml, df = moment_dispersion(pb, exclude=exclude, min_cells=min_cells)
+    mean_count, theta_ml, df = moment_dispersion(pb, exclude=exclude, min_cells=min_cells,
+                                                 inv_libsize_sum=inv_libsize_sum)
     theta_trend = dispersion_trend(mean_count, theta_ml, window=window)
     theta_ql = quasi_dispersion(mean_count, theta_ml, theta_trend)
     fitted_df0, tau0_sq = fit_variance_prior(theta_ql, df)
@@ -389,7 +412,8 @@ def sources_sha256(sources) -> str:
 
 def moment_dispersion_file(path: str | Path, *, exclude: tuple[str, ...] = (),
                            min_cells: int = MIN_CELLS_PER_GROUP, block_rows: int = 128,
-                           progress: bool = False) -> tuple[np.ndarray, np.ndarray, float, int, np.ndarray]:
+                           progress: bool = False, inv_libsize_sum: np.ndarray | None = None,
+                           ) -> tuple[np.ndarray, np.ndarray, float, int, np.ndarray]:
     """`moment_dispersion` on a saved artifact, one row block at a time, never loading it whole.
 
     Every quantity the in-memory estimator needs is a SUM over groups -- `sum_l w_l * excess_lg`,
@@ -412,6 +436,7 @@ def moment_dispersion_file(path: str | Path, *, exclude: tuple[str, ...] = (),
     genes = small["genes"].astype(str)
     n_all = small["n_cells"].astype(np.float64)
     lib_all = small["libsize_sum"].astype(np.float64)
+    inv_all = None if inv_libsize_sum is None else np.asarray(inv_libsize_sum, dtype=np.float64)
     keep = np.array([lab not in exclude and int(n_all[i]) >= min_cells
                      for i, lab in enumerate(labels)])
     if int(keep.sum()) < 2:
@@ -439,7 +464,10 @@ def moment_dispersion_file(path: str | Path, *, exclude: tuple[str, ...] = (),
         # the same Bessel correction as `moment_dispersion`, for the same reason
         v_cpm = np.maximum(cq / n[:, None] - m_cpm * m_cpm, 0.0)
         v_cpm = v_cpm * (n / np.maximum(n - 1.0, 1.0))[:, None]
-        scale = (1e6 / (lib_all[r0 + rows] / n))[:, None]
+        if inv_all is None:
+            scale = (1e6 / (lib_all[r0 + rows] / n))[:, None]
+        else:
+            scale = (1e6 * inv_all[r0 + rows] / n)[:, None]   # as `moment_dispersion`
         excess = v_cpm - m_cpm * scale
         w = np.maximum(n - 1.0, 0.0)[:, None]
         num += (w * excess).sum(axis=0)
