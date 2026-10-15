@@ -30,7 +30,7 @@ parquet under ``derived/targetscan-vert_80/`` with an entry in the LINEAGE.json 
 ``utr_features_table()`` joins the load and the sequence tables into the widened per-gene
 table. Every table is keyed by Ensembl gene id (version stripped) and by TargetScan's 2018
 symbol; our 2026 axes spell 2024 symbols, so the join goes through the corpora's own gene
-tables (``scripts/t102_utr_load.py::symbol_to_ensg``).
+tables (the bridge ``runs/probes/t102_utr_load/bridge/symbol_to_ensg.json`` under ``~/data/sidechain``).
 
 **The fetch.** ``fetch()`` brings the block's files through the ADR 0003 gate
 (``sidechain.ingest.fetch.run_gate``: probe, gate, PROVENANCE.json before any byte lands),
