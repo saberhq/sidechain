@@ -95,6 +95,9 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   a pdex/CPU bundle scores on the Mac, gpudge and full-corpus builds need the box (`/sidechain-brev`).
   `sidechain.eval.local_mirror` is the frozen 2025 backtest and scores nothing for 2026.
 - **Sparse only** (`edge_index`/COO); never a dense gene × gene matrix (18,533² is ~1.4 GB).
+- **A script's docstring says what, never why** (Saber, 2026-10-15): one line of purpose, how to run it, what it reads
+  and writes, and a pointer to the idea or task file. No hypotheses, kill criteria, review rounds or findings: they go
+  stale in code. A task's probe scripts live in private `scripts/`, not here (T88's and T102's were moved).
 - **A new corpus** is a `configs/datasets.yaml` block behind the ADR 0003 gate
   (`sidechain.ingest.fetch`). **A new prior** is a `data_sources.yaml` block plus a `PriorSource`
   subclass (`src/sidechain/priors/base.py`) registered in `src/sidechain/data/registry.py`; blocks
