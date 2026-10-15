@@ -103,8 +103,13 @@ agent can delete the item; only you can mint or paste the key.
    (~11,800 nnz/cell) is 4.25e9 ≈ 48 GiB resident. **A 16 GB Mac cannot package a
    submission.** Write the h5ad out of core (h5py, per context) and run `vcc prep` /
    `vcc submit` on a 64 GB machine at minimum, 128 GB comfortably.
-8. **PDS is cosine** on pseudobulk-sum deltas with all 300 panel targets removed: invariant to
-   each predicted effect's magnitude. Direction is what scores; size pays only on `nmae`/`mse`.
+8. **PDS is cosine** on pseudobulk-sum deltas with all 300 panel targets removed: a global
+   rescale of the *scored* delta cannot move it. The amplitude knobs (`--alpha`, `--alpha-bulk`)
+   are not that rescale: they scale log2 fold changes before the emitter's `2^lfc` and
+   renormalisation, and the scorer's log1p is linear for low counts and logarithmic for high
+   ones, so α changes the scored delta's direction and is the largest single mover of board
+   `pds` (`private/reports/09_vcc2026_model_and_scoring.md` §4b; `private/reports/16_pooled_anchor_reread.md`
+   rule 2). Size as such pays on `nmae`/`mse`; read any magnitude knob on `pds` and `nmae` together.
 9. **The four DE metrics are computed on the cells you emit** (Wilcoxon vs the real controls,
    > 5 CPM in controls, BH per perturbation). The dispersion of emitted cells sets how many
    genes you "call", and `fid`/`jac` charge under-calling. Emission is a modelling choice.
