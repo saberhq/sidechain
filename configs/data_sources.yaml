@@ -121,7 +121,7 @@ sources:
     key_type: hgnc_symbol          # DepMap heads a column `SYMBOL (Entrez)`; retired symbols via sidechain.data.gene_aliases
     precompute: true
     enabled: false                 # nothing in the shipping path consumes it; gated as a neighbour table only (T113)
-    notes: "One fitness-effect score per gene per screened cell line (Chronos: about 0 for a gene the line does not need, about -1 for a common-essential one). Used two ways (T113): each gene's profile across lines, centred, as a co-essentiality neighbour table read against STRING node2vec on scripts/esm2_geometry_gate.py; and the common-essential flag as a gene class for the T98 dispersion thread. HEK293T and H1 are not among DepMap's models, so the table is a property of genes across cancer lines, never a reading of a challenge line."
+    notes: "One fitness-effect score per gene per screened cell line (Chronos: about 0 for a gene the line does not need, about -1 for a common-essential one). Used two ways (T113): each gene's profile across lines, centred, as a co-essentiality neighbour table read against STRING node2vec on scripts/esm2_geometry_gate.py; and the common-essential flag as a gene class for the T98 dispersion thread. HEK293T and H1 are not among DepMap's models, so for them the table is a property of genes across cancer lines; a line-specific reading exists only for a context that is a screened model (private research/ideas/depmap-gene-effect-prior.md § Outcome 2026-10-14)."
     # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
     # by sidechain.priors.posttx_mirna.fetch_gated_files, as the targetscan block
     # is. Figshare lists the record (73 files, 30.8 GB) and publishes a computed
