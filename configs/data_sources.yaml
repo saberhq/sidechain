@@ -384,6 +384,93 @@ sources:
       # sheet's median rather than standardising silently. 5.6 MB.
       - name: elife-45396-fig1-data1-v2.xlsx
 
+  - name: polyasite_2
+    kind: node_feature
+    layer: posttx
+    relation: polyadenylation_layout
+    entity: gene
+    loader: PolyASiteSource
+    provider: "PolyASite 2.0, human atlas on GRCh38 / Ensembl 96 (Herrmann et al. 2020, NAR 48:D174)"
+    url: "https://polyasite.unibas.ch/atlas"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T102, T120)
+    notes: "One row per gene: the distance from the representative transcript's last splice acceptor to its first supported poly(A) site (Borzoi Prime's strongest differential-polyadenylation cue, research/reading/linder-2025-borzoi-prime.md measurement 6, private), the number of supported sites in the gene's 3' window, the short and long 3'UTR lengths, the proximal site's pooled usage and poly(A) signal, intronic sites. Clusters are assigned to genes by a strand-aware window on GENCODE v47 (the gencode_v47_basic block below), never by the atlas's own gene column. The atlas is HeLa- and HEK293-heavy (221 libraries); the per-line usage columns it also yields are written and used nowhere (plans/2026-10-15-t102-polyasite.md, private)."
+    # ---- the gate, as the targetscan block above, on a plain web server (no record
+    # API, no listing, no checksum, no licence header). The file list IS the listing.
+    # `route: stream`: the atlas is read ONCE over the network by
+    # `posttx_mirna.stream_gated_file` and only our per-gene table lands under
+    # `derived:`; the gate writes PROVENANCE.json and nothing else into `dest:`.
+    # Why stream and not download: the terms are stated nowhere (license_override_source
+    # below), and UNSTATED is legal only on a stream (ingest/provenance.py).
+    host: https
+    record: "https://polyasite.unibas.ch/download/atlas/2.0/GRCh38.96"
+    dest: external/polyasite-2.0
+    derived: derived/polyasite-2.0           # pas_gene_features.parquet + LINEAGE.json (ours)
+    route: stream
+    budget_gb: 0.5                           # bounds the OUTPUT on a stream; the TSV read is 0.051 GB
+    allow_missing_checksum: true             # the host publishes none; sha256 of the bytes READ is in LINEAGE.json
+    license: UNSTATED
+    license_override_source: >
+      The atlas states no terms anywhere the publisher controls. Checked
+      2026-10-15 (twice, by sessions 7ff4968d and a0ea7064): the site root,
+      /atlas, /atlas_sc, /samples and /about carry only the footer
+      "© 2015-2026 University of Basel"; /about asks "If you use PolyASite in
+      your research, please cite the following publications:" (v2.0: Herrmann
+      et al., NAR 48:D174-D179, 2020). The paper's own licence (Europe PMC
+      PMC7145510: "Creative Commons Attribution Non-Commercial License") governs
+      the article, not the atlas, as scBaseCount's preprint footer did not govern
+      its bucket; the pipeline repo (zavolanlab/polyAsite_workflow) is Apache-2.0
+      and covers the code only. What sanctions the use is the public bulk
+      download the authors offer and the citation request. So the value is
+      UNSTATED, which the gate admits only on route: stream and records with
+      both encumbrance flags; publishing anything built from it needs a fresh
+      call (Saber, 2026-10-15: stream it, licence recorded as unstated).
+    files:
+      # The "Atlas with Samples" TSV: one row per poly(A)-site cluster (569,005),
+      # thirteen fixed columns (chrom, start, end, cluster id, mean TPM, strand,
+      # representative site, share of samples supporting, number of protocols,
+      # annotation code TE/EX/IN/DS/AE/AI/AU/IG, gene symbols, Ensembl gene ids,
+      # PAS motifs in -60..+10) and then one TPM column per library, headed
+      # SAMPLE_ID|PROTOCOL|SOURCE|TITLE|TREATMENT (221 libraries). 50.6 MB gzipped,
+      # Last-Modified 2020-04-22. The BED twin has no gene column, so the TSV it is.
+      - name: atlas.clusters.2.0.GRCh38.96.tsv.gz
+
+  - name: gencode_v47_basic
+    kind: node_feature
+    layer: cis
+    relation: transcript_structure
+    entity: gene
+    loader: PolyASiteSource
+    provider: "GENCODE release 47 (Ensembl 113), basic gene annotation, GRCh38"
+    url: "https://www.gencodegenes.org/human/release_47.html"
+    enabled: false               # an annotation the polyasite_2 block reads; not a prior in the shipping path (T102, T120)
+    notes: "The transcript structure behind the polyadenylation layout: one row per basic transcript with its last exon, stop codon, MANE_Select and Ensembl_canonical tags (derived/gencode-v47/transcript_structure.parquet). v47 because it is the release of master_gene_space.version and carries the MANE tag; Ensembl 96 (PolyASite's own annotation) would reproduce the atlas's TE/DS labels exactly but has none. The release's MD5SUMS gives 823c2d44a2268d2c79a11986ffa29028 for this file; the fetch checks it after landing (posttx_polya.GENCODE_MD5), because probe_https cannot read a sidecar."
+    # ---- the gate, as above: EMBL-EBI's FTP over https is a plain file server with
+    # no record API and no licence header, so the file list is the listing and the
+    # terms are quoted under license_override_source.
+    host: https
+    record: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47"
+    dest: external/gencode-v47
+    derived: derived/gencode-v47             # transcript_structure.parquet + LINEAGE.json (ours)
+    budget_gb: 0.05                          # 0.034 GB selected; the gate refuses a selection over this
+    allow_missing_checksum: true             # the probe reads no MD5SUMS; the md5 above is checked by the fetch and the sha256 recorded in LINEAGE.json
+    license: GENCODE-open-access
+    license_override_source: >
+      A plain FTP host states no terms in a header. GENCODE's data-access page
+      (https://www.gencodegenes.org/pages/data_access.html, read 2026-10-15)
+      says: "All the GENCODE project data is open access and can be accessed by
+      any of the following methods." The host's terms
+      (https://www.ebi.ac.uk/about/terms-of-use, read 2026-10-15) say: "Where
+      EMBL-EBI presents scientific data generated by others, EMBL-EBI imposes
+      no additional restriction on the use of the contributed data than those
+      provided by the data owner". Recorded in LICENSE_POLICY as
+      GENCODE-open-access (ingest/provenance.py); no restriction is named, so
+      neither encumbrance flag applies.
+    files:
+      # The basic annotation, GTF, chromosomes only: 33.7 MB gzipped, Last-Modified
+      # 2024-10-17; `tag "basic"`, `tag "MANE_Select"`, `tag "Ensembl_canonical"` on
+      # the transcript rows; exon, CDS and stop_codon rows per transcript.
+      - name: gencode.v47.basic.annotation.gtf.gz
+
   - name: postar3
     kind: edge
     layer: posttx

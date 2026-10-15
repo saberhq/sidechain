@@ -14,6 +14,7 @@ import yaml
 from sidechain.priors.base import PriorSource
 from sidechain.priors.cis_sequence import CisSequenceSource
 from sidechain.priors.posttx_mirna import MiRNATargetSource
+from sidechain.priors.posttx_polya import PolyASiteSource
 from sidechain.priors.posttx_rbp import RBPBindingSource
 from sidechain.priors.posttx_stability import MRNAStabilitySource
 from sidechain.priors.trans_grn import TransGRNSource
@@ -27,6 +28,7 @@ LOADERS: dict[str, type[PriorSource]] = {
     "CisSequenceSource": CisSequenceSource,
     "MiRNATargetSource": MiRNATargetSource,
     "MRNAStabilitySource": MRNAStabilitySource,
+    "PolyASiteSource": PolyASiteSource,
     "RBPBindingSource": RBPBindingSource,
 }
 

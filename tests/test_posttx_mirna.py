@@ -455,3 +455,105 @@ def test_fetch_gives_up_after_the_attempt_cap_and_keeps_the_part(monkeypatch, tm
     assert len(ranges) == 3
     assert (dest / "table.csv.part").read_bytes() == payload[:5]      # resumable, not deleted
     assert not (dest / "table.csv").exists()
+
+
+# ------------------------------------------- the stream reader: lines out, sha in --
+
+
+def _fake_stream(monkeypatch, tmp_path, payload: bytes, stalls: list[int | None], *,
+                 name: str = "table.tsv.gz", honour_range: bool = True):
+    """Wire `stream_gated_file` to a gate that selects one file and a host whose k-th
+    connection stalls after `stalls[k]` bytes."""
+    import urllib.request
+
+    import sidechain.ingest.fetch as fetch_mod
+    from sidechain.ingest.provenance import RemoteFile
+
+    dest = tmp_path / "external" / "host-record"
+    dest.mkdir(parents=True)
+    (dest / "PROVENANCE.json").write_text("{}")
+    selected = [RemoteFile(name=name, size_bytes=len(payload), checksum="http-last-modified:x",
+                           url=f"https://host.example/{name}")]
+    monkeypatch.setattr(fetch_mod, "run_gate", lambda spec, root, **kw: (None, selected, dest))
+    ranges: list[str | None] = []
+
+    def urlopen(req, timeout=None):
+        rng = req.get_header("Range")
+        ranges.append(rng)
+        start = int(rng.removeprefix("bytes=").rstrip("-")) if (rng and honour_range) else 0
+        stall = stalls[len(ranges) - 1] if len(ranges) <= len(stalls) else None
+        return _FakeResponse(payload, start, 206 if (rng and honour_range) else 200, stall)
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    return dest, ranges
+
+
+def test_stream_yields_the_lines_and_records_the_sha_without_landing_a_byte(monkeypatch, tmp_path):
+    import gzip
+    import hashlib
+
+    from sidechain.priors.posttx_mirna import stream_gated_file
+
+    text = "a\tb\n1\t2\r\n3\t4\n"
+    payload = gzip.compress(text.encode())
+    dest, ranges = _fake_stream(monkeypatch, tmp_path, payload, stalls=[None])
+    s = stream_gated_file({"name": "x", "host": "https", "route": "stream"}, tmp_path)
+    assert s.sha256 is None
+    assert list(s.lines()) == ["a\tb", "1\t2", "3\t4"]
+    assert s.sha256 == hashlib.sha256(payload).hexdigest() and s.bytes_read == len(payload)
+    assert s.lineage_input()["streamed"] is True and s.lineage_input()["host_evidence"] == "http-last-modified:x"
+    assert sorted(p.name for p in dest.iterdir()) == ["PROVENANCE.json"]
+    assert ranges == [None]
+
+
+def test_stream_resumes_a_stalled_connection_with_a_range(monkeypatch, tmp_path):
+    from sidechain.priors.posttx_mirna import stream_gated_file
+
+    payload = ("x" * 100 + "\n" + "y" * 50 + "\n").encode()
+    _, ranges = _fake_stream(monkeypatch, tmp_path, payload, stalls=[7, 0, 12, None], name="t.tsv")
+    s = stream_gated_file({"name": "x", "host": "https", "route": "stream"}, tmp_path)
+    assert list(s.lines()) == ["x" * 100, "y" * 50]
+    assert ranges == [None, "bytes=7-", "bytes=7-", "bytes=19-"]
+
+
+def test_stream_refuses_a_host_that_restarts_from_the_top(monkeypatch, tmp_path):
+    from sidechain.priors.posttx_mirna import stream_gated_file
+
+    payload = ("x" * 100 + "\n").encode()
+    _fake_stream(monkeypatch, tmp_path, payload, stalls=[7, None], name="t.tsv", honour_range=False)
+    s = stream_gated_file({"name": "x", "host": "https", "route": "stream"}, tmp_path)
+    with pytest.raises(RuntimeError, match="ignored a Range"):
+        list(s.lines())
+    assert s.sha256 is None
+
+
+def test_stream_refuses_a_short_stream(monkeypatch, tmp_path):
+    from sidechain.priors.posttx_mirna import stream_gated_file
+
+    payload = ("x" * 100 + "\n").encode()
+    dest, _ = _fake_stream(monkeypatch, tmp_path, payload[:60], stalls=[None], name="t.tsv")
+    # the probe said 101 bytes; the host serves 60 and ends
+    import sidechain.ingest.fetch as fetch_mod
+    from sidechain.ingest.provenance import RemoteFile
+    selected = [RemoteFile(name="t.tsv", size_bytes=len(payload), checksum=None, url="https://host.example/t.tsv")]
+    monkeypatch.setattr(fetch_mod, "run_gate", lambda spec, root, **kw: (None, selected, dest))
+    s = stream_gated_file({"name": "x", "host": "https", "route": "stream"}, tmp_path)
+    with pytest.raises(RuntimeError, match="short stream"):
+        list(s.lines())
+
+
+def test_stream_refuses_a_download_block_before_the_gate(monkeypatch, tmp_path):
+    import urllib.request
+
+    import sidechain.ingest.fetch as fetch_mod
+    from sidechain.priors.posttx_mirna import stream_gated_file
+
+    def boom(*a, **kw):
+        raise AssertionError("a download block reached the gate or the network")
+
+    monkeypatch.setattr(fetch_mod, "run_gate", boom)
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(ValueError, match="not stream"):
+        stream_gated_file({"name": "x", "host": "https"}, tmp_path)
+    with pytest.raises(ValueError, match="not stream"):
+        stream_gated_file({"name": "x", "host": "https", "route": "download"}, tmp_path)

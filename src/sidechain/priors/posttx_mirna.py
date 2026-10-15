@@ -55,6 +55,7 @@ import re
 import subprocess
 import urllib.request
 import zipfile
+import zlib
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -226,7 +227,7 @@ def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress
         # stream block cannot pass the gate here and then be written to disk in full.
         raise ValueError(f"{name}: route: stream -- this is the download loop; a stream block is "
                          "read once by a streaming reader and only its derived table is kept")
-    record, selected, dest = run_gate(spec, root, refresh=refresh, config=registry)
+    _record, selected, dest = run_gate(spec, root, refresh=refresh, config=registry)
     for f in selected:
         target = dest / f.name
         if target.exists() and target.stat().st_size == f.size_bytes:
@@ -269,6 +270,140 @@ def fetch_gated_files(spec: dict, root: Path, *, refresh: bool = False, progress
                                f"{f.size_bytes}; refusing to keep a short file")
         tmp.replace(target)
     return dest
+
+
+def _iter_remote_bytes(url: str, size_bytes: int, *, progress: bool = False,
+                       label: str = "") -> Iterator[bytes]:
+    """The bytes of one URL, in order, never touching disk; stalls are resumed by Range.
+
+    The same connection discipline as `fetch_gated_files` (`FETCH_STALL_S`,
+    `FETCH_ATTEMPTS`, a Range request for what the dropped connection had not delivered),
+    written as a generator so a streaming reader can hash and decompress the bytes as they
+    arrive. A host that ignores the Range restarts the byte stream, and that is a refusal
+    here rather than a silent restart: the consumer has already seen the first bytes once,
+    and seeing them twice would corrupt the decompressor and the hash alike. A stream that
+    ends short of `size_bytes` is a refusal for the same reason a short file is.
+    """
+    have = 0
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        headers = {"User-Agent": USER_AGENT}
+        if have:
+            headers["Range"] = f"bytes={have}-"
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=FETCH_STALL_S) as resp:
+                if have and resp.status != 206:
+                    raise RuntimeError(
+                        f"{label or url}: the host ignored a Range request after {have} bytes; "
+                        "a stream cannot restart from the top, so it is refused")
+                while chunk := resp.read(FETCH_CHUNK):
+                    have += len(chunk)
+                    if progress and have % (16 << 20) < FETCH_CHUNK:
+                        print(f"  {label or url}: {have / 1e6:.0f} / {size_bytes / 1e6:.0f} MB",
+                              flush=True)
+                    yield chunk
+            break                                   # the response ended; the size check judges it
+        except (TimeoutError, ConnectionError) as exc:
+            if attempt == FETCH_ATTEMPTS:
+                raise RuntimeError(
+                    f"{label or url}: {FETCH_ATTEMPTS} connections stalled or dropped ({exc!r}) "
+                    f"after {have} of {size_bytes} bytes; nothing was written") from exc
+            if progress:
+                print(f"  {label or url}: connection {attempt} stalled or dropped, resuming",
+                      flush=True)
+    if have != size_bytes:
+        raise RuntimeError(f"{label or url}: the stream delivered {have} bytes, the probe said "
+                           f"{size_bytes}; refusing to read a short stream as the whole file")
+
+
+class StreamedFile:
+    """One gated file read once over the network: lines out, sha256 of the bytes in.
+
+    Built by `stream_gated_file`. ``lines()`` yields the decoded text lines (gzip is
+    inflated on the fly when the name ends in ``.gz``); once it is exhausted ``sha256`` and
+    ``bytes_read`` describe the raw bytes that came over the wire, which is what a
+    LINEAGE.json records in place of the sha256 of a file that never landed. Reading it
+    twice means two network reads: nothing is kept.
+    """
+
+    def __init__(self, name: str, url: str, size_bytes: int, dest: Path, *,
+                 host_evidence: str | None = None, progress: bool = False):
+        self.name, self.url, self.size_bytes, self.dest = name, url, size_bytes, Path(dest)
+        self.host_evidence = host_evidence
+        self.progress = progress
+        self.sha256: str | None = None
+        self.bytes_read: int = 0
+
+    @property
+    def provenance(self) -> Path:
+        return self.dest / "PROVENANCE.json"
+
+    def lines(self, encoding: str = "utf-8") -> Iterator[str]:
+        h = hashlib.sha256()
+        inflate = zlib.decompressobj(16 + zlib.MAX_WBITS) if self.name.endswith(".gz") else None
+        pending = b""
+        n = 0
+        for chunk in _iter_remote_bytes(self.url, self.size_bytes, progress=self.progress,
+                                        label=self.name):
+            h.update(chunk)
+            n += len(chunk)
+            text = inflate.decompress(chunk) if inflate is not None else chunk
+            if not text:
+                continue
+            pending += text
+            parts = pending.split(b"\n")
+            pending = parts.pop()
+            for part in parts:
+                yield part.decode(encoding).rstrip("\r")
+        if inflate is not None:
+            pending += inflate.flush()
+        if pending:
+            yield pending.decode(encoding).rstrip("\r")
+        self.sha256, self.bytes_read = h.hexdigest(), n
+
+    def lineage_input(self) -> dict:
+        """The LINEAGE.json `inputs` entry for this stream, after `lines()` has run."""
+        if self.sha256 is None:
+            raise RuntimeError(f"{self.name}: lines() has not been read to the end, so there is "
+                               "no sha256 of the bytes to record")
+        return {"dest": str(self.dest), "bytes": self.bytes_read, "host_evidence": self.host_evidence,
+                "sha256": self.sha256, "streamed": True}
+
+
+def stream_gated_file(spec: dict, root: Path, *, name: str | None = None, refresh: bool = False,
+                      progress: bool = False, registry: str | Path = REGISTRY) -> StreamedFile:
+    """The sibling of `fetch_gated_files` for a ``route: stream`` block: gate, record
+    provenance, and hand back a reader that pulls one file over the network once.
+
+    The gate runs exactly as it does for a download (probe -> gate -> PROVENANCE.json, with
+    `derived:` required and UNSTATED terms admitted); what differs is that no byte lands
+    under `dest`, which holds PROVENANCE.json alone. A block that is not a stream is refused
+    here, the mirror of the refusal in `fetch_gated_files`: the two routes must not be
+    confused in either direction, or a download block would silently leave no file behind.
+    `name` picks one of the block's files; a one-file block needs none.
+    """
+    from sidechain.ingest.fetch import block_route, run_gate
+    from sidechain.ingest.provenance import STREAM
+
+    block = spec.get("name", "<unnamed>")
+    if "host" not in spec:
+        raise ValueError(f"{block}: the registry block declares no host/record/files, "
+                         "so there is nothing to stream through the gate")
+    if block_route(spec) != STREAM:
+        raise ValueError(f"{block}: route is {block_route(spec)!r}, not stream -- a download block "
+                         "goes through fetch_gated_files, whose bytes land and are verified")
+    _record, selected, dest = run_gate(spec, root, refresh=refresh, config=registry)
+    if name is None:
+        if len(selected) != 1:
+            raise ValueError(f"{block}: {len(selected)} files selected; name the one to stream")
+        remote = selected[0]
+    else:
+        remote = next((f for f in selected if f.name == name), None)
+        if remote is None:
+            raise ValueError(f"{block}: {name!r} is not among the block's selected files "
+                             f"{[f.name for f in selected]}")
+    return StreamedFile(remote.name, remote.url, remote.size_bytes, dest,
+                        host_evidence=remote.checksum, progress=progress)
 
 
 def _strip_version(s: pd.Series) -> pd.Series:
@@ -507,7 +642,7 @@ class MiRNATargetSource(PriorSource):
         self.derived.mkdir(parents=True, exist_ok=True)
 
         genes = self._representative()
-        n_info = int(len(self._read_zipped_table("Gene_info.txt.zip", dtype=str)))
+        n_info = len(self._read_zipped_table("Gene_info.txt.zip", dtype=str))
 
         # 3'UTR length: the GFF's coordinates are 1-based INCLUSIVE, as a GFF's are, so an
         # exon's width is end - start + 1. The publisher's score column equals end - start
@@ -570,13 +705,13 @@ class MiRNATargetSource(PriorSource):
                     "Summary_Counts.default_predictions.txt.zip"],
             code="src/sidechain/priors/posttx_mirna.py::MiRNATargetSource.utr_load_table",
             counts={
-                "gene_info_rows": n_info, "representative_transcripts": int(len(genes)),
-                "gff_rows": int(len(gff)), "gff_transcripts": int(utr_len.size),
+                "gene_info_rows": n_info, "representative_transcripts": len(genes),
+                "gff_rows": len(gff), "gff_transcripts": int(utr_len.size),
                 "gff_score_equals_width_on_rows": int(agree.sum()),
-                "summary_counts_rows": n_counts, "summary_counts_human_rows": int(len(counts)),
-                "transcripts_with_sites": int(len(load)),
+                "summary_counts_rows": n_counts, "summary_counts_human_rows": len(counts),
+                "transcripts_with_sites": len(load),
                 "dropped_no_utr_in_gff": n_no_utr, "symbols_deduplicated": dup_symbols,
-                "genes_out": int(len(table)),
+                "genes_out": len(table),
             },
             out_path=out_path, columns=UTR_LOAD_COLUMNS, note=register_note or "")
         return table
@@ -666,7 +801,7 @@ class MiRNATargetSource(PriorSource):
             counts={"rows_all_species": n_all, "rows_human": n_human,
                     "rows_on_representative_transcript": n_rep, "pairs_deduplicated": dup,
                     "seeds_without_a_human_family_row": unmapped,
-                    "edges_out": int(len(df)), "families": int(df["family"].nunique()),
+                    "edges_out": len(df), "families": int(df["family"].nunique()),
                     "genes": int(df["gene_id"].nunique()),
                     "families_conserved": int(df.loc[df["family_conserved"], "family"].nunique())},
             out_path=out_path, columns=EDGE_COLUMNS)
@@ -694,7 +829,7 @@ class MiRNATargetSource(PriorSource):
             directed=True, src_names=families,
             meta={"edge_attr_names": ["n_cons_sites", "context_score_weighted", "aggregate_pct"],
                   "src_entity": self.spec.get("entity_src", "mirna_family"),
-                  "candidate_edges": int(len(edges)), "kept_edges": int(ei.shape[1])},
+                  "candidate_edges": len(edges), "kept_edges": int(ei.shape[1])},
         )
 
     # ---------------------------------------------------------------- sites --
@@ -771,9 +906,9 @@ class MiRNATargetSource(PriorSource):
             code="src/sidechain/priors/posttx_mirna.py::MiRNATargetSource.site_table",
             counts={"family_info_rows_all_species": n_fam_all, "family_info_rows_human": n_before,
                     "duplicates_dropped": int(n_before - len(allsites) + len(extra)),
-                    "default_rows_all_species": n_def_all, "default_rows_human": int(len(default)),
-                    "default_sites_missing_from_family_file": int(len(extra)),
-                    "sites_out": int(len(allsites)),
+                    "default_rows_all_species": n_def_all, "default_rows_human": len(default),
+                    "default_sites_missing_from_family_file": len(extra),
+                    "sites_out": len(allsites),
                     "sites_conserved": int(allsites["conserved_site"].sum()),
                     "sites_on_representative": int(allsites["representative"].sum()),
                     "context_score_rows_all_species": n_ctx_all,
@@ -1009,7 +1144,7 @@ class MiRNATargetSource(PriorSource):
             inputs=["UTR_Sequences.txt.zip", "Gene_info.txt.zip"],
             code="src/sidechain/priors/posttx_mirna.py::MiRNATargetSource.utr_sequence_table",
             counts={"utr_rows_human": n_rows, "representative_transcripts_with_sequence": n_rep,
-                    "rows_out": int(len(table)), "transcripts_with_conserved_sites": int(len(by_tid))},
+                    "rows_out": len(table), "transcripts_with_conserved_sites": len(by_tid)},
             out_path=out_path,
             extra={"site_coordinate_check": conv, "coordinate_offset_applied": offset,
                    "motifs": {m: {"regex": p, "stands_in_for": w, "source": s}
@@ -1041,7 +1176,7 @@ class MiRNATargetSource(PriorSource):
                  "the full nonconserved-site count from sites.parquet (T102)",
             inputs=["Gene_info.txt.zip", "UTR_Sequences.txt.zip", "Conserved_Family_Info.txt.zip"],
             code="src/sidechain/priors/posttx_mirna.py::MiRNATargetSource.utr_features_table",
-            counts={"genes": int(len(table)), "genes_with_sequence": int(table["seq_len"].notna().sum()),
+            counts={"genes": len(table), "genes_with_sequence": int(table["seq_len"].notna().sum()),
                     "genes_with_nonconserved_sites": int((table["n_noncons_sites_all"] > 0).sum())},
             out_path=out_path)
         return table
