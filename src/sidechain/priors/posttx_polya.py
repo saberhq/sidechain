@@ -13,10 +13,11 @@ specifies every column is ``plans/2026-10-15-t102-polyasite.md`` (private).
 
 * ``polyasite_2`` -- the PolyASite 2.0 human atlas TSV (GRCh38, Ensembl 96; 569,005 clusters
   from 221 libraries), ``route: stream`` because its terms are stated nowhere (``UNSTATED``,
-  admitted only on a stream, recorded with both encumbrance flags). ``fetch()`` runs the gate and
-  writes PROVENANCE.json; ``gene_table()`` reads the TSV ONCE over the network through
-  ``posttx_mirna.stream_gated_file`` and keeps only the per-gene parquet. No byte of the atlas
-  lands.
+  recorded with both encumbrance flags). Its ``route`` decides how the bytes are read: streamed,
+  ``fetch()`` runs the gate, writes PROVENANCE.json and ``gene_table()`` reads the TSV once over
+  the network through ``posttx_mirna.stream_gated_file``, keeping only the per-gene parquet;
+  downloaded (ADR 0003 as amended 2026-10-15: a cited source with unstated terms may be held),
+  the file lands under ``dest`` and is read from there. The LINEAGE entry says which.
 * ``gencode_v47_basic`` -- the GENCODE v47 basic annotation GTF, downloaded through the same
   gate (``fetch_gated_files``) and checked against the release's published md5 after landing,
   because ``probe_https`` cannot read a sidecar. ``transcript_table()`` parses it once into one
@@ -274,13 +275,15 @@ class PolyASiteSource(PriorSource):
     def fetch(self, *, refresh: bool = False, progress: bool = False) -> Path:
         """Gate and record provenance for THIS block; download only what may land.
 
-        The atlas block is a stream: the gate writes PROVENANCE.json into ``dest`` and nothing
-        else, and the bytes are read later by ``gene_table``. The GENCODE block is a download
+        The atlas block follows its ``route``: as a stream the gate writes PROVENANCE.json into
+        ``dest`` and nothing else, and the bytes are read later by ``gene_table``; as a download
+        (ADR 0003 as amended 2026-10-15: a cited source with unstated terms may be held) the file
+        lands under ``dest`` like any other. The GENCODE block is a download
         through ``fetch_gated_files``, then the landed GTF is checked against the release's
         published md5 (``GENCODE_MD5``); a mismatch is a refusal that keeps the file for a
         human to look at.
         """
-        if self.name == POLYASITE_BLOCK:
+        if self.name == POLYASITE_BLOCK and _is_stream(self.spec):
             return stream_gated_file(self.spec, self.root, refresh=refresh, progress=progress,
                                      registry=self.registry).dest
         dest = fetch_gated_files(self.spec, self.root, refresh=refresh, progress=progress,
@@ -498,17 +501,23 @@ class PolyASiteSource(PriorSource):
                               "pa_tx_version_changed": ch} for gid, (t, src, ch) in chosen.items()])
 
     def _read_atlas(self, *, progress: bool = False) -> tuple[pd.DataFrame, dict]:
-        """The atlas TSV streamed once into a small frame: the fixed columns plus, per named
-        line, the summed TPM over that line's unperturbed libraries.
+        """The atlas TSV read once into a small frame: the fixed columns plus, per named line,
+        the summed TPM over that line's unperturbed libraries.
 
-        Returns ``(clusters, info)``; ``info["stream"]`` is the `StreamedFile` (its sha256 is
-        set once the read is through), ``info["libraries"]`` the per-library line assignment
+        Over the network (`stream_gated_file`) when the block says ``route: stream``, from the
+        file the gate landed under ``dest`` otherwise; either way the same reader shape, and
+        the LINEAGE entry says which (``streamed``). Returns ``(clusters, info)``;
+        ``info["stream"]`` is the reader (its sha256 is set once the read is through),
+        ``info["libraries"]`` the per-library line assignment
         and ``info["line_columns"]`` the libraries each line's sum was taken over. Column lists
         rather than row dicts: 569k rows of dicts is half a gigabyte for nothing.
         """
         src = self._for(POLYASITE_BLOCK)
-        stream = stream_gated_file(src.spec, src.root, name=ATLAS_FILE, progress=progress,
-                                   registry=src.registry)
+        if _is_stream(src.spec):
+            stream = stream_gated_file(src.spec, src.root, name=ATLAS_FILE, progress=progress,
+                                       registry=src.registry)
+        else:
+            stream = _LocalFile(src.dest, ATLAS_FILE, src._file_input(src.dest, ATLAS_FILE))
         lines = stream.lines()
         header = next(lines).split("\t")
         if tuple(header[:len(ATLAS_COLUMNS)]) != ATLAS_COLUMNS:
@@ -749,6 +758,30 @@ class PolyASiteSource(PriorSource):
                   "zero_is_a_real_value": True,
                   "licence": self._for(POLYASITE_BLOCK).spec.get("license")},
         )
+
+
+def _is_stream(spec: dict) -> bool:
+    from sidechain.ingest.fetch import block_route
+    from sidechain.ingest.provenance import STREAM
+    return block_route(spec) == STREAM
+
+
+class _LocalFile:
+    """The on-disk twin of `posttx_mirna.StreamedFile`: the same ``lines()`` and
+    ``lineage_input()`` over a gzipped file the gate landed under ``dest``."""
+
+    def __init__(self, dest: Path, name: str, file_input: dict):
+        self.dest, self.name, self._input = Path(dest), name, file_input
+        self.sha256: str | None = None
+
+    def lines(self, encoding: str = "utf-8") -> Iterator[str]:
+        with gzip.open(self.dest / self.name, "rt", encoding=encoding) as fh:
+            for line in fh:
+                yield line.rstrip("\n").rstrip("\r")
+        self.sha256 = self._input["sha256"]
+
+    def lineage_input(self) -> dict:
+        return {**self._input, "streamed": False}
 
 
 def _utr_len_to(pos: int, *, coding: bool, stop_in_last: bool, stop: float | None, sign: int,

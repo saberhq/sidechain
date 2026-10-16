@@ -379,12 +379,40 @@ def test_fetch_of_the_stream_block_writes_nothing_but_provenance(wired):
     assert sorted(p.name for p in atlas_dest.iterdir()) == ["PROVENANCE.json"] and ranges == []
 
 
+def test_gene_table_reads_a_downloaded_atlas_from_disk(wired, monkeypatch):
+    """With the block on route: download the atlas is read from the file the gate landed, no
+    network, and the lineage says so with the file's own sha256."""
+    import sidechain.priors.posttx_polya as mod
+
+    src, payload, ranges, _stalls, atlas_dest = wired
+    (atlas_dest / "atlas.clusters.2.0.GRCh38.96.tsv.gz").write_bytes(payload)
+    (atlas_dest / "PROVENANCE.json").write_text(json.dumps({
+        "route": "download", "selected": [{"name": "atlas.clusters.2.0.GRCh38.96.tsv.gz",
+                                           "size_bytes": len(payload), "checksum": "http-last-modified:a"}],
+        "license_flags": {"noncommercial": True, "redistribution_encumbered": True}}))
+    src.spec = {**src.spec, "route": "download", "citation": "Herrmann et al. 2020, NAR 48:D174"}
+    monkeypatch.setattr(mod, "fetch_gated_files", lambda spec, root, **kw: atlas_dest)
+    assert src.fetch() == atlas_dest
+    g = src.gene_table().set_index("gene_id")
+    assert g.loc["ENSG1", "pa_n_sites"] == 2 and g.loc["ENSG2", "pa_acc_to_prox_nt"] == 50
+    assert ranges == []
+    entry = json.loads((src.derived / "LINEAGE.json").read_text())["entries"]["polyasite-2.0/pas_gene_features"]
+    inp = entry["inputs"]["atlas.clusters.2.0.GRCh38.96.tsv.gz"]
+    assert inp["streamed"] is False and inp["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert inp["host_evidence"] == "http-last-modified:a" and inp["bytes"] == len(payload)
+    assert entry["licence"] == "UNSTATED" and entry["license_flags"] == {"noncommercial": True, "redistribution_encumbered": True}
+
+
 def test_registry_blocks_are_shelved_and_declare_their_gate(tmp_path):
     from sidechain.priors.posttx_mirna import spec_from_registry
 
     pa = spec_from_registry("polyasite_2")
     assert pa["kind"] == "node_feature" and pa["layer"] == "posttx" and pa["enabled"] is False
-    assert pa["host"] == "https" and pa["route"] == "stream" and pa["license"] == "UNSTATED"
+    assert pa["host"] == "https" and pa["license"] == "UNSTATED"
+    # a stream, or (ADR 0003 as amended 2026-10-15) a download that names and cites the source
+    assert pa.get("route", "download") in ("stream", "download")
+    if pa.get("route", "download") == "download":
+        assert pa.get("citation")
     assert pa["license_override_source"] and pa["allow_missing_checksum"] is True
     assert pa["dest"].startswith("external/") and pa["derived"].startswith("derived/")
     assert [f["name"] for f in pa["files"]] == ["atlas.clusters.2.0.GRCh38.96.tsv.gz"]
