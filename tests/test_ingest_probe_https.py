@@ -24,7 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from sidechain.ingest import fetch as fetch_mod
-from sidechain.ingest.provenance import GateError, HostRecord, RemoteFile, probe_https
+from sidechain.ingest.provenance import GateError, HostRecord, RemoteFile, is_digest, probe_https
 
 BASE = "https://example.org/vert_80/vert_80_data_download"
 
@@ -149,3 +149,72 @@ def test_last_modified_parses_as_a_date():
                      retrieved="2026-09-25",
                      files=(RemoteFile("a", 1, f"http-last-modified:{stamp}", "u"),))
     assert rec.files[0].checksum.split(":", 1)[1] == stamp
+
+
+# ---------------------------------------------------------------- per-file url and digest --
+# ENCODE (T102): a file lives at /files/<accession>/@@download/<name>, not under one
+# directory, and the API states an md5 no header carries. The block's entry supplies both.
+
+def test_an_entry_gives_its_file_its_own_url_and_a_stated_digest():
+    entries = [{"name": "ENCFF000AAA.tsv", "url": "https://host.org/files/ENCFF000AAA/@@download/ENCFF000AAA.tsv",
+                "md5": "9a481eeee53a776b416614332a54caac"},
+               {"name": "b.zip"}]
+    seen = []
+
+    def _urlopen(req, timeout=0):
+        assert req.get_method() == "HEAD"
+        seen.append(req.full_url)
+        return _Resp(200, {"Content-Length": "7", "Last-Modified": "Sat, 22 Mar 2025 22:56:54 GMT"})
+
+    with patch("urllib.request.urlopen", _urlopen):
+        rec = probe_https(BASE, ["ENCFF000AAA.tsv", "b.zip"], entries=entries)
+    a, b = rec.files
+    assert a.url == entries[0]["url"] and seen[0] == entries[0]["url"]
+    assert a.checksum == "md5:9a481eeee53a776b416614332a54caac" and is_digest(a.checksum)
+    # an entry without a url or digest reads as before: base/<name>, Last-Modified as evidence
+    assert b.url == f"{BASE}/b.zip" and b.checksum.startswith("http-last-modified:")
+    assert not is_digest(b.checksum)
+
+
+def test_an_entry_url_must_be_https():
+    with patch("urllib.request.urlopen", _urlopen_factory({"a.zip": 10})):
+        with pytest.raises(GateError, match="not https"):
+            probe_https(BASE, ["a.zip"], entries=[{"name": "a.zip", "url": "http://host.org/a.zip"}])
+
+
+def test_a_stated_digest_admits_the_block_without_the_written_exception(tmp_path, monkeypatch):
+    monkeypatch.setattr("sidechain.ingest.provenance.shutil.disk_usage",
+                        lambda p: type("U", (), {"free": 500 * 10**9})())
+    block = _block(tmp_path, allow_missing=False)
+    block["files"] = [{"name": "a.zip", "url": "https://host.org/files/X/@@download/a.zip",
+                       "md5": "d41d8cd98f00b204e9800998ecf8427e"}]
+    with patch("urllib.request.urlopen", _urlopen_factory({"a.zip": 10})):
+        record, selected, dest = fetch_mod.run_gate(block, tmp_path, config="configs/data_sources.yaml")
+    prov = json.loads((dest / "PROVENANCE.json").read_text())
+    assert "allow_missing_checksum" not in prov["notes"]
+    assert prov["selected"][0]["checksum"] == "md5:d41d8cd98f00b204e9800998ecf8427e"
+    assert prov["selected"][0]["url"] == "https://host.org/files/X/@@download/a.zip"
+
+
+def test_a_block_may_list_its_files_in_a_checked_in_manifest(tmp_path, monkeypatch):
+    monkeypatch.setattr("sidechain.ingest.provenance.shutil.disk_usage",
+                        lambda p: type("U", (), {"free": 500 * 10**9})())
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps([{"name": "a.zip", "url": "https://host.org/files/X/@@download/a.zip",
+                                     "md5": "d41d8cd98f00b204e9800998ecf8427e"}]))
+    block = _block(tmp_path, allow_missing=False)
+    del block["files"]
+    block["files_manifest"] = str(manifest)
+    assert fetch_mod.block_files(block)[0]["name"] == "a.zip"
+    with patch("urllib.request.urlopen", _urlopen_factory({"a.zip": 10})):
+        record, selected, dest = fetch_mod.run_gate(block, tmp_path, config="configs/data_sources.yaml")
+    prov = json.loads((dest / "PROVENANCE.json").read_text())
+    assert prov["notes"]["files_manifest"] == str(manifest)
+    assert [f["name"] for f in prov["selected"]] == ["a.zip"]
+    # one listing per block, and a manifest that is not a list of named files is refused
+    both = dict(block, files=[{"name": "a.zip"}])
+    with pytest.raises(GateError, match="one listing"):
+        fetch_mod.block_files(both)
+    manifest.write_text(json.dumps({"name": "a.zip"}))
+    with pytest.raises(GateError, match="JSON list"):
+        fetch_mod.block_files(block)

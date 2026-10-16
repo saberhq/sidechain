@@ -497,12 +497,71 @@ sources:
     relation: rbp_binding
     entity: gene
     loader: RBPBindingSource
-    provider: "ENCODE eCLIP"
+    provider: "ENCODE eCLIP (Van Nostrand et al. 2020, Nature 583:711), GRCh38 narrowPeak"
     url: "https://www.encodeproject.org"
     directed: true
     region_filter: "3utr"
     enabled: false               # K562/HepG2 lines - check context transfer first
-    notes: "Experimental RBP footprints. Watch cell-context mismatch vs the challenge line."
+    notes: >-
+      Experimental RBP footprints, per line. The file list is a checked-in manifest generated from the
+      ENCODE API (private scripts/t102_encode_manifest.py; T102, 2026-10-16): for every RBP with eCLIP in
+      BOTH K562 and HepG2 and a knockdown in both (73 RBPs), each replicate's GRCh38 peaks and the
+      replicated (IDR-passing) set. The API states an md5 per file, which verify recomputes. First use:
+      the receiving line's own site set against where a knockdown's response fails to carry between the
+      two lines (private plans/2026-10-16-t102-expressed-factor-test.md); build() is not yet written.
+    host: https
+    record: "https://www.encodeproject.org/files"
+    dest: external/encode-eclip
+    derived: derived/encode-eclip
+    budget_gb: 1.5
+    license: ENCODE-unrestricted
+    license_override_source: >-
+      The portal states no licence in a header and its API's file records carry none. ENCODE's release
+      policy (https://www.encodeproject.org/about/data-use-policy/, "Updated as of January 9, 2019", read
+      2026-10-16): "all data produced will be available for unrestricted use immediately upon release to
+      public databases". Its citing page (https://www.encodeproject.org/help/citing-encode/, read 2026-10-16):
+      "External data users may freely download, analyze and publish results based on any ENCODE data
+      without restrictions", with a request to cite the Consortium, the producing labs and the accessions
+      used. Recorded in LICENSE_POLICY as ENCODE-unrestricted (ingest/provenance.py); a citation request,
+      no commercial or redistribution restriction, so neither encumbrance flag applies.
+    citation: "ENCODE Project Consortium 2020 (Nature 583:699); Van Nostrand et al. 2020 (Nature 583:711); the experiment and file accessions in configs/manifests/encode_eclip.json"
+    files_manifest: configs/manifests/encode_eclip.json
+
+  - name: encode_rbp_knockdown
+    kind: node_feature
+    layer: posttx
+    relation: rbp_knockdown_response
+    entity: gene
+    loader: RBPKnockdownSource
+    provider: "ENCODE shRNA and CRISPR RNA-seq knockdowns (Van Nostrand et al. 2020, Nature 583:711), RSEM gene quantifications, GRCh38 V29"
+    url: "https://www.encodeproject.org"
+    enabled: false               # a measurement corpus for T102's reading, not a model input yet
+    notes: >-
+      The same RBP knocked down in K562 and in HepG2, bulk RNA-seq, two replicates against a paired
+      non-targeting control experiment (possible_controls). The file list is a checked-in manifest
+      generated from the ENCODE API (private scripts/t102_encode_manifest.py; T102, 2026-10-16): the
+      newest released GRCh38 V29 gene-quantification tsv per replicate for the 73 RBPs that also have
+      eCLIP in both lines, plus their control experiments' (shared across knockdowns). The API states an
+      md5 per file, which verify recomputes. First use: per-(target, line) log2 fold changes on the
+      18,533-gene axis, derived/encode-rbp-knockdown/lfc_<line>.parquet, read against each line's eCLIP
+      site set (private plans/2026-10-16-t102-expressed-factor-test.md); build() is not yet written.
+    host: https
+    record: "https://www.encodeproject.org/files"
+    dest: external/encode-rbp-knockdown
+    derived: derived/encode-rbp-knockdown
+    budget_gb: 6.0
+    license: ENCODE-unrestricted
+    license_override_source: >-
+      The portal states no licence in a header and its API's file records carry none. ENCODE's release
+      policy (https://www.encodeproject.org/about/data-use-policy/, "Updated as of January 9, 2019", read
+      2026-10-16): "all data produced will be available for unrestricted use immediately upon release to
+      public databases". Its citing page (https://www.encodeproject.org/help/citing-encode/, read 2026-10-16):
+      "External data users may freely download, analyze and publish results based on any ENCODE data
+      without restrictions", with a request to cite the Consortium, the producing labs and the accessions
+      used. Recorded in LICENSE_POLICY as ENCODE-unrestricted (ingest/provenance.py); a citation request,
+      no commercial or redistribution restriction, so neither encumbrance flag applies.
+    citation: "ENCODE Project Consortium 2020 (Nature 583:699); Van Nostrand et al. 2020 (Nature 583:711); the experiment and file accessions in configs/manifests/encode_rbp_knockdown.json"
+    files_manifest: configs/manifests/encode_rbp_knockdown.json
 
   - name: attract
     kind: edge

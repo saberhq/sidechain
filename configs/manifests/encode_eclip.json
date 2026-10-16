@@ -1,0 +1,3152 @@
+[
+ {
+  "name": "ENCFF002HYO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF002HYO/@@download/ENCFF002HYO.bed.gz",
+  "bytes": 93856,
+  "md5": "916f73ad34f2d3d300a4bab3e8d98470",
+  "note": "eclip ENCSR265ZIS GTF2F1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF005GER.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF005GER/@@download/ENCFF005GER.bed.gz",
+  "bytes": 3828,
+  "md5": "7eee68ae1e09d6740c38a66af957b55e",
+  "note": "eclip ENCSR970FEW DDX52 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF005PKK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF005PKK/@@download/ENCFF005PKK.bed.gz",
+  "bytes": 1608245,
+  "md5": "1ad29e63383fefbd785bed408f24b8ac",
+  "note": "eclip ENCSR412NOW HNRNPM K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF006CBO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF006CBO/@@download/ENCFF006CBO.bed.gz",
+  "bytes": 2338540,
+  "md5": "4b04d7e0dd2c102515c6f43076e9e9fb",
+  "note": "eclip ENCSR196INN RBM15 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF010IOJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF010IOJ/@@download/ENCFF010IOJ.bed.gz",
+  "bytes": 785350,
+  "md5": "47af55c40fabd3fa1e382f1c821b8e6c",
+  "note": "eclip ENCSR177QQY AKAP1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF011NAP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF011NAP/@@download/ENCFF011NAP.bed.gz",
+  "bytes": 99084,
+  "md5": "72fabc79091e82e38d9cac49a60322f2",
+  "note": "eclip ENCSR830BSQ BUD13 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF013SWN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF013SWN/@@download/ENCFF013SWN.bed.gz",
+  "bytes": 1702682,
+  "md5": "9620c2399412184a622635382502c61d",
+  "note": "eclip ENCSR970FEW DDX52 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF014YMA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF014YMA/@@download/ENCFF014YMA.bed.gz",
+  "bytes": 616448,
+  "md5": "3f8620da16c9543bfa4f4690c9c1103f",
+  "note": "eclip ENCSR085JPB WDR43 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF016RWW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF016RWW/@@download/ENCFF016RWW.bed.gz",
+  "bytes": 1662653,
+  "md5": "d4a3a9afec48161b221116f08bc9354f",
+  "note": "eclip ENCSR006OEQ FAM120A K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF018SYJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF018SYJ/@@download/ENCFF018SYJ.bed.gz",
+  "bytes": 1265682,
+  "md5": "e693039c9685b7c1acf69669f79f8d78",
+  "note": "eclip ENCSR989SMC FTO K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF019IEW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF019IEW/@@download/ENCFF019IEW.bed.gz",
+  "bytes": 3346388,
+  "md5": "f4c5e41933db11aaf97477cfb368836b",
+  "note": "eclip ENCSR919HSE CSTF2T HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF022FGD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF022FGD/@@download/ENCFF022FGD.bed.gz",
+  "bytes": 3423721,
+  "md5": "8fd47d80bf11ac7894b4b53eb1178f1e",
+  "note": "eclip ENCSR490IEE UCHL5 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF026UJY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF026UJY/@@download/ENCFF026UJY.bed.gz",
+  "bytes": 371652,
+  "md5": "b1a35e32e38fbd522ed8e9a331e1aed8",
+  "note": "eclip ENCSR964VOX UTP18 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF031FMO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF031FMO/@@download/ENCFF031FMO.bed.gz",
+  "bytes": 523786,
+  "md5": "f3fa3a86c7813918c19d3e1db5300352",
+  "note": "eclip ENCSR438GZQ KHSRP K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF033EFV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF033EFV/@@download/ENCFF033EFV.bed.gz",
+  "bytes": 34611,
+  "md5": "90526409d50390a782e81a393943053a",
+  "note": "eclip ENCSR177QQY AKAP1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF037TVC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF037TVC/@@download/ENCFF037TVC.bed.gz",
+  "bytes": 152254,
+  "md5": "d6f5010da4b66b75a047ee27844ed966",
+  "note": "eclip ENCSR584TCR TARDBP K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF039XQD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF039XQD/@@download/ENCFF039XQD.bed.gz",
+  "bytes": 7395,
+  "md5": "dfe483e4b6ed073f039ee21edba67b09",
+  "note": "eclip ENCSR240MVJ HNRNPU HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF048FDF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF048FDF/@@download/ENCFF048FDF.bed.gz",
+  "bytes": 75321,
+  "md5": "f399b9e754778f392b4efcd450bcac70",
+  "note": "eclip ENCSR647HOX HLTF HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF048YPA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF048YPA/@@download/ENCFF048YPA.bed.gz",
+  "bytes": 466157,
+  "md5": "09221539912060bf1da1e191724e8d84",
+  "note": "eclip ENCSR121NVA PRPF8 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF050YWD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF050YWD/@@download/ENCFF050YWD.bed.gz",
+  "bytes": 1842941,
+  "md5": "f9aadb4bbaae8cccb0155197c90239c5",
+  "note": "eclip ENCSR840DRD CSTF2T K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF051IAD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF051IAD/@@download/ENCFF051IAD.bed.gz",
+  "bytes": 1115899,
+  "md5": "601a2d0820a613653c60c0710c3b8920",
+  "note": "eclip ENCSR767OEY FXR2 K562 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF054VLU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF054VLU/@@download/ENCFF054VLU.bed.gz",
+  "bytes": 33244,
+  "md5": "8343a6c128a83be3b1472e3e54c3d4ee",
+  "note": "eclip ENCSR754NDA RBM15 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF056LEW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF056LEW/@@download/ENCFF056LEW.bed.gz",
+  "bytes": 25706,
+  "md5": "86b3605b8e2b8614ed1020c25ee3c5e6",
+  "note": "eclip ENCSR328LLU U2AF1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF056OAB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF056OAB/@@download/ENCFF056OAB.bed.gz",
+  "bytes": 2648803,
+  "md5": "0724dd6a807f2518f4c8b59a1f17aba3",
+  "note": "eclip ENCSR337XGI SAFB HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF061XNA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF061XNA/@@download/ENCFF061XNA.bed.gz",
+  "bytes": 164031,
+  "md5": "4b2f585197bebecce502963395673a17",
+  "note": "eclip ENCSR970NKP LIN28B K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF062YKQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF062YKQ/@@download/ENCFF062YKQ.bed.gz",
+  "bytes": 358524,
+  "md5": "fa0709bd1ab46b334ff26b582c87454b",
+  "note": "eclip ENCSR081JYH NSUN2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF067JAD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF067JAD/@@download/ENCFF067JAD.bed.gz",
+  "bytes": 3045460,
+  "md5": "723023537543684965a1eb580117905e",
+  "note": "eclip ENCSR202BFN U2AF2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF067WCL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF067WCL/@@download/ENCFF067WCL.bed.gz",
+  "bytes": 2397783,
+  "md5": "b2008aca0ba318d295c1004dffed44c7",
+  "note": "eclip ENCSR484LAB SAFB K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF071QDP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF071QDP/@@download/ENCFF071QDP.bed.gz",
+  "bytes": 76573,
+  "md5": "63dbac40ccceb56f7cc1ec33778b4814",
+  "note": "eclip ENCSR786TSC ILF3 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF073IJF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF073IJF/@@download/ENCFF073IJF.bed.gz",
+  "bytes": 129503,
+  "md5": "171d85896de7a0b87dbcfb1566941af1",
+  "note": "eclip ENCSR279UJF SF3B4 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF073PCD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF073PCD/@@download/ENCFF073PCD.bed.gz",
+  "bytes": 4464233,
+  "md5": "b44b0b606a326b69071b8c3bee6c12dc",
+  "note": "eclip ENCSR724RDN HNRNPL HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF073PST.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF073PST/@@download/ENCFF073PST.bed.gz",
+  "bytes": 1353465,
+  "md5": "262083ba024b70c943ad26e6ebd18aa8",
+  "note": "eclip ENCSR018WPY AQR HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF077OSY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF077OSY/@@download/ENCFF077OSY.bed.gz",
+  "bytes": 3907118,
+  "md5": "005910a402431f055eafb02133509d58",
+  "note": "eclip ENCSR795CAI HNRNPL K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF081JME.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF081JME/@@download/ENCFF081JME.bed.gz",
+  "bytes": 945951,
+  "md5": "b2b861430a91f688862b4ec7cc6714b6",
+  "note": "eclip ENCSR440SUX MATR3 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF082QGS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF082QGS/@@download/ENCFF082QGS.bed.gz",
+  "bytes": 1747745,
+  "md5": "25b50c4c6fd5acb8342f6e3b4a2b2abd",
+  "note": "eclip ENCSR987FTF RBFOX2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF087MAJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF087MAJ/@@download/ENCFF087MAJ.bed.gz",
+  "bytes": 160726,
+  "md5": "3137db94da8a54b1d42b4b796805be31",
+  "note": "eclip ENCSR930BZL DDX3X K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF092TPS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF092TPS/@@download/ENCFF092TPS.bed.gz",
+  "bytes": 1565158,
+  "md5": "aff1f5356f340c5f41295345dd5774fb",
+  "note": "eclip ENCSR844RVX EFTUD2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF094VSP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF094VSP/@@download/ENCFF094VSP.bed.gz",
+  "bytes": 148977,
+  "md5": "09e657c51f71efaaad55368a48daba60",
+  "note": "eclip ENCSR693JWP EXOSC5 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF097KHT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF097KHT/@@download/ENCFF097KHT.bed.gz",
+  "bytes": 1089321,
+  "md5": "30721842f7129e66cedfed588f6a749e",
+  "note": "eclip ENCSR352STY SSB HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF098REE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF098REE/@@download/ENCFF098REE.bed.gz",
+  "bytes": 22087,
+  "md5": "e6e70bb8dc099db3346fda6a9a92ca66",
+  "note": "eclip ENCSR256CHX PCBP1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF098XUM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF098XUM/@@download/ENCFF098XUM.bed.gz",
+  "bytes": 2031017,
+  "md5": "8973ab969c014ad503d64fbd4754a348",
+  "note": "eclip ENCSR121NVA PRPF8 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF100JBV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF100JBV/@@download/ENCFF100JBV.bed.gz",
+  "bytes": 3371603,
+  "md5": "702f85d9eeaea7d749179bdbc700fe14",
+  "note": "eclip ENCSR154HRN HNRNPA1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF100OEX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF100OEX/@@download/ENCFF100OEX.bed.gz",
+  "bytes": 2698343,
+  "md5": "fa412ff7e07306e9a1681f8386178ac9",
+  "note": "eclip ENCSR384KAN PTBP1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF103PRM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF103PRM/@@download/ENCFF103PRM.bed.gz",
+  "bytes": 3023163,
+  "md5": "7fdcf600645ea9315de86694fa562ce3",
+  "note": "eclip ENCSR724RDN HNRNPL HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF105GZJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF105GZJ/@@download/ENCFF105GZJ.bed.gz",
+  "bytes": 737233,
+  "md5": "c96855d21528865b1c15ea8c1443a9be",
+  "note": "eclip ENCSR314UMJ TRA2A HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF110MMH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF110MMH/@@download/ENCFF110MMH.bed.gz",
+  "bytes": 3609565,
+  "md5": "5a054eacdfc009efb4264b194581c0ff",
+  "note": "eclip ENCSR834YLD DROSHA HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF111LMZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF111LMZ/@@download/ENCFF111LMZ.bed.gz",
+  "bytes": 109563,
+  "md5": "fec79567d1573408aff35646b6b4f68f",
+  "note": "eclip ENCSR767OEY FXR2 K562 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF112MVG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF112MVG/@@download/ENCFF112MVG.bed.gz",
+  "bytes": 86089,
+  "md5": "6d026845542dd30b5366fc5f454a99ab",
+  "note": "eclip ENCSR973HOJ FXR2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF114EUH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF114EUH/@@download/ENCFF114EUH.bed.gz",
+  "bytes": 1808,
+  "md5": "aab0dddf8548027233e526d9bf3e346d",
+  "note": "eclip ENCSR906ZJF SDAD1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF114YWP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF114YWP/@@download/ENCFF114YWP.bed.gz",
+  "bytes": 2008469,
+  "md5": "d0291f5416921ef4976bda38afd91399",
+  "note": "eclip ENCSR589YHM HLTF K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF121RVH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF121RVH/@@download/ENCFF121RVH.bed.gz",
+  "bytes": 27643,
+  "md5": "d4efc9e969b2797d59e07d5ad6c28561",
+  "note": "eclip ENCSR351PVI SLTM HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF121SHB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF121SHB/@@download/ENCFF121SHB.bed.gz",
+  "bytes": 962991,
+  "md5": "ec6eea9889a534aa2daec2541c088d06",
+  "note": "eclip ENCSR154CSN DDX52 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF121XCN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF121XCN/@@download/ENCFF121XCN.bed.gz",
+  "bytes": 461881,
+  "md5": "924e506d83beb55df75b5cb01970e6b1",
+  "note": "eclip ENCSR922WJV PCBP1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF124ZON.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF124ZON/@@download/ENCFF124ZON.bed.gz",
+  "bytes": 2024878,
+  "md5": "c236b7000f613413e46022482d4ddc30",
+  "note": "eclip ENCSR993FMY TROVE2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF125YXW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF125YXW/@@download/ENCFF125YXW.bed.gz",
+  "bytes": 1477782,
+  "md5": "eafdd159ab86228307273ff5019f8688",
+  "note": "eclip ENCSR000SSH SLTM K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF127WMZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF127WMZ/@@download/ENCFF127WMZ.bed.gz",
+  "bytes": 4770825,
+  "md5": "258e1d839dfd06dee4d20509bf23cdee",
+  "note": "eclip ENCSR438GZQ KHSRP K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF127WRQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF127WRQ/@@download/ENCFF127WRQ.bed.gz",
+  "bytes": 1415784,
+  "md5": "bfc0f1e781eea8e5d82b43ef8f9e02a2",
+  "note": "eclip ENCSR013CTQ EXOSC5 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF128AKC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF128AKC/@@download/ENCFF128AKC.bed.gz",
+  "bytes": 21467,
+  "md5": "1d6318c4d769764b20aff9f2dc76af21",
+  "note": "eclip ENCSR529GSJ DHX30 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF128MQR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF128MQR/@@download/ENCFF128MQR.bed.gz",
+  "bytes": 2330348,
+  "md5": "e06bc4638bd93afa039069ce016d10f9",
+  "note": "eclip ENCSR527DXF EFTUD2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF130PWU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF130PWU/@@download/ENCFF130PWU.bed.gz",
+  "bytes": 1820623,
+  "md5": "2a5be83df1aa884d75a3b29398b69db0",
+  "note": "eclip ENCSR384KAN PTBP1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF137YFD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF137YFD/@@download/ENCFF137YFD.bed.gz",
+  "bytes": 33882,
+  "md5": "8c61ea0375cec5a9f7b1df60fae27055",
+  "note": "eclip ENCSR194HZU NOLC1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF141DOI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF141DOI/@@download/ENCFF141DOI.bed.gz",
+  "bytes": 478117,
+  "md5": "161c18ed2e106b726140b07f554bab4e",
+  "note": "eclip ENCSR919HSE CSTF2T HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF143TAM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF143TAM/@@download/ENCFF143TAM.bed.gz",
+  "bytes": 1265564,
+  "md5": "cd3db0994db1cc0890dccd65a16bac6f",
+  "note": "eclip ENCSR565DGW DHX30 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF145YYK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF145YYK/@@download/ENCFF145YYK.bed.gz",
+  "bytes": 1592887,
+  "md5": "d8b21ea5007bd3fedc5a7eb527f5804c",
+  "note": "eclip ENCSR744GEU IGF2BP1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF146BNV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF146BNV/@@download/ENCFF146BNV.bed.gz",
+  "bytes": 491061,
+  "md5": "6b4b8f5f2587c57a5c0207f2198c1dc9",
+  "note": "eclip ENCSR488JKQ UTP18 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF150ZOO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF150ZOO/@@download/ENCFF150ZOO.bed.gz",
+  "bytes": 435123,
+  "md5": "184aa52587581c2e6a7ec161a99f43de",
+  "note": "eclip ENCSR295OKT RBM22 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF158AOV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF158AOV/@@download/ENCFF158AOV.bed.gz",
+  "bytes": 138877,
+  "md5": "5d59fb0616a993433acbae81e4099b3b",
+  "note": "eclip ENCSR006OEQ FAM120A K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF159MMZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF159MMZ/@@download/ENCFF159MMZ.bed.gz",
+  "bytes": 508762,
+  "md5": "d34ef52379fa77e8929b9dc6457c711d",
+  "note": "eclip ENCSR893NWB GRWD1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF162KHT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF162KHT/@@download/ENCFF162KHT.bed.gz",
+  "bytes": 768602,
+  "md5": "0e11c9c300700ca2822dfb394fb551a6",
+  "note": "eclip ENCSR529GSJ DHX30 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF163CUI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF163CUI/@@download/ENCFF163CUI.bed.gz",
+  "bytes": 1367964,
+  "md5": "eb2c621d9f211db8fed46f6454ad4e60",
+  "note": "eclip ENCSR845VGB DDX55 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF165VFF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF165VFF/@@download/ENCFF165VFF.bed.gz",
+  "bytes": 2452859,
+  "md5": "6a5fd3e81efd07c61e68981122eeb3c2",
+  "note": "eclip ENCSR754NDA RBM15 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF167CDB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF167CDB/@@download/ENCFF167CDB.bed.gz",
+  "bytes": 12782,
+  "md5": "802df1b7367fae59477b798012df465a",
+  "note": "eclip ENCSR249ROI HNRNPC K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF167VAS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF167VAS/@@download/ENCFF167VAS.bed.gz",
+  "bytes": 1974533,
+  "md5": "dacbdefb4f7533357ce2c8745654bc75",
+  "note": "eclip ENCSR534YOI PRPF8 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF169ZAH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF169ZAH/@@download/ENCFF169ZAH.bed.gz",
+  "bytes": 237211,
+  "md5": "80aa1b3d9a2db1df3ba189567b34045d",
+  "note": "eclip ENCSR906ZJF SDAD1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF171PTV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF171PTV/@@download/ENCFF171PTV.bed.gz",
+  "bytes": 1817122,
+  "md5": "962ee48abd80033fc1765b8a4306b626",
+  "note": "eclip ENCSR290VLT MATR3 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF174GUB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF174GUB/@@download/ENCFF174GUB.bed.gz",
+  "bytes": 1293331,
+  "md5": "12dcda1805ae43bf3ee13b6dcd4f6430",
+  "note": "eclip ENCSR844RVX EFTUD2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF175VJO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF175VJO/@@download/ENCFF175VJO.bed.gz",
+  "bytes": 1819267,
+  "md5": "a35df1f4a9bd170fc7d835e6cfd37130",
+  "note": "eclip ENCSR267UCX HNRNPM HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF177RJW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF177RJW/@@download/ENCFF177RJW.bed.gz",
+  "bytes": 2509150,
+  "md5": "a55a3b0cd2f9bf081f72dacc6d93fcb0",
+  "note": "eclip ENCSR023UHL FASTKD2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF182HYE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF182HYE/@@download/ENCFF182HYE.bed.gz",
+  "bytes": 1922491,
+  "md5": "a9d2d460351ae03e946f7bc6658c1ce0",
+  "note": "eclip ENCSR893RAV U2AF2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF185IDD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF185IDD/@@download/ENCFF185IDD.bed.gz",
+  "bytes": 1098132,
+  "md5": "cd7c94fa387077ba92b9ce7d2ad81c76",
+  "note": "eclip ENCSR975KIR IGF2BP1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF185OEI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF185OEI/@@download/ENCFF185OEI.bed.gz",
+  "bytes": 48712,
+  "md5": "5b2e3b98ac5a7268da8749faea229c19",
+  "note": "eclip ENCSR735HOK YBX3 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF186QJV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF186QJV/@@download/ENCFF186QJV.bed.gz",
+  "bytes": 1119636,
+  "md5": "f273b3c52863c958465858ada4de3406",
+  "note": "eclip ENCSR580MFX SUPV3L1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF188HFB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF188HFB/@@download/ENCFF188HFB.bed.gz",
+  "bytes": 968824,
+  "md5": "db4d5fd3f988cc5c29b8ef587e9ed228",
+  "note": "eclip ENCSR006OEQ FAM120A K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF190UCK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF190UCK/@@download/ENCFF190UCK.bed.gz",
+  "bytes": 963864,
+  "md5": "1c6b27b585fb123d6ffbbbdb93656cd2",
+  "note": "eclip ENCSR565DGW DHX30 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF190XSX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF190XSX/@@download/ENCFF190XSX.bed.gz",
+  "bytes": 626511,
+  "md5": "55661969f6eab54ae81c300933017ebf",
+  "note": "eclip ENCSR366YOG QKI K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF193VAQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF193VAQ/@@download/ENCFF193VAQ.bed.gz",
+  "bytes": 1352221,
+  "md5": "eaa346fe2042698be6cf1e747fca9dc2",
+  "note": "eclip ENCSR001VAC NOLC1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF198ULC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF198ULC/@@download/ENCFF198ULC.bed.gz",
+  "bytes": 26153,
+  "md5": "d55f46b5959c578c3aeb17be2d74790b",
+  "note": "eclip ENCSR154CSN DDX52 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF203AWR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF203AWR/@@download/ENCFF203AWR.bed.gz",
+  "bytes": 98196,
+  "md5": "e4344531c84db6143c43c151fdf0b2e7",
+  "note": "eclip ENCSR356MSW SSB K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF205JTY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF205JTY/@@download/ENCFF205JTY.bed.gz",
+  "bytes": 1994849,
+  "md5": "01e4116898f798c2f096a480e5a14119",
+  "note": "eclip ENCSR432XUP SRSF1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF206RIM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF206RIM/@@download/ENCFF206RIM.bed.gz",
+  "bytes": 81673,
+  "md5": "1bab6359c9e2b3af8ac819fafe473f66",
+  "note": "eclip ENCSR756CKJ RBFOX2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF208ZMI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF208ZMI/@@download/ENCFF208ZMI.bed.gz",
+  "bytes": 192712,
+  "md5": "d8e71ea286834bcbec5af3204b65bb75",
+  "note": "eclip ENCSR987NYS FAM120A HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF209PMC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF209PMC/@@download/ENCFF209PMC.bed.gz",
+  "bytes": 1104150,
+  "md5": "1856ee4fff406e4b4aef1bae39477898",
+  "note": "eclip ENCSR754NDA RBM15 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF210KBV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF210KBV/@@download/ENCFF210KBV.bed.gz",
+  "bytes": 1068088,
+  "md5": "d3f1b0f804c38216a7db2cf61f5ced47",
+  "note": "eclip ENCSR767OEY FXR2 K562 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF210TQC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF210TQC/@@download/ENCFF210TQC.bed.gz",
+  "bytes": 2865763,
+  "md5": "4d5841f73f98cf5105f597217a7419d0",
+  "note": "eclip ENCSR529FKI YBX3 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF211TRO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF211TRO/@@download/ENCFF211TRO.bed.gz",
+  "bytes": 98820,
+  "md5": "ca363da2118ad1a887fcbb23d713259f",
+  "note": "eclip ENCSR128VXC SND1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF213FHW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF213FHW/@@download/ENCFF213FHW.bed.gz",
+  "bytes": 396867,
+  "md5": "6427af30c81364f86db4984be9719f5e",
+  "note": "eclip ENCSR349CMI WDR43 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF214HOA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF214HOA/@@download/ENCFF214HOA.bed.gz",
+  "bytes": 2265777,
+  "md5": "c628ad529a214f731bd2055f6240720d",
+  "note": "eclip ENCSR989VIY SRSF1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF223KVR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF223KVR/@@download/ENCFF223KVR.bed.gz",
+  "bytes": 88774,
+  "md5": "38f96dcd7ff14d1af2721ce47604c19f",
+  "note": "eclip ENCSR321PWZ SRSF1 K562 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF230QOU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF230QOU/@@download/ENCFF230QOU.bed.gz",
+  "bytes": 5159081,
+  "md5": "62c46d538025555a1527d9cef1cc8f37",
+  "note": "eclip ENCSR550DVK HNRNPC HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF232FWK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF232FWK/@@download/ENCFF232FWK.bed.gz",
+  "bytes": 924715,
+  "md5": "d23578162e968742700e84993bb4693b",
+  "note": "eclip ENCSR279UJF SF3B4 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF232WUE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF232WUE/@@download/ENCFF232WUE.bed.gz",
+  "bytes": 6752,
+  "md5": "20aa2aa3f04c4bd72a9fab4541ffd01b",
+  "note": "eclip ENCSR337XGI SAFB HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF233BIC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF233BIC/@@download/ENCFF233BIC.bed.gz",
+  "bytes": 967485,
+  "md5": "44ea30be86b24ac0e92f0d9b3dec7dcc",
+  "note": "eclip ENCSR356ZMO AKAP1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF233PRB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF233PRB/@@download/ENCFF233PRB.bed.gz",
+  "bytes": 4116,
+  "md5": "349f692fd5b76fe43929851bc4e68cc3",
+  "note": "eclip ENCSR081JYH NSUN2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF237PCI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF237PCI/@@download/ENCFF237PCI.bed.gz",
+  "bytes": 1022266,
+  "md5": "594766d0ad9529d5feb14410bab95257",
+  "note": "eclip ENCSR224QWC FXR2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF239GPP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF239GPP/@@download/ENCFF239GPP.bed.gz",
+  "bytes": 1683,
+  "md5": "adcb7549802f86579edb0a3621f1a7a1",
+  "note": "eclip ENCSR580OFI SUPV3L1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF240IEE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF240IEE/@@download/ENCFF240IEE.bed.gz",
+  "bytes": 1693097,
+  "md5": "a596dcd94eea0dff72bbf250e6a1a725",
+  "note": "eclip ENCSR606BPV AQR K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF241AOZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF241AOZ/@@download/ENCFF241AOZ.bed.gz",
+  "bytes": 819558,
+  "md5": "e1f07978dd79006919c7e395e83cc0a7",
+  "note": "eclip ENCSR268ETU HNRNPK K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF241DVU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF241DVU/@@download/ENCFF241DVU.bed.gz",
+  "bytes": 4892,
+  "md5": "54b522e2106d59722dba0390c050aac6",
+  "note": "eclip ENCSR520BZQ HNRNPU K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF243RQR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF243RQR/@@download/ENCFF243RQR.bed.gz",
+  "bytes": 2250801,
+  "md5": "0fbbe8dfe61424ecaafd2bc33c558d4b",
+  "note": "eclip ENCSR202BFN U2AF2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF244JER.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF244JER/@@download/ENCFF244JER.bed.gz",
+  "bytes": 3822,
+  "md5": "58f57b753ff4970fc3ec116bf8a8a338",
+  "note": "eclip ENCSR349CMI WDR43 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF246BGL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF246BGL/@@download/ENCFF246BGL.bed.gz",
+  "bytes": 719710,
+  "md5": "2d4c7a564195e5a65ba9e80d8a913cdf",
+  "note": "eclip ENCSR861GYE LIN28B HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF246EPM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF246EPM/@@download/ENCFF246EPM.bed.gz",
+  "bytes": 95618,
+  "md5": "02a80ff2f924f2c54c6ce4c3f633a851",
+  "note": "eclip ENCSR440SUX MATR3 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF250PFH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF250PFH/@@download/ENCFF250PFH.bed.gz",
+  "bytes": 1583884,
+  "md5": "0be7ec4a61e03183b6e966314d353ae1",
+  "note": "eclip ENCSR999YGP GRWD1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF252MTE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF252MTE/@@download/ENCFF252MTE.bed.gz",
+  "bytes": 3038951,
+  "md5": "61e173082f7107a2b0da4aa574a19979",
+  "note": "eclip ENCSR647HOX HLTF HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF252ZKZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF252ZKZ/@@download/ENCFF252ZKZ.bed.gz",
+  "bytes": 1545926,
+  "md5": "f56d9843012409d02cbdda8b7d6fdc5b",
+  "note": "eclip ENCSR265ZIS GTF2F1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF253ZSN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF253ZSN/@@download/ENCFF253ZSN.bed.gz",
+  "bytes": 2502240,
+  "md5": "d447b3950027fda4dc7f8d2841901b6e",
+  "note": "eclip ENCSR456JJQ RBM22 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF258HOX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF258HOX/@@download/ENCFF258HOX.bed.gz",
+  "bytes": 27989,
+  "md5": "43bccb745fc08b2c7c9e1f4b64fc7162",
+  "note": "eclip ENCSR712IAG ZC3H11A K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF259HTD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF259HTD/@@download/ENCFF259HTD.bed.gz",
+  "bytes": 1190045,
+  "md5": "253ef303d15465eadb8a768e9a484b8e",
+  "note": "eclip ENCSR888YTT LARP4 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF262ILV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF262ILV/@@download/ENCFF262ILV.bed.gz",
+  "bytes": 190962,
+  "md5": "ef8618a123bb7075e2020ab88b154f8b",
+  "note": "eclip ENCSR663WES BUD13 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF262QZT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF262QZT/@@download/ENCFF262QZT.bed.gz",
+  "bytes": 730066,
+  "md5": "0981b142ad444b0912cf842f2783289f",
+  "note": "eclip ENCSR484LTQ NCBP2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF265XPM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF265XPM/@@download/ENCFF265XPM.bed.gz",
+  "bytes": 518160,
+  "md5": "9cece405d7338a51ebee2507a832b53a",
+  "note": "eclip ENCSR720BJU TARDBP K562 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF266TKW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF266TKW/@@download/ENCFF266TKW.bed.gz",
+  "bytes": 214660,
+  "md5": "886d3b108a60fce278526c9093caf412",
+  "note": "eclip ENCSR724RDN HNRNPL HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF267DFP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF267DFP/@@download/ENCFF267DFP.bed.gz",
+  "bytes": 619447,
+  "md5": "86c3cf33cfadde4ce947352b86769066",
+  "note": "eclip ENCSR887FHF FASTKD2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF276EIU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF276EIU/@@download/ENCFF276EIU.bed.gz",
+  "bytes": 1020346,
+  "md5": "3e16b6e8c3a3858b5122a718a62a7af7",
+  "note": "eclip ENCSR657TZB XRN2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF278ZCU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF278ZCU/@@download/ENCFF278ZCU.bed.gz",
+  "bytes": 105027,
+  "md5": "f731467ebe34b07774d42f2719ec1cbc",
+  "note": "eclip ENCSR736AAG GTF2F1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF282VMI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF282VMI/@@download/ENCFF282VMI.bed.gz",
+  "bytes": 1941540,
+  "md5": "5d0d68b9103c3a265531b1c14336cec6",
+  "note": "eclip ENCSR999YGP GRWD1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF288IBH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF288IBH/@@download/ENCFF288IBH.bed.gz",
+  "bytes": 977789,
+  "md5": "d586ea7a347f8eebdc6d3b8ca9dd5bdd",
+  "note": "eclip ENCSR712IAG ZC3H11A K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF288MWL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF288MWL/@@download/ENCFF288MWL.bed.gz",
+  "bytes": 1575893,
+  "md5": "745f198fd99a29b4baac8e90d8d44eca",
+  "note": "eclip ENCSR828ZID HNRNPK HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF290DFO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF290DFO/@@download/ENCFF290DFO.bed.gz",
+  "bytes": 88482,
+  "md5": "a46501fe62bb46bac9d1cd833f2e25dd",
+  "note": "eclip ENCSR893RAV U2AF2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF293IZG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF293IZG/@@download/ENCFF293IZG.bed.gz",
+  "bytes": 40630,
+  "md5": "603b1bed71ef06e93806841e73022916",
+  "note": "eclip ENCSR456JJQ RBM22 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF293KBS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF293KBS/@@download/ENCFF293KBS.bed.gz",
+  "bytes": 2024638,
+  "md5": "b8a7dbb847dc780e0c4cd5f33a323dc6",
+  "note": "eclip ENCSR258QKO XRCC6 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF297MTE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF297MTE/@@download/ENCFF297MTE.bed.gz",
+  "bytes": 1491152,
+  "md5": "27263a41c26d8e49e100b2eb8ab145d5",
+  "note": "eclip ENCSR258QKO XRCC6 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF307MDW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF307MDW/@@download/ENCFF307MDW.bed.gz",
+  "bytes": 6857,
+  "md5": "49ee31254769747a3cc9165dd4e6bec3",
+  "note": "eclip ENCSR961OKA LARP7 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF311PHS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF311PHS/@@download/ENCFF311PHS.bed.gz",
+  "bytes": 1485512,
+  "md5": "53b1f18ef2d3494aa940cd4f22f9fbdc",
+  "note": "eclip ENCSR735HOK YBX3 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF314RBZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF314RBZ/@@download/ENCFF314RBZ.bed.gz",
+  "bytes": 2421382,
+  "md5": "b5c4a9c4712513cb7172b8a7e41805a5",
+  "note": "eclip ENCSR653HQC DROSHA K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF315HYU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF315HYU/@@download/ENCFF315HYU.bed.gz",
+  "bytes": 95917,
+  "md5": "fc1712306f548a0b903d61c8714d0fc5",
+  "note": "eclip ENCSR224QWC FXR2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF317HGW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF317HGW/@@download/ENCFF317HGW.bed.gz",
+  "bytes": 10106,
+  "md5": "d9938deb7f0ded952df161616f64dead",
+  "note": "eclip ENCSR513NDD SRSF7 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF318RSO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF318RSO/@@download/ENCFF318RSO.bed.gz",
+  "bytes": 110713,
+  "md5": "652df967691be3d1df2591cbcfd8e798",
+  "note": "eclip ENCSR953ZOA HNRNPK K562 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF321HPH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF321HPH/@@download/ENCFF321HPH.bed.gz",
+  "bytes": 35365,
+  "md5": "5d68dbcd8dbfec7c7cc5e64e2fad29da",
+  "note": "eclip ENCSR655NZA XRN2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF323PUC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF323PUC/@@download/ENCFF323PUC.bed.gz",
+  "bytes": 234555,
+  "md5": "f0e433d02e4d6f4aef0a663033b98a0a",
+  "note": "eclip ENCSR018WPY AQR HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF327DLL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF327DLL/@@download/ENCFF327DLL.bed.gz",
+  "bytes": 100649,
+  "md5": "78b77e90da6e12c1a65a3183170e1c63",
+  "note": "eclip ENCSR999YGP GRWD1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF327FBF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF327FBF/@@download/ENCFF327FBF.bed.gz",
+  "bytes": 1558444,
+  "md5": "ff7b5d5e551a7c71d520b649b3ad8257",
+  "note": "eclip ENCSR412NOW HNRNPM K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF327JJE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF327JJE/@@download/ENCFF327JJE.bed.gz",
+  "bytes": 1149142,
+  "md5": "25d337a16105108e4e5d8e88507ea42c",
+  "note": "eclip ENCSR773KRC SRSF9 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF327YTD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF327YTD/@@download/ENCFF327YTD.bed.gz",
+  "bytes": 36997,
+  "md5": "87d9172075cefdb1d9c46d1953ed0214",
+  "note": "eclip ENCSR001VAC NOLC1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF328KJW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF328KJW/@@download/ENCFF328KJW.bed.gz",
+  "bytes": 4765,
+  "md5": "6cc085944c2fc6a8260614bc4b60bf1f",
+  "note": "eclip ENCSR356MSW SSB K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF336IRY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF336IRY/@@download/ENCFF336IRY.bed.gz",
+  "bytes": 607107,
+  "md5": "2ff7d6c8cad425267ab5997c593d8bee",
+  "note": "eclip ENCSR050BDZ SDAD1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF340BXW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF340BXW/@@download/ENCFF340BXW.bed.gz",
+  "bytes": 351684,
+  "md5": "a00a696991edcd5b5dec1861033a7ab3",
+  "note": "eclip ENCSR903PRV FTO HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF340GPD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF340GPD/@@download/ENCFF340GPD.bed.gz",
+  "bytes": 3572214,
+  "md5": "6aa3f5ed65e30b6e31dd67168c2cd291",
+  "note": "eclip ENCSR786TSC ILF3 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF341KSL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF341KSL/@@download/ENCFF341KSL.bed.gz",
+  "bytes": 2401613,
+  "md5": "1367387d2b52821dbf80814721f8e34e",
+  "note": "eclip ENCSR128VXC SND1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF341XMP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF341XMP/@@download/ENCFF341XMP.bed.gz",
+  "bytes": 88646,
+  "md5": "2fa615989320c380a43040d384cde623",
+  "note": "eclip ENCSR861GYE LIN28B HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF342RHD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF342RHD/@@download/ENCFF342RHD.bed.gz",
+  "bytes": 97152,
+  "md5": "1c1a11cf1902bca4caeeb47b50c084df",
+  "note": "eclip ENCSR356MSW SSB K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF348TAB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF348TAB/@@download/ENCFF348TAB.bed.gz",
+  "bytes": 1069027,
+  "md5": "921516c6a726ec46766280f7588611cc",
+  "note": "eclip ENCSR916SRV TBRG4 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF348TPU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF348TPU/@@download/ENCFF348TPU.bed.gz",
+  "bytes": 3809419,
+  "md5": "7c8f51aa39504e5dbc9577a190d6a044",
+  "note": "eclip ENCSR057DWB TIA1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF351ZDU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF351ZDU/@@download/ENCFF351ZDU.bed.gz",
+  "bytes": 12762,
+  "md5": "410111a8bb5d1f02006d8dcf59128419",
+  "note": "eclip ENCSR903PRV FTO HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF353RQP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF353RQP/@@download/ENCFF353RQP.bed.gz",
+  "bytes": 2704047,
+  "md5": "6f874797d8d2d20306b47d58d067dd0a",
+  "note": "eclip ENCSR438KWZ ILF3 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF353ULN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF353ULN/@@download/ENCFF353ULN.bed.gz",
+  "bytes": 299712,
+  "md5": "1e30228411d8bad0ee12a2da3da4c45f",
+  "note": "eclip ENCSR964VOX UTP18 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF355UYF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF355UYF/@@download/ENCFF355UYF.bed.gz",
+  "bytes": 2116205,
+  "md5": "b3e6a2150fb3710552788f6d03e4fe3b",
+  "note": "eclip ENCSR018RVZ NCBP2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF356JSO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF356JSO/@@download/ENCFF356JSO.bed.gz",
+  "bytes": 1386680,
+  "md5": "043661d11e678b093877ac0bc38d4f66",
+  "note": "eclip ENCSR571ROL XRCC6 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF356SSO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF356SSO/@@download/ENCFF356SSO.bed.gz",
+  "bytes": 511690,
+  "md5": "f399eecf172ea63bf0d50c8168b2add8",
+  "note": "eclip ENCSR373ODC SMNDC1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF357UDV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF357UDV/@@download/ENCFF357UDV.bed.gz",
+  "bytes": 2727062,
+  "md5": "93ae53ed110335de37ed8bbe588019d5",
+  "note": "eclip ENCSR349KMG UCHL5 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF361GRY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF361GRY/@@download/ENCFF361GRY.bed.gz",
+  "bytes": 3104514,
+  "md5": "3695f4141d85d16229ed041606d686ce",
+  "note": "eclip ENCSR907GUB ZC3H11A HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF362XUO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF362XUO/@@download/ENCFF362XUO.bed.gz",
+  "bytes": 1253807,
+  "md5": "684d25e62382927c59b67728d80fb067",
+  "note": "eclip ENCSR862QCH U2AF1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF365LFU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF365LFU/@@download/ENCFF365LFU.bed.gz",
+  "bytes": 424786,
+  "md5": "4599c3d25647b60e4a556a6f9f00a5c4",
+  "note": "eclip ENCSR349KMG UCHL5 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF368XBY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF368XBY/@@download/ENCFF368XBY.bed.gz",
+  "bytes": 590662,
+  "md5": "0acae746089cc0b9a5c10e1461261fb6",
+  "note": "eclip ENCSR539BEV UPF1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF371PMP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF371PMP/@@download/ENCFF371PMP.bed.gz",
+  "bytes": 1252961,
+  "md5": "53d4db9d31543f5532d3597518ee1b90",
+  "note": "eclip ENCSR657TZB XRN2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF373NZF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF373NZF/@@download/ENCFF373NZF.bed.gz",
+  "bytes": 1383836,
+  "md5": "d89b5ce3a54d80ccc686a779452e6ced",
+  "note": "eclip ENCSR432XUP SRSF1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF374XQF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF374XQF/@@download/ENCFF374XQF.bed.gz",
+  "bytes": 4918788,
+  "md5": "6e8df3129794dd91f283a75987d2b2b0",
+  "note": "eclip ENCSR438GZQ KHSRP K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF378HWC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF378HWC/@@download/ENCFF378HWC.bed.gz",
+  "bytes": 2523594,
+  "md5": "15dd2ee0138d2ebd52ee5630674d13e0",
+  "note": "eclip ENCSR623VEQ TIA1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF381KTD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF381KTD/@@download/ENCFF381KTD.bed.gz",
+  "bytes": 532323,
+  "md5": "460b2586a92c42eb4d9138ccb4cd20cc",
+  "note": "eclip ENCSR720BJU TARDBP K562 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF381YRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF381YRZ/@@download/ENCFF381YRZ.bed.gz",
+  "bytes": 945911,
+  "md5": "c9b19b7d48f9aa5bd283454e830f38b5",
+  "note": "eclip ENCSR930BZL DDX3X K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF382XRS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF382XRS/@@download/ENCFF382XRS.bed.gz",
+  "bytes": 2997775,
+  "md5": "595c6f9061b79ea24c7b846b1e9bea97",
+  "note": "eclip ENCSR240MVJ HNRNPU HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF383ZAQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF383ZAQ/@@download/ENCFF383ZAQ.bed.gz",
+  "bytes": 3894570,
+  "md5": "aea83b95d45eae63acf31ed58e7f0922",
+  "note": "eclip ENCSR841EQA TAF15 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF385MJU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF385MJU/@@download/ENCFF385MJU.bed.gz",
+  "bytes": 64472,
+  "md5": "4c8e478566c6793a650547733a3c214b",
+  "note": "eclip ENCSR438KWZ ILF3 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF389LEX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF389LEX/@@download/ENCFF389LEX.bed.gz",
+  "bytes": 1983349,
+  "md5": "dfa4ae1c8f7b7c2fcc1e56b402e98a9e",
+  "note": "eclip ENCSR987NYS FAM120A HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF390PJW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF390PJW/@@download/ENCFF390PJW.bed.gz",
+  "bytes": 1862091,
+  "md5": "55047c894789e97c9daa016e95e2625c",
+  "note": "eclip ENCSR987FTF RBFOX2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF392AEV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF392AEV/@@download/ENCFF392AEV.bed.gz",
+  "bytes": 4831,
+  "md5": "dfd5ee16d4e09c4c0da06941d6da5edc",
+  "note": "eclip ENCSR154HRN HNRNPA1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF394EQW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF394EQW/@@download/ENCFF394EQW.bed.gz",
+  "bytes": 1127383,
+  "md5": "d672ad32c553ec6e83d1602b41bd8236",
+  "note": "eclip ENCSR224QWC FXR2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF399DJZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF399DJZ/@@download/ENCFF399DJZ.bed.gz",
+  "bytes": 2157917,
+  "md5": "f73b16b9a2c13e70289ddb25ff0d07af",
+  "note": "eclip ENCSR830BSQ BUD13 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF399MVB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF399MVB/@@download/ENCFF399MVB.bed.gz",
+  "bytes": 2523273,
+  "md5": "594a0ca74fc035e4c2b4151d13eb9a84",
+  "note": "eclip ENCSR337XGI SAFB HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF400LMM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF400LMM/@@download/ENCFF400LMM.bed.gz",
+  "bytes": 1467112,
+  "md5": "96c7ad72d8a4ace7d7210de92ea983c5",
+  "note": "eclip ENCSR970NKP LIN28B K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF401RUI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF401RUI/@@download/ENCFF401RUI.bed.gz",
+  "bytes": 1739318,
+  "md5": "30ef3592c8bf5e35c6dd24f34bc6f821",
+  "note": "eclip ENCSR993FMY TROVE2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF401TWM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF401TWM/@@download/ENCFF401TWM.bed.gz",
+  "bytes": 1670189,
+  "md5": "a8f498b373d3e3fd85880754c01873bb",
+  "note": "eclip ENCSR735HOK YBX3 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF401XTL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF401XTL/@@download/ENCFF401XTL.bed.gz",
+  "bytes": 1075881,
+  "md5": "92971608c5b8b17119de6c6d32994d25",
+  "note": "eclip ENCSR923NKN DDX55 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF401YRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF401YRZ/@@download/ENCFF401YRZ.bed.gz",
+  "bytes": 3436900,
+  "md5": "0f42320f512aecd3cc6b2eba79c760f1",
+  "note": "eclip ENCSR795CAI HNRNPL K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF402AIE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF402AIE/@@download/ENCFF402AIE.bed.gz",
+  "bytes": 1183698,
+  "md5": "81e3ea1bf8e05243099b4e3a8284198b",
+  "note": "eclip ENCSR365NVO TRA2A K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF402DTY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF402DTY/@@download/ENCFF402DTY.bed.gz",
+  "bytes": 1819898,
+  "md5": "e0a02aa83a30cab4899b3a0878996f19",
+  "note": "eclip ENCSR539ZTS TROVE2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF405ETO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF405ETO/@@download/ENCFF405ETO.bed.gz",
+  "bytes": 2662546,
+  "md5": "2cbeba1018e948b133bc95d056418374",
+  "note": "eclip ENCSR893RAV U2AF2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF406MSI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF406MSI/@@download/ENCFF406MSI.bed.gz",
+  "bytes": 6439,
+  "md5": "e89ecc74974bece1aa402d3618277ae9",
+  "note": "eclip ENCSR589YHM HLTF K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF408HQB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF408HQB/@@download/ENCFF408HQB.bed.gz",
+  "bytes": 4686575,
+  "md5": "b746dd789803d26b1bd0efab98a3be99",
+  "note": "eclip ENCSR520BZQ HNRNPU K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF409DPS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF409DPS/@@download/ENCFF409DPS.bed.gz",
+  "bytes": 1866168,
+  "md5": "a31f84f9fdaab66958c2c2021942f691",
+  "note": "eclip ENCSR568DZW TAF15 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF411WKH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF411WKH/@@download/ENCFF411WKH.bed.gz",
+  "bytes": 1259041,
+  "md5": "e44c500533bc80aff5707d3dae06b2d5",
+  "note": "eclip ENCSR923NKN DDX55 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF417KUY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF417KUY/@@download/ENCFF417KUY.bed.gz",
+  "bytes": 2331613,
+  "md5": "3405e3b9a94d5049cc25c690840b16df",
+  "note": "eclip ENCSR484LAB SAFB K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF419MOS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF419MOS/@@download/ENCFF419MOS.bed.gz",
+  "bytes": 2912156,
+  "md5": "cdb791d94b0797864faf2bd06592f129",
+  "note": "eclip ENCSR663WES BUD13 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF421FJD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF421FJD/@@download/ENCFF421FJD.bed.gz",
+  "bytes": 2013881,
+  "md5": "68f2d7ba71ada281f90d9d29ad2d33ad",
+  "note": "eclip ENCSR187VEQ TARDBP HepG2 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF421XUC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF421XUC/@@download/ENCFF421XUC.bed.gz",
+  "bytes": 1580905,
+  "md5": "560382bf1b2b30447c2446feb9973ed1",
+  "note": "eclip ENCSR712IAG ZC3H11A K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF423SOR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF423SOR/@@download/ENCFF423SOR.bed.gz",
+  "bytes": 14852,
+  "md5": "730afd78d6d7325f4cdd0d9871080ee3",
+  "note": "eclip ENCSR887FHF FASTKD2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF432ASF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF432ASF/@@download/ENCFF432ASF.bed.gz",
+  "bytes": 1530355,
+  "md5": "2a5da26a2e8d43ebc1755ffe74a1ee2e",
+  "note": "eclip ENCSR773KRC SRSF9 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF440ROZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF440ROZ/@@download/ENCFF440ROZ.bed.gz",
+  "bytes": 71740,
+  "md5": "8c8128a6f0c7f28512fefe46090c4aae",
+  "note": "eclip ENCSR550DVK HNRNPC HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF442USD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF442USD/@@download/ENCFF442USD.bed.gz",
+  "bytes": 103091,
+  "md5": "bb061daadc409dc8fe1ff2c292cc8567",
+  "note": "eclip ENCSR744GEU IGF2BP1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF443ABK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF443ABK/@@download/ENCFF443ABK.bed.gz",
+  "bytes": 386626,
+  "md5": "b81b55065b2fe13d717fff6aa2439fb7",
+  "note": "eclip ENCSR177QQY AKAP1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF443KJS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF443KJS/@@download/ENCFF443KJS.bed.gz",
+  "bytes": 2192497,
+  "md5": "379c86f4a8f6b991af2c2e7e8574d6b1",
+  "note": "eclip ENCSR069EVH FUS K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF445ENC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF445ENC/@@download/ENCFF445ENC.bed.gz",
+  "bytes": 137556,
+  "md5": "abea3a5c80d80ab2deb8851b28a9394d",
+  "note": "eclip ENCSR412NOW HNRNPM K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF452KYY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF452KYY/@@download/ENCFF452KYY.bed.gz",
+  "bytes": 1017389,
+  "md5": "0f10fd4a9750f68e9c7e4bbc7bf45266",
+  "note": "eclip ENCSR845VGB DDX55 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF462WAI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF462WAI/@@download/ENCFF462WAI.bed.gz",
+  "bytes": 25090,
+  "md5": "1e41a505c0c3d747202693a60af3f63d",
+  "note": "eclip ENCSR923NKN DDX55 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF471JAQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF471JAQ/@@download/ENCFF471JAQ.bed.gz",
+  "bytes": 1110760,
+  "md5": "da6f444194f3d48131294ba010a0483a",
+  "note": "eclip ENCSR061EVO SND1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF483ODR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF483ODR/@@download/ENCFF483ODR.bed.gz",
+  "bytes": 887926,
+  "md5": "5500ae593292a469cf47328b4007aa8b",
+  "note": "eclip ENCSR862QCH U2AF1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF485BRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF485BRZ/@@download/ENCFF485BRZ.bed.gz",
+  "bytes": 1129989,
+  "md5": "cd4055be91bb9f90e6dfd65235b51fa4",
+  "note": "eclip ENCSR000SSH SLTM K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF487OCT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF487OCT/@@download/ENCFF487OCT.bed.gz",
+  "bytes": 2584136,
+  "md5": "4e01c9fd325bd4bad034386e46ce982a",
+  "note": "eclip ENCSR321PWZ SRSF1 K562 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF487VHA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF487VHA/@@download/ENCFF487VHA.bed.gz",
+  "bytes": 2841860,
+  "md5": "bdb36a7f4a0b069452f20ec13330515d",
+  "note": "eclip ENCSR755TJC HNRNPUL1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF490BSS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF490BSS/@@download/ENCFF490BSS.bed.gz",
+  "bytes": 1066795,
+  "md5": "e82b2458105af177b5c1674b1b8ca53d",
+  "note": "eclip ENCSR571VHI HNRNPUL1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF492OPF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF492OPF/@@download/ENCFF492OPF.bed.gz",
+  "bytes": 3423203,
+  "md5": "ab8e04d58181786b601557bc3a91f965",
+  "note": "eclip ENCSR655NZA XRN2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF496SLO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF496SLO/@@download/ENCFF496SLO.bed.gz",
+  "bytes": 96758,
+  "md5": "32d96eab0f841f3e229273d2767125b7",
+  "note": "eclip ENCSR081JYH NSUN2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF498IGK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF498IGK/@@download/ENCFF498IGK.bed.gz",
+  "bytes": 20927,
+  "md5": "fe2e5bac4437c1ca4b77d0f5ff15355d",
+  "note": "eclip ENCSR023UHL FASTKD2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF498SRM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF498SRM/@@download/ENCFF498SRM.bed.gz",
+  "bytes": 1329190,
+  "md5": "7a773f99024205b61be5c543c3bc48cb",
+  "note": "eclip ENCSR267OLV SF3B4 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF501TRY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF501TRY/@@download/ENCFF501TRY.bed.gz",
+  "bytes": 2547456,
+  "md5": "e499c1088ab49c8dc93fa79f6d219b27",
+  "note": "eclip ENCSR267UCX HNRNPM HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF502OYV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF502OYV/@@download/ENCFF502OYV.bed.gz",
+  "bytes": 441964,
+  "md5": "952b12eb847f91c36ed6abfb77f35ecd",
+  "note": "eclip ENCSR256CHX PCBP1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF507IRG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF507IRG/@@download/ENCFF507IRG.bed.gz",
+  "bytes": 1373328,
+  "md5": "a10a040327abd06d487a370777e76030",
+  "note": "eclip ENCSR539ZTS TROVE2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF507ZJR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF507ZJR/@@download/ENCFF507ZJR.bed.gz",
+  "bytes": 1480454,
+  "md5": "3b0a9607f689ddb934a17567fcd3f6e3",
+  "note": "eclip ENCSR989SMC FTO K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF508DKJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF508DKJ/@@download/ENCFF508DKJ.bed.gz",
+  "bytes": 2042906,
+  "md5": "09f75fd4a4ba556b41249c835bf58eb1",
+  "note": "eclip ENCSR989VIY SRSF1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF508LHH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF508LHH/@@download/ENCFF508LHH.bed.gz",
+  "bytes": 815358,
+  "md5": "bc54180b17f86b3954fd3229e1ea86ac",
+  "note": "eclip ENCSR154CSN DDX52 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF516OAW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF516OAW/@@download/ENCFF516OAW.bed.gz",
+  "bytes": 1114429,
+  "md5": "99d0fa11c960dfe155e6f45d5b76ac35",
+  "note": "eclip ENCSR653HQC DROSHA K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF518MSP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF518MSP/@@download/ENCFF518MSP.bed.gz",
+  "bytes": 1189346,
+  "md5": "68960cbd14812cd8c91e6c157e7c593e",
+  "note": "eclip ENCSR456ASB UPF1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF519RGA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF519RGA/@@download/ENCFF519RGA.bed.gz",
+  "bytes": 2151755,
+  "md5": "acbe546b94543653d1520adcffe90223",
+  "note": "eclip ENCSR805SRN LARP4 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF526OQL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF526OQL/@@download/ENCFF526OQL.bed.gz",
+  "bytes": 1923988,
+  "md5": "95cbbcd7c4fb047a1d0813ade209b996",
+  "note": "eclip ENCSR249ROI HNRNPC K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF529RBH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF529RBH/@@download/ENCFF529RBH.bed.gz",
+  "bytes": 1483801,
+  "md5": "670e1f7feaddf22c5c242781a10d2089",
+  "note": "eclip ENCSR196INN RBM15 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF532CWB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF532CWB/@@download/ENCFF532CWB.bed.gz",
+  "bytes": 1451244,
+  "md5": "501ede381911c08744e7a1445e0d0a26",
+  "note": "eclip ENCSR013CTQ EXOSC5 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF534JCV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF534JCV/@@download/ENCFF534JCV.bed.gz",
+  "bytes": 129055,
+  "md5": "398439ec70f34075b441eefda6055b28",
+  "note": "eclip ENCSR805SRN LARP4 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF534YQS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF534YQS/@@download/ENCFF534YQS.bed.gz",
+  "bytes": 6866326,
+  "md5": "b7206e73fb609092badd7253f0d19f65",
+  "note": "eclip ENCSR550DVK HNRNPC HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF540HIX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF540HIX/@@download/ENCFF540HIX.bed.gz",
+  "bytes": 2166030,
+  "md5": "f0aa391661b283354fded016ec001626",
+  "note": "eclip ENCSR805SRN LARP4 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF545IBP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF545IBP/@@download/ENCFF545IBP.bed.gz",
+  "bytes": 623056,
+  "md5": "c42e296e46023f8e290b0595bf47dd2a",
+  "note": "eclip ENCSR349CMI WDR43 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF545NBF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF545NBF/@@download/ENCFF545NBF.bed.gz",
+  "bytes": 1331431,
+  "md5": "b1375a13c5ac077ec256c8a556ad0935",
+  "note": "eclip ENCSR456JJQ RBM22 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF545ZWD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF545ZWD/@@download/ENCFF545ZWD.bed.gz",
+  "bytes": 3011719,
+  "md5": "bf3b2d1bd0d7a275c5aaf050b690fec0",
+  "note": "eclip ENCSR328LLU U2AF1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF551IJQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF551IJQ/@@download/ENCFF551IJQ.bed.gz",
+  "bytes": 2895360,
+  "md5": "6da25d227f8ae215d4f422deba7c1d4d",
+  "note": "eclip ENCSR570WLM QKI HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF551OMA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF551OMA/@@download/ENCFF551OMA.bed.gz",
+  "bytes": 1025409,
+  "md5": "3b1f103a649f8d2a8f08acd67379d42c",
+  "note": "eclip ENCSR379GZS NSUN2 HepG2 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF558RNJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF558RNJ/@@download/ENCFF558RNJ.bed.gz",
+  "bytes": 1208423,
+  "md5": "96a7a79b54b6624972ac758631096b74",
+  "note": "eclip ENCSR440SUX MATR3 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF560WXZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF560WXZ/@@download/ENCFF560WXZ.bed.gz",
+  "bytes": 600392,
+  "md5": "747c19238de5bb41594a2a1d4c9c3137",
+  "note": "eclip ENCSR194HZU NOLC1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF563XEI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF563XEI/@@download/ENCFF563XEI.bed.gz",
+  "bytes": 1716883,
+  "md5": "63e43fe34356ac72e93d5dadccde9fb3",
+  "note": "eclip ENCSR970FEW DDX52 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF564VOC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF564VOC/@@download/ENCFF564VOC.bed.gz",
+  "bytes": 1516800,
+  "md5": "7eac1b364414849abb28aa6b1461aae9",
+  "note": "eclip ENCSR725ARB AGGF1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF565ILV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF565ILV/@@download/ENCFF565ILV.bed.gz",
+  "bytes": 2392504,
+  "md5": "ea485ed66404da4524ae67556ef7a2bd",
+  "note": "eclip ENCSR069EVH FUS K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF566EAE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF566EAE/@@download/ENCFF566EAE.bed.gz",
+  "bytes": 16281,
+  "md5": "66651294be1e7f07724dabc602542ce4",
+  "note": "eclip ENCSR841EQA TAF15 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF569CXX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF569CXX/@@download/ENCFF569CXX.bed.gz",
+  "bytes": 2229550,
+  "md5": "2c8dc65acf77b1bc6a0c89b6433f2818",
+  "note": "eclip ENCSR755TJC HNRNPUL1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF572IJY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF572IJY/@@download/ENCFF572IJY.bed.gz",
+  "bytes": 242818,
+  "md5": "7c057f599ea48c5f1ab33a412832daa1",
+  "note": "eclip ENCSR456KXI LARP7 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF573DXD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF573DXD/@@download/ENCFF573DXD.bed.gz",
+  "bytes": 51641,
+  "md5": "ca3159016440d903f3f46b1ab7ae0ce7",
+  "note": "eclip ENCSR490IEE UCHL5 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF573KHP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF573KHP/@@download/ENCFF573KHP.bed.gz",
+  "bytes": 2555207,
+  "md5": "2e622b0018c219374e6c7588a946a92a",
+  "note": "eclip ENCSR490IEE UCHL5 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF579FWN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF579FWN/@@download/ENCFF579FWN.bed.gz",
+  "bytes": 794467,
+  "md5": "75825298285359399aaf2b1a8702ab2a",
+  "note": "eclip ENCSR580MFX SUPV3L1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF581BHC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF581BHC/@@download/ENCFF581BHC.bed.gz",
+  "bytes": 1918120,
+  "md5": "916c66a6d5eaf090ca2b4d0de95483d0",
+  "note": "eclip ENCSR135VMS LSM11 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF587KKM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF587KKM/@@download/ENCFF587KKM.bed.gz",
+  "bytes": 142751,
+  "md5": "2fb3372de4b6163b19ae18298bb4980e",
+  "note": "eclip ENCSR290VLT MATR3 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF588UIR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF588UIR/@@download/ENCFF588UIR.bed.gz",
+  "bytes": 765495,
+  "md5": "3b4aa46fac1715ab7f8a4ae857e9ec40",
+  "note": "eclip ENCSR373ODC SMNDC1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF592WIH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF592WIH/@@download/ENCFF592WIH.bed.gz",
+  "bytes": 26038,
+  "md5": "294f55ccf75b7a732fb89070c2c7ee09",
+  "note": "eclip ENCSR907GUB ZC3H11A HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF593CEQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF593CEQ/@@download/ENCFF593CEQ.bed.gz",
+  "bytes": 625105,
+  "md5": "9e3195413c11cbeef118c93a5591cedf",
+  "note": "eclip ENCSR513NDD SRSF7 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF593RED.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF593RED/@@download/ENCFF593RED.bed.gz",
+  "bytes": 91663,
+  "md5": "a8df8329121669f538576d36d3480207",
+  "note": "eclip ENCSR720BJU TARDBP K562 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF594PWG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF594PWG/@@download/ENCFF594PWG.bed.gz",
+  "bytes": 1004814,
+  "md5": "72adf8690b9f4f44c62100b4a08964f8",
+  "note": "eclip ENCSR981WKN PTBP1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF597MMG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF597MMG/@@download/ENCFF597MMG.bed.gz",
+  "bytes": 198449,
+  "md5": "b7ed5af0dc84494cbf5df391c1d6ec1d",
+  "note": "eclip ENCSR196INN RBM15 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF597NVR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF597NVR/@@download/ENCFF597NVR.bed.gz",
+  "bytes": 323361,
+  "md5": "e19516329f7659b31976b52807d341fe",
+  "note": "eclip ENCSR456ASB UPF1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF599CUU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF599CUU/@@download/ENCFF599CUU.bed.gz",
+  "bytes": 3268202,
+  "md5": "55d491e6a5dbef768b4496f64cef6c40",
+  "note": "eclip ENCSR769UEW HNRNPA1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF606RXB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF606RXB/@@download/ENCFF606RXB.bed.gz",
+  "bytes": 1298930,
+  "md5": "d40929b5486352bb37d4cb652981eaae",
+  "note": "eclip ENCSR584TCR TARDBP K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF608UGQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF608UGQ/@@download/ENCFF608UGQ.bed.gz",
+  "bytes": 1830075,
+  "md5": "433b12047278f8518ee56c5e1d64c9cf",
+  "note": "eclip ENCSR893EFU DDX6 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF609LWQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF609LWQ/@@download/ENCFF609LWQ.bed.gz",
+  "bytes": 171827,
+  "md5": "6cc103dd09fce7818fd2c194076f8474",
+  "note": "eclip ENCSR061EVO SND1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF610JVZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF610JVZ/@@download/ENCFF610JVZ.bed.gz",
+  "bytes": 10383,
+  "md5": "eea41572911814bf6d80937ac5464032",
+  "note": "eclip ENCSR755TJC HNRNPUL1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF611AHG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF611AHG/@@download/ENCFF611AHG.bed.gz",
+  "bytes": 3014234,
+  "md5": "fd7eb5104fef8a5bcd077d64ff4c2e79",
+  "note": "eclip ENCSR366DGX KHSRP HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF611SOO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF611SOO/@@download/ENCFF611SOO.bed.gz",
+  "bytes": 4314,
+  "md5": "73e0d5b33647ad45adc30cc57ef438a5",
+  "note": "eclip ENCSR993FMY TROVE2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF613UUR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF613UUR/@@download/ENCFF613UUR.bed.gz",
+  "bytes": 266460,
+  "md5": "287106917170417a4ec373fd68daac02",
+  "note": "eclip ENCSR381VNR SRSF9 K562 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF614NUP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF614NUP/@@download/ENCFF614NUP.bed.gz",
+  "bytes": 13100,
+  "md5": "e8abe5c49d73376a6e4d2feaf390b5fa",
+  "note": "eclip ENCSR141OIM DDX6 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF616NRU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF616NRU/@@download/ENCFF616NRU.bed.gz",
+  "bytes": 3224554,
+  "md5": "a8b16bd5a7f718e76bf8788a5e195b3b",
+  "note": "eclip ENCSR907GUB ZC3H11A HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF618WYU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF618WYU/@@download/ENCFF618WYU.bed.gz",
+  "bytes": 8114,
+  "md5": "5b40bb5d261ac9cefdfa1449eee17526",
+  "note": "eclip ENCSR506OTC TBRG4 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF618ZPP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF618ZPP/@@download/ENCFF618ZPP.bed.gz",
+  "bytes": 749886,
+  "md5": "f3b7448122b79de6e3acb98aa5e0b851",
+  "note": "eclip ENCSR365NVO TRA2A K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF620JUD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF620JUD/@@download/ENCFF620JUD.bed.gz",
+  "bytes": 2328335,
+  "md5": "18f86f91b9e1928616a3a859c81745a4",
+  "note": "eclip ENCSR606BPV AQR K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF621JPQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF621JPQ/@@download/ENCFF621JPQ.bed.gz",
+  "bytes": 2974250,
+  "md5": "67dd8be17ef59942377b1e77bf441a64",
+  "note": "eclip ENCSR240MVJ HNRNPU HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF623LPT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF623LPT/@@download/ENCFF623LPT.bed.gz",
+  "bytes": 3167322,
+  "md5": "edcb5ff788606c89b8bf3be2d91e7244",
+  "note": "eclip ENCSR438KWZ ILF3 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF625AZC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF625AZC/@@download/ENCFF625AZC.bed.gz",
+  "bytes": 3153286,
+  "md5": "f3a353c16d875f95d98bb52ad7df506a",
+  "note": "eclip ENCSR919HSE CSTF2T HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF626XAA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF626XAA/@@download/ENCFF626XAA.bed.gz",
+  "bytes": 2144744,
+  "md5": "324617af84e8a625b9bc5ac489c576bd",
+  "note": "eclip ENCSR187VEQ TARDBP HepG2 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF635SWD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF635SWD/@@download/ENCFF635SWD.bed.gz",
+  "bytes": 1337323,
+  "md5": "ed2474a1482894f21c68bcb58d350e3b",
+  "note": "eclip ENCSR648LAH DDX3X HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF636MSJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF636MSJ/@@download/ENCFF636MSJ.bed.gz",
+  "bytes": 1608246,
+  "md5": "3ab9d8056e268ccd5d0963fb3bab8645",
+  "note": "eclip ENCSR018WPY AQR HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF637HZJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF637HZJ/@@download/ENCFF637HZJ.bed.gz",
+  "bytes": 2605480,
+  "md5": "3f29420f2e078b11f7c93abdd9e568ae",
+  "note": "eclip ENCSR725ARB AGGF1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF638WRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF638WRZ/@@download/ENCFF638WRZ.bed.gz",
+  "bytes": 869447,
+  "md5": "20dedbeef4219fdb98ae2012af4ecbbc",
+  "note": "eclip ENCSR973HOJ FXR2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF638WUB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF638WUB/@@download/ENCFF638WUB.bed.gz",
+  "bytes": 6099290,
+  "md5": "21dc2b83fe565fb0206577f5baab9b83",
+  "note": "eclip ENCSR520BZQ HNRNPU K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF640IHY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF640IHY/@@download/ENCFF640IHY.bed.gz",
+  "bytes": 27933,
+  "md5": "a0d72f2648e8f30bf9acb1747c6706ee",
+  "note": "eclip ENCSR862QCH U2AF1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF642QVZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF642QVZ/@@download/ENCFF642QVZ.bed.gz",
+  "bytes": 10169,
+  "md5": "42d253c603301b0a79fa4661cd4e2c99",
+  "note": "eclip ENCSR379GZS NSUN2 HepG2 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF644EIR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF644EIR/@@download/ENCFF644EIR.bed.gz",
+  "bytes": 1346,
+  "md5": "f2302b8ec8ef5f33e74ea3eaf63d30fc",
+  "note": "eclip ENCSR488JKQ UTP18 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF644FFX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF644FFX/@@download/ENCFF644FFX.bed.gz",
+  "bytes": 2839251,
+  "md5": "64257490f5ce75e65740acdcdedc3c2e",
+  "note": "eclip ENCSR529FKI YBX3 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF645PLG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF645PLG/@@download/ENCFF645PLG.bed.gz",
+  "bytes": 421266,
+  "md5": "8510446eb8ed5688bd920287b712feb6",
+  "note": "eclip ENCSR194HZU NOLC1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF647TKI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF647TKI/@@download/ENCFF647TKI.bed.gz",
+  "bytes": 156693,
+  "md5": "1c147eebc54f26d3e3bc65e7b80b5719",
+  "note": "eclip ENCSR961OKA LARP7 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF647ZVB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF647ZVB/@@download/ENCFF647ZVB.bed.gz",
+  "bytes": 2571290,
+  "md5": "abce60063c001c43800a79c4a828ede5",
+  "note": "eclip ENCSR840DRD CSTF2T K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF649GEE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF649GEE/@@download/ENCFF649GEE.bed.gz",
+  "bytes": 227953,
+  "md5": "ead9fc351a5452449ccbf1de150cb182",
+  "note": "eclip ENCSR267OLV SF3B4 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF650LMV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF650LMV/@@download/ENCFF650LMV.bed.gz",
+  "bytes": 131721,
+  "md5": "b33dace51d3f233e6ccd8b92e7947748",
+  "note": "eclip ENCSR975KIR IGF2BP1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF660XGG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF660XGG/@@download/ENCFF660XGG.bed.gz",
+  "bytes": 3311696,
+  "md5": "5c97c3fd5cd434ecc883dbe3d08e0e61",
+  "note": "eclip ENCSR349KMG UCHL5 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF663QIZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF663QIZ/@@download/ENCFF663QIZ.bed.gz",
+  "bytes": 4504,
+  "md5": "be5f42815045c7c56a42948a024bbf35",
+  "note": "eclip ENCSR565DGW DHX30 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF664RLU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF664RLU/@@download/ENCFF664RLU.bed.gz",
+  "bytes": 1605996,
+  "md5": "3f97d3fd1e27071a2b9f4d6a1c324fd1",
+  "note": "eclip ENCSR249ROI HNRNPC K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF669TNM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF669TNM/@@download/ENCFF669TNM.bed.gz",
+  "bytes": 966669,
+  "md5": "9d5db800b54206d18ed853e33b24d8bf",
+  "note": "eclip ENCSR584TCR TARDBP K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF673EQX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF673EQX/@@download/ENCFF673EQX.bed.gz",
+  "bytes": 2880489,
+  "md5": "823fb09aac47e1fa65c96c25c7ef9f1f",
+  "note": "eclip ENCSR543TPH AGGF1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF673QBV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF673QBV/@@download/ENCFF673QBV.bed.gz",
+  "bytes": 443962,
+  "md5": "bc67d0fc521bf078481854e284f77190",
+  "note": "eclip ENCSR187VEQ TARDBP HepG2 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF674TKN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF674TKN/@@download/ENCFF674TKN.bed.gz",
+  "bytes": 3377447,
+  "md5": "4b68b96dc9bcc72e6e53e07b4adb5c68",
+  "note": "eclip ENCSR057DWB TIA1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF679HYT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF679HYT/@@download/ENCFF679HYT.bed.gz",
+  "bytes": 1484312,
+  "md5": "f5455aa7ead01ba1fab7005f7d2bf35f",
+  "note": "eclip ENCSR953ZOA HNRNPK K562 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF680IKQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF680IKQ/@@download/ENCFF680IKQ.bed.gz",
+  "bytes": 982544,
+  "md5": "ad12d9c2ada0adf41384d5b944d4edcf",
+  "note": "eclip ENCSR141OIM DDX6 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF683ATR.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF683ATR/@@download/ENCFF683ATR.bed.gz",
+  "bytes": 990366,
+  "md5": "7db833e7f6448f5a0985283de424ecd7",
+  "note": "eclip ENCSR484LTQ NCBP2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF685MZA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF685MZA/@@download/ENCFF685MZA.bed.gz",
+  "bytes": 2311202,
+  "md5": "5608c7e40a9feb49073e8337ac5d7b0e",
+  "note": "eclip ENCSR464OSH FUS HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF687EQE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF687EQE/@@download/ENCFF687EQE.bed.gz",
+  "bytes": 231137,
+  "md5": "61887c94a6f6811261b3b9e5f77a9a2c",
+  "note": "eclip ENCSR539BEV UPF1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF692RZM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF692RZM/@@download/ENCFF692RZM.bed.gz",
+  "bytes": 72197,
+  "md5": "b85516204db28c8152da3e3ea2870dc6",
+  "note": "eclip ENCSR018RVZ NCBP2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF695OLO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF695OLO/@@download/ENCFF695OLO.bed.gz",
+  "bytes": 30095,
+  "md5": "fe7fdbf0840afa8643f80fb14be99207",
+  "note": "eclip ENCSR657TZB XRN2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF696QWE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF696QWE/@@download/ENCFF696QWE.bed.gz",
+  "bytes": 75128,
+  "md5": "836e2084135a51a035cc08e685b8a07c",
+  "note": "eclip ENCSR000SSH SLTM K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF697NZQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF697NZQ/@@download/ENCFF697NZQ.bed.gz",
+  "bytes": 872350,
+  "md5": "69439c12474d1c7e9c1c11ce828847ba",
+  "note": "eclip ENCSR352STY SSB HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF702QGF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF702QGF/@@download/ENCFF702QGF.bed.gz",
+  "bytes": 1047213,
+  "md5": "057763e7ed1f81b6db708e7d1a2cc1cb",
+  "note": "eclip ENCSR973HOJ FXR2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF704OCI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF704OCI/@@download/ENCFF704OCI.bed.gz",
+  "bytes": 219021,
+  "md5": "a296630af5b4bfa095cb480088f16448",
+  "note": "eclip ENCSR570WLM QKI HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF705SDK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF705SDK/@@download/ENCFF705SDK.bed.gz",
+  "bytes": 1291359,
+  "md5": "a43791b76a5e7c691066758852306425",
+  "note": "eclip ENCSR744GEU IGF2BP1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF707BGL.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF707BGL/@@download/ENCFF707BGL.bed.gz",
+  "bytes": 1446317,
+  "md5": "1f0a8900ce2f3f4f67cded7071131d9e",
+  "note": "eclip ENCSR456ASB UPF1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF710NXQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF710NXQ/@@download/ENCFF710NXQ.bed.gz",
+  "bytes": 988625,
+  "md5": "caea065e77ece6f37d0027e1f43a6ac1",
+  "note": "eclip ENCSR736AAG GTF2F1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF712HCB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF712HCB/@@download/ENCFF712HCB.bed.gz",
+  "bytes": 164034,
+  "md5": "1a0b9a765b1ae577da41a9cf76799416",
+  "note": "eclip ENCSR580OFI SUPV3L1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF714YXE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF714YXE/@@download/ENCFF714YXE.bed.gz",
+  "bytes": 1566631,
+  "md5": "42239765810ecda4abb405cbaee967d3",
+  "note": "eclip ENCSR527DXF EFTUD2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF718VRE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF718VRE/@@download/ENCFF718VRE.bed.gz",
+  "bytes": 1224528,
+  "md5": "d38dd77822a26dc33ff10f7f1fe87851",
+  "note": "eclip ENCSR887FHF FASTKD2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF721PWF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF721PWF/@@download/ENCFF721PWF.bed.gz",
+  "bytes": 230034,
+  "md5": "f0bd2d61ed030517945b6f7f080f88c4",
+  "note": "eclip ENCSR202BFN U2AF2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF722RBO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF722RBO/@@download/ENCFF722RBO.bed.gz",
+  "bytes": 5544081,
+  "md5": "44520ea9fcf57547263fabd0f1dffb38",
+  "note": "eclip ENCSR769UEW HNRNPA1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF723GHJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF723GHJ/@@download/ENCFF723GHJ.bed.gz",
+  "bytes": 1186245,
+  "md5": "3ceb24387c932707ef557e601ed6a5bd",
+  "note": "eclip ENCSR658IQB SMNDC1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF725FNJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF725FNJ/@@download/ENCFF725FNJ.bed.gz",
+  "bytes": 779350,
+  "md5": "bfb2b2d2c60a06cf5fbb2da010d582d1",
+  "note": "eclip ENCSR351PVI SLTM HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF726PFJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF726PFJ/@@download/ENCFF726PFJ.bed.gz",
+  "bytes": 39732,
+  "md5": "136f4156366857b209f11f0e820e1bb1",
+  "note": "eclip ENCSR365NVO TRA2A K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF726SQU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF726SQU/@@download/ENCFF726SQU.bed.gz",
+  "bytes": 183649,
+  "md5": "2591880b31f402fdbfda189cba6ce47d",
+  "note": "eclip ENCSR384KAN PTBP1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF728JKU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF728JKU/@@download/ENCFF728JKU.bed.gz",
+  "bytes": 856710,
+  "md5": "1878ff81c7982bb9e63657470ac5f945",
+  "note": "eclip ENCSR468FSW SRSF7 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF733BEV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF733BEV/@@download/ENCFF733BEV.bed.gz",
+  "bytes": 1071255,
+  "md5": "a655754b8bf9f4fcca64fa2a857edbad",
+  "note": "eclip ENCSR022BVV LSM11 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF734UNZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF734UNZ/@@download/ENCFF734UNZ.bed.gz",
+  "bytes": 1208261,
+  "md5": "f5de21fa0b8f60ea3bed506224264847",
+  "note": "eclip ENCSR506OTC TBRG4 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF736HGJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF736HGJ/@@download/ENCFF736HGJ.bed.gz",
+  "bytes": 792538,
+  "md5": "e3c783e8703e350cfe29cf718cd1ca68",
+  "note": "eclip ENCSR916SRV TBRG4 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF736RYV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF736RYV/@@download/ENCFF736RYV.bed.gz",
+  "bytes": 7957,
+  "md5": "cf597c1b8e9d8014acdaccd18885a92e",
+  "note": "eclip ENCSR373ODC SMNDC1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF739ERP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF739ERP/@@download/ENCFF739ERP.bed.gz",
+  "bytes": 860924,
+  "md5": "f552682febd72dc485ccf1cc25b4c3d3",
+  "note": "eclip ENCSR356ZMO AKAP1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF744CKU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF744CKU/@@download/ENCFF744CKU.bed.gz",
+  "bytes": 917577,
+  "md5": "368f5a930a50fbaf4179606b2a6e7c46",
+  "note": "eclip ENCSR279UJF SF3B4 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF746XLE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF746XLE/@@download/ENCFF746XLE.bed.gz",
+  "bytes": 432111,
+  "md5": "7c5f83086e097ee947e316528bf3b6ef",
+  "note": "eclip ENCSR529FKI YBX3 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF747NRM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF747NRM/@@download/ENCFF747NRM.bed.gz",
+  "bytes": 931495,
+  "md5": "599a1c2d577fddadf7806ddcf51a02af",
+  "note": "eclip ENCSR893EFU DDX6 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF749IUB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF749IUB/@@download/ENCFF749IUB.bed.gz",
+  "bytes": 140962,
+  "md5": "73726a6265d6cf49b0536d48e87172e4",
+  "note": "eclip ENCSR356ZMO AKAP1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF752JNY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF752JNY/@@download/ENCFF752JNY.bed.gz",
+  "bytes": 278603,
+  "md5": "79e34550b612d13ff844ccabc16323a6",
+  "note": "eclip ENCSR267UCX HNRNPM HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF754XAQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF754XAQ/@@download/ENCFF754XAQ.bed.gz",
+  "bytes": 1818868,
+  "md5": "1a722c17508909a7b2398ae2ee89e9ec",
+  "note": "eclip ENCSR828ZID HNRNPK HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF759KCD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF759KCD/@@download/ENCFF759KCD.bed.gz",
+  "bytes": 41378,
+  "md5": "af8bfd99edd2b45000ab2a6113156c73",
+  "note": "eclip ENCSR623VEQ TIA1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF760VJY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF760VJY/@@download/ENCFF760VJY.bed.gz",
+  "bytes": 1773396,
+  "md5": "5c77204438042395bf2e006e9d017f37",
+  "note": "eclip ENCSR022BVV LSM11 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF761CYV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF761CYV/@@download/ENCFF761CYV.bed.gz",
+  "bytes": 939053,
+  "md5": "c501e790f6565ecf4e6d7240e836ebcd",
+  "note": "eclip ENCSR061EVO SND1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF762QRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF762QRZ/@@download/ENCFF762QRZ.bed.gz",
+  "bytes": 663762,
+  "md5": "175705a30b52d51fb63901f3e928fec7",
+  "note": "eclip ENCSR903PRV FTO HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF763ZLD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF763ZLD/@@download/ENCFF763ZLD.bed.gz",
+  "bytes": 739741,
+  "md5": "278113d8a2d274598e431ddce3bd87c1",
+  "note": "eclip ENCSR539BEV UPF1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF765PIF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF765PIF/@@download/ENCFF765PIF.bed.gz",
+  "bytes": 15314,
+  "md5": "5c8dcc5828518a1569195aa72b6def23",
+  "note": "eclip ENCSR773KRC SRSF9 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF766DUS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF766DUS/@@download/ENCFF766DUS.bed.gz",
+  "bytes": 394530,
+  "md5": "bc733f816dbacf6410e79360d3c002f9",
+  "note": "eclip ENCSR922WJV PCBP1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF766OCH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF766OCH/@@download/ENCFF766OCH.bed.gz",
+  "bytes": 21519,
+  "md5": "20e996c2031f20d9332ecab935988f95",
+  "note": "eclip ENCSR314UMJ TRA2A HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF767WUU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF767WUU/@@download/ENCFF767WUU.bed.gz",
+  "bytes": 959769,
+  "md5": "347071df49fb711d5e4b8e090456da37",
+  "note": "eclip ENCSR366YOG QKI K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF769KHX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF769KHX/@@download/ENCFF769KHX.bed.gz",
+  "bytes": 2399783,
+  "md5": "a54cf41bc1d99df523d2a2117fa072fc",
+  "note": "eclip ENCSR328LLU U2AF1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF771QAU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF771QAU/@@download/ENCFF771QAU.bed.gz",
+  "bytes": 108513,
+  "md5": "674273b80c9ca23fcfa2871e14ddd978",
+  "note": "eclip ENCSR366DGX KHSRP HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF774NGW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF774NGW/@@download/ENCFF774NGW.bed.gz",
+  "bytes": 245403,
+  "md5": "0471a7f08741aea3bd56d57a7cd84721",
+  "note": "eclip ENCSR961OKA LARP7 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF777NMK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF777NMK/@@download/ENCFF777NMK.bed.gz",
+  "bytes": 204034,
+  "md5": "13c69c357e10e7c719c281487e9e2d56",
+  "note": "eclip ENCSR648LAH DDX3X HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF779OIO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF779OIO/@@download/ENCFF779OIO.bed.gz",
+  "bytes": 2295708,
+  "md5": "38f0bfdeff21e5874519965eab65b55c",
+  "note": "eclip ENCSR756CKJ RBFOX2 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF780OCY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF780OCY/@@download/ENCFF780OCY.bed.gz",
+  "bytes": 12258,
+  "md5": "0209029bb72b84f29df985b130de1ce6",
+  "note": "eclip ENCSR468FSW SRSF7 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF781BNS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF781BNS/@@download/ENCFF781BNS.bed.gz",
+  "bytes": 6758,
+  "md5": "3a4c9fb1f266b6b808b672d22b0740a3",
+  "note": "eclip ENCSR381VNR SRSF9 K562 rep [1, 2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF783INO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF783INO/@@download/ENCFF783INO.bed.gz",
+  "bytes": 3716,
+  "md5": "5297d741e7e066646b1fd981f9ddd8ef",
+  "note": "eclip ENCSR964VOX UTP18 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF785FUO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF785FUO/@@download/ENCFF785FUO.bed.gz",
+  "bytes": 2243333,
+  "md5": "557cac0ace0ff112d02bfacea6d5a7e8",
+  "note": "eclip ENCSR830BSQ BUD13 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF786BCU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF786BCU/@@download/ENCFF786BCU.bed.gz",
+  "bytes": 2315576,
+  "md5": "2cccb9ba27a692e022c87c070f74e1ea",
+  "note": "eclip ENCSR987NYS FAM120A HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF786UOW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF786UOW/@@download/ENCFF786UOW.bed.gz",
+  "bytes": 51681,
+  "md5": "e8e53d7a5213d496e002d7eb82035196",
+  "note": "eclip ENCSR366YOG QKI K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF788PZS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF788PZS/@@download/ENCFF788PZS.bed.gz",
+  "bytes": 1336726,
+  "md5": "e607899a3464bc4b3b4815f86730c10f",
+  "note": "eclip ENCSR267OLV SF3B4 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF789KFH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF789KFH/@@download/ENCFF789KFH.bed.gz",
+  "bytes": 582618,
+  "md5": "7d6458cdf05fda229b855a06cb6f2ec7",
+  "note": "eclip ENCSR050BDZ SDAD1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF794RJQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF794RJQ/@@download/ENCFF794RJQ.bed.gz",
+  "bytes": 11488,
+  "md5": "1701189647d94c83aa5e1e9002a45baa",
+  "note": "eclip ENCSR539ZTS TROVE2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF796RMF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF796RMF/@@download/ENCFF796RMF.bed.gz",
+  "bytes": 173686,
+  "md5": "668e69b68ac071f08cb66335ebf6a344",
+  "note": "eclip ENCSR527DXF EFTUD2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF797BHU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF797BHU/@@download/ENCFF797BHU.bed.gz",
+  "bytes": 85981,
+  "md5": "83bfcd93c80dbfc847580820ef42a2a9",
+  "note": "eclip ENCSR653HQC DROSHA K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF797GSK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF797GSK/@@download/ENCFF797GSK.bed.gz",
+  "bytes": 2565,
+  "md5": "d133da6c740d336600751e92a2a0eebb",
+  "note": "eclip ENCSR769UEW HNRNPA1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF797QRS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF797QRS/@@download/ENCFF797QRS.bed.gz",
+  "bytes": 41662,
+  "md5": "5f710e650a76d18b1924e97b62d4cfbc",
+  "note": "eclip ENCSR845VGB DDX55 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF803KPC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF803KPC/@@download/ENCFF803KPC.bed.gz",
+  "bytes": 1070514,
+  "md5": "e5bb796e1932ea6971197bd6fbd9512c",
+  "note": "eclip ENCSR529GSJ DHX30 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF807GJE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF807GJE/@@download/ENCFF807GJE.bed.gz",
+  "bytes": 2736469,
+  "md5": "f7a8f856fee4eeb215058685af2bbb8a",
+  "note": "eclip ENCSR663WES BUD13 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF809CKN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF809CKN/@@download/ENCFF809CKN.bed.gz",
+  "bytes": 6396,
+  "md5": "bda8f341ea1042933ea4e5236e8814cf",
+  "note": "eclip ENCSR456KXI LARP7 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF810IDY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF810IDY/@@download/ENCFF810IDY.bed.gz",
+  "bytes": 1964698,
+  "md5": "592e35de371e7a1b1577e8599d5ca4d3",
+  "note": "eclip ENCSR001VAC NOLC1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF810NKV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF810NKV/@@download/ENCFF810NKV.bed.gz",
+  "bytes": 169717,
+  "md5": "f1822daab54cf009e164160153aeaeaa",
+  "note": "eclip ENCSR725ARB AGGF1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF813VYB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF813VYB/@@download/ENCFF813VYB.bed.gz",
+  "bytes": 1331617,
+  "md5": "6173a2117979db657acd6b4a21cba336",
+  "note": "eclip ENCSR506OTC TBRG4 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF815XNW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF815XNW/@@download/ENCFF815XNW.bed.gz",
+  "bytes": 2148439,
+  "md5": "56c4e8a1cffbb46892b727236eb0618e",
+  "note": "eclip ENCSR570WLM QKI HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF822NWY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF822NWY/@@download/ENCFF822NWY.bed.gz",
+  "bytes": 12367,
+  "md5": "f549f34c6b3a40c396be439ae9010b8c",
+  "note": "eclip ENCSR568DZW TAF15 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF823FHE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF823FHE/@@download/ENCFF823FHE.bed.gz",
+  "bytes": 1521077,
+  "md5": "5695d370367c89cba9b74c5b75563302",
+  "note": "eclip ENCSR379GZS NSUN2 HepG2 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF824IDO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF824IDO/@@download/ENCFF824IDO.bed.gz",
+  "bytes": 1111532,
+  "md5": "abf3543159168118482eb3ee8cd3196c",
+  "note": "eclip ENCSR268ETU HNRNPK K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF824WZJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF824WZJ/@@download/ENCFF824WZJ.bed.gz",
+  "bytes": 429357,
+  "md5": "d1ef5aba348d6ad442bec9aac5345d42",
+  "note": "eclip ENCSR693JWP EXOSC5 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF825AVT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF825AVT/@@download/ENCFF825AVT.bed.gz",
+  "bytes": 2616539,
+  "md5": "1e846a7313ffebb4ff8333847b780d81",
+  "note": "eclip ENCSR135VMS LSM11 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF825UVD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF825UVD/@@download/ENCFF825UVD.bed.gz",
+  "bytes": 23440,
+  "md5": "c2e27a578e55398078419126b14a76b0",
+  "note": "eclip ENCSR050BDZ SDAD1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF826MPO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF826MPO/@@download/ENCFF826MPO.bed.gz",
+  "bytes": 102004,
+  "md5": "d43622294f5939763c53743473e0214a",
+  "note": "eclip ENCSR580OFI SUPV3L1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF828HJF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF828HJF/@@download/ENCFF828HJF.bed.gz",
+  "bytes": 1593005,
+  "md5": "1f3c649d33253094534d3f8fac5461e8",
+  "note": "eclip ENCSR023UHL FASTKD2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF830FZH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF830FZH/@@download/ENCFF830FZH.bed.gz",
+  "bytes": 1432978,
+  "md5": "a0e33df5949e1815fadcb76e8b2de5dc",
+  "note": "eclip ENCSR265ZIS GTF2F1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF840HCE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF840HCE/@@download/ENCFF840HCE.bed.gz",
+  "bytes": 523436,
+  "md5": "b33e02afde2ce0bc32dc167c3fc77f82",
+  "note": "eclip ENCSR488JKQ UTP18 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF841BJF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF841BJF/@@download/ENCFF841BJF.bed.gz",
+  "bytes": 2063551,
+  "md5": "24cab6070a2a849f9942579692a0ddeb",
+  "note": "eclip ENCSR786TSC ILF3 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF848JWA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF848JWA/@@download/ENCFF848JWA.bed.gz",
+  "bytes": 2402,
+  "md5": "8d7b78ab980f1e1b9c32f248bfd9100f",
+  "note": "eclip ENCSR352STY SSB HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF853FGC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF853FGC/@@download/ENCFF853FGC.bed.gz",
+  "bytes": 1362501,
+  "md5": "09aa6af1c1ed84cf641fcda06e15af91",
+  "note": "eclip ENCSR975KIR IGF2BP1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF854BHP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF854BHP/@@download/ENCFF854BHP.bed.gz",
+  "bytes": 53963,
+  "md5": "9c247ac914abbf2c64dbb5bd3b100f14",
+  "note": "eclip ENCSR834YLD DROSHA HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF854GBT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF854GBT/@@download/ENCFF854GBT.bed.gz",
+  "bytes": 1874724,
+  "md5": "5938a54b4b9a8d66ba6de657ba08ee64",
+  "note": "eclip ENCSR589YHM HLTF K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF855CPQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF855CPQ/@@download/ENCFF855CPQ.bed.gz",
+  "bytes": 123250,
+  "md5": "535678bb78cfe5f3c4d2dbf3d1454057",
+  "note": "eclip ENCSR828ZID HNRNPK HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF856EHA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF856EHA/@@download/ENCFF856EHA.bed.gz",
+  "bytes": 1880985,
+  "md5": "ba0a449b06a82ebfdc3b3b187e0ddc5a",
+  "note": "eclip ENCSR623VEQ TIA1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF858CSS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF858CSS/@@download/ENCFF858CSS.bed.gz",
+  "bytes": 244660,
+  "md5": "7c3a871c5d3c2d0ac1915175b804db69",
+  "note": "eclip ENCSR013CTQ EXOSC5 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF858EHN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF858EHN/@@download/ENCFF858EHN.bed.gz",
+  "bytes": 28927,
+  "md5": "9484cfca99e5b9a445991684f9753e3e",
+  "note": "eclip ENCSR022BVV LSM11 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF858UKE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF858UKE/@@download/ENCFF858UKE.bed.gz",
+  "bytes": 232710,
+  "md5": "c13dcace7b82d9693879a32cd81875dc",
+  "note": "eclip ENCSR534YOI PRPF8 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF860QZG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF860QZG/@@download/ENCFF860QZG.bed.gz",
+  "bytes": 348994,
+  "md5": "8064ce4cb276765c7e3ed5fbe046e7c8",
+  "note": "eclip ENCSR381VNR SRSF9 K562 rep [1] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF861KMV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF861KMV/@@download/ENCFF861KMV.bed.gz",
+  "bytes": 101484,
+  "md5": "ffa6504ad718e8184abb6b7588782733",
+  "note": "eclip ENCSR069EVH FUS K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF862EKD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF862EKD/@@download/ENCFF862EKD.bed.gz",
+  "bytes": 16641,
+  "md5": "2209feff42c033be51a8c2d38564d692",
+  "note": "eclip ENCSR693JWP EXOSC5 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF862XEI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF862XEI/@@download/ENCFF862XEI.bed.gz",
+  "bytes": 644763,
+  "md5": "5cfe603bdc8db9fda2577ef4acb0aee8",
+  "note": "eclip ENCSR571ROL XRCC6 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF862ZPV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF862ZPV/@@download/ENCFF862ZPV.bed.gz",
+  "bytes": 120684,
+  "md5": "d82297705a555e91b1950e050db33489",
+  "note": "eclip ENCSR844RVX EFTUD2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF869RUC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF869RUC/@@download/ENCFF869RUC.bed.gz",
+  "bytes": 2463,
+  "md5": "858405a1b8078c50418062e54cf9ccaf",
+  "note": "eclip ENCSR916SRV TBRG4 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF871NYM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF871NYM/@@download/ENCFF871NYM.bed.gz",
+  "bytes": 172924,
+  "md5": "179774c911e8fa42f7ead3d1a2f74324",
+  "note": "eclip ENCSR987FTF RBFOX2 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF871UZO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF871UZO/@@download/ENCFF871UZO.bed.gz",
+  "bytes": 783274,
+  "md5": "52833caa6cf9ca6f32700557f7fe8cba",
+  "note": "eclip ENCSR648LAH DDX3X HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF878VVA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF878VVA/@@download/ENCFF878VVA.bed.gz",
+  "bytes": 238798,
+  "md5": "fed82d625acaad72448347b1208b3382",
+  "note": "eclip ENCSR840DRD CSTF2T K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF882SWK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF882SWK/@@download/ENCFF882SWK.bed.gz",
+  "bytes": 2552821,
+  "md5": "3b6e35793d53326058e75e9ee70e8c76",
+  "note": "eclip ENCSR290VLT MATR3 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF886MLH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF886MLH/@@download/ENCFF886MLH.bed.gz",
+  "bytes": 9883,
+  "md5": "589ce0616f06e72b87a16976a40a6426",
+  "note": "eclip ENCSR484LTQ NCBP2 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF886MOW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF886MOW/@@download/ENCFF886MOW.bed.gz",
+  "bytes": 3271052,
+  "md5": "996795c0384997fe2aa4f3b52a8ab2df",
+  "note": "eclip ENCSR893NWB GRWD1 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF886XUO.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF886XUO/@@download/ENCFF886XUO.bed.gz",
+  "bytes": 45862,
+  "md5": "643db1785411b92f6d6b37e03f9cc7bf",
+  "note": "eclip ENCSR432XUP SRSF1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF889AWX.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF889AWX/@@download/ENCFF889AWX.bed.gz",
+  "bytes": 5590,
+  "md5": "bc3264cdf9a1c1a4ff357716afa34b31",
+  "note": "eclip ENCSR571VHI HNRNPUL1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF892DVI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF892DVI/@@download/ENCFF892DVI.bed.gz",
+  "bytes": 1220105,
+  "md5": "b6bef72488a155a994ace7d2d6e29588",
+  "note": "eclip ENCSR970NKP LIN28B K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF894KLP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF894KLP/@@download/ENCFF894KLP.bed.gz",
+  "bytes": 1476599,
+  "md5": "285869acb6a7c1968c013cd1d63ccc32",
+  "note": "eclip ENCSR981WKN PTBP1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF899HGF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF899HGF/@@download/ENCFF899HGF.bed.gz",
+  "bytes": 506111,
+  "md5": "d1f9a99916a977e9bcdd3194e4fa8eff",
+  "note": "eclip ENCSR295OKT RBM22 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF899ZEH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF899ZEH/@@download/ENCFF899ZEH.bed.gz",
+  "bytes": 3820713,
+  "md5": "10273f3b924359b0a2fb815cae75227f",
+  "note": "eclip ENCSR841EQA TAF15 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF900IOH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF900IOH/@@download/ENCFF900IOH.bed.gz",
+  "bytes": 46411,
+  "md5": "1725b569dff38a6d9a9529afc77edfa1",
+  "note": "eclip ENCSR922WJV PCBP1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF901BYH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF901BYH/@@download/ENCFF901BYH.bed.gz",
+  "bytes": 1151051,
+  "md5": "4390c4b4f19cef21298999fa836d79f0",
+  "note": "eclip ENCSR930BZL DDX3X K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF902IDT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF902IDT/@@download/ENCFF902IDT.bed.gz",
+  "bytes": 1328671,
+  "md5": "4ff5fc6077095f1c7c753eb9219f2e5e",
+  "note": "eclip ENCSR154HRN HNRNPA1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF904KTV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF904KTV/@@download/ENCFF904KTV.bed.gz",
+  "bytes": 45744,
+  "md5": "be0c8620ba32492c21c0fa5ed3c84c71",
+  "note": "eclip ENCSR893EFU DDX6 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF907HNN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF907HNN/@@download/ENCFF907HNN.bed.gz",
+  "bytes": 162406,
+  "md5": "394fb86eadb72485ce6939e0185363a8",
+  "note": "eclip ENCSR981WKN PTBP1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF909VPB.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF909VPB/@@download/ENCFF909VPB.bed.gz",
+  "bytes": 1217343,
+  "md5": "dc41841ed6ffe43606574a36e8a7e297",
+  "note": "eclip ENCSR861GYE LIN28B HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF910WLP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF910WLP/@@download/ENCFF910WLP.bed.gz",
+  "bytes": 3404863,
+  "md5": "9927a957044da9aeb9dc357e0290ed53",
+  "note": "eclip ENCSR756CKJ RBFOX2 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF913FPP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF913FPP/@@download/ENCFF913FPP.bed.gz",
+  "bytes": 119932,
+  "md5": "3998c753dce6d45fd549f10ef400361b",
+  "note": "eclip ENCSR906ZJF SDAD1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF913GBH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF913GBH/@@download/ENCFF913GBH.bed.gz",
+  "bytes": 1493542,
+  "md5": "bca51db6e8bc6b05d17d0232630140b9",
+  "note": "eclip ENCSR736AAG GTF2F1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF914VUW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF914VUW/@@download/ENCFF914VUW.bed.gz",
+  "bytes": 259307,
+  "md5": "6454c515420b5545b20ab5ba47110d91",
+  "note": "eclip ENCSR256CHX PCBP1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF917CBK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF917CBK/@@download/ENCFF917CBK.bed.gz",
+  "bytes": 139977,
+  "md5": "e1fe5b50c9a8d0f58e3530645f6bbff9",
+  "note": "eclip ENCSR795CAI HNRNPL K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF918KMT.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF918KMT/@@download/ENCFF918KMT.bed.gz",
+  "bytes": 131030,
+  "md5": "4aa05e7a1ca6d9a2b15415bf9d791d1c",
+  "note": "eclip ENCSR057DWB TIA1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF918XJQ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF918XJQ/@@download/ENCFF918XJQ.bed.gz",
+  "bytes": 63842,
+  "md5": "cf4aad774a445160ac352a7ad3846da1",
+  "note": "eclip ENCSR268ETU HNRNPK K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF923IAU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF923IAU/@@download/ENCFF923IAU.bed.gz",
+  "bytes": 2125164,
+  "md5": "97a12fa1a9c38185411b5486b42519bb",
+  "note": "eclip ENCSR121NVA PRPF8 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF924OVC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF924OVC/@@download/ENCFF924OVC.bed.gz",
+  "bytes": 18634,
+  "md5": "09bc1e376a9452b1042fef56a27989a8",
+  "note": "eclip ENCSR989SMC FTO K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF927UFK.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF927UFK/@@download/ENCFF927UFK.bed.gz",
+  "bytes": 1378448,
+  "md5": "2b7fbd56aa987533535589626123f867",
+  "note": "eclip ENCSR658IQB SMNDC1 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF933CZY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF933CZY/@@download/ENCFF933CZY.bed.gz",
+  "bytes": 1656695,
+  "md5": "0ba5236c493fea1e86134817732809b9",
+  "note": "eclip ENCSR018RVZ NCBP2 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF933LJZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF933LJZ/@@download/ENCFF933LJZ.bed.gz",
+  "bytes": 1444120,
+  "md5": "536a5f71842890cb91f3346f641f8a34",
+  "note": "eclip ENCSR571VHI HNRNPUL1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF934ANS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF934ANS/@@download/ENCFF934ANS.bed.gz",
+  "bytes": 41449,
+  "md5": "f794254a3ed28bd32f943fe319837ef5",
+  "note": "eclip ENCSR989VIY SRSF1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF936QKU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF936QKU/@@download/ENCFF936QKU.bed.gz",
+  "bytes": 1912657,
+  "md5": "63eb8bf47b317849cdb65a08d318223b",
+  "note": "eclip ENCSR543TPH AGGF1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF943XOU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF943XOU/@@download/ENCFF943XOU.bed.gz",
+  "bytes": 53819,
+  "md5": "42d0a9f0b56ef55c63a9098a5c0c727c",
+  "note": "eclip ENCSR658IQB SMNDC1 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF944XFZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF944XFZ/@@download/ENCFF944XFZ.bed.gz",
+  "bytes": 1062684,
+  "md5": "fc11098a54e096c6871d4769af91bfe0",
+  "note": "eclip ENCSR513NDD SRSF7 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF945NFS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF945NFS/@@download/ENCFF945NFS.bed.gz",
+  "bytes": 4831,
+  "md5": "6376b40f17ce116515b230997fa590b3",
+  "note": "eclip ENCSR085JPB WDR43 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF947CIN.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF947CIN/@@download/ENCFF947CIN.bed.gz",
+  "bytes": 11261,
+  "md5": "12489fab9e4bdb4d3a47b3efade21fb5",
+  "note": "eclip ENCSR888YTT LARP4 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF949QGM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF949QGM/@@download/ENCFF949QGM.bed.gz",
+  "bytes": 517110,
+  "md5": "8892cda055b9eb5da95b4ca75e5716e5",
+  "note": "eclip ENCSR606BPV AQR K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF951IBI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF951IBI/@@download/ENCFF951IBI.bed.gz",
+  "bytes": 2617778,
+  "md5": "76ac49bb8624922d89aa096a6195391b",
+  "note": "eclip ENCSR464OSH FUS HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF953WTP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF953WTP/@@download/ENCFF953WTP.bed.gz",
+  "bytes": 11723,
+  "md5": "622e36dd61328330bfdd056674fdac45",
+  "note": "eclip ENCSR484LAB SAFB K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF957GRM.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF957GRM/@@download/ENCFF957GRM.bed.gz",
+  "bytes": 1804459,
+  "md5": "6c4a79a9c941716aa4a21950c3e1de71",
+  "note": "eclip ENCSR351PVI SLTM HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF958GMP.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF958GMP/@@download/ENCFF958GMP.bed.gz",
+  "bytes": 18497,
+  "md5": "80453abadbd65a5ca4c3d125beb54661",
+  "note": "eclip ENCSR258QKO XRCC6 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF960ILE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF960ILE/@@download/ENCFF960ILE.bed.gz",
+  "bytes": 139044,
+  "md5": "3f4120bff90acf79fc318990a4ea5fff",
+  "note": "eclip ENCSR456KXI LARP7 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF963GMC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF963GMC/@@download/ENCFF963GMC.bed.gz",
+  "bytes": 1250224,
+  "md5": "75119022b10b835bd1c1d06df37b3c31",
+  "note": "eclip ENCSR655NZA XRN2 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF966KQG.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF966KQG/@@download/ENCFF966KQG.bed.gz",
+  "bytes": 392815,
+  "md5": "60662eac66a38d6cce983897d0cb1e1e",
+  "note": "eclip ENCSR314UMJ TRA2A HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF966QXZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF966QXZ/@@download/ENCFF966QXZ.bed.gz",
+  "bytes": 643040,
+  "md5": "4ce39dfbd03a4e0c631c171cd615b366",
+  "note": "eclip ENCSR085JPB WDR43 HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF967UUI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF967UUI/@@download/ENCFF967UUI.bed.gz",
+  "bytes": 3257917,
+  "md5": "5362575f2dab57217d288f91fe1b3d47",
+  "note": "eclip ENCSR834YLD DROSHA HepG2 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF969JDI.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF969JDI/@@download/ENCFF969JDI.bed.gz",
+  "bytes": 2320831,
+  "md5": "f36ffac5f12a9a04fda88a8042e3b8cd",
+  "note": "eclip ENCSR953ZOA HNRNPK K562 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF969OHE.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF969OHE/@@download/ENCFF969OHE.bed.gz",
+  "bytes": 1870508,
+  "md5": "832b71ceedde782b67fbaa4ce28beba7",
+  "note": "eclip ENCSR321PWZ SRSF1 K562 rep [2] Lab custom GRCh38 V29"
+ },
+ {
+  "name": "ENCFF971KUU.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF971KUU/@@download/ENCFF971KUU.bed.gz",
+  "bytes": 3224423,
+  "md5": "dcf34facb397d0ae354544bda5c0e541",
+  "note": "eclip ENCSR893NWB GRWD1 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF971LCF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF971LCF/@@download/ENCFF971LCF.bed.gz",
+  "bytes": 2182475,
+  "md5": "eb9600c78d115a522487652556522e68",
+  "note": "eclip ENCSR128VXC SND1 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF972DFZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF972DFZ/@@download/ENCFF972DFZ.bed.gz",
+  "bytes": 18840,
+  "md5": "b7d32d6428ae1d9496a31b34825f677b",
+  "note": "eclip ENCSR464OSH FUS HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF972ZMJ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF972ZMJ/@@download/ENCFF972ZMJ.bed.gz",
+  "bytes": 20400,
+  "md5": "fc92b9baad85254654e987f23a8d36c3",
+  "note": "eclip ENCSR295OKT RBM22 K562 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF978MRH.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF978MRH/@@download/ENCFF978MRH.bed.gz",
+  "bytes": 707510,
+  "md5": "2aa4f1845a93c321c9f9471d3d14746a",
+  "note": "eclip ENCSR141OIM DDX6 HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF985ECA.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF985ECA/@@download/ENCFF985ECA.bed.gz",
+  "bytes": 56931,
+  "md5": "c945f98be3a75847b7860250321ccda0",
+  "note": "eclip ENCSR135VMS LSM11 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF986KGV.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF986KGV/@@download/ENCFF986KGV.bed.gz",
+  "bytes": 1048625,
+  "md5": "4d99e8863fd9ebfa15eae46f74eb1b50",
+  "note": "eclip ENCSR468FSW SRSF7 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF986MGC.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF986MGC/@@download/ENCFF986MGC.bed.gz",
+  "bytes": 1297530,
+  "md5": "1a803b1fcc08e05ed744a805a0d53a2a",
+  "note": "eclip ENCSR888YTT LARP4 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF988MWD.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF988MWD/@@download/ENCFF988MWD.bed.gz",
+  "bytes": 3076282,
+  "md5": "bf80c2c357be9a0fdcbf80a52216fe73",
+  "note": "eclip ENCSR366DGX KHSRP HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF991OSY.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF991OSY/@@download/ENCFF991OSY.bed.gz",
+  "bytes": 3070497,
+  "md5": "e8b6acf606dddc6f704e2fea9ad8653c",
+  "note": "eclip ENCSR647HOX HLTF HepG2 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF992LCW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF992LCW/@@download/ENCFF992LCW.bed.gz",
+  "bytes": 92533,
+  "md5": "bceb99726552673f427c2189f85d839d",
+  "note": "eclip ENCSR543TPH AGGF1 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF993VRZ.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF993VRZ/@@download/ENCFF993VRZ.bed.gz",
+  "bytes": 2821,
+  "md5": "c96f1ae47612d04ab2fd51b87c46c95e",
+  "note": "eclip ENCSR571ROL XRCC6 HepG2 rep [1, 2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF996BXS.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF996BXS/@@download/ENCFF996BXS.bed.gz",
+  "bytes": 1926053,
+  "md5": "fd246066920854e13ffb9ebad3d8d931",
+  "note": "eclip ENCSR568DZW TAF15 K562 rep [1] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF996MYF.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF996MYF/@@download/ENCFF996MYF.bed.gz",
+  "bytes": 2364513,
+  "md5": "3da77096fca85b31b33164b8d93ad586",
+  "note": "eclip ENCSR534YOI PRPF8 K562 rep [2] Lab custom GRCh38"
+ },
+ {
+  "name": "ENCFF999ZAW.bed.gz",
+  "url": "https://www.encodeproject.org/files/ENCFF999ZAW/@@download/ENCFF999ZAW.bed.gz",
+  "bytes": 6273,
+  "md5": "73e10dfb07648b1205befe4d785894af",
+  "note": "eclip ENCSR580MFX SUPV3L1 HepG2 rep [1, 2] Lab custom GRCh38"
+ }
+]

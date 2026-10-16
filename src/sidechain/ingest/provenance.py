@@ -89,6 +89,18 @@ LICENSE_POLICY: dict[str, str] = {
     # neither flag below applies; a block reaches it only through
     # `license_override_source` (a plain FTP host states nothing in a header).
     "gencode-open-access": "GENCODE-open-access",
+    # Not SPDX: the ENCODE Consortium's own data-use policy, read on its pages. The
+    # release policy (encodeproject.org/about/data-use-policy/, "Updated as of
+    # January 9, 2019", read 2026-10-16): "all data produced will be available for
+    # unrestricted use immediately upon release to public databases". The citing
+    # page (encodeproject.org/help/citing-encode/, read 2026-10-16): "External data
+    # users may freely download, analyze and publish results based on any ENCODE
+    # data without restrictions", with a request to cite the Consortium, the
+    # producing labs and the accessions used. A citation request, no commercial or
+    # redistribution restriction, so neither flag below applies; a block reaches it
+    # only through `license_override_source` (the portal states no licence in a
+    # header, and its API's file records carry none).
+    "encode-unrestricted": "ENCODE-unrestricted",
 }
 
 # The accepted set, derived from the policy above so the two cannot drift.
@@ -667,7 +679,8 @@ def probe_s3(record_id: str) -> HostRecord:
     )
 
 
-def probe_https(base_url: str, names: list[str] | None = None) -> HostRecord:
+def probe_https(base_url: str, names: list[str] | None = None, *,
+                entries: list[dict] | None = None) -> HostRecord:
     """A plain HTTPS directory -> HostRecord. `base_url` is the directory, `names` the files.
 
     The sixth host, added for TargetScan (T102): a lab web server with no record
@@ -695,6 +708,16 @@ def probe_https(base_url: str, names: list[str] | None = None) -> HostRecord:
     **Licence is always "unknown", by construction.** A header cannot state
     terms, so a block reaches the gate only through `license_override_source`,
     with the terms verified on the publisher's own page and quoted there.
+
+    **A file entry may carry its own `url`, and a digest the publisher states out
+    of band** (`entries`, the block's file dicts; added for ENCODE, T102). ENCODE's
+    files do not sit under one directory -- each lives at
+    `/files/<accession>/@@download/<name>` -- and its API states an md5 per file
+    that no header carries. An entry's `url` replaces `base/<name>` for the HEAD
+    and the download (it must be https); its `md5:` or `sha256:` goes in the
+    checksum slot as a digest `fetch.verify` recomputes, so such a block passes
+    the gate without `allow_missing_checksum`. The HEAD still runs: the size
+    and the 404 refusal come from the host, never from the entry.
     """
     base = base_url.rstrip("/")
     if not base.startswith("https://"):
@@ -702,12 +725,17 @@ def probe_https(base_url: str, names: list[str] | None = None) -> HostRecord:
     if not names:
         raise GateError(f"https:{base}: a plain web server cannot list its files, so the "
                         "block must name them (`files:`); nothing to probe")
+    by_name = {e["name"]: e for e in (entries or []) if isinstance(e, dict) and e.get("name")}
     files: list[RemoteFile] = []
     for name in names:
         if any(ch in name for ch in "*?["):
             raise GateError(f"https:{base}: {name!r} is a glob, and a web server cannot "
                             "expand one -- name each file")
-        url = f"{base}/{urllib.parse.quote(name)}"
+        entry = by_name.get(name, {})
+        url = str(entry.get("url") or f"{base}/{urllib.parse.quote(name)}")
+        if not url.startswith("https://"):
+            raise GateError(f"https:{base}: {name!r} names the url {url!r}, which is not https://")
+        stated = next((f"{algo}:{entry[algo]}" for algo in ("sha256", "md5") if entry.get(algo)), None)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method="HEAD")
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -725,7 +753,7 @@ def probe_https(base_url: str, names: list[str] | None = None) -> HostRecord:
         files.append(RemoteFile(
             name=name,
             size_bytes=int(length),
-            checksum=f"http-last-modified:{modified.strip()}" if modified else None,
+            checksum=stated or (f"http-last-modified:{modified.strip()}" if modified else None),
             url=url,
         ))
     return HostRecord(

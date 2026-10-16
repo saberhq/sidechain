@@ -1,0 +1,2956 @@
+[
+ {
+  "name": "ENCFF008AWY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF008AWY/@@download/ENCFF008AWY.tsv",
+  "bytes": 10908585,
+  "md5": "10ec694dc724ab3f3026d1653047d165",
+  "note": "knockdown ENCSR147ZBD DDX6 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF008JUG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF008JUG/@@download/ENCFF008JUG.tsv",
+  "bytes": 10897725,
+  "md5": "fe332a475a46adddd6878a5c7c4bf3bb",
+  "note": "knockdown ENCSR234YMW SLTM K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF010QBP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF010QBP/@@download/ENCFF010QBP.tsv",
+  "bytes": 10894547,
+  "md5": "3cb5430365442d4c9943902f1fa0f621",
+  "note": "knockdown ENCSR081XRA SF3B4 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF021JIW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF021JIW/@@download/ENCFF021JIW.tsv",
+  "bytes": 10938604,
+  "md5": "f238214aaebb801d3b6c4dd6f6910578",
+  "note": "knockdown ENCSR866XLI LARP4 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF025CAE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF025CAE/@@download/ENCFF025CAE.tsv",
+  "bytes": 10885702,
+  "md5": "4680b7b1cab2da001af1c46ef30a7295",
+  "note": "knockdown ENCSR998RZI TAF15 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF027FPC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF027FPC/@@download/ENCFF027FPC.tsv",
+  "bytes": 10892831,
+  "md5": "d8f737d9eebc1dc5a7ef11af3d303760",
+  "note": "knockdown ENCSR336TYW SAFB K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF029QJN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF029QJN/@@download/ENCFF029QJN.tsv",
+  "bytes": 10890389,
+  "md5": "88156debd3772fe3cff2757c8732dd1b",
+  "note": "control ENCSR279HMU non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF035CXU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF035CXU/@@download/ENCFF035CXU.tsv",
+  "bytes": 10881533,
+  "md5": "23b0cf8c42e530d57081044d3b1562e3",
+  "note": "knockdown ENCSR064DXG PTBP1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF035LMI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF035LMI/@@download/ENCFF035LMI.tsv",
+  "bytes": 10890715,
+  "md5": "6f669afb950ce82815dfa4f898997ef2",
+  "note": "control ENCSR815CVQ non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF035POC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF035POC/@@download/ENCFF035POC.tsv",
+  "bytes": 10946509,
+  "md5": "7032d5324d31e7f97a17f5d40e25a8eb",
+  "note": "knockdown ENCSR516EPT XRCC6 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF037PCK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF037PCK/@@download/ENCFF037PCK.tsv",
+  "bytes": 10876884,
+  "md5": "0a30948836cd728d495801a7fbb42eef",
+  "note": "knockdown ENCSR232XRZ SND1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF038EHT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF038EHT/@@download/ENCFF038EHT.tsv",
+  "bytes": 10901421,
+  "md5": "0255c6b9cc174a59cde95d872fcc94ea",
+  "note": "knockdown ENCSR330KHN RBM22 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF047JOR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF047JOR/@@download/ENCFF047JOR.tsv",
+  "bytes": 10868882,
+  "md5": "c7eb2ebbe0a227373b93347d0d6af1c4",
+  "note": "knockdown ENCSR998MZP PRPF8 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF049CFQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF049CFQ/@@download/ENCFF049CFQ.tsv",
+  "bytes": 10901756,
+  "md5": "4b6ce851b5bc713fdb964d323cd22f60",
+  "note": "control ENCSR827PII non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF053XLK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF053XLK/@@download/ENCFF053XLK.tsv",
+  "bytes": 10897750,
+  "md5": "9410cb6de57f7d7753bb99cb17e9a3a6",
+  "note": "knockdown ENCSR336TYW SAFB K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF067ZGY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF067ZGY/@@download/ENCFF067ZGY.tsv",
+  "bytes": 10912011,
+  "md5": "236c5f5b5b376f9306158c8619c8fd22",
+  "note": "knockdown ENCSR995JMS HNRNPM HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF075GYT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF075GYT/@@download/ENCFF075GYT.tsv",
+  "bytes": 10911449,
+  "md5": "600f246a9dc2ac5cfea6f3bd031f88cb",
+  "note": "knockdown ENCSR269ZAO UTP18 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF075OME.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF075OME/@@download/ENCFF075OME.tsv",
+  "bytes": 10909814,
+  "md5": "6d6f95c21f95947fc2f2c761c06aed6d",
+  "note": "knockdown ENCSR527IVX PTBP1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF075YYF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF075YYF/@@download/ENCFF075YYF.tsv",
+  "bytes": 10924723,
+  "md5": "259252fd0bb0a78b987d3a21a75eb9d3",
+  "note": "knockdown ENCSR385UPQ RBM15 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF076FZO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF076FZO/@@download/ENCFF076FZO.tsv",
+  "bytes": 10859096,
+  "md5": "22aecb853b3905d1c5088a29b1f3a362",
+  "note": "control ENCSR689PHN non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF079FUR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF079FUR/@@download/ENCFF079FUR.tsv",
+  "bytes": 10893719,
+  "md5": "e15f9a9012237529aebb55d833764a16",
+  "note": "knockdown ENCSR398LZW SND1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF080TBB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF080TBB/@@download/ENCFF080TBB.tsv",
+  "bytes": 10912929,
+  "md5": "03a17d3f814fcd12642312a67095bdff",
+  "note": "knockdown ENCSR637JLM DDX3X HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF082VSA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF082VSA/@@download/ENCFF082VSA.tsv",
+  "bytes": 10883425,
+  "md5": "1221a5ef3e54a54bccbe4c24b1610ef8",
+  "note": "knockdown ENCSR914WQV CSTF2T HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF082XEF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF082XEF/@@download/ENCFF082XEF.tsv",
+  "bytes": 10861036,
+  "md5": "ed474c0ee9f02c172d56595b06889bc9",
+  "note": "knockdown ENCSR946OFN TROVE2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF087FEN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF087FEN/@@download/ENCFF087FEN.tsv",
+  "bytes": 10909836,
+  "md5": "8f474b3781e87ed15b78aa1189ab35f4",
+  "note": "knockdown ENCSR338CON AKAP1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF091WYJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF091WYJ/@@download/ENCFF091WYJ.tsv",
+  "bytes": 10889452,
+  "md5": "9dd7017fa0c23350e4aba3e52270f3f8",
+  "note": "knockdown ENCSR715QWM SDAD1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF095FPN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF095FPN/@@download/ENCFF095FPN.tsv",
+  "bytes": 10908223,
+  "md5": "2ec320442b87ebde3705517f2f2353b8",
+  "note": "knockdown ENCSR543LCG IGF2BP1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF096FXH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF096FXH/@@download/ENCFF096FXH.tsv",
+  "bytes": 10879701,
+  "md5": "1761e82969cfc9b3a566ad9ad47dfe6c",
+  "note": "control ENCSR667PLJ non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF096IBO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF096IBO/@@download/ENCFF096IBO.tsv",
+  "bytes": 10880485,
+  "md5": "e74ac2395b5e2d4eafe048a30730acf9",
+  "note": "control ENCSR667PLJ non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF098TWY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF098TWY/@@download/ENCFF098TWY.tsv",
+  "bytes": 10884516,
+  "md5": "d93c17f93b16b6f2f0846b1de0428acc",
+  "note": "control ENCSR898NWE non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF099KTB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF099KTB/@@download/ENCFF099KTB.tsv",
+  "bytes": 10890800,
+  "md5": "ed5e421aa43eae22d0d1a1f3698c5919",
+  "note": "knockdown ENCSR030GZQ TRA2A HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF102AJE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF102AJE/@@download/ENCFF102AJE.tsv",
+  "bytes": 10901180,
+  "md5": "66d93111ee79305da1316c55a48b8099",
+  "note": "knockdown ENCSR947OIM RBM22 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF103ICB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF103ICB/@@download/ENCFF103ICB.tsv",
+  "bytes": 10911039,
+  "md5": "dad5952a4dd42ba03d1b55fba52f5e13",
+  "note": "knockdown ENCSR995RPB SUPV3L1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF104BOO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF104BOO/@@download/ENCFF104BOO.tsv",
+  "bytes": 10895107,
+  "md5": "9465f92db7a444580cc0b43a8b179eed",
+  "note": "control ENCSR572FFX non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF108UOW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF108UOW/@@download/ENCFF108UOW.tsv",
+  "bytes": 10923623,
+  "md5": "01e4c9796dd9f3dd582b7a8fda760758",
+  "note": "knockdown ENCSR563YIS HNRNPL K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF110FMF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF110FMF/@@download/ENCFF110FMF.tsv",
+  "bytes": 10894983,
+  "md5": "0caf15adb80bc661338cf267a0076c85",
+  "note": "knockdown ENCSR716WZH FASTKD2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF121UHJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF121UHJ/@@download/ENCFF121UHJ.tsv",
+  "bytes": 10960504,
+  "md5": "ef9b575f231903ad7b473635109a401e",
+  "note": "knockdown ENCSR814JQP SRSF9 HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF122QHJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF122QHJ/@@download/ENCFF122QHJ.tsv",
+  "bytes": 10906029,
+  "md5": "4799ebecc9a26bbcd91b9d8db77e3075",
+  "note": "knockdown ENCSR770OWW LARP7 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF131HYI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF131HYI/@@download/ENCFF131HYI.tsv",
+  "bytes": 10908118,
+  "md5": "4a47e114341016799a0ffd62a1071249",
+  "note": "knockdown ENCSR361LBE NCBP2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF132RUI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF132RUI/@@download/ENCFF132RUI.tsv",
+  "bytes": 10895697,
+  "md5": "8ecf6fd823ba38797c3594557766476e",
+  "note": "knockdown ENCSR904CJQ U2AF2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF132WXE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF132WXE/@@download/ENCFF132WXE.tsv",
+  "bytes": 10926965,
+  "md5": "d2412e715a743d0d26af7c65d3d0fb07",
+  "note": "knockdown ENCSR385UPQ RBM15 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF135WYE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF135WYE/@@download/ENCFF135WYE.tsv",
+  "bytes": 10934874,
+  "md5": "493576ff66cd9573b9721a01ac1cd8d5",
+  "note": "control ENCSR032YMP non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF137HCB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF137HCB/@@download/ENCFF137HCB.tsv",
+  "bytes": 10894627,
+  "md5": "fab4938254608e2fbc208b47d8f87090",
+  "note": "knockdown ENCSR306EIU YBX3 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF137ILE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF137ILE/@@download/ENCFF137ILE.tsv",
+  "bytes": 10971274,
+  "md5": "7fae2fe2d6bc138d3580b831fecc2748",
+  "note": "knockdown ENCSR544LEZ ZC3H11A HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF138NYD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF138NYD/@@download/ENCFF138NYD.tsv",
+  "bytes": 10919837,
+  "md5": "956c78a8ed0f4bb3235cefd92df785d8",
+  "note": "knockdown ENCSR389HFU FTO HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF140JMY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF140JMY/@@download/ENCFF140JMY.tsv",
+  "bytes": 10909035,
+  "md5": "12121b4ae1237e5f5072033e4c4ff189",
+  "note": "knockdown ENCSR064DXG PTBP1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF140UQA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF140UQA/@@download/ENCFF140UQA.tsv",
+  "bytes": 10914465,
+  "md5": "2a566bba7d1e70dce2996224d19bf0e2",
+  "note": "knockdown ENCSR792XFP MATR3 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF145XFE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF145XFE/@@download/ENCFF145XFE.tsv",
+  "bytes": 10917490,
+  "md5": "3738eb8e9dbb46cb69c6f114fd4b9953",
+  "note": "knockdown ENCSR320IEK PRPF8 K562 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF145YOO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF145YOO/@@download/ENCFF145YOO.tsv",
+  "bytes": 10948554,
+  "md5": "adbd2a2a8e3569478059f3bc57c58d8c",
+  "note": "control ENCSR292PXV non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF146RDE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF146RDE/@@download/ENCFF146RDE.tsv",
+  "bytes": 10933081,
+  "md5": "ad0dabd9c2fa15322f0452f4ea86157b",
+  "note": "knockdown ENCSR991XFO DROSHA HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF146WBD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF146WBD/@@download/ENCFF146WBD.tsv",
+  "bytes": 10896659,
+  "md5": "f628033031010fee5628b2ce00fb6056",
+  "note": "control ENCSR661HEL non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF152RDZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF152RDZ/@@download/ENCFF152RDZ.tsv",
+  "bytes": 10893134,
+  "md5": "d0582216badd875cd10b4ea700999fc0",
+  "note": "knockdown ENCSR717SJA XRN2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF154UWD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF154UWD/@@download/ENCFF154UWD.tsv",
+  "bytes": 10883270,
+  "md5": "f57ae69087d7460998bb3ad598233921",
+  "note": "control ENCSR279HMU non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF157LEU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF157LEU/@@download/ENCFF157LEU.tsv",
+  "bytes": 10949171,
+  "md5": "af692d68720e69128466771197275488",
+  "note": "control ENCSR143COQ non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF158KOL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF158KOL/@@download/ENCFF158KOL.tsv",
+  "bytes": 10896716,
+  "md5": "f284c9df26f15f1ca6f2f77d70e76364",
+  "note": "control ENCSR372DZW non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF158NHF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF158NHF/@@download/ENCFF158NHF.tsv",
+  "bytes": 10889840,
+  "md5": "67a784ab9b0940c02568abc85fb25022",
+  "note": "knockdown ENCSR185JGT SLTM HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF158TVB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF158TVB/@@download/ENCFF158TVB.tsv",
+  "bytes": 10927157,
+  "md5": "bf3ddb72d7ae5869b3bb67aebdc639b4",
+  "note": "knockdown ENCSR543LCG IGF2BP1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF159WTL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF159WTL/@@download/ENCFF159WTL.tsv",
+  "bytes": 10921802,
+  "md5": "7b25449ca0d42e90e863fa73976279ce",
+  "note": "knockdown ENCSR527QNC TARDBP HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF171XGQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF171XGQ/@@download/ENCFF171XGQ.tsv",
+  "bytes": 10942248,
+  "md5": "3767499610ae8492fe04fee82bf0a0fc",
+  "note": "knockdown ENCSR372UWV U2AF1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF180UQC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF180UQC/@@download/ENCFF180UQC.tsv",
+  "bytes": 10922368,
+  "md5": "3793476bdbf2cce184c4494ad617db08",
+  "note": "knockdown ENCSR741YCA TBRG4 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF182EJK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF182EJK/@@download/ENCFF182EJK.tsv",
+  "bytes": 10885002,
+  "md5": "38f0fed1ce96d85f8dc7736111c06d15",
+  "note": "knockdown ENCSR611ZAL TAF15 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF182IMH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF182IMH/@@download/ENCFF182IMH.tsv",
+  "bytes": 10892163,
+  "md5": "f49444abe598abda2cd8fc6c41876b5a",
+  "note": "knockdown ENCSR891AXF SSB K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF194WZH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF194WZH/@@download/ENCFF194WZH.tsv",
+  "bytes": 10874831,
+  "md5": "751fc8ff5c49af68bdd2712918cdd425",
+  "note": "knockdown ENCSR883BXR LSM11 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF195ULN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF195ULN/@@download/ENCFF195ULN.tsv",
+  "bytes": 10899558,
+  "md5": "999147f4114b4d662bcba42c345d7f5d",
+  "note": "knockdown ENCSR561CBC KHSRP K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF199EEY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF199EEY/@@download/ENCFF199EEY.tsv",
+  "bytes": 10948062,
+  "md5": "02a84b660fdbd15ec3a260898f612b23",
+  "note": "control ENCSR404OHQ non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF203EYL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF203EYL/@@download/ENCFF203EYL.tsv",
+  "bytes": 10893831,
+  "md5": "d0e750d08563e0072c4925af111fe8d2",
+  "note": "knockdown ENCSR188IPO GTF2F1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF205EKI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF205EKI/@@download/ENCFF205EKI.tsv",
+  "bytes": 10948993,
+  "md5": "d932ce10fcda8d7ea3287c8052e44ab5",
+  "note": "knockdown ENCSR416YFB SAFB HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF210OYV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF210OYV/@@download/ENCFF210OYV.tsv",
+  "bytes": 10908622,
+  "md5": "a9323bd710331e85bba34be7c1d57843",
+  "note": "knockdown ENCSR048BWH HNRNPA1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF211LWP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF211LWP/@@download/ENCFF211LWP.tsv",
+  "bytes": 10851220,
+  "md5": "262d55a1f7187346fc89c0d4b567532b",
+  "note": "knockdown ENCSR684HTV UCHL5 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF213VHM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF213VHM/@@download/ENCFF213VHM.tsv",
+  "bytes": 10912124,
+  "md5": "8512064bf2026e2a916b45bc4542ae22",
+  "note": "knockdown ENCSR016IDR AKAP1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF217PUK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF217PUK/@@download/ENCFF217PUK.tsv",
+  "bytes": 10952937,
+  "md5": "0ef14bde6f72ea8deb6200044cea5b19",
+  "note": "control ENCSR015KGT non-targeting K562 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF217QJW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF217QJW/@@download/ENCFF217QJW.tsv",
+  "bytes": 10887001,
+  "md5": "cce66e882a0ac30968071d2bc268b359",
+  "note": "knockdown ENCSR850FEH GRWD1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF217VYI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF217VYI/@@download/ENCFF217VYI.tsv",
+  "bytes": 10895510,
+  "md5": "0621cec346f5aec3efc2ce075d79095b",
+  "note": "knockdown ENCSR398LZW SND1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF220XVG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF220XVG/@@download/ENCFF220XVG.tsv",
+  "bytes": 10898250,
+  "md5": "53185f1d8be45a0971c411867476dc65",
+  "note": "knockdown ENCSR081XRA SF3B4 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF221ZUL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF221ZUL/@@download/ENCFF221ZUL.tsv",
+  "bytes": 10900564,
+  "md5": "0c96a2cd06719dcf67345948edd7baff",
+  "note": "knockdown ENCSR492UFS MATR3 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF222PZJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF222PZJ/@@download/ENCFF222PZJ.tsv",
+  "bytes": 10896326,
+  "md5": "7f5d5d82411699ab8a7c88e6437dd43c",
+  "note": "knockdown ENCSR295XKC GTF2F1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF225RUG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF225RUG/@@download/ENCFF225RUG.tsv",
+  "bytes": 10917185,
+  "md5": "db0299e3f7f5091e55fe068a7af94174",
+  "note": "knockdown ENCSR269ZAO UTP18 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF231UCO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF231UCO/@@download/ENCFF231UCO.tsv",
+  "bytes": 10888533,
+  "md5": "4f4f054caebce87ac55141d443a11dfa",
+  "note": "knockdown ENCSR336DFS RBFOX2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF236YMC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF236YMC/@@download/ENCFF236YMC.tsv",
+  "bytes": 10914833,
+  "md5": "9335363a107d4f4d7095e4f2c37251b5",
+  "note": "control ENCSR424QCW non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF237FMK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF237FMK/@@download/ENCFF237FMK.tsv",
+  "bytes": 10882548,
+  "md5": "1d5fefc748c10a79dca1e0248068a3c9",
+  "note": "control ENCSR003EKR non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF238FEO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF238FEO/@@download/ENCFF238FEO.tsv",
+  "bytes": 10878046,
+  "md5": "5ceee64588219bfa7230f276aa6d83f7",
+  "note": "knockdown ENCSR624OUI AQR K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF241BIZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF241BIZ/@@download/ENCFF241BIZ.tsv",
+  "bytes": 10891152,
+  "md5": "1861f4d3ee4246ad813d72908cd3a77e",
+  "note": "knockdown ENCSR308IKH HNRNPU HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF242NXX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF242NXX/@@download/ENCFF242NXX.tsv",
+  "bytes": 10900376,
+  "md5": "931080961265cc9d74defb56791f4012",
+  "note": "knockdown ENCSR048BWH HNRNPA1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF249RFJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF249RFJ/@@download/ENCFF249RFJ.tsv",
+  "bytes": 10894187,
+  "md5": "1887764af2a7648df9e5f88fa18cc1f4",
+  "note": "control ENCSR856ZRV non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF254GKJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF254GKJ/@@download/ENCFF254GKJ.tsv",
+  "bytes": 10908866,
+  "md5": "557061e8bdbfeaba1f8fb488f5256a30",
+  "note": "knockdown ENCSR361LBE NCBP2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF255EQI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF255EQI/@@download/ENCFF255EQI.tsv",
+  "bytes": 10879615,
+  "md5": "521685cee1897102a4893b7ce7c6195a",
+  "note": "control ENCSR225PRV non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF258OVK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF258OVK/@@download/ENCFF258OVK.tsv",
+  "bytes": 10894245,
+  "md5": "a4b0574e11dd9a3eee176f4521191c3a",
+  "note": "knockdown ENCSR057GCF TIA1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF260RDP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF260RDP/@@download/ENCFF260RDP.tsv",
+  "bytes": 10885119,
+  "md5": "8e8f09da1a3663688f6bb6637f411da9",
+  "note": "control ENCSR856ZRV non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF264EQM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF264EQM/@@download/ENCFF264EQM.tsv",
+  "bytes": 10868451,
+  "md5": "3b5e89e3da74e99846a15e8d9ab600a4",
+  "note": "knockdown ENCSR232XRZ SND1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF266LOW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF266LOW/@@download/ENCFF266LOW.tsv",
+  "bytes": 10915622,
+  "md5": "52426ea10d87ef82bc1eefbb75a5b936",
+  "note": "control ENCSR438MDN non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF266PVQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF266PVQ/@@download/ENCFF266PVQ.tsv",
+  "bytes": 10959154,
+  "md5": "2aaf114d91538b19c0c31fab53703ee8",
+  "note": "control ENCSR805TIZ non-targeting HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF268SFP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF268SFP/@@download/ENCFF268SFP.tsv",
+  "bytes": 10917071,
+  "md5": "3531f979c4fbfddc926ef337f0e48c99",
+  "note": "control ENCSR913CAE non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF272PSJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF272PSJ/@@download/ENCFF272PSJ.tsv",
+  "bytes": 10930743,
+  "md5": "285b806bdb3a0f1daa16847882e55bea",
+  "note": "knockdown ENCSR991XFO DROSHA HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF274BVP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF274BVP/@@download/ENCFF274BVP.tsv",
+  "bytes": 10934347,
+  "md5": "ed1711f725abbb8b8852bacd128da9d7",
+  "note": "control ENCSR135LXL non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF279MZP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF279MZP/@@download/ENCFF279MZP.tsv",
+  "bytes": 10895011,
+  "md5": "2d1f336fe17b1c31b3ba7519fc1d0989",
+  "note": "knockdown ENCSR927SLP LIN28B HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF281LBT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF281LBT/@@download/ENCFF281LBT.tsv",
+  "bytes": 10897500,
+  "md5": "b925b99953d61315b017cc1792ad69f5",
+  "note": "knockdown ENCSR770OWW LARP7 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF282TQR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF282TQR/@@download/ENCFF282TQR.tsv",
+  "bytes": 10862013,
+  "md5": "fd92a6f8b72a689e9759a43431b751eb",
+  "note": "knockdown ENCSR684HTV UCHL5 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF283SUC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF283SUC/@@download/ENCFF283SUC.tsv",
+  "bytes": 10903397,
+  "md5": "94507c339b7cfde5e3e2c0208914e5bd",
+  "note": "knockdown ENCSR406SEH EXOSC5 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF288GFE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF288GFE/@@download/ENCFF288GFE.tsv",
+  "bytes": 10912392,
+  "md5": "ca18a38e9ee82421166d75ac6fe019ed",
+  "note": "knockdown ENCSR048AUX ZC3H11A K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF290KPI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF290KPI/@@download/ENCFF290KPI.tsv",
+  "bytes": 10896716,
+  "md5": "aa8f5de4dd128c91783802275eecbfba",
+  "note": "knockdown ENCSR103NNB SDAD1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF291KGL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF291KGL/@@download/ENCFF291KGL.tsv",
+  "bytes": 10886465,
+  "md5": "959a5f71147b03c0dded80ba69716934",
+  "note": "knockdown ENCSR437GYG AGGF1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF292MTX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF292MTX/@@download/ENCFF292MTX.tsv",
+  "bytes": 10938181,
+  "md5": "b5097d761ba3bd388202e7bac254705f",
+  "note": "knockdown ENCSR767LLP RBFOX2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF297PME.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF297PME/@@download/ENCFF297PME.tsv",
+  "bytes": 10896459,
+  "md5": "24038206e16880a63cf49b35ad534909",
+  "note": "control ENCSR521WAI non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF297SVC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF297SVC/@@download/ENCFF297SVC.tsv",
+  "bytes": 10926188,
+  "md5": "a8f161a977f25ef54e492c1671735857",
+  "note": "knockdown ENCSR382QKD BUD13 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF298YIE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF298YIE/@@download/ENCFF298YIE.tsv",
+  "bytes": 10917671,
+  "md5": "c02008ef95606d51c393c64b62241ff2",
+  "note": "knockdown ENCSR389HFU FTO HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF299NUG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF299NUG/@@download/ENCFF299NUG.tsv",
+  "bytes": 10896660,
+  "md5": "c7fafa7df81a48faf7d8d8f15ba3acc2",
+  "note": "knockdown ENCSR995ZGJ SMNDC1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF300XWG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF300XWG/@@download/ENCFF300XWG.tsv",
+  "bytes": 10897997,
+  "md5": "e2e1d4ef60283e1a757ce736bc05c187",
+  "note": "knockdown ENCSR010ZMZ HLTF HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF304UKY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF304UKY/@@download/ENCFF304UKY.tsv",
+  "bytes": 10948222,
+  "md5": "7f040f99d0d666aa13da6b6ad1a2a29f",
+  "note": "knockdown ENCSR744PAQ LARP4 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF305RZN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF305RZN/@@download/ENCFF305RZN.tsv",
+  "bytes": 10914550,
+  "md5": "9e89e89c7883ec19ca28e60d61355c1f",
+  "note": "control ENCSR344XID non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF308ADK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF308ADK/@@download/ENCFF308ADK.tsv",
+  "bytes": 10880088,
+  "md5": "957a2dac10c47945189372650ba3c22a",
+  "note": "control ENCSR661HEL non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF309DAF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF309DAF/@@download/ENCFF309DAF.tsv",
+  "bytes": 10911916,
+  "md5": "c5b7f9aa438518feabf71136988da42f",
+  "note": "knockdown ENCSR406SEH EXOSC5 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF310EPT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF310EPT/@@download/ENCFF310EPT.tsv",
+  "bytes": 10912828,
+  "md5": "48ab086b41e20cf1009b94b0a10e4f4a",
+  "note": "knockdown ENCSR545AIK PCBP1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF310EXN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF310EXN/@@download/ENCFF310EXN.tsv",
+  "bytes": 10910961,
+  "md5": "9459754d9e8cb88c9049ede5c0b287fc",
+  "note": "knockdown ENCSR694LKY TIA1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF311ACC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF311ACC/@@download/ENCFF311ACC.tsv",
+  "bytes": 10933672,
+  "md5": "3e363c32d5a3c15be46cf2ca8b39886e",
+  "note": "control ENCSR264TUE non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF312AZX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF312AZX/@@download/ENCFF312AZX.tsv",
+  "bytes": 10938898,
+  "md5": "346b905efbcc2bece38512f8552342ad",
+  "note": "control ENCSR718EWL non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF316ZSY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF316ZSY/@@download/ENCFF316ZSY.tsv",
+  "bytes": 10906522,
+  "md5": "20bb4c7a67132fcf3b654d712b98a228",
+  "note": "knockdown ENCSR995JMS HNRNPM HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF317MKY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF317MKY/@@download/ENCFF317MKY.tsv",
+  "bytes": 10910380,
+  "md5": "d8ba5d6958f826c4915330012ff144c7",
+  "note": "knockdown ENCSR382QKD BUD13 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF319SJK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF319SJK/@@download/ENCFF319SJK.tsv",
+  "bytes": 10895148,
+  "md5": "c1cff73b6851ba1b014e71d1d7b5fad0",
+  "note": "knockdown ENCSR598YQX LIN28B K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF319UOJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF319UOJ/@@download/ENCFF319UOJ.tsv",
+  "bytes": 10906976,
+  "md5": "bb23191a83f71df973e0807d75dbcf7f",
+  "note": "knockdown ENCSR853ZJS HNRNPK HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF320RGH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF320RGH/@@download/ENCFF320RGH.tsv",
+  "bytes": 10903343,
+  "md5": "9017cbc4f451b56dd48eee64970fee00",
+  "note": "knockdown ENCSR500WHE XRCC6 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF322CJL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF322CJL/@@download/ENCFF322CJL.tsv",
+  "bytes": 10900950,
+  "md5": "4b7891dd7da2b09a6d49bd44f64f211a",
+  "note": "knockdown ENCSR066VOO SRSF1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF322XEV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF322XEV/@@download/ENCFF322XEV.tsv",
+  "bytes": 10904524,
+  "md5": "5af7f43fa470071347b05d82c51c98c4",
+  "note": "knockdown ENCSR278CHI SSB HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF325FHM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF325FHM/@@download/ENCFF325FHM.tsv",
+  "bytes": 10906272,
+  "md5": "beb5d44145ff9059c1a4174e6bdce141",
+  "note": "knockdown ENCSR134JRE TARDBP K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF326HCV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF326HCV/@@download/ENCFF326HCV.tsv",
+  "bytes": 10909164,
+  "md5": "7b8670f2969dfa27beb257fcb3d8dc1f",
+  "note": "knockdown ENCSR792XFP MATR3 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF329VAD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF329VAD/@@download/ENCFF329VAD.tsv",
+  "bytes": 10866499,
+  "md5": "3367e8926b0fd49594a0ff32a17acf1c",
+  "note": "control ENCSR674KEK non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF332WNW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF332WNW/@@download/ENCFF332WNW.tsv",
+  "bytes": 10895077,
+  "md5": "cd4c004632ef32f97cf894698a3d5a33",
+  "note": "knockdown ENCSR927SLP LIN28B HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF334VNW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF334VNW/@@download/ENCFF334VNW.tsv",
+  "bytes": 10889984,
+  "md5": "245bfad68396db9d72fa71bb875b6403",
+  "note": "knockdown ENCSR052IYH HNRNPC HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF334YUH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF334YUH/@@download/ENCFF334YUH.tsv",
+  "bytes": 10916706,
+  "md5": "d6b24abc61210498fa11e5ba556ae4e2",
+  "note": "knockdown ENCSR689MIY UPF1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF338IZF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF338IZF/@@download/ENCFF338IZF.tsv",
+  "bytes": 10890546,
+  "md5": "1f6cd0ab9aaa4d0683d629740908da34",
+  "note": "knockdown ENCSR052IYH HNRNPC HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF339CZM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF339CZM/@@download/ENCFF339CZM.tsv",
+  "bytes": 10887709,
+  "md5": "8372a090a7961fab01b3140021103c8e",
+  "note": "knockdown ENCSR716WZH FASTKD2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF339OIN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF339OIN/@@download/ENCFF339OIN.tsv",
+  "bytes": 10884794,
+  "md5": "fd6cc89338acbe12cf8fc60934be7cf7",
+  "note": "control ENCSR853AOV non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF340AKU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF340AKU/@@download/ENCFF340AKU.tsv",
+  "bytes": 10909177,
+  "md5": "9887e12911ab76c0cf9661981de01823",
+  "note": "knockdown ENCSR155BMF HNRNPL HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF344VEU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF344VEU/@@download/ENCFF344VEU.tsv",
+  "bytes": 10895190,
+  "md5": "8c8d4af5343b3a245dd6c299e108bd3d",
+  "note": "knockdown ENCSR342EDG U2AF1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF350KCP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF350KCP/@@download/ENCFF350KCP.tsv",
+  "bytes": 10900906,
+  "md5": "c310ca8307d77c1f9dad302d6a66c7ff",
+  "note": "knockdown ENCSR347ZHQ XRN2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF351BAY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF351BAY/@@download/ENCFF351BAY.tsv",
+  "bytes": 10902472,
+  "md5": "d611ff9cff54a788e14d3e11279c369c",
+  "note": "knockdown ENCSR267RHP BUD13 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF352XRP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF352XRP/@@download/ENCFF352XRP.tsv",
+  "bytes": 10896025,
+  "md5": "4979020430e790e82bf86bfd58cdff7c",
+  "note": "knockdown ENCSR148MQK SF3B4 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF354WBD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF354WBD/@@download/ENCFF354WBD.tsv",
+  "bytes": 10877946,
+  "md5": "d1f794d8ad5031dfd0e4a5463c6d6657",
+  "note": "control ENCSR805TIZ non-targeting HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF355PAP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF355PAP/@@download/ENCFF355PAP.tsv",
+  "bytes": 10891101,
+  "md5": "4680b7cfda420d8e53e1b46b0b931fd6",
+  "note": "knockdown ENCSR284SZO EXOSC5 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF356NMC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF356NMC/@@download/ENCFF356NMC.tsv",
+  "bytes": 10948271,
+  "md5": "f46aae16a4d6fdb3e1a4311fdf660be8",
+  "note": "control ENCSR164MUK non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF359NHC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF359NHC/@@download/ENCFF359NHC.tsv",
+  "bytes": 10887207,
+  "md5": "82f7185fdbb06c12739b34f5c17fd042",
+  "note": "knockdown ENCSR597XHH SRSF9 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF360WSK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF360WSK/@@download/ENCFF360WSK.tsv",
+  "bytes": 10921970,
+  "md5": "0d80f2e955a7a82b007b4ba2534f3b59",
+  "note": "knockdown ENCSR431SXF AQR HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF362QHE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF362QHE/@@download/ENCFF362QHE.tsv",
+  "bytes": 10901118,
+  "md5": "1475447d7947d6adf2f1dd911056b346",
+  "note": "knockdown ENCSR284SZO EXOSC5 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF363DHS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF363DHS/@@download/ENCFF363DHS.tsv",
+  "bytes": 10896829,
+  "md5": "bbc38dc3228149b09d870d803c6240ec",
+  "note": "knockdown ENCSR492UFS MATR3 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF365SGO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF365SGO/@@download/ENCFF365SGO.tsv",
+  "bytes": 10904467,
+  "md5": "6ad5361e58ca7f4841cea714c1948aae",
+  "note": "knockdown ENCSR853ZJS HNRNPK HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF366OWS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF366OWS/@@download/ENCFF366OWS.tsv",
+  "bytes": 10916345,
+  "md5": "abd598fe5b93b6ee56f05bbb79312c41",
+  "note": "control ENCSR292PXV non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF367EGU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF367EGU/@@download/ENCFF367EGU.tsv",
+  "bytes": 10908546,
+  "md5": "e753b721fb0e59da84df825b3482f6e0",
+  "note": "knockdown ENCSR845MNM SRSF7 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF369BJG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF369BJG/@@download/ENCFF369BJG.tsv",
+  "bytes": 10898220,
+  "md5": "479c6c02b6514f6ea841576a2aa9f040",
+  "note": "knockdown ENCSR494VSD YBX3 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF375CTE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF375CTE/@@download/ENCFF375CTE.tsv",
+  "bytes": 10938484,
+  "md5": "c6ba91560acdf4491377c205824fec77",
+  "note": "knockdown ENCSR034VBA HNRNPUL1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF376QRC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF376QRC/@@download/ENCFF376QRC.tsv",
+  "bytes": 10914867,
+  "md5": "7b5bf94827a46d0702ddb967361f4915",
+  "note": "control ENCSR997HCQ non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF381REI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF381REI/@@download/ENCFF381REI.tsv",
+  "bytes": 10898661,
+  "md5": "e9b575806ed1e0e9b6e82edb8bf9a75b",
+  "note": "control ENCSR603TCV non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF381UTB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF381UTB/@@download/ENCFF381UTB.tsv",
+  "bytes": 10918654,
+  "md5": "e9dcdbd23dfdef97df246477cb00d9ef",
+  "note": "knockdown ENCSR376GHG FXR2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF384EGO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF384EGO/@@download/ENCFF384EGO.tsv",
+  "bytes": 10898702,
+  "md5": "379708c166eff8a69871ff345bd2892d",
+  "note": "knockdown ENCSR732ICL HNRNPU K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF384TJR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF384TJR/@@download/ENCFF384TJR.tsv",
+  "bytes": 10919310,
+  "md5": "e175bd58943893534e6d724043397131",
+  "note": "knockdown ENCSR060KRD TROVE2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF389GXH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF389GXH/@@download/ENCFF389GXH.tsv",
+  "bytes": 10898440,
+  "md5": "2bfc6da6f1938bf17dd2b5d2875738ae",
+  "note": "knockdown ENCSR635FRH PCBP1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF389LXX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF389LXX/@@download/ENCFF389LXX.tsv",
+  "bytes": 10892277,
+  "md5": "706a0fc8dbd04b8844c0e8d053ef65a7",
+  "note": "knockdown ENCSR608IAI FASTKD2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF391NUD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF391NUD/@@download/ENCFF391NUD.tsv",
+  "bytes": 10899297,
+  "md5": "7ea12a5e951507e18ec7cf8f3fbd1343",
+  "note": "knockdown ENCSR845MNM SRSF7 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF391WFP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF391WFP/@@download/ENCFF391WFP.tsv",
+  "bytes": 10881214,
+  "md5": "f5b773a52dd6a6fc9639533588b4adf5",
+  "note": "knockdown ENCSR958NDU HLTF K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF392TMB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF392TMB/@@download/ENCFF392TMB.tsv",
+  "bytes": 10972627,
+  "md5": "5b136583adef20985af47de71c220bdd",
+  "note": "control ENCSR300EBW non-targeting HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF392TQT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF392TQT/@@download/ENCFF392TQT.tsv",
+  "bytes": 10960679,
+  "md5": "e152b5a8dfae6ff08fe4428a7be75eb4",
+  "note": "knockdown ENCSR516EPT XRCC6 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF394KHH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF394KHH/@@download/ENCFF394KHH.tsv",
+  "bytes": 10928774,
+  "md5": "35f880d749a4816a9084aaac22535a8e",
+  "note": "knockdown ENCSR829EFL NSUN2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF396VZW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF396VZW/@@download/ENCFF396VZW.tsv",
+  "bytes": 10916405,
+  "md5": "e8e19ce96a9d9af66421c5654c8183f5",
+  "note": "control ENCSR032YMP non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF398MZF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF398MZF/@@download/ENCFF398MZF.tsv",
+  "bytes": 10905459,
+  "md5": "481bfab4a5e400cabec5825fe9528669",
+  "note": "knockdown ENCSR500WHE XRCC6 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF398YUO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF398YUO/@@download/ENCFF398YUO.tsv",
+  "bytes": 10911860,
+  "md5": "b6babce8ac004709b08caacb872c653d",
+  "note": "control ENCSR042QTH non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF401PDR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF401PDR/@@download/ENCFF401PDR.tsv",
+  "bytes": 10901087,
+  "md5": "debe6c6d406b075852902d2c723fb89f",
+  "note": "knockdown ENCSR347ZHQ XRN2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF405QUG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF405QUG/@@download/ENCFF405QUG.tsv",
+  "bytes": 10896110,
+  "md5": "7547c9a45e3613d0406ee8c6206dcf4e",
+  "note": "knockdown ENCSR079IPT TBRG4 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF406BTV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF406BTV/@@download/ENCFF406BTV.tsv",
+  "bytes": 10904290,
+  "md5": "9cf50481fb9b1b5436a0ad2068afa4b3",
+  "note": "knockdown ENCSR267RHP BUD13 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF407LUM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF407LUM/@@download/ENCFF407LUM.tsv",
+  "bytes": 10895139,
+  "md5": "3e315f47a16fbb47c833a09c77811d08",
+  "note": "knockdown ENCSR185JGT SLTM HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF408XGD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF408XGD/@@download/ENCFF408XGD.tsv",
+  "bytes": 10965170,
+  "md5": "9610d516d5bce1846e74053add36e334",
+  "note": "control ENCSR775ZWO non-targeting HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF411CIV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF411CIV/@@download/ENCFF411CIV.tsv",
+  "bytes": 10895567,
+  "md5": "f3607341fd5ab67d46b196028da62ac7",
+  "note": "knockdown ENCSR431SXF AQR HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF412VND.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF412VND/@@download/ENCFF412VND.tsv",
+  "bytes": 10900836,
+  "md5": "720aaa45a4bea43ca8e307502e675cf7",
+  "note": "control ENCSR491FOC non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF414GEB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF414GEB/@@download/ENCFF414GEB.tsv",
+  "bytes": 10927471,
+  "md5": "b7e383bd42f42291b750c9cefed79fb6",
+  "note": "control ENCSR143COQ non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF415DFU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF415DFU/@@download/ENCFF415DFU.tsv",
+  "bytes": 10845807,
+  "md5": "beb13d0308802f209ac9bf96cff30212",
+  "note": "knockdown ENCSR139BIJ FXR2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF419OUB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF419OUB/@@download/ENCFF419OUB.tsv",
+  "bytes": 10908069,
+  "md5": "e3fad5e3a61ae8fe5600b57c6934b8ca",
+  "note": "control ENCSR828YEB non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF419RRI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF419RRI/@@download/ENCFF419RRI.tsv",
+  "bytes": 10914304,
+  "md5": "69ccda2ca1f0ba189665be1b2d02ef96",
+  "note": "knockdown ENCSR629RUG NSUN2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF421AOX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF421AOX/@@download/ENCFF421AOX.tsv",
+  "bytes": 10907073,
+  "md5": "2567416fc14ad35e6ed9eb23344c83df",
+  "note": "knockdown ENCSR256PLH QKI K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF423RQM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF423RQM/@@download/ENCFF423RQM.tsv",
+  "bytes": 10910092,
+  "md5": "f8a48c33636e0d91e3a2aae1da51f8fc",
+  "note": "knockdown ENCSR437GYG AGGF1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF427AZY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF427AZY/@@download/ENCFF427AZY.tsv",
+  "bytes": 10918775,
+  "md5": "2660cca9c0f43bf28e17c263354c787c",
+  "note": "knockdown ENCSR330KHN RBM22 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF428ZAS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF428ZAS/@@download/ENCFF428ZAS.tsv",
+  "bytes": 10921721,
+  "md5": "a40618e934e86539c1aefc9fc4c5a164",
+  "note": "knockdown ENCSR972AZD SRSF9 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF430GPP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF430GPP/@@download/ENCFF430GPP.tsv",
+  "bytes": 10886993,
+  "md5": "cc2637a3f54b866f4e8e93fb04dd433a",
+  "note": "knockdown ENCSR117WLY EFTUD2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF430XYJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF430XYJ/@@download/ENCFF430XYJ.tsv",
+  "bytes": 10898267,
+  "md5": "77e928da226832b46d1745bddadce709",
+  "note": "knockdown ENCSR147RTA FXR2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF434XOC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF434XOC/@@download/ENCFF434XOC.tsv",
+  "bytes": 10883304,
+  "md5": "58404004ed437117b93de7d4af75605d",
+  "note": "knockdown ENCSR455TNF TARDBP K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF436OEA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF436OEA/@@download/ENCFF436OEA.tsv",
+  "bytes": 10862362,
+  "md5": "171135c42b36cae89644a9242929e076",
+  "note": "knockdown ENCSR325OOM FUS K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF438LWB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF438LWB/@@download/ENCFF438LWB.tsv",
+  "bytes": 10916112,
+  "md5": "31b0f8d35c31d27e86320db2e8b359d5",
+  "note": "knockdown ENCSR341PZW WDR43 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF439RQZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF439RQZ/@@download/ENCFF439RQZ.tsv",
+  "bytes": 10921552,
+  "md5": "cf5af0a3065c0fe6a5c84c3cf28cecce",
+  "note": "knockdown ENCSR829EFL NSUN2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF440QZG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF440QZG/@@download/ENCFF440QZG.tsv",
+  "bytes": 10891752,
+  "md5": "ec58e565ba7efc737f0798f8e620c58f",
+  "note": "knockdown ENCSR620OKS EFTUD2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF441QRA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF441QRA/@@download/ENCFF441QRA.tsv",
+  "bytes": 10884275,
+  "md5": "ddde757e5734d311053e4b9ba63bc4fe",
+  "note": "knockdown ENCSR047VPW FAM120A HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF445OJS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF445OJS/@@download/ENCFF445OJS.tsv",
+  "bytes": 10950867,
+  "md5": "80817a447262d94e83b903e3d989bace",
+  "note": "knockdown ENCSR767LLP RBFOX2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF446CYK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF446CYK/@@download/ENCFF446CYK.tsv",
+  "bytes": 10899823,
+  "md5": "7b95c1938115512244e481af488d74aa",
+  "note": "knockdown ENCSR117WLY EFTUD2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF448TCG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF448TCG/@@download/ENCFF448TCG.tsv",
+  "bytes": 10946073,
+  "md5": "b7808148cea29b325af3a20fc87d752b",
+  "note": "control ENCSR042QTH non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF450DGN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF450DGN/@@download/ENCFF450DGN.tsv",
+  "bytes": 10892130,
+  "md5": "2e7431b1a873fc8eacc36b79cd745f7b",
+  "note": "knockdown ENCSR717SJA XRN2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF451HHY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF451HHY/@@download/ENCFF451HHY.tsv",
+  "bytes": 10923218,
+  "md5": "2eca0d86e43713dc22ab0bf1b9925e19",
+  "note": "control ENCSR481WJH non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF452UBW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF452UBW/@@download/ENCFF452UBW.tsv",
+  "bytes": 10886057,
+  "md5": "69dbb268bef38dca3c504c9decba5ac5",
+  "note": "knockdown ENCSR057GCF TIA1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF456KPV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF456KPV/@@download/ENCFF456KPV.tsv",
+  "bytes": 10898050,
+  "md5": "b5a085cf9404ed54cdb9941a189dc22c",
+  "note": "knockdown ENCSR094KBY SRSF1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF461NVU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF461NVU/@@download/ENCFF461NVU.tsv",
+  "bytes": 10908232,
+  "md5": "f114b13986305bebc9e557f0aa54716f",
+  "note": "knockdown ENCSR000KYM DDX3X K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF466HKE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF466HKE/@@download/ENCFF466HKE.tsv",
+  "bytes": 10899138,
+  "md5": "7c8bc38bdabf2ac54c5da1794c0ac383",
+  "note": "knockdown ENCSR947OIM RBM22 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF468IYB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF468IYB/@@download/ENCFF468IYB.tsv",
+  "bytes": 10922988,
+  "md5": "855ba3288c09b9b6c533d634cdf74c41",
+  "note": "knockdown ENCSR298ASI DDX6 K562 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF471SFB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF471SFB/@@download/ENCFF471SFB.tsv",
+  "bytes": 10897925,
+  "md5": "b9c117133642e1520c0f82b97220c404",
+  "note": "control ENCSR344XID non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF472THJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF472THJ/@@download/ENCFF472THJ.tsv",
+  "bytes": 10935734,
+  "md5": "c446997c6ea19f1defb12ab1fa29eb2b",
+  "note": "knockdown ENCSR060KRD TROVE2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF473IEZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF473IEZ/@@download/ENCFF473IEZ.tsv",
+  "bytes": 10919950,
+  "md5": "893cada334026d97d654402efe90b1b6",
+  "note": "knockdown ENCSR629RUG NSUN2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF474AQT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF474AQT/@@download/ENCFF474AQT.tsv",
+  "bytes": 10876089,
+  "md5": "5d7afea8782d0b0d4de558be8696de72",
+  "note": "control ENCSR834IFU non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF478IGZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF478IGZ/@@download/ENCFF478IGZ.tsv",
+  "bytes": 10893397,
+  "md5": "933026f94546a1bd30175a38aba141d5",
+  "note": "knockdown ENCSR010ZMZ HLTF HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF479FDF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF479FDF/@@download/ENCFF479FDF.tsv",
+  "bytes": 10892726,
+  "md5": "cd42676e440b41adc8f0b0903920be39",
+  "note": "knockdown ENCSR336DFS RBFOX2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF481CZF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF481CZF/@@download/ENCFF481CZF.tsv",
+  "bytes": 10938289,
+  "md5": "0dee0d13620f26c5d7a5be875a7f37d5",
+  "note": "control ENCSR031RRO non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF484HXL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF484HXL/@@download/ENCFF484HXL.tsv",
+  "bytes": 10907405,
+  "md5": "ae6c40ec9e5f811258ac94b8013a6e80",
+  "note": "knockdown ENCSR762FEO LSM11 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF484OGM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF484OGM/@@download/ENCFF484OGM.tsv",
+  "bytes": 10973775,
+  "md5": "670fcf9648e0b9e27d524addbd03f58f",
+  "note": "knockdown ENCSR606QVN WDR43 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF489GAR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF489GAR/@@download/ENCFF489GAR.tsv",
+  "bytes": 10906268,
+  "md5": "8860c42d1b9bb2719a8901c14dbace92",
+  "note": "knockdown ENCSR030ARO NCBP2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF491FWS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF491FWS/@@download/ENCFF491FWS.tsv",
+  "bytes": 10906914,
+  "md5": "8e26d2e1e086b822518372fc189aae29",
+  "note": "knockdown ENCSR972AZD SRSF9 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF491TIS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF491TIS/@@download/ENCFF491TIS.tsv",
+  "bytes": 10915865,
+  "md5": "97feaa36328187227e7a87a9e2eb979a",
+  "note": "knockdown ENCSR856CJK DDX55 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF492TYH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF492TYH/@@download/ENCFF492TYH.tsv",
+  "bytes": 11022670,
+  "md5": "01bff795439d054f7641dcee82fd87c4",
+  "note": "knockdown ENCSR312VLS XRCC6 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF492XIY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF492XIY/@@download/ENCFF492XIY.tsv",
+  "bytes": 10876653,
+  "md5": "8aff76a68621c037e3710d726ccfe18e",
+  "note": "knockdown ENCSR269HQA ILF3 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF494HYV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF494HYV/@@download/ENCFF494HYV.tsv",
+  "bytes": 10924319,
+  "md5": "d913df8ce80378dfdfee4ddc484ed3d8",
+  "note": "knockdown ENCSR689ZJC HNRNPUL1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF497QTC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF497QTC/@@download/ENCFF497QTC.tsv",
+  "bytes": 10907538,
+  "md5": "f8c0489bb6971eef279948ce67f911b3",
+  "note": "control ENCSR246RRQ non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF498RJT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF498RJT/@@download/ENCFF498RJT.tsv",
+  "bytes": 10888401,
+  "md5": "3b803f02d23477e47319ca97393f985a",
+  "note": "knockdown ENCSR634KBO HNRNPC K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF498XWX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF498XWX/@@download/ENCFF498XWX.tsv",
+  "bytes": 10897671,
+  "md5": "5f32a366c85d7f9e0296ba02a96f9c98",
+  "note": "knockdown ENCSR998RZI TAF15 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF499RLT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF499RLT/@@download/ENCFF499RLT.tsv",
+  "bytes": 10869667,
+  "md5": "61bd8f1aef34473b3c2aa187f515a657",
+  "note": "knockdown ENCSR998MZP PRPF8 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF504DVK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF504DVK/@@download/ENCFF504DVK.tsv",
+  "bytes": 10926954,
+  "md5": "8d55e0c620b1ae6a648ae60d5cf1a3bd",
+  "note": "knockdown ENCSR563YIS HNRNPL K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF505VMT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF505VMT/@@download/ENCFF505VMT.tsv",
+  "bytes": 10891871,
+  "md5": "fdcd35e8d9e621fdd5c1feb4eb7031bf",
+  "note": "control ENCSR305XWT non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF506MMI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF506MMI/@@download/ENCFF506MMI.tsv",
+  "bytes": 10925635,
+  "md5": "d8145a7788635716710c65f4f401b9aa",
+  "note": "control ENCSR174OYC non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF510YMI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF510YMI/@@download/ENCFF510YMI.tsv",
+  "bytes": 10954175,
+  "md5": "e2b06e2e9093d55886d987277771daaa",
+  "note": "control ENCSR015KGT non-targeting K562 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF512BEG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF512BEG/@@download/ENCFF512BEG.tsv",
+  "bytes": 10908335,
+  "md5": "7f529e464565c1cd16fa408659628463",
+  "note": "knockdown ENCSR000KYM DDX3X K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF516IKR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF516IKR/@@download/ENCFF516IKR.tsv",
+  "bytes": 10942298,
+  "md5": "dba0223aa4697dc182f8cf36cc1ec490",
+  "note": "control ENCSR404OHQ non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF517AZA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF517AZA/@@download/ENCFF517AZA.tsv",
+  "bytes": 10890865,
+  "md5": "b9cec1014aac6b466af8c66a0e025c5e",
+  "note": "knockdown ENCSR856CJK DDX55 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF518XDR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF518XDR/@@download/ENCFF518XDR.tsv",
+  "bytes": 10944923,
+  "md5": "d2a6bc45cfd85baaa8740ed4aba68cd0",
+  "note": "knockdown ENCSR426UUG U2AF2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF521KTC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF521KTC/@@download/ENCFF521KTC.tsv",
+  "bytes": 10921936,
+  "md5": "b7cd95ec73cd536c5ce73244fcd1cbbe",
+  "note": "knockdown ENCSR564RKL TRA2A K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF521YEX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF521YEX/@@download/ENCFF521YEX.tsv",
+  "bytes": 10917785,
+  "md5": "6df865303ada964c069cba914b82911b",
+  "note": "control ENCSR481WJH non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF522CQG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF522CQG/@@download/ENCFF522CQG.tsv",
+  "bytes": 10925265,
+  "md5": "cec53354e9902c08904b153ebbaab1c6",
+  "note": "control ENCSR691IVR non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF528UQK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF528UQK/@@download/ENCFF528UQK.tsv",
+  "bytes": 10894539,
+  "md5": "1b74ad9f9328fb7ecd5737b630569eb6",
+  "note": "control ENCSR067GHD non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF537LUA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF537LUA/@@download/ENCFF537LUA.tsv",
+  "bytes": 10898633,
+  "md5": "8ba99e7a8071ed662c633fa4fea42b17",
+  "note": "knockdown ENCSR295XKC GTF2F1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF543PWW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF543PWW/@@download/ENCFF543PWW.tsv",
+  "bytes": 10897053,
+  "md5": "acb3c1aaa7de440acaf2a162807eead6",
+  "note": "knockdown ENCSR345VVZ DHX30 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF544IOP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF544IOP/@@download/ENCFF544IOP.tsv",
+  "bytes": 10914000,
+  "md5": "e4a373b0183d8c2603e8879ee6249a91",
+  "note": "knockdown ENCSR048AUX ZC3H11A K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF545BIP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF545BIP/@@download/ENCFF545BIP.tsv",
+  "bytes": 10882417,
+  "md5": "d1826ffc52fcbaba4dabff5b27969a51",
+  "note": "control ENCSR003EKR non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF548ZDN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF548ZDN/@@download/ENCFF548ZDN.tsv",
+  "bytes": 10910473,
+  "md5": "3902a79651b0e948d47f73eb3f4e3607",
+  "note": "control ENCSR237YZT non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF551NOA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF551NOA/@@download/ENCFF551NOA.tsv",
+  "bytes": 10887373,
+  "md5": "e714359b200e843fb3c0337d50ef5c9c",
+  "note": "knockdown ENCSR182DAW HNRNPA1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF551XED.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF551XED/@@download/ENCFF551XED.tsv",
+  "bytes": 10915531,
+  "md5": "695e1a13396a7a52301b1e772d9869e4",
+  "note": "control ENCSR163JUC non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF555RMN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF555RMN/@@download/ENCFF555RMN.tsv",
+  "bytes": 10897174,
+  "md5": "44d0d6d0de1c9b578b2ac63904d012d8",
+  "note": "knockdown ENCSR286OKW CSTF2T K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF558RNQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF558RNQ/@@download/ENCFF558RNQ.tsv",
+  "bytes": 10867035,
+  "md5": "f75f8b75bef28ffd7403dc4e67275469",
+  "note": "control ENCSR084SCN non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF559TZM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF559TZM/@@download/ENCFF559TZM.tsv",
+  "bytes": 10917471,
+  "md5": "0a37afd7b1e2f222aa228c69e601418e",
+  "note": "knockdown ENCSR341PZW WDR43 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF563MLA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF563MLA/@@download/ENCFF563MLA.tsv",
+  "bytes": 10893968,
+  "md5": "3a4c0da614e4b83f3b99fa4af1a11a8a",
+  "note": "knockdown ENCSR342EDG U2AF1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF570CRU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF570CRU/@@download/ENCFF570CRU.tsv",
+  "bytes": 10898442,
+  "md5": "14bae233f09989d651ad35e538e03228",
+  "note": "control ENCSR305XWT non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF573GFV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF573GFV/@@download/ENCFF573GFV.tsv",
+  "bytes": 10879381,
+  "md5": "e5cee79d7c9bfd004c868c3da21758e5",
+  "note": "knockdown ENCSR914WQV CSTF2T HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF574BOB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF574BOB/@@download/ENCFF574BOB.tsv",
+  "bytes": 10906272,
+  "md5": "9fe0f22557cc8d5b4334f9eac4a4f8f3",
+  "note": "knockdown ENCSR560RSZ DDX52 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF577LGY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF577LGY/@@download/ENCFF577LGY.tsv",
+  "bytes": 10889179,
+  "md5": "44a1cc7436c5853f8f8be426f1438f2d",
+  "note": "knockdown ENCSR891AXF SSB K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF577SCU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF577SCU/@@download/ENCFF577SCU.tsv",
+  "bytes": 10948919,
+  "md5": "37dfe67605eb45ae1924645bc78567c7",
+  "note": "control ENCSR775ZWO non-targeting HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF578TUI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF578TUI/@@download/ENCFF578TUI.tsv",
+  "bytes": 10907602,
+  "md5": "e482ee22dde6cf76e6b18bae6b1f7d9b",
+  "note": "knockdown ENCSR688GVV FTO K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF579RUH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF579RUH/@@download/ENCFF579RUH.tsv",
+  "bytes": 10949957,
+  "md5": "9c1f4bb45aa3fa7767fcb6333b9a077e",
+  "note": "control ENCSR964HKT non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF579RUY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF579RUY/@@download/ENCFF579RUY.tsv",
+  "bytes": 10905827,
+  "md5": "226114eb803dbf88f9b2573ace56949e",
+  "note": "knockdown ENCSR942MBU ILF3 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF580TBT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF580TBT/@@download/ENCFF580TBT.tsv",
+  "bytes": 10829562,
+  "md5": "733c3f98db8e8000e3306f6d478067a1",
+  "note": "control ENCSR942UNX non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF585ERV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF585ERV/@@download/ENCFF585ERV.tsv",
+  "bytes": 10903143,
+  "md5": "ddc6b77a5ed0007c14c779ba97336dce",
+  "note": "control ENCSR674KEK non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF586TGE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF586TGE/@@download/ENCFF586TGE.tsv",
+  "bytes": 10907159,
+  "md5": "f1f94920aedb465c4441b0f0ec95b9fe",
+  "note": "control ENCSR341TTW non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF587DSG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF587DSG/@@download/ENCFF587DSG.tsv",
+  "bytes": 10908471,
+  "md5": "9d64a74c8a09c01b08421a27c82664a2",
+  "note": "control ENCSR129RWD non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF587FCB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF587FCB/@@download/ENCFF587FCB.tsv",
+  "bytes": 10926692,
+  "md5": "c69b5524cce776755d5f81fabcfc7683",
+  "note": "control ENCSR718EWL non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF592ASF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF592ASF/@@download/ENCFF592ASF.tsv",
+  "bytes": 10898372,
+  "md5": "388e2353f84f83b46c91381ae999cb75",
+  "note": "control ENCSR815CVQ non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF592OWJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF592OWJ/@@download/ENCFF592OWJ.tsv",
+  "bytes": 10859838,
+  "md5": "974cc33626549cce7947575f36661bc4",
+  "note": "control ENCSR081EST non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF592TPZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF592TPZ/@@download/ENCFF592TPZ.tsv",
+  "bytes": 10944776,
+  "md5": "14ef132d14a645ab617f8f7787c38bd4",
+  "note": "knockdown ENCSR866XLI LARP4 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF594HYP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF594HYP/@@download/ENCFF594HYP.tsv",
+  "bytes": 10934548,
+  "md5": "4394bba5e73ee2b9b553a2270dcc1cd5",
+  "note": "knockdown ENCSR034VBA HNRNPUL1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF594NCQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF594NCQ/@@download/ENCFF594NCQ.tsv",
+  "bytes": 10884834,
+  "md5": "1e31ac283bca8d7c2552d5ad8c3f3677",
+  "note": "knockdown ENCSR325OOM FUS K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF597DBP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF597DBP/@@download/ENCFF597DBP.tsv",
+  "bytes": 10915412,
+  "md5": "bf684a6deba4537c7c45384dd74daf2d",
+  "note": "control ENCSR603TCV non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF598CPJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF598CPJ/@@download/ENCFF598CPJ.tsv",
+  "bytes": 10867106,
+  "md5": "fd73bc5a0c40c6847ec2f4457224aa14",
+  "note": "knockdown ENCSR946OFN TROVE2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF598QRT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF598QRT/@@download/ENCFF598QRT.tsv",
+  "bytes": 10915657,
+  "md5": "9337ac8bca0e205fbf057c6269b25394",
+  "note": "control ENCSR438MDN non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF599EYE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF599EYE/@@download/ENCFF599EYE.tsv",
+  "bytes": 10941378,
+  "md5": "91531eb37a494c52a5382b68d66c599b",
+  "note": "control ENCSR164MUK non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF609WBV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF609WBV/@@download/ENCFF609WBV.tsv",
+  "bytes": 10899122,
+  "md5": "e2050c60f56f0cc8a5473e38051fb344",
+  "note": "knockdown ENCSR746NIM HNRNPM K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF610ZSN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF610ZSN/@@download/ENCFF610ZSN.tsv",
+  "bytes": 10887118,
+  "md5": "349491b8125f40724636da814e56822f",
+  "note": "knockdown ENCSR634KBO HNRNPC K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF611HXK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF611HXK/@@download/ENCFF611HXK.tsv",
+  "bytes": 10905246,
+  "md5": "781643cbcd7b63e515876cea9be986a2",
+  "note": "knockdown ENCSR964YTW DDX55 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF612PJU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF612PJU/@@download/ENCFF612PJU.tsv",
+  "bytes": 10889283,
+  "md5": "cf489bcbdc0b3bcbcb203c1fa699bef7",
+  "note": "knockdown ENCSR959HPB NOLC1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF613FXX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF613FXX/@@download/ENCFF613FXX.tsv",
+  "bytes": 10900587,
+  "md5": "b3371f335e33087bb479f72ef06e7a8b",
+  "note": "knockdown ENCSR139LOF SRSF7 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF613JYH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF613JYH/@@download/ENCFF613JYH.tsv",
+  "bytes": 10910321,
+  "md5": "58bc0116c12808a2a3ee1dbfb5a41da6",
+  "note": "knockdown ENCSR689MIY UPF1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF613NZW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF613NZW/@@download/ENCFF613NZW.tsv",
+  "bytes": 10893186,
+  "md5": "9ba118fe5e9ae92efea3cd67e4f03d2f",
+  "note": "knockdown ENCSR030GZQ TRA2A HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF616BYI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF616BYI/@@download/ENCFF616BYI.tsv",
+  "bytes": 10914170,
+  "md5": "915feab8f3f7cb00b1ff3b5140dd9dc5",
+  "note": "control ENCSR341TTW non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF618AHY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF618AHY/@@download/ENCFF618AHY.tsv",
+  "bytes": 10919108,
+  "md5": "7b62a6ac95d1f52d9b28457ab153a694",
+  "note": "control ENCSR174OYC non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF620JGP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF620JGP/@@download/ENCFF620JGP.tsv",
+  "bytes": 10913894,
+  "md5": "54d8283fd1eae9b0dd0e9d5cce9958ad",
+  "note": "knockdown ENCSR624OUI AQR K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF622FSB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF622FSB/@@download/ENCFF622FSB.tsv",
+  "bytes": 10944050,
+  "md5": "1ebe838c3f94876ea1df2fe0d517e9ef",
+  "note": "knockdown ENCSR564RKL TRA2A K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF623ZMZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF623ZMZ/@@download/ENCFF623ZMZ.tsv",
+  "bytes": 10894708,
+  "md5": "4330edaa70a4bf7f7d3ece5390de60ac",
+  "note": "control ENCSR828YEB non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF625AZS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF625AZS/@@download/ENCFF625AZS.tsv",
+  "bytes": 10924544,
+  "md5": "bb75e2465fc71978fcb97615a8951ee0",
+  "note": "knockdown ENCSR959HPB NOLC1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF627SEG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF627SEG/@@download/ENCFF627SEG.tsv",
+  "bytes": 10967886,
+  "md5": "5db28e8ffd2f793fbb8f25f94a436dcb",
+  "note": "knockdown ENCSR666QJU AGGF1 HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF628SDK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF628SDK/@@download/ENCFF628SDK.tsv",
+  "bytes": 10897562,
+  "md5": "4766c9662b081d4517c5bc94349ad64f",
+  "note": "knockdown ENCSR913ZWR DDX52 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF639AIA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF639AIA/@@download/ENCFF639AIA.tsv",
+  "bytes": 10914539,
+  "md5": "2ca3d4f4f19b01b03e8d1bad05b59bff",
+  "note": "knockdown ENCSR561CBC KHSRP K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF640CCJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF640CCJ/@@download/ENCFF640CCJ.tsv",
+  "bytes": 10886939,
+  "md5": "eacbb9c736db21cef2088ccefb54c498",
+  "note": "knockdown ENCSR528ASX GRWD1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF645CJR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF645CJR/@@download/ENCFF645CJR.tsv",
+  "bytes": 10912344,
+  "md5": "8983f453d0d9efa5e7026fc77afda29b",
+  "note": "knockdown ENCSR545AIK PCBP1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF645FBD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF645FBD/@@download/ENCFF645FBD.tsv",
+  "bytes": 10896444,
+  "md5": "15c589a1d7a9e0823a83668f4fe2a523",
+  "note": "knockdown ENCSR408SDL SMNDC1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF646OVC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF646OVC/@@download/ENCFF646OVC.tsv",
+  "bytes": 10942802,
+  "md5": "e88f996a272caa0dea304ba9f4f24495",
+  "note": "knockdown ENCSR426UUG U2AF2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF650KHH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF650KHH/@@download/ENCFF650KHH.tsv",
+  "bytes": 10912719,
+  "md5": "1d7f5f2c9e2de24b5392b24c59c2c3ba",
+  "note": "knockdown ENCSR016IDR AKAP1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF651BBE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF651BBE/@@download/ENCFF651BBE.tsv",
+  "bytes": 10912913,
+  "md5": "82f0f687c2c6edd9e86871c740d2ea92",
+  "note": "knockdown ENCSR165VBD UTP18 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF651QPE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF651QPE/@@download/ENCFF651QPE.tsv",
+  "bytes": 10924393,
+  "md5": "2b43f279c09d82d3395c745bb6a1602e",
+  "note": "control ENCSR104ABF non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF654ONC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF654ONC/@@download/ENCFF654ONC.tsv",
+  "bytes": 10932681,
+  "md5": "9187424751184b58b90a8be3b2d55ecd",
+  "note": "knockdown ENCSR251ABP UPF1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF655EYM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF655EYM/@@download/ENCFF655EYM.tsv",
+  "bytes": 10888610,
+  "md5": "d15b5ecfb5c417601372723f5ffe4e01",
+  "note": "knockdown ENCSR269HQA ILF3 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF655KYK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF655KYK/@@download/ENCFF655KYK.tsv",
+  "bytes": 10888657,
+  "md5": "b1e0eacf380dedfe3822c601355548c9",
+  "note": "control ENCSR084SCN non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF655TJE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF655TJE/@@download/ENCFF655TJE.tsv",
+  "bytes": 10909998,
+  "md5": "74ba5624843665a0bee314627c71bb1d",
+  "note": "control ENCSR572FFX non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF660RWH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF660RWH/@@download/ENCFF660RWH.tsv",
+  "bytes": 10947951,
+  "md5": "b54971bd4737e4319ca8d820e31193b9",
+  "note": "knockdown ENCSR666QJU AGGF1 HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF661TML.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF661TML/@@download/ENCFF661TML.tsv",
+  "bytes": 10876454,
+  "md5": "e05d4a896446057567396401a45674b3",
+  "note": "knockdown ENCSR492BKM FAM120A K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF661XEU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF661XEU/@@download/ENCFF661XEU.tsv",
+  "bytes": 10887624,
+  "md5": "bc075ed14d2ce69d8fe44d4dfd599db8",
+  "note": "control ENCSR521WAI non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF672BLS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF672BLS/@@download/ENCFF672BLS.tsv",
+  "bytes": 10899534,
+  "md5": "c1dfd7c99f8e0a9ab961873152e754e1",
+  "note": "knockdown ENCSR850CKU KHSRP HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF672UOG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF672UOG/@@download/ENCFF672UOG.tsv",
+  "bytes": 10936924,
+  "md5": "7f3f887e91dc48fad6661b598074342c",
+  "note": "control ENCSR031RRO non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF676HBR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF676HBR/@@download/ENCFF676HBR.tsv",
+  "bytes": 10852190,
+  "md5": "804fbc9634b6302ce6db6768f88537d1",
+  "note": "knockdown ENCSR470PRV HNRNPC K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF683OOL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF683OOL/@@download/ENCFF683OOL.tsv",
+  "bytes": 10879313,
+  "md5": "1d2b0f6b5d7838d738f62868b98e73dd",
+  "note": "knockdown ENCSR778SIU SUPV3L1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF684PVM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF684PVM/@@download/ENCFF684PVM.tsv",
+  "bytes": 10898134,
+  "md5": "56f9c0e3a6fb2a4185f439c7043b4e03",
+  "note": "knockdown ENCSR995RPB SUPV3L1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF686JOA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF686JOA/@@download/ENCFF686JOA.tsv",
+  "bytes": 10884737,
+  "md5": "6ad9c98cf4aff959671aaf0f280d4695",
+  "note": "knockdown ENCSR492BKM FAM120A K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF687TRM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF687TRM/@@download/ENCFF687TRM.tsv",
+  "bytes": 10898349,
+  "md5": "b5d2d098d01740de94e3bf569cc31638",
+  "note": "knockdown ENCSR560RSZ DDX52 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF690OOF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF690OOF/@@download/ENCFF690OOF.tsv",
+  "bytes": 10850365,
+  "md5": "b1ae9aa995ede55cc3a1870b767af45b",
+  "note": "knockdown ENCSR031RZS TAF15 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF694GMG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF694GMG/@@download/ENCFF694GMG.tsv",
+  "bytes": 10923244,
+  "md5": "e55768f2483bd2243046859b8535fff2",
+  "note": "knockdown ENCSR527QNC TARDBP HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF694MEF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF694MEF/@@download/ENCFF694MEF.tsv",
+  "bytes": 10895431,
+  "md5": "6e8d2b56bdf7f562ddeee075469602d3",
+  "note": "knockdown ENCSR620OKS EFTUD2 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF695CMS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF695CMS/@@download/ENCFF695CMS.tsv",
+  "bytes": 10903321,
+  "md5": "9629b962e04993d0642dbb94417c6b41",
+  "note": "knockdown ENCSR330YOU QKI HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF696BOL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF696BOL/@@download/ENCFF696BOL.tsv",
+  "bytes": 10900482,
+  "md5": "3fa03df493eefac10af497cb75b08581",
+  "note": "knockdown ENCSR030ARO NCBP2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF696MHC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF696MHC/@@download/ENCFF696MHC.tsv",
+  "bytes": 10897704,
+  "md5": "38066a82e6a014ebea0aa7001a726d04",
+  "note": "knockdown ENCSR913ZWR DDX52 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF697DZS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF697DZS/@@download/ENCFF697DZS.tsv",
+  "bytes": 10965087,
+  "md5": "a57ab0f06f2ab14c060026887cff2204",
+  "note": "knockdown ENCSR544LEZ ZC3H11A HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF697QRI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF697QRI/@@download/ENCFF697QRI.tsv",
+  "bytes": 10924790,
+  "md5": "0669e2b6a4c81df88562dd66b62b30b6",
+  "note": "knockdown ENCSR165VBD UTP18 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF698ZDI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF698ZDI/@@download/ENCFF698ZDI.tsv",
+  "bytes": 10885726,
+  "md5": "b436f0ed333bcade83fb85f582e36811",
+  "note": "knockdown ENCSR678MVE UCHL5 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF703VLV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF703VLV/@@download/ENCFF703VLV.tsv",
+  "bytes": 10896220,
+  "md5": "0efa9c012151dc666fcc9ac673b29aca",
+  "note": "control ENCSR105NML non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF704NAC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF704NAC/@@download/ENCFF704NAC.tsv",
+  "bytes": 10864540,
+  "md5": "55db45e808d1cc55a077e18d2870431a",
+  "note": "control ENCSR771ZZL non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF705OPC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF705OPC/@@download/ENCFF705OPC.tsv",
+  "bytes": 10903216,
+  "md5": "c0e70629c30c9a88381de2bf67e0dc42",
+  "note": "knockdown ENCSR746NIM HNRNPM K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF708XBA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF708XBA/@@download/ENCFF708XBA.tsv",
+  "bytes": 10900623,
+  "md5": "e7bfd2a2fa591aa90d81f77821c5fabe",
+  "note": "knockdown ENCSR927JXU FUS HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF711FKM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF711FKM/@@download/ENCFF711FKM.tsv",
+  "bytes": 10909287,
+  "md5": "02133472543db40c3ab7ed3329391c64",
+  "note": "knockdown ENCSR094KBY SRSF1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF711WSO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF711WSO/@@download/ENCFF711WSO.tsv",
+  "bytes": 10910215,
+  "md5": "0c0530bf1d8e1e52e97d8d0a8da3a418",
+  "note": "knockdown ENCSR066VOO SRSF1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF712RED.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF712RED/@@download/ENCFF712RED.tsv",
+  "bytes": 10915869,
+  "md5": "097e3a71d6a9fed0c7aa476a95a7a199",
+  "note": "knockdown ENCSR047IUS HNRNPU K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF723FGR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF723FGR/@@download/ENCFF723FGR.tsv",
+  "bytes": 10897949,
+  "md5": "fd55ffda514d0068fd1e42a7f7c774fd",
+  "note": "knockdown ENCSR308IKH HNRNPU HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF723THB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF723THB/@@download/ENCFF723THB.tsv",
+  "bytes": 10873069,
+  "md5": "de6e15505b1684a22b732a36755ff6ab",
+  "note": "control ENCSR834IFU non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF730ODN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF730ODN/@@download/ENCFF730ODN.tsv",
+  "bytes": 10910295,
+  "md5": "ecadd524f846c3d4cde88b0dbe7210e4",
+  "note": "knockdown ENCSR320IEK PRPF8 K562 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF736HEP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF736HEP/@@download/ENCFF736HEP.tsv",
+  "bytes": 10929301,
+  "md5": "4ab297c8ee79e7dfdd85595865ef460c",
+  "note": "control ENCSR092WKG non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF737QOH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF737QOH/@@download/ENCFF737QOH.tsv",
+  "bytes": 10956083,
+  "md5": "6e3d2684fb256e355b41db191a3d58e7",
+  "note": "knockdown ENCSR599PXD RBM15 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF738BZA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF738BZA/@@download/ENCFF738BZA.tsv",
+  "bytes": 10922601,
+  "md5": "8f05b307ee8876c918525b5fad59439d",
+  "note": "knockdown ENCSR812TLY AGGF1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF739LDV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF739LDV/@@download/ENCFF739LDV.tsv",
+  "bytes": 10852715,
+  "md5": "2302db862417ad475a3d5a9f499b5cd6",
+  "note": "knockdown ENCSR031RZS TAF15 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF743ALR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF743ALR/@@download/ENCFF743ALR.tsv",
+  "bytes": 10904250,
+  "md5": "153819b678625c8b32badd98ebe47e55",
+  "note": "knockdown ENCSR155BMF HNRNPL HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF755RIN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF755RIN/@@download/ENCFF755RIN.tsv",
+  "bytes": 10921277,
+  "md5": "5f6d18f5f4f31bb642f226d9ea41cb31",
+  "note": "knockdown ENCSR251ABP UPF1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF759KHU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF759KHU/@@download/ENCFF759KHU.tsv",
+  "bytes": 10890398,
+  "md5": "c8fda1eda6672623ff4b69ad35a350d1",
+  "note": "knockdown ENCSR103NNB SDAD1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF764FLV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF764FLV/@@download/ENCFF764FLV.tsv",
+  "bytes": 10897563,
+  "md5": "a75092c8d4b0d774a46310674edd77f6",
+  "note": "knockdown ENCSR732ICL HNRNPU K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF765IMX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF765IMX/@@download/ENCFF765IMX.tsv",
+  "bytes": 10911603,
+  "md5": "776e9fc644fa3cc9a47b73314b2ab9a5",
+  "note": "knockdown ENCSR529JNJ HNRNPK K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF772XMI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF772XMI/@@download/ENCFF772XMI.tsv",
+  "bytes": 10898005,
+  "md5": "0233fbdf67923977565d0daf8a16e348",
+  "note": "knockdown ENCSR635FRH PCBP1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF773IZM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF773IZM/@@download/ENCFF773IZM.tsv",
+  "bytes": 10896812,
+  "md5": "9b44112738f998267219225051b3099c",
+  "note": "control ENCSR372DZW non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF773VSW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF773VSW/@@download/ENCFF773VSW.tsv",
+  "bytes": 10925630,
+  "md5": "c2f2cd5ddf6e8643315762e18381d12e",
+  "note": "knockdown ENCSR599PXD RBM15 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF774RTC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF774RTC/@@download/ENCFF774RTC.tsv",
+  "bytes": 10909790,
+  "md5": "df949910f3dccaec1f6f08c021d17cd7",
+  "note": "control ENCSR129RWD non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF775DMO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF775DMO/@@download/ENCFF775DMO.tsv",
+  "bytes": 10927436,
+  "md5": "9436d5a2835fee2809a8dd50be0c08d9",
+  "note": "knockdown ENCSR812TLY AGGF1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF775XDQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF775XDQ/@@download/ENCFF775XDQ.tsv",
+  "bytes": 10880502,
+  "md5": "d4de72a1d9a567bb793b152172f73fa2",
+  "note": "knockdown ENCSR306EIU YBX3 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF776TXB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF776TXB/@@download/ENCFF776TXB.tsv",
+  "bytes": 10930331,
+  "md5": "1439678a18f2cb11ca020fae0d6d5f51",
+  "note": "control ENCSR104ABF non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF777GTR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF777GTR/@@download/ENCFF777GTR.tsv",
+  "bytes": 10900744,
+  "md5": "11e219af428836fbb4f9495a7e96a70d",
+  "note": "knockdown ENCSR148MQK SF3B4 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF777UIN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF777UIN/@@download/ENCFF777UIN.tsv",
+  "bytes": 10887138,
+  "md5": "d2b4590288c22c3bda2e029be31df44e",
+  "note": "control ENCSR898NWE non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF778QMB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF778QMB/@@download/ENCFF778QMB.tsv",
+  "bytes": 10901757,
+  "md5": "e33bb847afc7906b520d27e246ed30c5",
+  "note": "knockdown ENCSR942MBU ILF3 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF778QNV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF778QNV/@@download/ENCFF778QNV.tsv",
+  "bytes": 10917616,
+  "md5": "b913930f4236bc50be3433b5a2b1611e",
+  "note": "knockdown ENCSR410USU NOLC1 K562 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF779JEQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF779JEQ/@@download/ENCFF779JEQ.tsv",
+  "bytes": 10906360,
+  "md5": "b2b917b2a28b451747d91c1c9d3320cd",
+  "note": "knockdown ENCSR883BXR LSM11 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF780PNF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF780PNF/@@download/ENCFF780PNF.tsv",
+  "bytes": 10856401,
+  "md5": "9060952f1c03a93646fccb703da9058c",
+  "note": "control ENCSR081EST non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF781JLE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF781JLE/@@download/ENCFF781JLE.tsv",
+  "bytes": 10880040,
+  "md5": "9f5ca8f92671d2c26235c6ce5a5a2323",
+  "note": "knockdown ENCSR234YMW SLTM K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF785WTG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF785WTG/@@download/ENCFF785WTG.tsv",
+  "bytes": 10903637,
+  "md5": "dc2341c256a3c93ef865aac8e6367c4e",
+  "note": "control ENCSR237YZT non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF786DIH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF786DIH/@@download/ENCFF786DIH.tsv",
+  "bytes": 10939310,
+  "md5": "b01825e157960bef06f4a989f5d253b8",
+  "note": "knockdown ENCSR624XHG DROSHA K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF788KYS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF788KYS/@@download/ENCFF788KYS.tsv",
+  "bytes": 10883824,
+  "md5": "bbbe1b2fd7c89ae6453df087a564a608",
+  "note": "knockdown ENCSR455TNF TARDBP K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF803IXT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF803IXT/@@download/ENCFF803IXT.tsv",
+  "bytes": 10903329,
+  "md5": "f5da758517aff99fa2b4eaf305887b78",
+  "note": "control ENCSR491FOC non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF809ZXU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF809ZXU/@@download/ENCFF809ZXU.tsv",
+  "bytes": 10925171,
+  "md5": "66d4f83c8e0baaf7d8f6ea0322c9b29f",
+  "note": "control ENCSR585KOJ non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF811RHZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF811RHZ/@@download/ENCFF811RHZ.tsv",
+  "bytes": 10918500,
+  "md5": "9ebc5c37114da6041fc692f89c72293f",
+  "note": "control ENCSR092WKG non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF812VKX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF812VKX/@@download/ENCFF812VKX.tsv",
+  "bytes": 10918497,
+  "md5": "81149dc033f0e139b745ed60c569fc0c",
+  "note": "control ENCSR424QCW non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF816HKN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF816HKN/@@download/ENCFF816HKN.tsv",
+  "bytes": 10899358,
+  "md5": "e7c8c3a6589d8fca6b6cf71af6747901",
+  "note": "knockdown ENCSR345VVZ DHX30 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF817HQB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF817HQB/@@download/ENCFF817HQB.tsv",
+  "bytes": 10911419,
+  "md5": "7b06fb2fa0f6162fca9f225d602a20e1",
+  "note": "knockdown ENCSR694LKY TIA1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF817UYM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF817UYM/@@download/ENCFF817UYM.tsv",
+  "bytes": 10910074,
+  "md5": "7023acc439d8cddd27af9467ddc65b81",
+  "note": "control ENCSR827PII non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF824GJE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF824GJE/@@download/ENCFF824GJE.tsv",
+  "bytes": 10912319,
+  "md5": "23a0f3a47c4c05773dee19001d558078",
+  "note": "knockdown ENCSR688GVV FTO K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF824HXQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF824HXQ/@@download/ENCFF824HXQ.tsv",
+  "bytes": 10897237,
+  "md5": "7252f9f1e82c99e23547c138413b0583",
+  "note": "knockdown ENCSR147RTA FXR2 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF824MUT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF824MUT/@@download/ENCFF824MUT.tsv",
+  "bytes": 10884680,
+  "md5": "76c387c3c4d7a8b050bf9756249320e6",
+  "note": "knockdown ENCSR079IPT TBRG4 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF827KIW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF827KIW/@@download/ENCFF827KIW.tsv",
+  "bytes": 10925190,
+  "md5": "3be5f8e65fa0ca581f9cd1f557bd5029",
+  "note": "control ENCSR691IVR non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF827TKR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF827TKR/@@download/ENCFF827TKR.tsv",
+  "bytes": 10922195,
+  "md5": "5ba60325fc6434fa7e1a39bf6e8afab9",
+  "note": "knockdown ENCSR741YCA TBRG4 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF830RHX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF830RHX/@@download/ENCFF830RHX.tsv",
+  "bytes": 10887058,
+  "md5": "4a392dbd52cf6bcffea79047372796bb",
+  "note": "knockdown ENCSR608IAI FASTKD2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF836OVE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF836OVE/@@download/ENCFF836OVE.tsv",
+  "bytes": 10907427,
+  "md5": "6da6d170f186115e2a6e43058a44d240",
+  "note": "knockdown ENCSR330YOU QKI HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF837VFH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF837VFH/@@download/ENCFF837VFH.tsv",
+  "bytes": 10907607,
+  "md5": "64ce60c9b7784851a37fb5e5e9fc109c",
+  "note": "knockdown ENCSR278CHI SSB HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF840YVH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF840YVH/@@download/ENCFF840YVH.tsv",
+  "bytes": 10898521,
+  "md5": "ed0e97aaae6517b0f24d199ea5a33e47",
+  "note": "control ENCSR163JUC non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF844MVA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF844MVA/@@download/ENCFF844MVA.tsv",
+  "bytes": 10906369,
+  "md5": "a6ae3fb770852dd00bc4988983822d60",
+  "note": "knockdown ENCSR256PLH QKI K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF845NYP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF845NYP/@@download/ENCFF845NYP.tsv",
+  "bytes": 10945801,
+  "md5": "ab2596f0940929dc0f61f64fd529c76a",
+  "note": "control ENCSR964HKT non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF846LFV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF846LFV/@@download/ENCFF846LFV.tsv",
+  "bytes": 10953078,
+  "md5": "4c0d95eb0d405d37bc30cfd06cdfa4fe",
+  "note": "knockdown ENCSR416YFB SAFB HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF847KEU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF847KEU/@@download/ENCFF847KEU.tsv",
+  "bytes": 10843260,
+  "md5": "00258004b958b058c0ca50d2180af517",
+  "note": "knockdown ENCSR139BIJ FXR2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF848XKY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF848XKY/@@download/ENCFF848XKY.tsv",
+  "bytes": 10899734,
+  "md5": "2ec073e882189bbdb1b744b311cf210f",
+  "note": "knockdown ENCSR268XHM IGF2BP1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF851FTW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF851FTW/@@download/ENCFF851FTW.tsv",
+  "bytes": 10888523,
+  "md5": "223f57e4b9909ccb0430e09f8ac0916e",
+  "note": "knockdown ENCSR853PBF DHX30 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF855XPF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF855XPF/@@download/ENCFF855XPF.tsv",
+  "bytes": 10908234,
+  "md5": "f70dc62799860293a558a1f82ccc9984",
+  "note": "knockdown ENCSR139LOF SRSF7 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF856ZVC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF856ZVC/@@download/ENCFF856ZVC.tsv",
+  "bytes": 10855992,
+  "md5": "555b8c080fbbe68b0223c7a8234baf89",
+  "note": "control ENCSR771ZZL non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF858UTV.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF858UTV/@@download/ENCFF858UTV.tsv",
+  "bytes": 10924719,
+  "md5": "6754fbbf22e5e18d949228862df174a3",
+  "note": "knockdown ENCSR715QWM SDAD1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF861ZJD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF861ZJD/@@download/ENCFF861ZJD.tsv",
+  "bytes": 10920318,
+  "md5": "3d06ac3010ec8e8d613720babadfd232",
+  "note": "control ENCSR067GHD non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF864HTN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF864HTN/@@download/ENCFF864HTN.tsv",
+  "bytes": 10936941,
+  "md5": "3c454b4ca70f9d179c0b51b082a01e0e",
+  "note": "control ENCSR105NML non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF872WEG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF872WEG/@@download/ENCFF872WEG.tsv",
+  "bytes": 10914688,
+  "md5": "4e3e2775beb95e19c6ea1de17f7eab65",
+  "note": "knockdown ENCSR598YQX LIN28B K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF873KLR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF873KLR/@@download/ENCFF873KLR.tsv",
+  "bytes": 10928079,
+  "md5": "78c577a43cd2745c0034c360b0147b1a",
+  "note": "control ENCSR264TUE non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF875WTT.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF875WTT/@@download/ENCFF875WTT.tsv",
+  "bytes": 10945515,
+  "md5": "293152bf7f6642f0dcf539b1fcbee755",
+  "note": "control ENCSR853AOV non-targeting HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF876XSM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF876XSM/@@download/ENCFF876XSM.tsv",
+  "bytes": 10899350,
+  "md5": "750e2ce974751a403155e7392c40bb49",
+  "note": "knockdown ENCSR927JXU FUS HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF878EDX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF878EDX/@@download/ENCFF878EDX.tsv",
+  "bytes": 10927252,
+  "md5": "b4855f092fb23c45c4feebd31d885ae5",
+  "note": "control ENCSR997HCQ non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF880LCP.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF880LCP/@@download/ENCFF880LCP.tsv",
+  "bytes": 10920699,
+  "md5": "e0b0bcb1c62442a67fd583d02a8a3c79",
+  "note": "knockdown ENCSR606QVN WDR43 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF881HQM.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF881HQM/@@download/ENCFF881HQM.tsv",
+  "bytes": 10899424,
+  "md5": "ee187fc4bd503a38f25216bdef1439af",
+  "note": "control ENCSR225PRV non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF883OKQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF883OKQ/@@download/ENCFF883OKQ.tsv",
+  "bytes": 10936210,
+  "md5": "3251253127516c7bea4d1eeec5856c64",
+  "note": "knockdown ENCSR744PAQ LARP4 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF888CQO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF888CQO/@@download/ENCFF888CQO.tsv",
+  "bytes": 10897145,
+  "md5": "6c94c3706bc136136555c3620f808286",
+  "note": "knockdown ENCSR995ZGJ SMNDC1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF890CPE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF890CPE/@@download/ENCFF890CPE.tsv",
+  "bytes": 10923285,
+  "md5": "0c8c15cb395ef98ac61d1147e9ada752",
+  "note": "knockdown ENCSR376GHG FXR2 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF890JCQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF890JCQ/@@download/ENCFF890JCQ.tsv",
+  "bytes": 10940447,
+  "md5": "a5bfdaa7c88c7fea288a0271a298a70a",
+  "note": "control ENCSR135LXL non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF892SIG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF892SIG/@@download/ENCFF892SIG.tsv",
+  "bytes": 10908581,
+  "md5": "700db413ee6113626b7d0826ffd57b88",
+  "note": "control ENCSR913CAE non-targeting K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF895NJN.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF895NJN/@@download/ENCFF895NJN.tsv",
+  "bytes": 10894130,
+  "md5": "2099814f255e0417f32b00f3370fa6f5",
+  "note": "knockdown ENCSR188IPO GTF2F1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF895SOI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF895SOI/@@download/ENCFF895SOI.tsv",
+  "bytes": 10909448,
+  "md5": "becccf61215538fef84e4cb91f292c20",
+  "note": "knockdown ENCSR338CON AKAP1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF896CIS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF896CIS/@@download/ENCFF896CIS.tsv",
+  "bytes": 10905809,
+  "md5": "be3d578f82a501318ae21dc00699fcad",
+  "note": "knockdown ENCSR527IVX PTBP1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF900YES.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF900YES/@@download/ENCFF900YES.tsv",
+  "bytes": 10902639,
+  "md5": "2b00daa0e14195a3dd0e95f9f2123eee",
+  "note": "knockdown ENCSR529JNJ HNRNPK K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF902TBS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF902TBS/@@download/ENCFF902TBS.tsv",
+  "bytes": 10879458,
+  "md5": "3a9a9937b910907fa6a086a61170e1fc",
+  "note": "knockdown ENCSR778SIU SUPV3L1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF904ZPA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF904ZPA/@@download/ENCFF904ZPA.tsv",
+  "bytes": 10969511,
+  "md5": "4a914d2654d8d3a12ffb1bb033c31545",
+  "note": "knockdown ENCSR298ASI DDX6 K562 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF905FAQ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF905FAQ/@@download/ENCFF905FAQ.tsv",
+  "bytes": 10897673,
+  "md5": "7635f61f75b5c549a23cfc6ce1af2166",
+  "note": "knockdown ENCSR528ASX GRWD1 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF912PPS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF912PPS/@@download/ENCFF912PPS.tsv",
+  "bytes": 10937622,
+  "md5": "dc37fcbaa1461b669ac1d332e307a712",
+  "note": "knockdown ENCSR689ZJC HNRNPUL1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF914KON.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF914KON/@@download/ENCFF914KON.tsv",
+  "bytes": 10905941,
+  "md5": "0b0e02bda0af3e661784ad91807306ac",
+  "note": "knockdown ENCSR047IUS HNRNPU K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF919HVL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF919HVL/@@download/ENCFF919HVL.tsv",
+  "bytes": 10888049,
+  "md5": "9d372d26e3ee96415defe89f07deff7d",
+  "note": "knockdown ENCSR850FEH GRWD1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF921GGF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF921GGF/@@download/ENCFF921GGF.tsv",
+  "bytes": 10895890,
+  "md5": "fae37eb66bb8739eddb26b6a1dffa170",
+  "note": "knockdown ENCSR182DAW HNRNPA1 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF922AWD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF922AWD/@@download/ENCFF922AWD.tsv",
+  "bytes": 11024502,
+  "md5": "9b009cd7652eb36d5fcd2319c7960360",
+  "note": "knockdown ENCSR312VLS XRCC6 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF924IVL.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF924IVL/@@download/ENCFF924IVL.tsv",
+  "bytes": 10905007,
+  "md5": "7210f08c825e8db1a080dcf820fcb07a",
+  "note": "knockdown ENCSR637JLM DDX3X HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF927MWW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF927MWW/@@download/ENCFF927MWW.tsv",
+  "bytes": 10906769,
+  "md5": "3842dcb3d39bf9dadb2de9006d404d9a",
+  "note": "knockdown ENCSR134JRE TARDBP K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF927VCB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF927VCB/@@download/ENCFF927VCB.tsv",
+  "bytes": 10884791,
+  "md5": "6f1bec38914fc468e9fcc0e03c91d962",
+  "note": "knockdown ENCSR597XHH SRSF9 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF930EHO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF930EHO/@@download/ENCFF930EHO.tsv",
+  "bytes": 10884315,
+  "md5": "e4cc147298d9465656cc14363aed5ec3",
+  "note": "knockdown ENCSR762FEO LSM11 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF930LRB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF930LRB/@@download/ENCFF930LRB.tsv",
+  "bytes": 10885674,
+  "md5": "eb95d401b9ed07b825c5c5682135b29a",
+  "note": "knockdown ENCSR494VSD YBX3 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF933SSU.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF933SSU/@@download/ENCFF933SSU.tsv",
+  "bytes": 10952210,
+  "md5": "b6f36a2f7a0618465152de167dcea7bf",
+  "note": "knockdown ENCSR814JQP SRSF9 HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF934HHF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF934HHF/@@download/ENCFF934HHF.tsv",
+  "bytes": 10905936,
+  "md5": "5b96753c93260621e8d0c63cf8b700ed",
+  "note": "knockdown ENCSR964YTW DDX55 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF934VFO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF934VFO/@@download/ENCFF934VFO.tsv",
+  "bytes": 10885556,
+  "md5": "05d3edb31c8c24b66d7f4a03ca06fe7a",
+  "note": "knockdown ENCSR047VPW FAM120A HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF936LOH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF936LOH/@@download/ENCFF936LOH.tsv",
+  "bytes": 10892471,
+  "md5": "fde7a929c37e20ab146b50e19df44656",
+  "note": "knockdown ENCSR904CJQ U2AF2 K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF937LAI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF937LAI/@@download/ENCFF937LAI.tsv",
+  "bytes": 10937988,
+  "md5": "29f3c1cfaf30c5ec8f36816b9c6bc52c",
+  "note": "knockdown ENCSR624XHG DROSHA K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF945XQY.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF945XQY/@@download/ENCFF945XQY.tsv",
+  "bytes": 10890503,
+  "md5": "79c4bbc68e39e4f91260499d04c3acab",
+  "note": "knockdown ENCSR958NDU HLTF K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF948NHR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF948NHR/@@download/ENCFF948NHR.tsv",
+  "bytes": 10854596,
+  "md5": "32afb585fe9f6c0505a73eb350c4942b",
+  "note": "control ENCSR942UNX non-targeting K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF950STI.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF950STI/@@download/ENCFF950STI.tsv",
+  "bytes": 10889425,
+  "md5": "ba90667a2366f7f192f4939b41d00a9b",
+  "note": "knockdown ENCSR853PBF DHX30 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF955VIF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF955VIF/@@download/ENCFF955VIF.tsv",
+  "bytes": 10881614,
+  "md5": "310ee8639f007411a222f166dc27a3d7",
+  "note": "knockdown ENCSR678MVE UCHL5 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF956JLB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF956JLB/@@download/ENCFF956JLB.tsv",
+  "bytes": 10891901,
+  "md5": "d39b6ca62f3fd328802d5062039bce1d",
+  "note": "knockdown ENCSR624FBY LARP7 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF965MTS.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF965MTS/@@download/ENCFF965MTS.tsv",
+  "bytes": 10935406,
+  "md5": "8df88b303ba970f31e68ca5c1b65bd58",
+  "note": "knockdown ENCSR410USU NOLC1 K562 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF966JIJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF966JIJ/@@download/ENCFF966JIJ.tsv",
+  "bytes": 10904855,
+  "md5": "d0e05aec77433d25786035ad780b3cf0",
+  "note": "knockdown ENCSR286OKW CSTF2T K562 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF973MZG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF973MZG/@@download/ENCFF973MZG.tsv",
+  "bytes": 10870108,
+  "md5": "0d4fe93743dbd870377da267f3e33807",
+  "note": "knockdown ENCSR470PRV HNRNPC K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF974XMK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF974XMK/@@download/ENCFF974XMK.tsv",
+  "bytes": 10869503,
+  "md5": "07948041d647efa7f6a7ba8dd35e0aff",
+  "note": "control ENCSR689PHN non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF975KBF.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF975KBF/@@download/ENCFF975KBF.tsv",
+  "bytes": 10925586,
+  "md5": "5a1be389b87c875ef4886df16b3920e7",
+  "note": "control ENCSR300EBW non-targeting HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF975YEK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF975YEK/@@download/ENCFF975YEK.tsv",
+  "bytes": 10873454,
+  "md5": "3dc0db907b24d1267853a4b240b87502",
+  "note": "knockdown ENCSR611ZAL TAF15 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF986UWJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF986UWJ/@@download/ENCFF986UWJ.tsv",
+  "bytes": 10897909,
+  "md5": "a9cb7afd61d9e1bab2c48abd35130b77",
+  "note": "knockdown ENCSR408SDL SMNDC1 K562 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF986UYH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF986UYH/@@download/ENCFF986UYH.tsv",
+  "bytes": 10927334,
+  "md5": "e4ffe3f6df35b3591877bd12aa7c0152",
+  "note": "control ENCSR585KOJ non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF987FVR.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF987FVR/@@download/ENCFF987FVR.tsv",
+  "bytes": 10909604,
+  "md5": "faf5ce3de43ab38fbb0d5db10d0a40e6",
+  "note": "knockdown ENCSR268XHM IGF2BP1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF988CPB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF988CPB/@@download/ENCFF988CPB.tsv",
+  "bytes": 10888714,
+  "md5": "495a2a39dcb90b4d3ada0653ce051cec",
+  "note": "knockdown ENCSR624FBY LARP7 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF990AGE.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF990AGE/@@download/ENCFF990AGE.tsv",
+  "bytes": 10904647,
+  "md5": "cbad5ef6b4f4752f5763cedc67adf700",
+  "note": "knockdown ENCSR850CKU KHSRP HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF992NSK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF992NSK/@@download/ENCFF992NSK.tsv",
+  "bytes": 10904912,
+  "md5": "ea43990d0e3afc418715c8c2ae79872b",
+  "note": "knockdown ENCSR147ZBD DDX6 HepG2 rep [1] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF997JJB.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF997JJB/@@download/ENCFF997JJB.tsv",
+  "bytes": 10918669,
+  "md5": "cf1cdbfc24aa9bfb3e9a374889ec71aa",
+  "note": "control ENCSR246RRQ non-targeting HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF998HXO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF998HXO/@@download/ENCFF998HXO.tsv",
+  "bytes": 10918476,
+  "md5": "65562283d74db998a21a1ff97d0729a7",
+  "note": "knockdown ENCSR372UWV U2AF1 HepG2 rep [2] ENCODE4 v1.2.1 GRCh38 V29"
+ }
+]

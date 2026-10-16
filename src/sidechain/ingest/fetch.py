@@ -20,6 +20,7 @@ and proving the bytes are the right ones -- is what lives here.
 from __future__ import annotations
 
 import argparse
+import json
 import hashlib
 import sys
 from dataclasses import replace
@@ -110,6 +111,32 @@ def block_route(block: dict) -> str:
     return str(block.get("route", DOWNLOAD))
 
 
+def block_files(block: dict) -> list[dict]:
+    """The block's file list: ``files:`` inline, or ``files_manifest:`` -- a checked-in JSON
+    list (one dict per file: ``name``, and whatever the host's probe reads, ``url`` / ``md5`` /
+    ``sha256`` / ``spec``) resolved like a config path.
+
+    A manifest exists for a block whose listing is hundreds of per-file urls (ENCODE's
+    knockdown and eCLIP files, T102): generated from the publisher's API by a script, checked
+    in beside the registry, and read here exactly as an inline list would be. It is still the
+    block's own listing -- nothing is asked of the host that the file does not name -- so the
+    gate's order (probe -> gate -> PROVENANCE.json) is unchanged. A block names one or the other.
+    """
+    manifest = block.get("files_manifest")
+    inline = block.get("files")
+    if manifest and inline:
+        raise GateError(f"dataset {block.get('name')!r} declares both `files` and `files_manifest`; "
+                        "a block has one listing")
+    if not manifest:
+        return list(inline or [])
+    path = resolve_config(manifest)
+    files = json.loads(path.read_text())
+    if not isinstance(files, list) or not files or not all(isinstance(f, dict) and f.get("name") for f in files):
+        raise GateError(f"dataset {block.get('name')!r}: {path} must be a non-empty JSON list of "
+                        "file dicts, each with a `name`")
+    return files
+
+
 def run_gate(block: dict, root: Path, *, refresh: bool = False,
              config: str | Path = DEFAULT_CONFIG) -> tuple:
     """probe -> gate -> record provenance. Returns (record, selected, dest).
@@ -135,12 +162,18 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
         raise GateError(f"no probe for host {host!r}; known: {', '.join(sorted(PROBES))}")
 
     route = block_route(block)
-    wanted = [f["name"] for f in block["files"]]
+    files = block_files(block)
+    wanted = [f["name"] for f in files]
     dest = root / block["dest"]
     # A plain web server cannot list itself, so the block's file list is the
-    # listing and the probe HEADs each name (probe_https). Every other host is
-    # asked what it has and the selection is checked against that answer.
-    record = (PROBES[host](block["record"], names=wanted) if host == "https"
+    # listing and the probe HEADs each name (probe_https), reading a per-file url
+    # or stated digest off the entry where the block carries one. Every other host
+    # is asked what it has and the selection is checked against that answer.
+    # `entries` is passed only when an entry uses it (a url or a stated digest), so a
+    # block listing plain names keeps the probe's original call shape.
+    extra = ({"entries": files} if any(f.get("url") or f.get("md5") or f.get("sha256") for f in files)
+             else {})
+    record = (PROBES[host](block["record"], names=wanted, **extra) if host == "https"
               else PROBES[host](block["record"]))
 
     # A stream MUST say where its aggregate goes. Without `derived:` the free-
@@ -204,7 +237,9 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
         )
 
     notes = {"dataset": block["name"], "config": str(config),
-             "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
+             "specs": {f["name"]: f.get("spec", {}) for f in files}}
+    if block.get("files_manifest"):
+        notes["files_manifest"] = str(block["files_manifest"])
     if allow_missing:
         notes["allow_missing_checksum"] = True
     if block.get("citation"):
