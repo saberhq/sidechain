@@ -18,6 +18,19 @@ coloured as the leaderboard colours them.
 
 {{< board >}}
 
+## SER-19aefhkrsw — submitted 2026-10-16
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
+list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
+SER-17aefhkrsw with a longer list: for each knockdown, the 2,700 genes whose predicted change
+stands out most have their cell-to-cell variation narrowed, in place of 1,500.
+
+It scored 0.1684 against SER-17aefhkrsw's 0.1657. The score that counts the genes the test calls
+in the right direction rose, and so did the overlap between the genes called and the genes that
+really changed; the test reached slightly fewer of the genes that really changed, and the three
+other scores held.
+
 ## SER-18aefksvw — submitted 2026-10-16 · calibration run
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
