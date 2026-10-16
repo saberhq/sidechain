@@ -55,6 +55,8 @@ every session counts, so a new rule earns its lines.
   ``session `0badcafe` `` (8 chars), never by its auto-name (`sidechain-xx`, which changes on
   restart). The auto-name is the *address* — `SendMessage`, `--name`, the STATUS line — and
   belongs nowhere else. The brief tells you both; a `ListAgents` bracket ref is not an id.
+  Two open sessions can wear one auto-name, so a session you know by id is messaged at the
+  address `ledger.py session address <id>` prints, never by bare name (2026-10-16).
 
 ## The task, in one paragraph
 
