@@ -876,6 +876,44 @@
       "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
       "card_retro": false,
       "class": ""
+    },
+    {
+      "date": "2026-10-16",
+      "members": {
+        "pds": {
+          "scaled": 0.6412,
+          "raw": 0.7894
+        },
+        "mse": {
+          "scaled": 0.1429,
+          "raw": 0.852
+        },
+        "jac": {
+          "scaled": 0.0013,
+          "raw": 0.0308
+        },
+        "nmae": {
+          "scaled": 0.0929,
+          "raw": 0.9447
+        },
+        "fid": {
+          "scaled": -0.0108,
+          "raw": 0.5093
+        },
+        "reach": {
+          "scaled": 0.0997,
+          "raw": 0.1671
+        }
+      },
+      "partition": "val",
+      "name": "SER-18aefksvw",
+      "board_name": "Sidechain SER-18aefksvw",
+      "overall": 0.1612,
+      "rank": 453,
+      "teams": 1571,
+      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
+      "card_retro": false,
+      "class": "calibration"
     }
   ],
   "board": {
@@ -1034,6 +1072,61 @@
       },
       {
         "n": 3,
+        "name": "SER-18aefksvw",
+        "board_name": "Sidechain SER-18aefksvw",
+        "date": "2026-10-16",
+        "overall": 0.1612,
+        "rank_when_scored": 453,
+        "teams": 1571,
+        "class": "calibration",
+        "partition": "val",
+        "cells": [
+          {
+            "key": "pds",
+            "scaled": 0.6412,
+            "raw": 0.7894,
+            "tint": 0.641,
+            "tint_own": 0.946
+          },
+          {
+            "key": "mse",
+            "scaled": 0.1429,
+            "raw": 0.852,
+            "tint": 0.143,
+            "tint_own": 0.948
+          },
+          {
+            "key": "jac",
+            "scaled": 0.0013,
+            "raw": 0.0308,
+            "tint": 0.001,
+            "tint_own": 0.361
+          },
+          {
+            "key": "nmae",
+            "scaled": 0.0929,
+            "raw": 0.9447,
+            "tint": 0.093,
+            "tint_own": 0.71
+          },
+          {
+            "key": "fid",
+            "scaled": -0.0108,
+            "raw": 0.5093,
+            "tint": -0.011,
+            "tint_own": -0.248
+          },
+          {
+            "key": "reach",
+            "scaled": 0.0997,
+            "raw": 0.1671,
+            "tint": 0.1,
+            "tint_own": 0.881
+          }
+        ]
+      },
+      {
+        "n": 4,
         "name": "SER-12aefkw",
         "board_name": "Sidechain SER-12aefkw",
         "date": "2026-10-02",
@@ -1088,7 +1181,7 @@
         ]
       },
       {
-        "n": 4,
+        "n": 5,
         "name": "SER-16aefhkrsw",
         "board_name": "Sidechain SER-16aefhkrsw",
         "date": "2026-10-08",
@@ -1143,7 +1236,7 @@
         ]
       },
       {
-        "n": 5,
+        "n": 6,
         "name": "SER-13aefknw",
         "board_name": "Sidechain SER-13aefknw",
         "date": "2026-10-02",
@@ -1198,7 +1291,7 @@
         ]
       },
       {
-        "n": 6,
+        "n": 7,
         "name": "SER-11abefknw",
         "board_name": "Sidechain SER-11abefknw",
         "date": "2026-09-30",
@@ -1253,7 +1346,7 @@
         ]
       },
       {
-        "n": 7,
+        "n": 8,
         "name": "SER-10abefnw",
         "board_name": "Sidechain SER-10abefnw",
         "date": "2026-09-30",
@@ -1308,7 +1401,7 @@
         ]
       },
       {
-        "n": 8,
+        "n": 9,
         "name": "SER-9abefkn",
         "board_name": "Sidechain SER-9abefkn",
         "date": "2026-09-29",
@@ -1363,7 +1456,7 @@
         ]
       },
       {
-        "n": 9,
+        "n": 10,
         "name": "SER-8abefkn",
         "board_name": "Sidechain SER-8abefkn",
         "date": "2026-09-29",
@@ -1418,7 +1511,7 @@
         ]
       },
       {
-        "n": 10,
+        "n": 11,
         "name": "SER-7abefn",
         "board_name": "Sidechain SER-7abefn",
         "date": "2026-09-17",
@@ -1473,7 +1566,7 @@
         ]
       },
       {
-        "n": 11,
+        "n": 12,
         "name": "SER-6aefn",
         "board_name": "Sidechain SER-6aefn",
         "date": "2026-09-12",
@@ -1528,7 +1621,7 @@
         ]
       },
       {
-        "n": 12,
+        "n": 13,
         "name": "SER-4afn",
         "board_name": "Sidechain SER-4afn",
         "date": "2026-08-31",
@@ -1583,7 +1676,7 @@
         ]
       },
       {
-        "n": 13,
+        "n": 14,
         "name": "SER-5acfnt",
         "board_name": "Sidechain SER-5acfnt",
         "date": "2026-09-01",
@@ -1638,7 +1731,7 @@
         ]
       },
       {
-        "n": 14,
+        "n": 15,
         "name": "SER-3afn",
         "board_name": "Sidechain SER-3afn",
         "date": "2026-08-30",
@@ -1693,7 +1786,7 @@
         ]
       },
       {
-        "n": 15,
+        "n": 16,
         "name": "SER-3fn",
         "board_name": "Sidechain SER-3fn",
         "date": "2026-08-27",
@@ -1748,7 +1841,7 @@
         ]
       },
       {
-        "n": 16,
+        "n": 17,
         "name": "SER-3afgn",
         "board_name": "Sidechain SER-3afgn",
         "date": "2026-08-30",
@@ -1803,7 +1896,7 @@
         ]
       },
       {
-        "n": 17,
+        "n": 18,
         "name": "SER-3n",
         "board_name": "Sidechain SER-3n",
         "date": "2026-08-27",
@@ -1858,7 +1951,7 @@
         ]
       },
       {
-        "n": 18,
+        "n": 19,
         "name": "SER-2",
         "board_name": "Sidechain SER-2",
         "date": "2026-08-24",
@@ -1913,7 +2006,7 @@
         ]
       },
       {
-        "n": 19,
+        "n": 20,
         "name": "SER-1n",
         "board_name": "Sidechain SER-1n",
         "date": "2026-08-22",
@@ -1968,7 +2061,7 @@
         ]
       },
       {
-        "n": 20,
+        "n": 21,
         "name": "SER-1",
         "board_name": "sidechain r1-delta-even v1",
         "date": "2026-08-21",
@@ -2023,7 +2116,7 @@
         ]
       },
       {
-        "n": 21,
+        "n": 22,
         "name": "SER-1p",
         "board_name": "Sidechain SER-1p",
         "date": "2026-08-21",
@@ -2078,7 +2171,7 @@
         ]
       },
       {
-        "n": 22,
+        "n": 23,
         "name": "SER-15aefkrsw",
         "board_name": "Sidechain SER-15aefkrsw",
         "date": "2026-10-07",
@@ -2133,7 +2226,7 @@
         ]
       },
       {
-        "n": 23,
+        "n": 24,
         "name": "PHE-2",
         "board_name": "Sidechain PHE-2",
         "date": "2026-09-07",
