@@ -278,13 +278,13 @@ def test_the_real_xatlas_block_would_be_refused_as_a_download():
     assert float(block["budget_gb"]) < 126, "budget should be the OUTPUT ceiling, not the corpus"
 
 
-def test_the_real_scbasecount_block_is_observational_and_cannot_be_downloaded():
+def test_the_real_scbasecount_block_is_observational_and_streamed():
     """The registry's own block, not a fixture. Three properties travel
     together and each is load-bearing: the corpus has no per-cell perturbation
     label so its counts file is `observational`; its terms are stated nowhere so
-    the licence is the UNSTATED sentinel; and UNSTATED is only legal on a
-    stream, because reading what any public reader may read is not the same as
-    holding a copy of it."""
+    the licence is the UNSTATED sentinel; and it is streamed, because one pass
+    over 2.4 TB collapses it to an aggregate (ADR 0003 § 3, the size rule; since
+    the 2026-10-15 amendment UNSTATED alone would no longer force a stream)."""
     from sidechain.ingest.provenance import UNSTATED
 
     block = load_datasets()["scbasecount_human_gene"]
@@ -632,7 +632,7 @@ def _unstated_block(**over):
     return block
 
 
-def test_unstated_terms_pass_the_gate_only_as_a_stream(tmp_path, monkeypatch):
+def test_unstated_terms_pass_the_gate_as_a_stream(tmp_path, monkeypatch):
     """Naming the absence is allowed. The corpus is read over the network
     exactly as any public reader may read it, and only our own aggregate
     lands."""
@@ -660,16 +660,36 @@ def test_unstated_terms_are_recorded_as_maximally_encumbered(tmp_path, monkeypat
     assert flags["noncommercial"] is True
 
 
-def test_unstated_terms_are_refused_on_a_download(tmp_path, monkeypatch):
-    """The distinction the whole sentinel rests on: we may READ a corpus whose
-    terms are stated nowhere; we may not HOLD a copy of one."""
+def test_unstated_terms_are_refused_on_a_download_without_a_citation(tmp_path, monkeypatch):
+    """ADR 0003, amendment of 2026-10-15: a corpus whose terms are stated nowhere
+    may be held locally only by a block that names the citation we give it."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
     block = _unstated_block(route="download", budget_gb=100.0)
     block.pop("derived")
-    with pytest.raises(GateError, match="only tolerable on"):
+    with pytest.raises(GateError, match="with no citation"):
         fetch.run_gate(block, tmp_path)
+    with pytest.raises(GateError, match="with no citation"):
+        fetch.run_gate({**block, "citation": "  "}, tmp_path)
+
+
+def test_unstated_terms_download_with_a_citation_and_stay_maximally_encumbered(tmp_path, monkeypatch):
+    """With a citation the download passes, the citation is recorded beside the
+    override, and both flags still stand: publication is where the terms are
+    re-evaluated."""
+    from sidechain.ingest import fetch
+
+    monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
+    block = _unstated_block(route="download", budget_gb=100.0, citation="Author et al. 2020, NAR 48:D174")
+    block.pop("derived")
+    _, _, dest = fetch.run_gate(block, tmp_path)
+    payload = json.loads((dest / "PROVENANCE.json").read_text())
+    assert payload["route"] == "download"
+    assert payload["notes"]["citation"] == "Author et al. 2020, NAR 48:D174"
+    assert payload["notes"]["license_override"]["applied"] == "UNSTATED"
+    assert payload["license_flags"]["noncommercial"] is True
+    assert payload["license_flags"]["redistribution_encumbered"] is True
 
 
 def test_unstated_without_an_override_source_is_refused(tmp_path, monkeypatch):

@@ -187,7 +187,8 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
     selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,
                     dest=dest, route=route, space_dest=space_dest,
                     license_override=license_override,
-                    allow_missing_checksum=allow_missing)
+                    allow_missing_checksum=allow_missing,
+                    citation=block.get("citation"))
 
     declared = block.get("license")
     if license_override:
@@ -206,6 +207,8 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
              "specs": {f["name"]: f.get("spec", {}) for f in block["files"]}}
     if allow_missing:
         notes["allow_missing_checksum"] = True
+    if block.get("citation"):
+        notes["citation"] = str(block["citation"])
     if license_override:
         notes["license_override"] = {
             "host_stated": "unknown",

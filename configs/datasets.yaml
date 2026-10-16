@@ -199,9 +199,11 @@
 # and found no statement, and it is the only value on the accepted list that is
 # not a licence. The gate makes it costly rather than convenient -- it is
 # reachable ONLY through `license_override_source` (so it always carries the
-# record of the search and of what sanctions the use instead), it is legal ONLY
-# on `route: stream` (unstated terms let us READ what any public reader may
-# read; they do not let us HOLD a copy), and it records as maximally encumbered
+# record of the search and of what sanctions the use instead), it is legal on
+# `route: download` only with a `citation:` naming the paper we cite wherever
+# the source is used (ADR 0003, amendment of 2026-10-15, Saber: a free resource
+# everybody reuses may be held locally; publication is where the terms are
+# re-evaluated), a stream needs none, and it records as maximally encumbered
 # in PROVENANCE.json, both `noncommercial` and `redistribution_encumbered`
 # true. That last part is the point: publishing anything derived from such a
 # source needs a fresh decision, and the flag is what forces one.

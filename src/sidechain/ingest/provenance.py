@@ -120,12 +120,12 @@ ACCEPTED_LICENSES = frozenset(LICENSE_POLICY.values())
 #     `license_override_source` saying who sanctioned the use and where that was
 #     verified -- an unstated license is the one case where the provenance is the
 #     permission;
-#   * it is legal only on `route: stream`. Unstated terms are more restrictive
-#     than a permissive tag, not less (the gate says so twenty lines down), and
-#     what makes reading tolerable is that we take no copy: the bytes are read
-#     over the network exactly as any public reader may, and only OUR aggregate
-#     lands. A download would have us holding a corpus we have no stated
-#     permission to hold;
+#   * on `route: download` it needs a `citation`: the block names the paper we
+#     cite wherever the source is used. Saber's amendment to ADR 0003
+#     (2026-10-15): a free resource everybody reuses may be held locally while we
+#     name and cite it, and publishing anything that touches it is the point to
+#     re-evaluate the terms or ask the depositor. A stream needs no citation
+#     here, because nothing but our own aggregate lands;
 #   * it is recorded as MAXIMALLY encumbered -- both flags below -- because
 #     "unknown" resolves conservatively or it is not conservative at all. That
 #     is what stops a derived artifact being republished without a fresh
@@ -751,6 +751,7 @@ def gate(
     route: str = DOWNLOAD,
     space_dest: Path | None = None,
     license_override: tuple[str, str] | None = None,
+    citation: str | None = None,
 ) -> tuple[RemoteFile, ...]:
     """Decide whether this fetch may proceed. Raises `GateError` if not.
 
@@ -834,13 +835,12 @@ def gate(
                 "can state: it may only be applied by a config block that also names where "
                 "the terms were looked for and what sanctions the use instead."
             )
-        if route != STREAM:
+        if route != STREAM and not (citation and str(citation).strip()):
             raise GateError(
-                f"{record.host}:{record.record_id} declares {UNSTATED!r} on route={route!r}. "
-                f"Unstated terms are only tolerable on {STREAM!r}, where the bytes are read "
-                "over the network exactly as any public reader may and only our own aggregate "
-                "lands. Downloading a corpus whose terms are stated nowhere means holding a "
-                "copy we have no stated permission to hold."
+                f"{record.host}:{record.record_id} declares {UNSTATED!r} on route={route!r} "
+                "with no citation. Unstated terms may be downloaded only by a block that names "
+                "the citation we give the source wherever it is used (ADR 0003, amendment of "
+                f"2026-10-15); otherwise read it on {STREAM!r}."
             )
     elif effective_license not in ACCEPTED_LICENSES:
         raise GateError(
