@@ -169,9 +169,10 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
     # listing and the probe HEADs each name (probe_https), reading a per-file url
     # or stated digest off the entry where the block carries one. Every other host
     # is asked what it has and the selection is checked against that answer.
-    # `entries` is passed only when an entry uses it (a url or a stated digest), so a
-    # block listing plain names keeps the probe's original call shape.
-    extra = ({"entries": files} if any(f.get("url") or f.get("md5") or f.get("sha256") for f in files)
+    # `entries` is passed only when an entry uses it (a url, a stated digest or a form
+    # request), so a block listing plain names keeps the probe's original call shape.
+    extra = ({"entries": files}
+             if any(f.get("url") or f.get("md5") or f.get("sha256") or f.get("request") for f in files)
              else {})
     record = (PROBES[host](block["record"], names=wanted, **extra) if host == "https"
               else PROBES[host](block["record"]))
@@ -240,6 +241,11 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
              "specs": {f["name"]: f.get("spec", {}) for f in files}}
     if block.get("files_manifest"):
         notes["files_manifest"] = str(block["files_manifest"])
+    generated = {f["name"]: f["request"] for f in files if isinstance(f.get("request"), dict)}
+    if generated:
+        # how a host-built archive was asked for (probe_https: a form POST that names a
+        # fresh file), so the same request can be repeated and PROVENANCE says what it was
+        notes["generated"] = generated
     if allow_missing:
         notes["allow_missing_checksum"] = True
     if block.get("citation"):

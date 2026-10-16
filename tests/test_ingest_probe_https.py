@@ -218,3 +218,85 @@ def test_a_block_may_list_its_files_in_a_checked_in_manifest(tmp_path, monkeypat
     manifest.write_text(json.dumps({"name": "a.zip"}))
     with pytest.raises(GateError, match="JSON list"):
         fetch_mod.block_files(block)
+
+
+# ------------------------------------------------- a host-built archive (CisBP-RNA, T120) --
+
+GEN_REQUEST = {"post": "https://example.org/bulk_archive.php",
+               "form": {"selSpec": "Homo_sapiens", "Spec[]": ["RBP_Information", "PFMs"],
+                        "submit": "Download Species Archive!"},
+               "link": r'tmp/[^"<> ]+\.zip'}
+
+
+class _Page(_Resp):
+    def __init__(self, body: bytes, ctype="text/html; charset=UTF-8"):
+        super().__init__(200, {"Content-Type": ctype})
+        self._body = body
+
+    def read(self, n=-1):
+        return self._body if n < 0 else self._body[:n]
+
+
+def _generating_host(page: bytes, size=248765, modified="Fri, 16 Oct 2026 22:24:54 GMT", seen=None):
+    def _urlopen(req, timeout=0):
+        if req.get_method() == "POST":
+            if seen is not None:
+                seen.append(req.data)
+            assert req.full_url == GEN_REQUEST["post"]
+            return _Page(page)
+        assert req.get_method() == "HEAD", "the probe must not GET a file"
+        if seen is not None:
+            seen.append(req.full_url)
+        if not req.full_url.endswith(".zip"):
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO())
+        return _Resp(200, {"Content-Length": str(size), "Last-Modified": modified})
+    return _urlopen
+
+
+def test_a_request_entry_posts_the_form_heads_the_generated_link_and_records_no_date():
+    page = b'<html>Please click the link <a href="tmp/Homo_sapiens_2026_10_16_10:23_pm.zip">Download</a></html>'
+    seen: list = []
+    entries = [{"name": "human.zip", "request": GEN_REQUEST}]
+    with patch("urllib.request.urlopen", _generating_host(page, seen=seen)):
+        rec = probe_https("https://example.org", ["human.zip"], entries=entries)
+    f = rec.files[0]
+    assert f.name == "human.zip" and f.size_bytes == 248765
+    assert f.url == "https://example.org/tmp/Homo_sapiens_2026_10_16_10:23_pm.zip"
+    assert f.checksum is None                    # a generated archive's date is the request's moment
+    body = seen[0].decode()
+    assert "selSpec=Homo_sapiens" in body and body.count("Spec%5B%5D=") == 2 and "submit=" in body
+    assert seen[1] == f.url                      # the HEAD went to the generated link
+
+
+def test_a_request_entry_refuses_a_page_without_the_link_a_non_page_and_a_bad_request():
+    entries = [{"name": "human.zip", "request": GEN_REQUEST}]
+    with patch("urllib.request.urlopen", _generating_host(b"<html>Sorry, try again</html>")):
+        with pytest.raises(GateError, match="no link"):
+            probe_https("https://example.org", ["human.zip"], entries=entries)
+
+    def _zip_answer(req, timeout=0):
+        return _Page(b"PK\x03\x04...", ctype="application/zip")
+    with patch("urllib.request.urlopen", _zip_answer):
+        with pytest.raises(GateError, match="not the page"):
+            probe_https("https://example.org", ["human.zip"], entries=entries)
+    bad = [{"name": "human.zip", "request": {"post": "http://example.org/x", "form": {}, "link": "a"}}]
+    with pytest.raises(GateError, match="https `post`"):
+        probe_https("https://example.org", ["human.zip"], entries=bad)
+
+
+def test_run_gate_records_the_request_in_provenance(tmp_path, monkeypatch):
+    monkeypatch.setattr("sidechain.ingest.provenance.shutil.disk_usage",
+                        lambda p: type("U", (), {"free": 500 * 10**9})())
+    block = {**_block(tmp_path), "license": "UNSTATED", "citation": "Someone 2026",
+             "license_override_source": "searched, nothing stated",
+             "files": [{"name": "human.zip", "request": GEN_REQUEST}]}
+    page = b'<a href="tmp/Homo_sapiens_x.zip">Download</a>'
+    with patch("urllib.request.urlopen", _generating_host(page)):
+        record, selected, dest = fetch_mod.run_gate(block, tmp_path, config="configs/data_sources.yaml")
+    prov = json.loads((dest / "PROVENANCE.json").read_text())
+    assert prov["notes"]["generated"] == {"human.zip": GEN_REQUEST}
+    assert prov["selected"][0]["checksum"] is None and prov["selected"][0]["size_bytes"] == 248765
+    assert prov["license_flags"] == {"noncommercial": True, "redistribution_encumbered": True}
+    # the same request a second time: the generated link differs, the size does not -> no drift
+    with patch("urllib.request.urlopen", _generating_host(b'<a href="tmp/Homo_sapiens_y.zip">D</a>')):
+        fetch_mod.run_gate(block, tmp_path, config="configs/data_sources.yaml")

@@ -491,6 +491,59 @@ sources:
     enabled: true
     notes: "CLIP-seq RBP binding sites, 3'UTR-filtered. RBP->target edges."
 
+  - name: cisbp_rna_2
+    kind: node_feature
+    layer: posttx
+    relation: rbp_motif_sites
+    entity: gene
+    loader: CisBPRNASource
+    provider: "CisBP-RNA build 2.00 (2025-07-05): Catalog of Inferred Sequence Binding Preferences of RNA binding proteins (Hughes and Weirauch labs), human slice"
+    url: "https://cisbp-rna.ccbr.utoronto.ca"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "The human slice of the motif catalogue: 465 RBPs, 189 with a directly measured motif (RNAcompete, HTR-SELEX, RNA Bind-n-Seq, RBPDB), 82 with one inferred from a measured RBP's similar RNA-binding domain, 194 with none; 586 position frequency matrix files, 42 of them empty. Scanned over TargetScan's representative 3'UTRs into per-gene site counts per RBP (CisBPRNASource.gene_table), the motif catalogue behind the per-context expressed-factor family (private handoffs/2026-10-16-t120-control-cell-factor-set.md). The miRNA machinery and the decay enzymes carry no motif here (AGO1, DICER1, PAN2 and eleven more of the thirty named regulators: private research/reading/posttx-verify-24-cisbp-rna-2-human-coverage.md)."
+    # ---- the gate: a lab web server whose bulk page is a PHP form. The human archive
+    # has no URL of its own -- the form POST builds tmp/Homo_sapiens_<timestamp>.zip on
+    # request -- so the file entry carries a `request` (probe_https: POST the form, read
+    # the generated link, HEAD it, GET it). The archive's size is constant for the same
+    # request (248,765 bytes on 2026-09-28 and twice on 2026-10-16); its zip sha256 is
+    # not (a directory entry's time stamp), so LINEAGE.json records the sha256 of what
+    # landed AND a digest over the member files. The database dump
+    # (data/2_00/DataFiles/SQLDumps/SQLArchive_cisbp-rna_2_00.zip, 95 MB, a stable URL)
+    # was looked at first and holds no matrices, only the metadata tables.
+    host: https
+    record: "https://cisbp-rna.ccbr.utoronto.ca"
+    dest: external/cisbp-rna-2.0
+    derived: derived/cisbp-rna-2.0            # rbp_motifs.parquet, pfms.parquet, rbp_site_counts.parquet + LINEAGE.json (ours)
+    budget_gb: 0.01                           # 0.00025 GB selected; the gate refuses a selection over this
+    allow_missing_checksum: true              # the host publishes none and builds the archive per request; see the comment above
+    license: UNSTATED
+    citation: "Rosado-Tristani DA, Albu M, Chen X, Sasse A, Laverty KU, Ray D, Tam CL, Ernst K, Lawson L, Morris QD, Hughes TR, Weirauch MT (2026). CisBP-RNA: a web resource for eukaryotic RNA binding proteins and their motifs. Nucleic Acids Research, doi:10.1093/nar/gkaf1081 (the site's own How-to-cite page, read 2026-10-16); and Ray D et al. (2013). A compendium of RNA-binding motifs for decoding gene regulation. Nature 499:172-177, for the RNAcompete motifs"
+    license_override_source: >
+      The catalogue states no terms anywhere the publisher controls. Checked
+      2026-09-28 (the Verifier, private research/reading/posttx-verify-24: "no
+      licence text" on the paper or the site) and again 2026-10-16 (session
+      efe87dc2): the index, bulk.php, cite.php, contact.php and help.html carry no
+      licence, terms-of-use or copyright line; cite.php asks for the two citations
+      recorded above. The NAR 2026 article's own licence governs the article, not
+      the catalogue. What sanctions the use is the public bulk download the authors
+      offer and the citation request. So the value is UNSTATED, recorded with both
+      encumbrance flags, and held under the ADR 0003 amendment of 2026-10-15 (a
+      cited source with unstated terms may be downloaded; publication is where the
+      terms are re-evaluated or the Hughes lab asked).
+    files:
+      # The species archive the form builds for Homo_sapiens with RBP_Information and
+      # PFMs ticked: RBP_Information.txt (914 rows), RBP_Information_all_motifs.txt
+      # (1,240 RBP x motif rows, 26 columns, the RBP's Ensembl id in the first DBID
+      # column) and pwms_all_motifs/M#####_2.00.txt (586 matrices, "Pos A C G U").
+      - name: cisbp-rna_2.00_Homo_sapiens_RBP_Information_PFMs.zip
+        request:
+          post: "https://cisbp-rna.ccbr.utoronto.ca/bulk_archive.php"
+          form:
+            selSpec: Homo_sapiens
+            "Spec[]": [RBP_Information, PFMs]
+            submit: "Download Species Archive!"
+          link: 'tmp/[^"<> ]+\.zip'
+
   - name: encode_eclip
     kind: edge
     layer: posttx

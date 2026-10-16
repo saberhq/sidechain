@@ -15,7 +15,8 @@ source's own symbol column when the id finds nothing -- our axes spell 2024 symb
 2018's, Agarwal 2022's. How many genes each source matched by id, by symbol and not at all is
 recorded in LINEAGE.json.
 
-**Scope.** Each column is ``universal`` or ``line:<name>``, where the name is the measured line
+**Scope.** Each column is ``universal``, ``line:<name>`` or ``ctx:<letter>`` (a challenge context's
+own control cells, ``ctx_factors``), where the name is the measured line
 as the source names it, lowercased and brought to one spelling per line: ``hek293`` is Agarwal &
 Kelley's HEK293 group (their samples do not separate HEK293 from HEK293T), ``hek293t`` is Wu's
 293T, ``rpe1`` is hTERT RPE-1, ``h1`` is H1 hESC. A per-line column is NaN wherever the line has
@@ -24,8 +25,17 @@ where the source provides one.
 
 **Phase 1** (``plans/2026-10-15-t102-ptr-feature-table.md``, private) is what ``SOURCES`` lists:
 TargetScan's widened 3'UTR table, the half-life consensus with its per-line means, the codon
-score with its per-line CSC columns, Wu's per-line decay rates, and PolyASite 2.0's layout. A new
-source is one more ``SourceSpec``; the dictionary, the lineage and the coverage counts follow.
+score with its per-line CSC columns, Wu's per-line decay rates, and PolyASite 2.0's layout;
+**phase 2** adds CisBP-RNA 2.0's per-RBP motif-site counts (``posttx_cisbp``, the ``rb_``
+columns, all universal). A new source is one more ``SourceSpec``; the dictionary, the lineage
+and the coverage counts follow.
+
+**Reading it.** ``read_ptr_table`` hands a model one scope at a time -- the universal block, or
+one named line's block -- as a frame plus a same-shaped mask of where a value exists, so a
+consumer never meets a NaN it did not ask for and never has one filled silently; the fallback
+where a line has no value (the universal column, the across-line mean, nothing) is that
+consumer's declared choice. ``ptr_scopes`` lists what the view holds. One file on disk; the
+dictionary is the split.
 """
 from __future__ import annotations
 
@@ -130,6 +140,22 @@ SOURCES: tuple[SourceSpec, ...] = (
         note="polyadenylation layout from PolyASite 2.0 on GENCODE v47 (UNSTATED terms, streamed; both "
              "encumbrance flags): universal except the per-line usage columns, which are written and used nowhere",
     ),
+    SourceSpec(
+        key="rb", block="cisbp_rna_2", derived="derived/cisbp-rna-2.0", table="rbp_site_counts.parquet",
+        lineage_key="cisbp-rna-2.0/rbp_site_counts", drop=("transcript_id", "seq_len"),
+        note="CisBP-RNA 2.0 motif sites per RBP on TargetScan's representative 3'UTR (UNSTATED terms, held under "
+             "the ADR 0003 amendment; both encumbrance flags): one count per RBP with a usable matrix, direct and "
+             "inferred alike (the dictionary says which), plus the direct and inferred totals; all universal",
+    ),
+    SourceSpec(
+        key="cx", block="cisbp_rna_2", derived="derived/control-factor-sets", table="ctx_site_counts.parquet",
+        lineage_key="control-factor-sets/ctx_site_counts", drop=("transcript_id",),
+        scope=((r"^cx_.*_([A-F])$", "ctx:{0}"),),
+        note="the per-context expressed-factor family (ctx_factors): each gene's direct-RBP motif sites split into "
+             "those of the factors a context's control cells express and those of the silent ones; one column set "
+             "per challenge context, scope ctx:<letter>, complete for every gene with a CisBP row; carries CisBP-RNA's "
+             "flags (final-phase: controls)",
+    ),
 )
 
 
@@ -146,10 +172,16 @@ def line_token(raw: str) -> str:
 
 
 def column_scope(spec: SourceSpec, column: str) -> str:
+    """``universal``, ``line:<name>`` (the measured line under one spelling) or ``ctx:<letter>``
+    (one of the challenge's anonymized contexts, A to F, computed from its control cells; the
+    letter is kept as written because A-F name the contexts and nothing else)."""
     for pattern, scope in spec.scope:
         m = re.match(pattern, column)
         if m:
-            return scope.format(*[line_token(g) for g in m.groups()]) if "{" in scope else scope
+            if "{" not in scope:
+                return scope
+            groups = [g if scope.startswith("ctx:") else line_token(g) for g in m.groups()]
+            return scope.format(*groups)
     return "universal"
 
 
@@ -289,6 +321,52 @@ def write_ptr_table(root: Path = DATA_ROOT, **kw) -> Path:
     lineage.setdefault("entries", {})["ptr-feature-table/ptr_features"] = entry
     path.write_text(json.dumps(lineage, indent=2) + "\n")
     return out
+
+
+def ptr_scopes(root: Path = DATA_ROOT) -> pd.DataFrame:
+    """The scopes the view holds: one row per scope with its column count and the genes any of
+    its columns covers."""
+    root = Path(root).expanduser()
+    d = pd.read_parquet(root / DERIVED / DICT_FILE)
+    wide = pd.read_parquet(root / DERIVED / TABLE_FILE)
+    rows = []
+    for scope, g in d.groupby("scope", sort=True):
+        cols = g["column"].tolist()
+        rows.append({"scope": scope, "columns": len(cols),
+                     "genes_with_any_value": int(wide[cols].notna().any(axis=1).sum())})
+    return pd.DataFrame(rows)
+
+
+def read_ptr_table(root: Path = DATA_ROOT, *, scope: str = "universal", drop_flagged: bool = False,
+                   columns: list[str] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """One scope of the view as (frame, mask).
+
+    ``scope`` is ``"universal"``, ``"line:<name>"`` (one measured line, spelled as the dictionary
+    spells it) or ``"all"``. The frame carries ``symbol``, ``gene_id`` and the scope's columns in
+    dictionary order; the mask has the same index and the scope's columns, True where the view
+    holds a value. NaN is left as NaN: a consumer that wants a fallback writes it where the mask
+    is False and says so. ``drop_flagged`` leaves out every column whose source is non-commercial
+    or redistribution-encumbered (the dictionary's flags), for a derivative that will be
+    published; ``columns`` narrows to the named ones. A scope the view does not hold is a
+    ValueError that lists the scopes it does.
+    """
+    root = Path(root).expanduser()
+    d = pd.read_parquet(root / DERIVED / DICT_FILE)
+    held = sorted(d["scope"].unique().tolist())
+    if scope != "all" and scope not in held:
+        raise ValueError(f"the view holds no scope {scope!r}; it holds {held}")
+    sel = d if scope == "all" else d[d["scope"] == scope]
+    if drop_flagged:
+        sel = sel[~(sel["noncommercial"] | sel["redistribution_encumbered"])]
+    cols = sel["column"].tolist()
+    if columns is not None:
+        unknown = sorted(set(columns) - set(cols))
+        if unknown:
+            raise ValueError(f"not in scope {scope!r}: {unknown}")
+        cols = [c for c in cols if c in set(columns)]
+    wide = pd.read_parquet(root / DERIVED / TABLE_FILE, columns=["symbol", "gene_id", *cols])
+    mask = wide[cols].notna()
+    return wide, mask
 
 
 def main(argv: list[str] | None = None) -> int:

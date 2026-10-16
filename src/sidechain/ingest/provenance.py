@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 import shutil
 import urllib.error
 import urllib.parse
@@ -679,6 +680,46 @@ def probe_s3(record_id: str) -> HostRecord:
     )
 
 
+GENERATED_PAGE_MAX_BYTES = 1 << 20     # a form's answer is a page, never the archive itself
+
+
+def generated_archive_url(base: str, name: str, request: dict) -> str:
+    """POST a block entry's ``request`` form and return the generated archive's https URL.
+
+    ``request`` is ``{post: <https endpoint>, form: {field: value | [values]}, link: <regex>}``;
+    the first match of ``link`` in the response page, resolved against the endpoint, is the
+    URL. A missing field, a non-https endpoint, a non-page answer or a page without the link
+    is a refusal that names it.
+    """
+    post = str(request.get("post", ""))
+    form = request.get("form")
+    link = request.get("link")
+    if not post.startswith("https://") or not isinstance(form, dict) or not link:
+        raise GateError(f"https:{base}: {name!r} carries a request that needs an https `post` "
+                        f"endpoint, a `form` mapping and a `link` regex; got {request!r}")
+    body = urllib.parse.urlencode(form, doseq=True).encode()
+    req = urllib.request.Request(post, data=body, method="POST",
+                                 headers={"User-Agent": USER_AGENT,
+                                          "Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            ctype = str(resp.headers.get("Content-Type", ""))
+            page = resp.read(GENERATED_PAGE_MAX_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        raise GateError(f"https:{base}: POST for {name!r} returned {exc.code}") from exc
+    if len(page) > GENERATED_PAGE_MAX_BYTES or ("html" not in ctype and "text" not in ctype):
+        raise GateError(f"https:{base}: the POST for {name!r} answered {ctype!r}, "
+                        f"{len(page)} bytes, not the page that names the generated archive")
+    m = re.search(str(link), page.decode("utf-8", errors="replace"))
+    if not m:
+        raise GateError(f"https:{base}: the POST for {name!r} answered a page with no link "
+                        f"matching {link!r}; the form or the page changed")
+    url = urllib.parse.urljoin(post, m.group(0))
+    if not url.startswith("https://"):
+        raise GateError(f"https:{base}: {name!r}'s generated link {url!r} is not https://")
+    return url
+
+
 def probe_https(base_url: str, names: list[str] | None = None, *,
                 entries: list[dict] | None = None) -> HostRecord:
     """A plain HTTPS directory -> HostRecord. `base_url` is the directory, `names` the files.
@@ -718,6 +759,21 @@ def probe_https(base_url: str, names: list[str] | None = None, *,
     checksum slot as a digest `fetch.verify` recomputes, so such a block passes
     the gate without `allow_missing_checksum`. The HEAD still runs: the size
     and the 404 refusal come from the host, never from the entry.
+
+    **A file entry may carry a `request`: the host builds the archive on a form POST**
+    (added for CisBP-RNA, T120). Its bulk page is a PHP form whose answer is a page
+    naming a freshly generated ``tmp/<species>_<timestamp>.zip``, so no stable URL
+    exists to HEAD. The entry says how to ask: ``post`` (the https endpoint), ``form``
+    (the fields; a list value repeats the field) and ``link`` (a regex for the generated
+    file's link in the response page). The probe POSTs once, resolves the link against
+    the endpoint and HEADs THAT -- the size and the 404 still come from the host, and
+    the download that follows GETs the same link. A generated archive's Last-Modified
+    is the moment it was built, so it is NOT recorded as evidence: the checksum slot is
+    empty, the block passes only with ``allow_missing_checksum: true``, and the drift
+    guard is the size (constant for the same request: 248,765 bytes on 2026-09-28 and
+    twice on 2026-10-16) plus the sha256 of what landed in LINEAGE.json. ``run_gate``
+    writes the request into PROVENANCE.json's notes so the archive can be asked for
+    again the same way.
     """
     base = base_url.rstrip("/")
     if not base.startswith("https://"):
@@ -732,7 +788,11 @@ def probe_https(base_url: str, names: list[str] | None = None, *,
             raise GateError(f"https:{base}: {name!r} is a glob, and a web server cannot "
                             "expand one -- name each file")
         entry = by_name.get(name, {})
-        url = str(entry.get("url") or f"{base}/{urllib.parse.quote(name)}")
+        request = entry.get("request")
+        if request:
+            url = generated_archive_url(base, name, request)
+        else:
+            url = str(entry.get("url") or f"{base}/{urllib.parse.quote(name)}")
         if not url.startswith("https://"):
             raise GateError(f"https:{base}: {name!r} names the url {url!r}, which is not https://")
         stated = next((f"{algo}:{entry[algo]}" for algo in ("sha256", "md5") if entry.get(algo)), None)
@@ -750,6 +810,8 @@ def probe_https(base_url: str, names: list[str] | None = None, *,
                             f"Content-Length {length!r}; without a size the budget cannot "
                             "be checked before the bytes move")
         modified = headers.get("Last-Modified")
+        if request:
+            modified = None            # the archive was built for this request; its date is now
         files.append(RemoteFile(
             name=name,
             size_bytes=int(length),

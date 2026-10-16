@@ -137,3 +137,35 @@ def test_duplicate_wide_columns_are_refused(root):
                                     lineage_key="ts/t", drop=("transcript_id",)))
     with pytest.raises(ValueError, match="duplicate"):
         build_ptr_table(tmp, sources=twice, registry=registry)
+
+
+# ------------------------------------------------------------------- the reader --
+
+
+def test_read_one_scope_at_a_time_with_a_mask_and_no_silent_fill(root):
+    from sidechain.priors.ptr_table import ptr_scopes, read_ptr_table
+    tmp, registry = root
+    write_ptr_table(tmp, sources=SOURCES, registry=registry)
+    scopes = ptr_scopes(tmp).set_index("scope")
+    assert scopes.loc["universal", "columns"] == 5 and scopes.loc["line:hek293", "columns"] == 2
+    assert sorted(scopes.index) == ["line:hek293", "line:hela", "line:rpe1", "universal"]
+
+    frame, mask = read_ptr_table(tmp, scope="universal")
+    assert list(frame.columns) == ["symbol", "gene_id", "ts_utr_len", "ts_n_cons_sites", "hl_halflife_pc1",
+                                   "pa_n_sites", "pa_has_apa"]
+    assert list(mask.columns) == list(frame.columns[2:]) and mask.shape == (4, 5)
+    assert mask["ts_utr_len"].tolist() == [True, True, False, True]
+    assert np.isnan(frame["ts_utr_len"].iloc[2])                  # left as NaN, the mask says so
+
+    frame, mask = read_ptr_table(tmp, scope="line:hek293")
+    assert list(frame.columns) == ["symbol", "gene_id", "hl_halflife_hek293_mean", "hl_halflife_hek293_n"]
+    assert mask["hl_halflife_hek293_mean"].tolist() == [True, False, False, False]
+
+    frame, _ = read_ptr_table(tmp, scope="universal", drop_flagged=True)
+    assert "pa_n_sites" not in frame.columns and "ts_utr_len" in frame.columns   # UNSTATED columns left out
+    frame, _ = read_ptr_table(tmp, scope="all", columns=["pa_n_sites", "hl_halflife_rpe_mean"])
+    assert list(frame.columns) == ["symbol", "gene_id", "hl_halflife_rpe_mean", "pa_n_sites"]
+    with pytest.raises(ValueError, match="holds no scope"):
+        read_ptr_table(tmp, scope="line:jurkat")
+    with pytest.raises(ValueError, match="not in scope"):
+        read_ptr_table(tmp, scope="universal", columns=["hl_halflife_rpe_mean"])
