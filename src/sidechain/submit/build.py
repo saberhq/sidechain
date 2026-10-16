@@ -76,6 +76,7 @@ from sidechain.models.count_emitters import (
     log2fc_from_cpm,
     remap_to_axis,
 )
+from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     RULE_VARIANCES,
     VarianceModel,
@@ -1292,6 +1293,12 @@ def main(argv: list[str] | None = None) -> int:
                          "taken rather than cells (e.g. Feng 2026). Repeatable. Built by "
                          "`python -m sidechain.data.lfc_table`.")
     ap.add_argument("--alpha", type=float, default=1.0, help="scale applied to every transferred log2FC")
+    ap.add_argument("--gene-factor", type=Path, default=None, metavar="TABLE",
+                    help="a per-gene multiplier on the pooled log2FC vector, applied last before --alpha and "
+                         "the knockdown pin, in both channels: a parquet or CSV with `gene` (axis symbols) and "
+                         "`factor` (finite, >= 0); a gene the table does not name keeps 1. Recorded in "
+                         "<out>.gene_factor.json with the table's sha256 (sidechain.submit.gene_factor; the "
+                         "same flag on sidechain.eval.loco)")
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="a second amplitude for the pseudobulk channel (letter b, ADR 0005): the "
                          "emitted cells' equal-weight per-cell mean follows --alpha, their "
@@ -1411,6 +1418,9 @@ def main(argv: list[str] | None = None) -> int:
                  "delta-transfer")
     if args.gamma != 1.0 and args.emitter != "delta-transfer":
         ap.error("--gamma transforms pooled per-target deltas, so it only applies to "
+                 "delta-transfer")
+    if args.gene_factor is not None and args.emitter != "delta-transfer":
+        ap.error("--gene-factor multiplies pooled per-target deltas, so it only applies to "
                  "delta-transfer")
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
@@ -1533,6 +1543,10 @@ def main(argv: list[str] | None = None) -> int:
         max_stored_entries=int(sub["max_stored_entries"]),
     )
     axis = np.asarray(genes)
+    # the per-gene multiplier (T102): read on the axis before any pooling, so a table the build cannot
+    # take stops it in seconds; applied in `finalize`, last before alpha
+    gene_factor, gene_factor_record = (load_gene_factor(args.gene_factor, axis)
+                                       if args.gene_factor is not None else (None, None))
     # T85: read before the pooling, so a table the build cannot take stops it in seconds
     scatter_of, scatter_record = (read_context_scatter_table(args.scatter_table, axis, perts, contexts)
                                   if args.scatter_table is not None else (None, None))
@@ -1544,6 +1558,8 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.with_suffix(".args.json").write_text(json.dumps(vars(args), indent=1, default=str) + "\n")
+    if gene_factor_record is not None:
+        out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
 
     # -- per-perturbation log2FC vectors (None = no shift)
     t0 = time.time()
@@ -1625,6 +1641,8 @@ def main(argv: list[str] | None = None) -> int:
         bulk_map = {} if bulk_alpha is not None else None
         for p, vec in shift_map.items():
             if vec is not None:
+                if gene_factor is not None:
+                    vec *= gene_factor         # last before alpha, so both channels carry it
                 if bulk_map is not None:
                     b = vec * bulk_alpha
                     if p in gene_pos:

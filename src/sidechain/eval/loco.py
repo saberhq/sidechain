@@ -62,6 +62,7 @@ from sidechain.submit.build import (
     shrink_kwargs,
     sources_from_specs,
 )
+from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     VarianceModel,
     add_variance_args,
@@ -137,8 +138,14 @@ def build_transfer_prediction(
     emit_shape: str = "template",
     variance_model: VarianceModel | None = None,
     rule_variance: str = "model",
+    gene_factor: Path | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
+
+    `gene_factor` (T102; `sidechain.submit.gene_factor`) is a table of per-gene multipliers applied to
+    each target's pooled vector last before alpha, in both channels, after the neighbour arm and the
+    basal slope; a gene it does not name keeps 1. It sits outside the delta cache's key, so an arm that
+    differs by it alone reads the cache the shipped recipe built. None is the historical path.
 
     `variance_model` and `rule_variance` (T98; `sidechain.submit.variance_model`) are passed to
     every `pooled_delta` call -- the targets, the neighbour pool and a delta-cache build -- and
@@ -195,6 +202,7 @@ def build_transfer_prediction(
     labels = real.obs[pert_col].astype(str).to_numpy()
     perts = sorted(set(labels) - {control})
     axis = real.var_names.astype(str).to_numpy()
+    gf, gf_record = load_gene_factor(gene_factor, axis) if gene_factor is not None else (None, None)
     cache = None
     if delta_cache is not None:
         from sidechain.eval.delta_cache import DeltaCache, build_cache, key_fields
@@ -335,6 +343,8 @@ def build_transfer_prediction(
                 d = arm.fuse(p, d)
             if basal_mod is not None:
                 d = d + basal_mod[perts.index(p)]
+            if gf is not None:
+                d = d * gf           # T102: last before alpha, so both channels carry it
             d0 = d
             d = d * alpha    # alpha scales the pooled vector; gamma acted per source inside the pool
             if p in gene_pos:
@@ -388,6 +398,7 @@ def build_transfer_prediction(
                if shrinkage and shrink_rule == "adaptive" else {}),
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
+            "gene_factor": gf_record,
             # targets whose two moments were jointly unreachable and carried one amplitude
             "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if two_channel else None,
             # which rung a failed target fell to, by name, with why the requested pair failed
@@ -487,6 +498,12 @@ def main(argv: list[str] | None = None) -> int:
                          "(--shrink-stage and --shrink-rule are refused with it)")
     add_shrink_args(ap, twin="sidechain.submit.build")
     ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--gene-factor", type=Path, default=None, metavar="TABLE",
+                    help="a per-gene multiplier on each target's pooled log2FC vector, applied last before "
+                         "--alpha and the knockdown pin, in both channels: a parquet or CSV with `gene` and "
+                         "`factor` (finite, >= 0); unnamed genes keep 1; recorded in summary.json under "
+                         "build.gene_factor with the table's sha256 (sidechain.submit.gene_factor; the same "
+                         "flag on sidechain.submit.build). Outside the delta cache's key.")
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="T84: a second amplitude for the pseudobulk channel. The emitted cells' "
                          "equal-weight per-cell mean follows --alpha (what the four Wilcoxon "
@@ -681,7 +698,8 @@ def main(argv: list[str] | None = None) -> int:
                                      scatter_table=args.scatter_table,
                                      emit_shape=args.emit_shape,
                                      variance_model=variance_model,
-                                     rule_variance=args.rule_variance)
+                                     rule_variance=args.rule_variance,
+                                     gene_factor=args.gene_factor)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -704,6 +722,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage,
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
+         "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
          "dual_fallback": args.dual_fallback,
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,
