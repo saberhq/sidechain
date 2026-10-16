@@ -396,19 +396,24 @@ sources:
     notes: "One row per gene: the distance from the representative transcript's last splice acceptor to its first supported poly(A) site (Borzoi Prime's strongest differential-polyadenylation cue, research/reading/linder-2025-borzoi-prime.md measurement 6, private), the number of supported sites in the gene's 3' window, the short and long 3'UTR lengths, the proximal site's pooled usage and poly(A) signal, intronic sites. Clusters are assigned to genes by a strand-aware window on GENCODE v47 (the gencode_v47_basic block below), never by the atlas's own gene column. The atlas is HeLa- and HEK293-heavy (221 libraries); the per-line usage columns it also yields are written and used nowhere (plans/2026-10-15-t102-polyasite.md, private)."
     # ---- the gate, as the targetscan block above, on a plain web server (no record
     # API, no listing, no checksum, no licence header). The file list IS the listing.
-    # `route: stream`: the atlas is read ONCE over the network by
-    # `posttx_mirna.stream_gated_file` and only our per-gene table lands under
-    # `derived:`; the gate writes PROVENANCE.json and nothing else into `dest:`.
-    # Why stream and not download: the terms are stated nowhere (license_override_source
-    # below), and UNSTATED is legal only on a stream (ingest/provenance.py).
+    # A download: the terms are stated nowhere (license_override_source below), and
+    # since the ADR 0003 amendment of 2026-10-15 (Saber: these datasets are reused and
+    # hold valuable information, and re-streaming them loses time to interruptions) an
+    # UNSTATED source may be HELD when the block names the citation we give it wherever
+    # it is used -- `citation:` below, which the gate requires on this route and writes
+    # into PROVENANCE.json. Publication is where the terms are re-evaluated or the
+    # Zavolan lab asked; the value, the override source and both encumbrance flags stay
+    # on everything derived so that re-evaluation is triggered. The block streamed until
+    # 2026-10-15 (posttx_mirna.stream_gated_file; the first build's LINEAGE entry says so),
+    # and PolyASiteSource still reads a block either way.
     host: https
     record: "https://polyasite.unibas.ch/download/atlas/2.0/GRCh38.96"
     dest: external/polyasite-2.0
     derived: derived/polyasite-2.0           # pas_gene_features.parquet + LINEAGE.json (ours)
-    route: stream
-    budget_gb: 0.5                           # bounds the OUTPUT on a stream; the TSV read is 0.051 GB
-    allow_missing_checksum: true             # the host publishes none; sha256 of the bytes READ is in LINEAGE.json
+    budget_gb: 0.1                           # 0.051 GB selected; the gate refuses a selection over this
+    allow_missing_checksum: true             # the host publishes none; sha256 of what landed is in LINEAGE.json
     license: UNSTATED
+    citation: "Herrmann CJ, Schmidt R, Kanitz A, Artimo P, Gruber AJ, Zavolan M (2020). PolyASite 2.0: a consolidated atlas of polyadenylation sites from 3' end sequencing. Nucleic Acids Research 48(D1):D174-D179, doi:10.1093/nar/gkz918"
     license_override_source: >
       The atlas states no terms anywhere the publisher controls. Checked
       2026-10-15 (twice, by sessions 7ff4968d and a0ea7064): the site root,
@@ -421,9 +426,10 @@ sources:
       its bucket; the pipeline repo (zavolanlab/polyAsite_workflow) is Apache-2.0
       and covers the code only. What sanctions the use is the public bulk
       download the authors offer and the citation request. So the value is
-      UNSTATED, which the gate admits only on route: stream and records with
-      both encumbrance flags; publishing anything built from it needs a fresh
-      call (Saber, 2026-10-15: stream it, licence recorded as unstated).
+      UNSTATED, recorded with both encumbrance flags; publishing anything built
+      from it needs a fresh call. Saber, 2026-10-15, first: stream it, licence
+      recorded as unstated; later the same day, the ADR 0003 amendment: a cited
+      UNSTATED source may be downloaded, re-evaluated at publication.
     files:
       # The "Atlas with Samples" TSV: one row per poly(A)-site cluster (569,005),
       # thirteen fixed columns (chrom, start, end, cluster id, mean TPM, strand,
