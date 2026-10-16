@@ -28,6 +28,8 @@ The split worth making:
   and sessions named `<tid>_w<N>` so two tasks' workers never collide; the `pgrep` and session-name checks of `run_all.sh` become
   per-task prefixes.
 - **a second task's lines** go into the owner's queue file with the task id in the line's name; the owner records `ledger.py box join`.
+- **one work directory, named once:** every script reads it from the same variable (`BOX_WORK`) with no per-task default. T111's
+  `realised_energy.py` fell back to `~/t111` when `T111_WORK` was unset, so a renamed copy of the kit failed it silently (T102, 2026-10-15).
 
 It is not built because a library with one instance guesses its interface. The first customer is the next queue that needs a box (T114's
 step 3 is waiting on a GO); extract the common part from T111's kit while building that task's hooks, and keep T111's kit as the test.
