@@ -18,6 +18,22 @@ coloured as the leaderboard colours them.
 
 {{< board >}}
 
+## SER-18aefksvw — submitted 2026-10-16 · calibration run
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
+genes blended in · s = shrinkage rule moved · v = a fitted noise curve behind the pooling weights
+and the shrinkage rule · w = summed profile on the pooled control profile.**
+SER-14aefksw with one change. When the knockdown effects borrowed from the four source cell lines
+are pooled, each line's vote is weighted by how noisy its measurement is. There that noise was read
+from each knockdown's own cells; here it is read from a curve fitted once per source line over all
+of its knockdowns, which says how the cell-to-cell spread of a gene falls as its expression rises
+(`v`), and the same curve stands behind the shrinkage rule. This submission is a calibration run,
+to measure how a change of this kind carries over to the challenge's cell contexts.
+
+It scored 0.1612 against SER-14aefksw's 0.1626. The score that separates knockdowns from one another
+is lower, the summed-profile score and the reach of the differential-expression test are higher, the
+expression-accuracy and direction scores are a little lower, and the overlap held.
+
 ## SER-17aefhkrsw — submitted 2026-10-08
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
