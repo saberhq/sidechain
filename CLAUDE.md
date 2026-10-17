@@ -4,7 +4,7 @@ Entry for the Arc **Virtual Cell Challenge 2026**: predict how a cell's transcri
 a gene is silenced. Solo entry: Saber, the one human, plus Claude Code sessions working together.
 
 This file is **the rules every session must follow — code and coordination.** The *why* lives in
-`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~240 lines / ~4.9k tokens today,
+`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~280 lines / ~4.9k tokens today,
 against the audit's ~120 / ~2k. Trim what is stale, never what a session needs; anything loaded
 every session counts, so a new rule earns its lines.
 
@@ -159,26 +159,60 @@ new round. Write a reading's summary last, from its body, and lead with the regi
 Workflows run when Saber asks for one or tier 3 calls for it. Ultracode stays off unless he turns it
 on for a phase (`/effort ultracode`), and a hand-off never tells the next session to use either.
 
+## When to proceed and when to ask
+
+**Saber's GO is needed for four things** (Saber, 2026-10-16): a Brev box (creating one, or a paid run
+on one), `vcc submit`, a push to either remote, and anything published under his name (the site, a
+post, README prose). **His word stays his** on a box's lifetime, deleting data under `~/data/sidechain/`,
+a task's priority or retirement (A43), and his own prose in `private/research/master.md`. **Everything
+else proceeds:** a Mac reading or screen, a probe, a table, an idea file, a plan, a commit without a
+push. A session that reaches a fork says which option it takes and why, takes it, and reports the fork
+in the same reply; the `decision` ASK records the fork and never parks the work behind it. It stops
+only at the items above, or when every option would waste the work if wrong. A session that waits for
+a GO on anything else has left the work undone.
+
 ## Replying to Saber
 
-Saber is a research scientist in bioinformatics, not an ML engineer: biology as technical as it
-needs, ML plumbing in plain words. Name a thing, then say what it does; a concrete example beats a
-category; brief wins. The full register: `private/CLAUDE.md` → How to write for Saber.
+Saber is a research scientist in bioinformatics (an MSc and a PhD in it, researching since 2013), not
+an ML engineer, and he runs several research threads at once. Write to a colleague who knows the
+field's words but not this corner of it: name a thing, say what it does and how it bears on the thing
+beside it, before using it again; a concrete example beats a category; ML plumbing in plain words.
+**Biology and bioinformatics are explained, never assumed** (Saber, 2026-10-16): a mechanism, a data
+type or a method gets a plain clause on what it is and why it matters to our score the first time a
+reply names it, and the link between two topics is said, never left for him to infer. The full
+register: `private/CLAUDE.md` → How to write for Saber.
 
-A reply that ends a unit of work or asks him something is **three headed sections and nothing
-else**:
+**A reply that opens a session on a task, ends a unit of work, or asks him something has one shape**
+(Saber, 2026-10-16), in this order:
 
-1. **What changed** — each path with its repo, and one or two sentences of substance per item:
-   enough to digest the work without opening the file. Pointers carry the reasoning.
-2. **What I need from you** — or `Nothing`.
-3. **Next steps** — one line each.
+1. **Where we are** — the refresher, in mostly the same words each time: what this task asks in plain
+   words and why it would move the score, and how it sits beside its neighbour tasks and ideas (read
+   from the task file's `## In plain words`); then the trail to here, the forks taken in a few lines,
+   and what the last step found. The full two paragraphs open a session's first reply and the reply
+   that ends a unit of work; a reply between them carries one sentence of it (Saber, 2026-10-16).
+2. **What this step found** — in plain groups: what works, what does not, what we could not tell. A
+   sentence carries one number, and every number says what it is (a score, or a difference between
+   two named scores) and where it was scored (which fold, or the leaderboard); a comparison of several
+   numbers is a small table. Review bookkeeping is one line at most.
+3. **What I need from you** — or `Nothing`. Each option says what it costs and what it gets, in words
+   he already uses; a word coined during the work is spelled out in the sentence or dropped.
+4. **Next steps** — one line each.
+5. **Files** — last: one line per path with its repo and a verb only — new · edited · committed
+   `abc1234`, not pushed · uncommitted. No sentences; the substance is above.
 
-An answer to a question is the answer first, then the pointers that carry the evidence — no
-sections; a yes/no is one sentence. Everywhere: plain words, one number per sentence, no tables, no
-why-paragraphs; a correction to your own earlier claim is one sentence plus a pointer. The STATUS
-block follows when the state, task or pointer changed or an ASK is raised: `Nothing` in section 2
-means `fyi`; a question you cannot proceed without means `waiting · expect_by HH:MM` (end of the
-working day unless you know better, with `waiting_on: Saber`) plus a typed `decision` ASK.
+**Length follows the reader, not a cap** (Saber, 2026-10-16). Read the chat: when he has asked for a
+repeat, asked several questions in a row, or asked what a word means, he is not following, so the
+next reply explains more — a fuller refresher, the biology spelled out, an example; when he is briefed
+and the work is moving, keep to the least that still says what was found and what it means. Short
+never means vague: cut bookkeeping, restated numbers and review chatter, never the sentence that says
+what a result means. The detail lives in a file and the reply points at it. An answer to a question is
+the answer first, then the pointers that carry the evidence; a yes/no is one sentence; a correction to
+your own earlier claim is one sentence plus a pointer. **One report per unit of work** (Saber,
+2026-10-07): a child's return, a waiter's exit or a background notice is an input to you, not an
+occasion to write to him. The STATUS block follows when the state, task or pointer changed or an ASK is
+raised: `Nothing` in section 3 means `fyi`; a question you cannot proceed without means
+`waiting · expect_by HH:MM` (end of the working day unless you know better, with `waiting_on: Saber`)
+plus a typed `decision` ASK.
 
 ## The STATUS block, subagents and the board
 
@@ -231,6 +265,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
 | **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` beside a code comment — and regenerate (final-phase: none) |
 | "what should I work on" | `private/TODO.md` `## p1` (generated) | `private/CLAUDE.md` → The mother session |
+| proceed or ask: a fork, a GO | this file § When to proceed · § Replying | — |
 | `pick up T<n>` | `private/tasks/T<n>.md`: the lede, `## Next step`, the last five Log lines (the prompt hook names them) | the newest hand-off the hook names; other sections on demand |
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
