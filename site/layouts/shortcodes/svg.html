@@ -1,0 +1,20 @@
+{{- /* The `svg` shortcode — inline an SVG figure from the post's own bundle, so it takes the
+       page's tokens (type, colours, the dark theme) instead of sitting in an <img> box
+       where no page style can reach it. The files come from `scripts/post_figures.py`,
+       which draws them from the site's generated data; nothing in a figure is typed.
+
+         svg src="fig-overall.svg" caption="overall score per entry, in entry order"
+         (between the shortcode delimiters, as the corpus figure is placed)
+
+       `src` is the file beside the post's index.md; `caption` is optional and is set in the
+       site's figcaption style (mono, small, ink-3). A missing file fails the build loudly
+       rather than rendering an empty figure. */ -}}
+{{- $src := .Get "src" -}}
+{{- $res := .Page.Resources.GetMatch $src -}}
+{{- if not $res -}}
+  {{- errorf "svg shortcode: %q not found beside %s" $src .Page.File.Path -}}
+{{- end -}}
+<figure class="sc-svg">
+{{ $res.Content | safeHTML }}
+{{- with .Get "caption" }}<figcaption>{{ . | markdownify }}</figcaption>{{ end }}
+</figure>
