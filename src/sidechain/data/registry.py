@@ -16,6 +16,7 @@ from sidechain.priors.cis_sequence import CisSequenceSource
 from sidechain.priors.posttx_mirna import MiRNATargetSource
 from sidechain.priors.posttx_cisbp import CisBPRNASource
 from sidechain.priors.posttx_line_stability import LineStabilitySource
+from sidechain.priors.posttx_mirna_abundance import MiRNAAbundanceSource
 from sidechain.priors.posttx_polya import PolyASiteSource
 from sidechain.priors.posttx_rbp import RBPBindingSource, RBPKnockdownSource
 from sidechain.priors.posttx_stability import MRNAStabilitySource
@@ -33,6 +34,7 @@ LOADERS: dict[str, type[PriorSource]] = {
     "CisBPRNASource": CisBPRNASource,
     "PolyASiteSource": PolyASiteSource,
     "LineStabilitySource": LineStabilitySource,
+    "MiRNAAbundanceSource": MiRNAAbundanceSource,
     "RBPBindingSource": RBPBindingSource,
     "RBPKnockdownSource": RBPKnockdownSource,
 }

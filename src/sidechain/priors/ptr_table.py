@@ -31,8 +31,11 @@ columns), RNAplfold accessibility (``posttx_access``, ``ac_``) and the per-conte
 family (``ctx_factors``, ``cx_``, scope ``ctx:<letter>``); **phase 3** adds four measured per-line
 stability tables (``posttx_line_stability``): Jurkat's resting decay rate (``bk_``), an HCT116
 actinomycin D rate (``pz_``), K562 TimeLapse-seq half-lives (``sf_``) and Schueler's HEK293 and
-MCF7 half-lives (``sl_``), every column line-specific. A new source is one more ``SourceSpec``;
-the dictionary, the lineage and the coverage counts follow.
+MCF7 half-lives (``sl_``), every column line-specific; and three measured per-line miRNA abundances
+as TargetScan site loads weighted by the line's own repertoire (``posttx_mirna_abundance``): the CCLE
+2019 panel (``ca_``), ENCODE microRNA-seq (``em_``) and miRNATissueAtlas 2025 (``ma_``), per-line
+columns plus each source's cross-line mean and spread as universal ones. A new source is one more
+``SourceSpec``; the dictionary, the lineage and the coverage counts follow.
 
 **Reading it.** ``read_ptr_table`` hands a model one scope at a time -- the universal block, or
 one named line's block -- as a frame plus a same-shaped mask of where a value exists, so a
@@ -198,6 +201,28 @@ SOURCES: tuple[SourceSpec, ...] = (
         note="Schueler 2014 4sU half-lives in HEK293 and MCF7 (GEO GSE49831, NCBI's terms): two replicates and their "
              "mean in minutes per line, scope line:hek293 and line:mcf7; already inside Agarwal & Kelley's HEK293 "
              "(2 of 14 samples) and MCF7 (both samples) means",
+    ),
+    # ---- phase 3: measured per-line miRNA abundance as site loads (posttx_mirna_abundance)
+    SourceSpec(
+        key="ca", block="ccle_mirna_2019", derived="derived/ccle-mirna-2019", table="mirna_load.parquet",
+        lineage_key="ccle-mirna-2019/mirna_load",
+        scope=((r"^mirna_.*_(k562|hct116|hepg2|jurkat|cal33)$", "line:{0}"),),
+        note="TargetScan conserved-site load weighted by the CCLE 2019 NanoString panel's miRNA abundance in K562, HCT116, "
+             "HepG2, Jurkat and CAL-33 (DepMap's non-commercial terms, both flags); the cross-line mean and spread universal",
+    ),
+    SourceSpec(
+        key="em", block="encode_mirna_seq", derived="derived/encode-mirna-seq", table="mirna_load.parquet",
+        lineage_key="encode-mirna-seq/mirna_load",
+        scope=((r"^mirna_.*_(h1|hct116|hepg2|k562)$", "line:{0}"),),
+        note="the same load weighted by ENCODE microRNA-seq (per-gene CPM) in H1, HCT116, HepG2 and K562 (ENCODE's terms); "
+             "the cross-line mean and spread universal",
+    ),
+    SourceSpec(
+        key="ma", block="mirnatissueatlas_2025", derived="derived/mirnatissueatlas-2025", table="mirna_load.parquet",
+        lineage_key="mirnatissueatlas-2025/mirna_load",
+        scope=((r"^mirna_.*_(hela|hek293|k562|hct116|hepg2|jurkat)$", "line:{0}"),),
+        note="the same load weighted by miRNATissueAtlas 2025's median rpmm over a line's pooled public samples in HeLa, "
+             "HEK293, K562, HCT116, HepG2 and Jurkat (UNSTATED terms, both flags); the cross-line mean and spread universal",
     ),
 )
 

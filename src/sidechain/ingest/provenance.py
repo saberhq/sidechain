@@ -102,18 +102,24 @@ LICENSE_POLICY: dict[str, str] = {
     # only through `license_override_source` (the portal states no licence in a
     # header, and its API's file records carry none).
     "encode-unrestricted": "ENCODE-unrestricted",
-    # Not SPDX: a journal's standard terms of use, for a supplementary table that carries no
-    # licence of its own and sits behind no open-access statement. Schofield 2018's K562
-    # half-life table (Nature Methods Supplementary Table 2, T120 phase 3) is the case:
+    # Not SPDX: a publisher's or data provider's own stated terms that restrict use to
+    # non-commercial purposes, for a file that carries no licence of its own. Two cases so
+    # far (T120 phase 3). A journal supplement: Schofield 2018's K562 half-life table
+    # (Nature Methods Supplementary Table 2) sits behind no open-access statement, and
     # the article is not open access, the file states nothing, and nature.com's terms
     # (nature.com/info/terms-and-conditions, read 2026-10-16) say "You may view ... the
     # content and applications available on the Site for your own private non-commercial
     # use" and allow printing only where "not substantial or systematic". The NIH author
     # manuscript of the paper (NIHMS931206) adds "Users may view, print, copy, and download
     # text and data-mine the content in such documents, for the purposes of academic
-    # research". Stated terms, so not UNSTATED; non-commercial and no right to redistribute,
-    # so BOTH flags below apply, exactly as for CC-BY-NC-SA. A block reaches this value only
-    # through `license_override_source`, which quotes the terms and the date they were read.
+    # research". A data portal: the CCLE 2019 miRNA panel is served by DepMap, whose current
+    # terms of use (quoted by DepMap staff on the project forum, 2026-07-28, read 2026-10-16:
+    # "Commercial Use of the Data is not permitted under these terms") replaced the CC BY 4.0
+    # of its figshare releases; the portal's own terms page sits behind a browser challenge,
+    # so the staff quote and the search are the record (private research/reading/
+    # posttx-verify-30). Stated terms, so not UNSTATED; non-commercial and no right to
+    # redistribute, so BOTH flags below apply, exactly as for CC-BY-NC-SA. A block reaches
+    # this value only through `license_override_source`, which quotes the terms and the date.
     "publisher-terms-noncommercial": "Publisher-terms-noncommercial",
 }
 

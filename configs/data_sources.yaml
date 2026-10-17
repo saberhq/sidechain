@@ -813,3 +813,133 @@ sources:
       # R write.table output: a quoted two-name header, then rows of gene symbol, rep1, rep2 (minutes).
       - name: GSE49831_HEK293_halflives.txt.gz
       - name: GSE49831_MCF7_halflives.txt.gz
+
+  # ---------------- POSTTX layer, phase 3 of T120: measured per-line miRNA abundance ----------------
+  # Which microRNAs a line actually expresses, and how much, so that TargetScan's per-gene site
+  # counts can be weighted by the receiving line's own miRNA repertoire
+  # (src/sidechain/priors/posttx_mirna_abundance.py, MiRNAAbundanceSource): the CCLE 2019
+  # NanoString panel (954 lines, five of ours by name: K562, HCT116, HepG2, Jurkat and CAL-33, the
+  # lines contexts A and C read as; no HeLa, no HEK293T, no RPE1, no H1) and ENCODE's microRNA-seq
+  # (gene-level STAR counts, GRCh38 V29: H1, HCT116, HepG2, K562). Each enters T120's wide table
+  # as per-line site loads under scope line:<name> plus the cross-line mean and spread as universal
+  # columns (ptr_table.SOURCES). Why these two and what is left (miRNATissueAtlas 2025 for HeLa and
+  # HEK293): private research/ideas/ptr-feature-table.md § Outcome 2026-10-17.
+  - name: ccle_mirna_2019
+    kind: node_feature
+    layer: posttx
+    relation: mirna_abundance_line
+    entity: gene
+    loader: MiRNAAbundanceSource
+    provider: "CCLE 2019 (Ghandi et al., Nature 569:503): NanoString nCounter miRNA panel, 734 miRNAs x 954 cell lines, served by the Broad's CCLE file host"
+    url: "https://doi.org/10.1038/s41586-019-1186-3"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "nSolver-normalised NanoString counts per probe (the paper reads log(50 + N) downstream); probe names are miRBase-style without the arm for 410 of 734 (hsa-let-7a), with it for 183, and 142 name retired or combined entries (hsa-miR-106a+hsa-miR-17). Mapped onto TargetScan's miR_Family_Info by name, the arm chosen by the rule in MiRNAAbundanceSource (exact, one arm, the conserved arm, else unmatched and counted). K562 was the panel's per-batch control; the released matrix has one K562 column (private research/reading/posttx-verify-12)."
+    host: https
+    record: "https://data.broadinstitute.org/ccle"
+    dest: external/broad-ccle-mirna-2019
+    derived: derived/ccle-mirna-2019                # mirna_family_abundance.parquet, mirna_load.parquet + LINEAGE.json (ours)
+    budget_gb: 0.02                                  # 0.0091 GB selected
+    allow_missing_checksum: true                     # a static-file host; sha256 of what landed is in LINEAGE.json
+    license: Publisher-terms-noncommercial
+    license_override_source: >
+      The file's own terms could not be read on 2026-10-16: the DepMap portal's terms page,
+      FAQ and download pop-up sit behind a browser challenge, the Broad CCLE site and the
+      data.broadinstitute.org/ccle index carry no licence text, and the paper's data
+      statement names no terms (the Verifier, private research/reading/posttx-verify-30).
+      What can be read is DepMap staff on the project's own forum: "all data generated at
+      the Broad as part of the DepMap project are released under a 'CC Attribution 4.0'
+      license" (forum.depmap.org/t/finding-data-licenses/1243, 2022-03-18); "The name 'CCLE'
+      covers data generated beyond the Broad and I'm not sure I can easily say what the
+      terms for all CCLE data are" (2024-02-02); and, quoting the portal's current terms of
+      use, "Commercial Use of the Data is not permitted under these terms and may require
+      a separate license agreement from Broad or its contributors" (forum.depmap.org/t/
+      provide-an-open-endpoint-for-latest-version-retrieval/4652, 2026-07-28; the figshare
+      deposits under CC BY 4.0 stopped when those terms came in, 2026-09-25). The miRNA
+      file is in none of the CC BY 4.0 figshare releases. Recorded under the stricter of
+      the two readings, the current non-commercial terms, with both encumbrance flags: a
+      non-commercial competition entry may read it and a published derivative must filter
+      on the flags. The pop-up's own wording (depmap.org/portal/download/all/?releasename=
+      CCLE+2019) is one browser read away and would settle the file's terms.
+    citation: "Ghandi M, Huang FW, Jane-Valbuena J, et al. (2019). Next-generation characterization of the Cancer Cell Line Encyclopedia. Nature 569:503-508, doi:10.1038/s41586-019-1186-3; file CCLE_miRNA_20181103.gct from the Broad's CCLE data host"
+    files:
+      # GCT 1.2: two header lines (#1.2; 734 954), then Name (NanoString probe id), Description
+      # (miRBase-style name) and one column per line, named <LINE>_<TISSUE>. 9.1 MB.
+      - name: CCLE_miRNA_20181103.gct
+
+  - name: encode_mirna_seq
+    kind: node_feature
+    layer: posttx
+    relation: mirna_abundance_line
+    entity: gene
+    loader: MiRNAAbundanceSource
+    provider: "ENCODE microRNA-seq (Mortazavi lab, UCI), GRCh38 V29 microRNA quantifications: H1, HCT116, HepG2, K562"
+    url: "https://www.encodeproject.org"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: >-
+      Fourteen released quantification files from eight untreated, unperturbed experiments (the checked-in
+      manifest, generated from the ENCODE API on 2026-10-16: the ENCODE4 GRCh38 V29 analysis only, one file per
+      biological replicate; the older lab-custom V24 twins of six of them are not selected). Each file is STAR's
+      per-gene count table over GENCODE V29 miRNA GENES (Ensembl ids, 1,881 rows; unstranded, sense and antisense
+      counts, the antisense column 0 for a miRNA gene), so the abundance is per precursor gene, not per mature arm:
+      the gene name (GENCODE v47 on disk) is translated to the miRBase mature name and the arm chosen by the same
+      rule as the CCLE panel. Replicates are summed as CPM over the file's mapped reads before the family sum.
+    host: https
+    record: "https://www.encodeproject.org/files"
+    dest: external/encode-mirna-seq
+    derived: derived/encode-mirna-seq               # mirna_family_abundance.parquet, mirna_load.parquet + LINEAGE.json (ours)
+    budget_gb: 0.01                                  # 0.00065 GB selected
+    license: ENCODE-unrestricted
+    license_override_source: >-
+      The portal states no licence in a header and its API's file records carry none. ENCODE's release
+      policy (https://www.encodeproject.org/about/data-use-policy/, "Updated as of January 9, 2019", read
+      2026-10-16): "all data produced will be available for unrestricted use immediately upon release to
+      public databases". Its citing page (https://www.encodeproject.org/help/citing-encode/, read 2026-10-16):
+      "External data users may freely download, analyze and publish results based on any ENCODE data
+      without restrictions", with a request to cite the Consortium, the producing labs and the accessions
+      used. Recorded in LICENSE_POLICY as ENCODE-unrestricted (ingest/provenance.py); a citation request,
+      no commercial or redistribution restriction, so neither encumbrance flag applies.
+    citation: "ENCODE Project Consortium 2020 (Nature 583:699); the Mortazavi lab (UCI); the experiment and file accessions in configs/manifests/encode_mirna_seq.json"
+    files_manifest: configs/manifests/encode_mirna_seq.json
+
+  - name: mirnatissueatlas_2025
+    kind: node_feature
+    layer: posttx
+    relation: mirna_abundance_line
+    entity: gene
+    loader: MiRNAAbundanceSource
+    provider: "miRNATissueAtlas 2025 (Rishik et al., NAR 53:D129): harmonised public small-RNA-seq, 46,997 human samples, 132 cell-line labels, miRBase 22.1, reads per million mapped"
+    url: "https://doi.org/10.1093/nar/gkae1036"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: >-
+      The one source with HeLa (282 cell-line samples, the line context B reads as) and HEK293 (597, HEK293T folded in);
+      also K562 97, HCT116 239, HepG2 92, Jurkat 16; no CAL-33, RPE1 or H1 (private research/reading/posttx-verify-23,
+      -31). Every public run is pooled, "including conditions such as disease, knock-out, overexpression experiments",
+      so a line's value here is the MEDIAN over its samples, a repertoire rather than a baseline. The h5ad's obs carry the
+      label column `Tissue` and `Biotype`; var are miRBase 22.1 mature names.
+    host: https
+    record: "https://web.ccb.uni-saarland.de/mirnatissueatlas_2025"
+    dest: external/mirnatissueatlas-2025
+    derived: derived/mirnatissueatlas-2025           # mirna_family_abundance.parquet, mirna_load.parquet + LINEAGE.json (ours)
+    budget_gb: 1.2                                   # 1.0 GB selected
+    allow_missing_checksum: true                     # the site publishes none; sha256 of what landed is in LINEAGE.json
+    license: UNSTATED
+    license_override_source: >
+      Terms are stated nowhere the publisher controls (the Verifier, 2026-10-17, private
+      research/reading/posttx-verify-31): the home, downloads, tutorial, tissues, specificity,
+      patterns and general_info pages carry no licence, terms-of-use or reuse statement, the
+      /terms/, /about/ and /help/ paths return 404, the footer's Legal Notice is the university's
+      generic notice, and the paper's Data availability says only "All data are available through
+      the miRNATissueAtlas 2025 web repository". The home page says "This website is free and
+      open to all users and there is no login requirement"; the 2021 atlas's abstract said its
+      resource "is available online without any restrictions" (NAR 2022, gkab808). The paper's
+      CC BY 4.0 covers the article, not the matrices. So UNSTATED, with both encumbrance flags and
+      the citation below, held under the ADR 0003 amendment of 2026-10-15 (a cited source with
+      unstated terms may be downloaded; publication is where the terms are re-evaluated or the
+      Chair for Clinical Bioinformatics asked).
+    citation: "Rishik S, Hirsch P, Grandke F, Fehlmann T, Keller A (2025). miRNATissueAtlas 2025: an update to the uniformly processed and annotated human and mouse non-coding RNA tissue atlas. Nucleic Acids Research 53(D1):D129-D137, doi:10.1093/nar/gkae1036"
+    files:
+      # The download endpoints name no file; each entry carries its url and the name the server gives.
+      - name: all_human_miRNA_rpmm_harmonized_meta_data.h5ad
+        url: "https://web.ccb.uni-saarland.de/mirnatissueatlas_2025/download_file/mirna_expression_human/"
+      - name: meta_data_human.parquet
+        url: "https://web.ccb.uni-saarland.de/mirnatissueatlas_2025/download_file/meta_data_human/"

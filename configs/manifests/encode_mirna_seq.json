@@ -1,0 +1,100 @@
+[
+ {
+  "name": "ENCFF025FWJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF025FWJ/@@download/ENCFF025FWJ.tsv",
+  "bytes": 46983,
+  "md5": "c4b0b97b82029086f094a952cdfc2f82",
+  "note": "microRNA-seq ENCSR436ZRS HCT116 rep [1] ENCODE4 v1.1.0 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF029ISG.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF029ISG/@@download/ENCFF029ISG.tsv",
+  "bytes": 46927,
+  "md5": "866a820b9d0bcd6bf28d1307a8ce52e3",
+  "note": "microRNA-seq ENCSR201MAS HepG2 rep [1] ENCODE4 v1.1.0 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF154DXX.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF154DXX/@@download/ENCFF154DXX.tsv",
+  "bytes": 46786,
+  "md5": "bcf0c222ab2fe9b7905301c384d9d416",
+  "note": "microRNA-seq ENCSR650SEP HCT116 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF161OLK.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF161OLK/@@download/ENCFF161OLK.tsv",
+  "bytes": 47017,
+  "md5": "216cb55c4f989979dd891416a1b581bc",
+  "note": "microRNA-seq ENCSR730NEO HepG2 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF165FED.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF165FED/@@download/ENCFF165FED.tsv",
+  "bytes": 46235,
+  "md5": "c1e09d6a8d5b9f4db9906b61eee63dbc",
+  "note": "microRNA-seq ENCSR588ZRK H1 rep [1] ENCODE4 v1.2.0 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF379DIZ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF379DIZ/@@download/ENCFF379DIZ.tsv",
+  "bytes": 46211,
+  "md5": "b15dee317e2740c9f9976cd82b8224b4",
+  "note": "microRNA-seq ENCSR588ZRK H1 rep [2] ENCODE4 v1.2.0 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF404KPA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF404KPA/@@download/ENCFF404KPA.tsv",
+  "bytes": 46385,
+  "md5": "a9fbeca6394a47135060cb6ac4abca41",
+  "note": "microRNA-seq ENCSR430YFL H1 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF445FDO.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF445FDO/@@download/ENCFF445FDO.tsv",
+  "bytes": 46956,
+  "md5": "7089269abee37a28f818e2ac56092b70",
+  "note": "microRNA-seq ENCSR638BGL K562 rep [1] ENCODE4 v1.1.0 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF467CBW.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF467CBW/@@download/ENCFF467CBW.tsv",
+  "bytes": 47163,
+  "md5": "0db209a46dd06a4fc6b0e77bff148f50",
+  "note": "microRNA-seq ENCSR569QVM K562 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF572XTJ.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF572XTJ/@@download/ENCFF572XTJ.tsv",
+  "bytes": 46648,
+  "md5": "e3dbbc28f7adf293a4811ab383fa9942",
+  "note": "microRNA-seq ENCSR650SEP HCT116 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF671ZNH.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF671ZNH/@@download/ENCFF671ZNH.tsv",
+  "bytes": 46827,
+  "md5": "b0a008966f965cc2ca6f4ebbc077433a",
+  "note": "microRNA-seq ENCSR730NEO HepG2 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF721EFA.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF721EFA/@@download/ENCFF721EFA.tsv",
+  "bytes": 47096,
+  "md5": "cf66ed1e811f65e236a61b6e714a672f",
+  "note": "microRNA-seq ENCSR569QVM K562 rep [1] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF849AXD.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF849AXD/@@download/ENCFF849AXD.tsv",
+  "bytes": 46375,
+  "md5": "44caecbfb36fa40ad4177240c9a5ce75",
+  "note": "microRNA-seq ENCSR430YFL H1 rep [2] ENCODE4 GRCh38 V29"
+ },
+ {
+  "name": "ENCFF851ANC.tsv",
+  "url": "https://www.encodeproject.org/files/ENCFF851ANC/@@download/ENCFF851ANC.tsv",
+  "bytes": 46503,
+  "md5": "f7cb14a9108bed282d3201c5ac3af252",
+  "note": "microRNA-seq ENCSR588ZRK H1 rep [3] ENCODE4 v1.2.0 GRCh38 V29"
+ }
+]
