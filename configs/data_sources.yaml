@@ -640,3 +640,176 @@ sources:
     url: "https://www.encodeproject.org"
     enabled: false
     notes: "Promoter reachability / open chromatin. Add only if it earns its keep."
+
+  # ---------------- POSTTX layer, phase 3 of T120: measured per-line mRNA stability ----------------
+  # Four lines' own measurements, each a small published table read as one per-gene row per
+  # line (src/sidechain/priors/posttx_line_stability.py, LineStabilitySource): the resting
+  # decay rate of Jurkat (the line context A reads as), an actinomycin D time course in
+  # HCT116, TimeLapse-seq half-lives in K562 and 4sU half-lives in HEK293. Each enters T120's
+  # wide table under scope line:<name> (ptr_table.SOURCES). The K562 and HEK293 sets are two
+  # of the samples inside Agarwal & Kelley's consensus (halflife_consensus: Simon_4sU_K562_1/2
+  # and Dieterich_4sU_HEK293_1/2 in its sample grouping); Jurkat and HCT116 are lines that
+  # compendium has no column for. Three of the four are GEO deposits read under NCBI's own
+  # policy (the pan2026_h1_crispri block in datasets.yaml set the form); the fourth is a
+  # journal supplement under the journal's terms. Why these four, and in this order:
+  # private handoffs/2026-10-16-t120-cisbp-and-control-family.md § Next steps (Saber, A457).
+  - name: jurkat_decay_blackinton2016
+    kind: node_feature
+    layer: posttx
+    relation: mrna_stability_line
+    entity: gene
+    loader: LineStabilitySource
+    provider: "Blackinton & Keene 2016, Nucleic Acids Research 44:426 (GEO GSE71382, the processed-data supplement)"
+    url: "https://doi.org/10.1093/nar/gkv1066"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "Endogenous mRNA decay rates in Jurkat T cells from 4sU metabolic labelling over a PMA+PHA activation course: total and 4sU-labelled mRNA in three replicates at rest (U) and at 1 to 4 h. One sheet, 7,485 Ensembl-keyed genes; the resting column `Avg Opt DR U` (7,330 genes, negative by the paper's convention, ln(1-.266*(net txn/total))) is the steady-state decay rate this block is for, the four activated columns ride beside it, and HuR iCLIP target calls and binding scores are kept. hg19, TopHat2, htseq-count, edgeR (GEO)."
+    host: https
+    record: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE71nnn/GSE71382/suppl"
+    dest: external/geo-GSE71382
+    derived: derived/jurkat-decay-blackinton2016    # stability.parquet + LINEAGE.json (ours)
+    budget_gb: 0.01                                  # 0.0038 GB selected
+    allow_missing_checksum: true                     # GEO's FTP mirror publishes none; sha256 of what landed is in LINEAGE.json
+    license: NCBI-no-restrictions
+    license_override_source: >
+      The GEO record of GSE71382 states no licence, on the series or on its samples
+      (read 2026-10-16, session f6ea03ac, the text view of acc.cgi). The terms recorded
+      are the host's own policy for its molecular databases, gene expression named among
+      them: "NCBI itself places no restrictions on the use or distribution of the data
+      contained therein. Nor do we accept data when the submitter has requested
+      restrictions on reuse or redistribution" (ncbi.nlm.nih.gov/home/about/policies/,
+      re-read 2026-10-16). The same paragraph adds that a submitter may still claim
+      rights NCBI cannot assess or transfer; the depositors' own statement is the
+      paper's accession line (NAR 44:426, PMC4705648), which names GSE71382 and states
+      no terms. NAR's open-access licence covers the article, not the deposit, and is
+      not the basis of this record. A web server header can state no terms.
+    citation: "Blackinton JG, Keene JD (2016). Functional coordination and HuR-mediated regulation of mRNA stability during T cell activation. Nucleic Acids Research 44(1):426-436, doi:10.1093/nar/gkv1066; GEO GSE71382"
+    files:
+      # One sheet: Gene Symbol, Avg Tot RPKM, EnsemblGene, HuR iCLIP/LOD columns, the per-time-point
+      # total (T) and 4sU (IP) RPM means and SDs, Avg Opt DR U/1/2/3/4 with their SDs, and T scores. 3.8 MB.
+      - name: GSE71382_ProcessedData.xlsx
+
+  - name: hct116_actd_pasterczyk2024
+    kind: node_feature
+    layer: posttx
+    relation: mrna_stability_line
+    entity: gene
+    loader: LineStabilitySource
+    provider: "Pasterczyk et al. 2024, Molecular and Cellular Biology 44:43 (GEO GSE234877, the HCT116 actinomycin D samples)"
+    url: "https://doi.org/10.1080/10985549.2024.2307574"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "A genome-wide actinomycin D (5 ug/ml) chase in HCT116, poly(A) RNA-seq in biological triplicate at 0, 2 and 4 h: nine RSEM genes.results files (hg19, STAR 2.7, RSEM 1.3.1; expected count, TPM, FPKM per gene). The paper publishes no half-life column, so one rate per gene is fitted here from the nine TPM values (LineStabilitySource: log2 TPM, each sample centred on its median expressed gene, least squares on hours), a rate RELATIVE to the median gene because TPM is a share and a chase re-normalises it. The nine LS180 files and the four siSTAU1 files of the series are not selected."
+    host: https
+    record: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE234nnn/GSE234877/suppl"
+    dest: external/geo-GSE234877
+    derived: derived/hct116-actd-pasterczyk2024     # stability.parquet + LINEAGE.json (ours)
+    budget_gb: 0.03                                  # 0.0215 GB selected (nine files of about 2.39 MB)
+    allow_missing_checksum: true                     # GEO's FTP mirror publishes none; sha256 of what landed is in LINEAGE.json
+    license: NCBI-no-restrictions
+    license_override_source: >
+      The GEO record of GSE234877 states no licence, on the series or on its samples
+      (read 2026-10-16, session f6ea03ac, the text view of acc.cgi). The terms recorded
+      are the host's own policy for its molecular databases, gene expression named among
+      them: "NCBI itself places no restrictions on the use or distribution of the data
+      contained therein. Nor do we accept data when the submitter has requested
+      restrictions on reuse or redistribution" (ncbi.nlm.nih.gov/home/about/policies/,
+      re-read 2026-10-16). The same paragraph adds that a submitter may still claim
+      rights NCBI cannot assess or transfer; the depositors' own statement is the
+      paper's data statement (MCB 44:43, PMC10950277), which names GSE234877 and states
+      no terms. A web server header can state no terms.
+    citation: "Pasterczyk KR, Zibitt MS, Hartford CR, Li XL, Pongor L, Jenkins L, et al. (2024). Staufen1 represses the FOXA1-regulated transcriptome by destabilizing FOXA1 mRNA in colorectal cancer cells. Molecular and Cellular Biology 44(2):43-56, doi:10.1080/10985549.2024.2307574; GEO GSE234877"
+    files:
+      # The files live under each sample's own directory, so every entry carries its url; the
+      # names are flat on disk. Hour and replicate are read off the name (HCT116[ActD]<h>hr<r>).
+      - name: GSM7488014_1_HCT1160hr1_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488014/suppl/GSM7488014_1_HCT1160hr1_rsem.genes.results.gz"
+      - name: GSM7488015_2_HCT1160hr2_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488015/suppl/GSM7488015_2_HCT1160hr2_rsem.genes.results.gz"
+      - name: GSM7488016_3_HCT1160hr3_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488016/suppl/GSM7488016_3_HCT1160hr3_rsem.genes.results.gz"
+      - name: GSM7488017_4_HCT116ActD2hr1_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488017/suppl/GSM7488017_4_HCT116ActD2hr1_rsem.genes.results.gz"
+      - name: GSM7488018_5_HCT116ActD2hr2_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488018/suppl/GSM7488018_5_HCT116ActD2hr2_rsem.genes.results.gz"
+      - name: GSM7488019_6_HCT116ActD2hr3_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488019/suppl/GSM7488019_6_HCT116ActD2hr3_rsem.genes.results.gz"
+      - name: GSM7488020_7_HCT116ActD4hr1_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488020/suppl/GSM7488020_7_HCT116ActD4hr1_rsem.genes.results.gz"
+      - name: GSM7488021_8_HCT116ActD4hr2_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488021/suppl/GSM7488021_8_HCT116ActD4hr2_rsem.genes.results.gz"
+      - name: GSM7488022_9_HCT116ActD4hr3_rsem.genes.results.gz
+        url: "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM7488nnn/GSM7488022/suppl/GSM7488022_9_HCT116ActD4hr3_rsem.genes.results.gz"
+
+  - name: k562_halflife_schofield2018
+    kind: node_feature
+    layer: posttx
+    relation: mrna_stability_line
+    entity: gene
+    loader: LineStabilitySource
+    provider: "Schofield et al. 2018, Nature Methods 15:221 (Supplementary Table 2, the K562 sheet)"
+    url: "https://doi.org/10.1038/nmeth.4582"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "TimeLapse-seq half-lives in K562 (100 uM s4U for 4 h, duplicates): sheet `Table S2_K562`, 5,419 symbol-keyed genes with the fraction new per replicate (theta_n1, theta_n2), the two replicate half-lives and their mean; the header states no unit and the paper's 4 h label implies hours. GEO GSE95854 holds only bedGraph tracks, so the journal supplement is the table (private research/reading/posttx-verify-14, -28). Two of Agarwal & Kelley's eight K562 samples (Simon_4sU_K562_1/2) are this measurement."
+    host: https
+    record: "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fnmeth.4582/MediaObjects"
+    dest: external/springernature-nmeth-4582
+    derived: derived/k562-halflife-schofield2018    # stability.parquet + LINEAGE.json (ours)
+    budget_gb: 0.01                                  # 0.0007 GB selected
+    allow_missing_checksum: true                     # a static-file host; sha256 of what landed is in LINEAGE.json
+    license: Publisher-terms-noncommercial
+    license_override_source: >
+      The supplement states no terms of its own and the article (2018) is not open
+      access. What governs the file is nature.com's terms of use
+      (nature.com/info/terms-and-conditions, read 2026-10-16, session f6ea03ac): "You
+      may view (and, where applicable, listen to and/or watch) the content and
+      applications available on the Site for your own private non-commercial use" and
+      "You may occasionally print individual pages of any Site for your private
+      non-commercial use, provided that such printing is not substantial or
+      systematic". The NIH author manuscript (NIHMS931206, PMC5831505) adds: "Users may
+      view, print, copy, and download text and data-mine the content in such documents,
+      for the purposes of academic research" (quoted in private
+      research/reading/posttx-verify-14, read 2026-09-28). Stated, non-commercial,
+      no right to redistribute: recorded in LICENSE_POLICY as
+      Publisher-terms-noncommercial with both encumbrance flags, which is what a
+      non-commercial competition entry may read and what a published derivative must
+      filter on (Saber's standing rule A96: licence detail never slows the work).
+    citation: "Schofield JA, Duffy EE, Kiefer L, Sullivan MC, Simon MD (2018). TimeLapse-seq: adding a temporal dimension to RNA sequencing through nucleoside recoding. Nature Methods 15:221-225, doi:10.1038/nmeth.4582, Supplementary Table 2"
+    files:
+      # Two sheets, `Table S2_K562` (5,419 genes) and `Table S2_MEF` (mouse, 2,992): transcript,
+      # theta_n1, theta_n2, half_life_rep1, half_life_rep2, mean_half_life. 727 kB.
+      - name: 41592_2018_BFnmeth4582_MOESM5_ESM.xlsx
+
+  - name: hek293_halflife_schueler2014
+    kind: node_feature
+    layer: posttx
+    relation: mrna_stability_line
+    entity: gene
+    loader: LineStabilitySource
+    provider: "Schueler et al. 2014, Genome Biology 15:R15 (GEO GSE49831, the half-life tables)"
+    url: "https://doi.org/10.1186/gb-2014-15-1-r15"
+    enabled: false               # a per-gene node feature; nothing in the shipping path consumes it yet (T120)
+    notes: "4sU half-lives in HEK293 and MCF7 (two replicates each, minutes, computed as in Schwanhaeusser et al. 2011 from the total, 4sU and flow-through fractions; hg18): two symbol-keyed text tables, 8,124 HEK293 and 7,809 MCF7 genes. HEK293, not HEK293T. Agarwal & Kelley's consensus already carries this measurement as Dieterich_4sU_HEK293_1/2 (two of its fourteen HEK293 samples) and Dieterich_4sU_MCF7_1/2 (its whole MCF7 group); here the pair stands alone as the line's own column."
+    host: https
+    record: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE49nnn/GSE49831/suppl"
+    dest: external/geo-GSE49831
+    derived: derived/hek293-halflife-schueler2014   # stability.parquet + LINEAGE.json (ours)
+    budget_gb: 0.01                                  # 0.0003 GB selected
+    allow_missing_checksum: true                     # GEO's FTP mirror publishes none; sha256 of what landed is in LINEAGE.json
+    license: NCBI-no-restrictions
+    license_override_source: >
+      The GEO record of GSE49831 states no licence, on the series or on its samples
+      (read 2026-10-16, session f6ea03ac, the text view of acc.cgi). The terms recorded
+      are the host's own policy for its molecular databases, gene expression named among
+      them: "NCBI itself places no restrictions on the use or distribution of the data
+      contained therein. Nor do we accept data when the submitter has requested
+      restrictions on reuse or redistribution" (ncbi.nlm.nih.gov/home/about/policies/,
+      re-read 2026-10-16). The same paragraph adds that a submitter may still claim
+      rights NCBI cannot assess or transfer; the depositors' own statement is the
+      paper's accession line (Genome Biology 15:R15, PMC4056462), which names GSE49831
+      and states no terms. The article's CC BY 2.0 licence covers the article, not the
+      deposit, and is not the basis of this record. A web server header can state no
+      terms.
+    citation: "Schueler M, Munschauer M, Gregersen LH, Finzel A, Loewer A, Chen W, Landthaler M, Dieterich C (2014). Differential protein occupancy profiling of the mRNA transcriptome. Genome Biology 15:R15, doi:10.1186/gb-2014-15-1-r15; GEO GSE49831"
+    files:
+      # R write.table output: a quoted two-name header, then rows of gene symbol, rep1, rep2 (minutes).
+      - name: GSE49831_HEK293_halflives.txt.gz
+      - name: GSE49831_MCF7_halflives.txt.gz

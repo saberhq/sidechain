@@ -102,6 +102,19 @@ LICENSE_POLICY: dict[str, str] = {
     # only through `license_override_source` (the portal states no licence in a
     # header, and its API's file records carry none).
     "encode-unrestricted": "ENCODE-unrestricted",
+    # Not SPDX: a journal's standard terms of use, for a supplementary table that carries no
+    # licence of its own and sits behind no open-access statement. Schofield 2018's K562
+    # half-life table (Nature Methods Supplementary Table 2, T120 phase 3) is the case:
+    # the article is not open access, the file states nothing, and nature.com's terms
+    # (nature.com/info/terms-and-conditions, read 2026-10-16) say "You may view ... the
+    # content and applications available on the Site for your own private non-commercial
+    # use" and allow printing only where "not substantial or systematic". The NIH author
+    # manuscript of the paper (NIHMS931206) adds "Users may view, print, copy, and download
+    # text and data-mine the content in such documents, for the purposes of academic
+    # research". Stated terms, so not UNSTATED; non-commercial and no right to redistribute,
+    # so BOTH flags below apply, exactly as for CC-BY-NC-SA. A block reaches this value only
+    # through `license_override_source`, which quotes the terms and the date they were read.
+    "publisher-terms-noncommercial": "Publisher-terms-noncommercial",
 }
 
 # The accepted set, derived from the policy above so the two cannot drift.
@@ -149,8 +162,8 @@ UNSTATED = "UNSTATED"
 # implication survives the session that discovered it. UNSTATED is in both:
 # we do not know that commercial use is allowed, and we do not know that
 # redistribution is allowed, so both record as encumbered.
-REDISTRIBUTION_ENCUMBERED = {"CC-BY-SA-4.0", "CC-BY-NC-SA-4.0", UNSTATED}
-NONCOMMERCIAL = {"CC-BY-NC-4.0", "CC-BY-NC-SA-4.0", UNSTATED}
+REDISTRIBUTION_ENCUMBERED = {"CC-BY-SA-4.0", "CC-BY-NC-SA-4.0", "Publisher-terms-noncommercial", UNSTATED}
+NONCOMMERCIAL = {"CC-BY-NC-4.0", "CC-BY-NC-SA-4.0", "Publisher-terms-noncommercial", UNSTATED}
 
 # How a dataset is consumed. `download` puts every selected byte on disk;
 # `stream` reads it over the network once and keeps only an aggregate.

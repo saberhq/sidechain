@@ -28,8 +28,11 @@ TargetScan's widened 3'UTR table, the half-life consensus with its per-line mean
 score with its per-line CSC columns, Wu's per-line decay rates, and PolyASite 2.0's layout;
 **phase 2** adds CisBP-RNA 2.0's per-RBP motif-site counts (``posttx_cisbp``, the ``rb_``
 columns), RNAplfold accessibility (``posttx_access``, ``ac_``) and the per-context expressed-factor
-family (``ctx_factors``, ``cx_``, scope ``ctx:<letter>``). A new source is one more ``SourceSpec``; the dictionary, the lineage
-and the coverage counts follow.
+family (``ctx_factors``, ``cx_``, scope ``ctx:<letter>``); **phase 3** adds four measured per-line
+stability tables (``posttx_line_stability``): Jurkat's resting decay rate (``bk_``), an HCT116
+actinomycin D rate (``pz_``), K562 TimeLapse-seq half-lives (``sf_``) and Schueler's HEK293 and
+MCF7 half-lives (``sl_``), every column line-specific. A new source is one more ``SourceSpec``;
+the dictionary, the lineage and the coverage counts follow.
 
 **Reading it.** ``read_ptr_table`` hands a model one scope at a time -- the universal block, or
 one named line's block -- as a frame plus a same-shaped mask of where a value exists, so a
@@ -163,6 +166,38 @@ SOURCES: tuple[SourceSpec, ...] = (
              "those of the factors a context's control cells express and those of the silent ones; one column set "
              "per challenge context, scope ctx:<letter>, complete for every gene with a CisBP row; carries CisBP-RNA's "
              "flags (final-phase: controls)",
+    ),
+    # ---- phase 3: measured per-line stability, one table per line (posttx_line_stability)
+    SourceSpec(
+        key="bk", block="jurkat_decay_blackinton2016", derived="derived/jurkat-decay-blackinton2016",
+        table="stability.parquet", lineage_key="jurkat-decay-blackinton2016/stability",
+        scope=((r".", "line:jurkat"),),
+        note="Blackinton & Keene 2016 Jurkat decay rates (4sU course; GEO GSE71382, NCBI's terms): the resting rate, "
+             "the four activated-hour rates, a derived resting half-life, HuR iCLIP columns; all line:jurkat",
+    ),
+    SourceSpec(
+        key="pz", block="hct116_actd_pasterczyk2024", derived="derived/hct116-actd-pasterczyk2024",
+        table="stability.parquet", lineage_key="hct116-actd-pasterczyk2024/stability",
+        scope=((r".", "line:hct116"),),
+        note="an HCT116 decay rate fitted from Pasterczyk 2024's actinomycin D chase (GEO GSE234877, NCBI's terms), "
+             "relative to the median expressed gene, with its SE, the raw slope, the 4 h change and the 0 h TPM; "
+             "all line:hct116",
+    ),
+    SourceSpec(
+        key="sf", block="k562_halflife_schofield2018", derived="derived/k562-halflife-schofield2018",
+        table="stability.parquet", lineage_key="k562-halflife-schofield2018/stability", drop=("symbol_source", "symbol_match"),
+        scope=((r".", "line:k562"),),
+        note="Schofield 2018 TimeLapse-seq half-lives in K562 (Nature Methods Table S2, the journal's non-commercial "
+             "terms, both flags): mean and two replicates in hours, the fraction new per replicate; all line:k562; two "
+             "of Agarwal & Kelley's eight K562 samples are this measurement",
+    ),
+    SourceSpec(
+        key="sl", block="hek293_halflife_schueler2014", derived="derived/hek293-halflife-schueler2014",
+        table="stability.parquet", lineage_key="hek293-halflife-schueler2014/stability", drop=("symbol_source", "symbol_match"),
+        scope=((r"^halflife_(hek293|mcf7)_", "line:{0}"),),
+        note="Schueler 2014 4sU half-lives in HEK293 and MCF7 (GEO GSE49831, NCBI's terms): two replicates and their "
+             "mean in minutes per line, scope line:hek293 and line:mcf7; already inside Agarwal & Kelley's HEK293 "
+             "(2 of 14 samples) and MCF7 (both samples) means",
     ),
 )
 
