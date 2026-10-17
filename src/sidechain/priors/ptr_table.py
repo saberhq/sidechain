@@ -27,7 +27,8 @@ where the source provides one.
 TargetScan's widened 3'UTR table, the half-life consensus with its per-line means, the codon
 score with its per-line CSC columns, Wu's per-line decay rates, and PolyASite 2.0's layout;
 **phase 2** adds CisBP-RNA 2.0's per-RBP motif-site counts (``posttx_cisbp``, the ``rb_``
-columns, all universal). A new source is one more ``SourceSpec``; the dictionary, the lineage
+columns), RNAplfold accessibility (``posttx_access``, ``ac_``) and the per-context expressed-factor
+family (``ctx_factors``, ``cx_``, scope ``ctx:<letter>``). A new source is one more ``SourceSpec``; the dictionary, the lineage
 and the coverage counts follow.
 
 **Reading it.** ``read_ptr_table`` hands a model one scope at a time -- the universal block, or
@@ -146,6 +147,13 @@ SOURCES: tuple[SourceSpec, ...] = (
         note="CisBP-RNA 2.0 motif sites per RBP on TargetScan's representative 3'UTR (UNSTATED terms, held under "
              "the ADR 0003 amendment; both encumbrance flags): one count per RBP with a usable matrix, direct and "
              "inferred alike (the dictionary says which), plus the direct and inferred totals; all universal",
+    ),
+    SourceSpec(
+        key="ac", block="targetscan", derived="derived/rnaplfold-access", table="utr_accessibility.parquet",
+        lineage_key="rnaplfold-access/utr_accessibility", drop=("transcript_id", "seq_len"),
+        note="RNAplfold accessibility of the representative 3'UTR (posttx_access; TargetScan's terms): per-nucleotide "
+             "and 8-nt unpaired probabilities, around the conserved miRNA sites and over the consensus RBP motifs; "
+             "all universal",
     ),
     SourceSpec(
         key="cx", block="cisbp_rna_2", derived="derived/control-factor-sets", table="ctx_site_counts.parquet",

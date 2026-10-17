@@ -4359,6 +4359,7 @@ dependencies = [
     { name = "torch-geometric" },
     { name = "transformers" },
     { name = "typer" },
+    { name = "viennarna" },
     { name = "zstandard" },
 ]
 
@@ -4401,6 +4402,7 @@ requires-dist = [
     { name = "torch-geometric" },
     { name = "transformers" },
     { name = "typer" },
+    { name = "viennarna", specifier = ">=2.7.2" },
     { name = "zstandard", specifier = ">=0.25.0" },
 ]
 provides-extras = ["gpu"]
@@ -5024,6 +5026,28 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b5b1ac819a3f946d3b2ee07f09149578ae76066d70b44df3fa990add49a82e4", size = 4426307, upload-time = "2025-10-16T22:16:32.917Z" },
     { url = "https://files.pythonhosted.org/packages/90/60/97362554ac21e20e81bcef1150cb2a7e4ffdaf8ea1e5b2e8bf7a053caa18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e047cc068570bac9866237739607d1313b9253c3051ad84738cbb095be0537b2", size = 4131970, upload-time = "2025-10-16T22:16:34.015Z" },
     { url = "https://files.pythonhosted.org/packages/99/39/6b3f7d234ba3964c428a6e40006340f53ba37993f46ed6e111c6e9141d18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:512fec6815e2dd45161054592441ef76c830eddaad55c8aa30952e6fe1ed07c0", size = 4296343, upload-time = "2025-10-16T22:16:35.149Z" },
+]
+
+[[package]]
+name = "viennarna"
+version = "2.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/7a/2165d7d54234efc63a929a33d8a746cc23c3834747d195bd4d1b56cd1124/viennarna-2.7.2.tar.gz", hash = "sha256:44682b8a5f077faf32bf5d0353a232c74091ea47255a76a56495f9fb02e1e872", size = 6325292, upload-time = "2025-12-30T02:02:37.294Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/21/ed66fcb3e1aab15db124c396637a17021f983908a6489a0ae420fa9bfeba/viennarna-2.7.2-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:1ef034bbdbf1071cb6d7d4821544b046c2434e414e47bc9fd747ac78ad2d40bd", size = 2650073, upload-time = "2025-12-30T02:01:49.894Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/f9/e23b1e38c27b0df2b0327a57e2064caf55ee3880262998348ae6431e65e4/viennarna-2.7.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:f7859efd3724fd5a9189dfaf4ee0b2946fc9120363f63ba1dff079dedb5e9ff4", size = 2486207, upload-time = "2025-12-30T02:01:51.236Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/38/af0813badfc843babe9e6c6cbecb64b6e5d7a5eb786177e878f7b73768a5/viennarna-2.7.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:532bd4d5fd1f2ef2a56b2902542754cd4623bb8945c6deaa15520cc26b08dd83", size = 12944148, upload-time = "2025-12-30T02:01:52.894Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/81/714e66e180a07717c1259bd79e9ca5f724d99fc62575f1b86f153aed7332/viennarna-2.7.2-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c85a09270bda4ddb4aa07d2d373e135c4efac94253b121601bb733cfda22dc79", size = 13419568, upload-time = "2025-12-30T02:01:54.709Z" },
+    { url = "https://files.pythonhosted.org/packages/29/08/1109956b7c50dfa2df3fbd020655244918b407a6bed80a5de5f2472b52cc/viennarna-2.7.2-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:87f6f552709ed4a26cec12bf452dc9a266642e300d62067dfd8a838619627d4f", size = 12977925, upload-time = "2025-12-30T02:01:56.762Z" },
+    { url = "https://files.pythonhosted.org/packages/50/bc/853723554c5f9f73a90bbfad86234ed5838462fd0a170fff711c3189c1ce/viennarna-2.7.2-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:671403daf511eb1bab58a9a7055a1c6786b3380572be9f9599d193fd3525da66", size = 14193457, upload-time = "2025-12-30T02:01:58.932Z" },
+    { url = "https://files.pythonhosted.org/packages/93/a4/774155a4bf659473206c675eed666031500e05a40ebf52a7590243085ed3/viennarna-2.7.2-cp311-cp311-win_amd64.whl", hash = "sha256:b66567c43c1f3b6795a1c7ab46b7315f56bfed4097827d0df80e03ff5b8f0e29", size = 2016361, upload-time = "2025-12-30T02:02:00.557Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/9e/15d00b8a67e0176ff35fc1bdadac8d051062fd32d431be711309ad807af1/viennarna-2.7.2-cp312-cp312-macosx_10_14_x86_64.whl", hash = "sha256:7a0b6b488417d6dd17ae4494d7b9b77a7f5713516325dfa2e6bb5eb29362a7b1", size = 2656390, upload-time = "2025-12-30T02:02:01.727Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/11/4f381962409a7f63730d4877c09de75e31dd37054250e89870b71e685402/viennarna-2.7.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:306efabeec8e5608351f5d039d4ce0c171d0bd216086eaf255cdb51d8c827640", size = 2488951, upload-time = "2025-12-30T02:02:03.445Z" },
+    { url = "https://files.pythonhosted.org/packages/79/93/4128120d867a7bda53e37fffac58035209e14ee36568a0d44565b42db7b8/viennarna-2.7.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4413387dc286d4d5a778afcc09cee17d60c7f38c6991451da7566ad21612ae38", size = 12971583, upload-time = "2025-12-30T02:02:04.692Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/ba/c2b939614c4e48b7e387db7549eaf2b03d682e030eee1b93679854bc0bd1/viennarna-2.7.2-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1e4132cbb35dc258cc97f2e1b7b83bd11712d539c4757dfb78445c38041e439c", size = 13412633, upload-time = "2025-12-30T02:02:06.841Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/73/90f8f323337a88c27f7fd28d64e5b93f520a1704e9ff0489774aedc38059/viennarna-2.7.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:220977fc95bf9e72173300afc8d2f15afcd4679582a420d90fb4a7c83db4b118", size = 12998891, upload-time = "2025-12-30T02:02:08.7Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/9c/fa4391936abf0624cafa4ad72c38d5d7462cc8d6bd6968709758f31dca08/viennarna-2.7.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:24a3aa924ddd318c8c240ced3dfcc5affd324f184eb4a137dd35e96d2c3bcacc", size = 14177767, upload-time = "2025-12-30T02:02:10.937Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/ef/48c46b000caf747fc03866c00fbc14fff89e833b614f2b261487b7260440/viennarna-2.7.2-cp312-cp312-win_amd64.whl", hash = "sha256:68b0803568549256dadf7383e02ee98973433e6d4c59abebb6a27f278ba77c02", size = 2020809, upload-time = "2025-12-30T02:02:12.651Z" },
 ]
 
 [[package]]

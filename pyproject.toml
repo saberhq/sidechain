@@ -10,7 +10,7 @@ dependencies = [
   "scanpy",
   "anndata",
   "pertpy", # perturbation analysis, Mixscape -- NOT E-distance: measured against 1.0.3,
-            # its Edistance does not reproduce the paper (eval/metrics_extra.py)
+  # its Edistance does not reproduce the paper (eval/metrics_extra.py)
   "scperturb>=0.1.0", # Peidli et al.'s own package -- the real E-distance/E-test (T94)
   "decoupler", # DoRothEA/TRRUST access via OmniPath
   # arc challenge plumbing -- all five publish to PyPI
@@ -34,6 +34,7 @@ dependencies = [
   "markdown-it-py>=4.2", # Markdown -> HTML for the local docs reader; was only transitive (rich, jupytext)
   "mdit-py-plugins>=0.6", # its frontmatter, math and bare-URL plugins
   "zstandard>=0.25.0",
+  "viennarna>=2.7.2",
 ]
 
 [dependency-groups]
