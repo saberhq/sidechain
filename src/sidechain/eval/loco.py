@@ -62,6 +62,7 @@ from sidechain.submit.build import (
     shrink_kwargs,
     sources_from_specs,
 )
+from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     VarianceModel,
@@ -139,6 +140,7 @@ def build_transfer_prediction(
     variance_model: VarianceModel | None = None,
     rule_variance: str = "model",
     gene_factor: Path | None = None,
+    alpha_table: Path | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -146,6 +148,11 @@ def build_transfer_prediction(
     each target's pooled vector last before alpha, in both channels, after the neighbour arm and the
     basal slope; a gene it does not name keeps 1. It sits outside the delta cache's key, so an arm that
     differs by it alone reads the cache the shipped recipe built. None is the historical path.
+
+    `alpha_table` (T1; `sidechain.submit.alpha_table`) is a table of per-target multipliers on alpha:
+    each named target's pooled vector is scaled by alpha times its factor, in both channels, the
+    target's own gene pinned after it as always; a target it does not name keeps alpha. Outside the
+    delta cache's key, like `gene_factor`. None is the historical path.
 
     `variance_model` and `rule_variance` (T98; `sidechain.submit.variance_model`) are passed to
     every `pooled_delta` call -- the targets, the neighbour pool and a delta-cache build -- and
@@ -203,6 +210,7 @@ def build_transfer_prediction(
     perts = sorted(set(labels) - {control})
     axis = real.var_names.astype(str).to_numpy()
     gf, gf_record = load_gene_factor(gene_factor, axis) if gene_factor is not None else (None, None)
+    at, at_record = load_alpha_table(alpha_table, perts) if alpha_table is not None else (None, None)
     cache = None
     if delta_cache is not None:
         from sidechain.eval.delta_cache import DeltaCache, build_cache, key_fields
@@ -346,7 +354,10 @@ def build_transfer_prediction(
             if gf is not None:
                 d = d * gf           # T102: last before alpha, so both channels carry it
             d0 = d
-            d = d * alpha    # alpha scales the pooled vector; gamma acted per source inside the pool
+            # alpha scales the pooled vector; gamma acted per source inside the pool. The per-target
+            # table (T1) rides on alpha: a factor of 1.0 leaves the product bit-identical.
+            a_t = alpha * (at[p] if at is not None else 1.0)
+            d = d * a_t
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         n = cells_per_pert or int((labels == p).sum())
@@ -362,7 +373,7 @@ def build_transfer_prediction(
         else:
             # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
             # the knockdown pin is the same on both, and everything upstream is untouched.
-            d_bulk = d0 * (alpha_bulk if alpha_bulk is not None else alpha)
+            d_bulk = d0 * ((alpha_bulk if alpha_bulk is not None else alpha) * (at[p] if at is not None else 1.0))
             if p in gene_pos:
                 d_bulk[gene_pos[p]] = -2.32
             scatter = None
@@ -399,6 +410,7 @@ def build_transfer_prediction(
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             "gene_factor": gf_record,
+            "alpha_table": at_record,
             # targets whose two moments were jointly unreachable and carried one amplitude
             "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if two_channel else None,
             # which rung a failed target fell to, by name, with why the requested pair failed
@@ -504,6 +516,11 @@ def main(argv: list[str] | None = None) -> int:
                          "`factor` (finite, >= 0); unnamed genes keep 1; recorded in summary.json under "
                          "build.gene_factor with the table's sha256 (sidechain.submit.gene_factor; the same "
                          "flag on sidechain.submit.build). Outside the delta cache's key.")
+    ap.add_argument("--alpha-table", type=Path, default=None, metavar="TABLE",
+                    help="T1: a per-target multiplier on --alpha, in both channels: a parquet or CSV with `target` "
+                         "(perturbation labels) and `factor` (finite, >= 0); an unnamed target keeps --alpha; recorded "
+                         "in summary.json under build.alpha_table with the table's sha256 (sidechain.submit.alpha_table; "
+                         "the same flag on sidechain.submit.build). Outside the delta cache's key.")
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="T84: a second amplitude for the pseudobulk channel. The emitted cells' "
                          "equal-weight per-cell mean follows --alpha (what the four Wilcoxon "
@@ -699,7 +716,8 @@ def main(argv: list[str] | None = None) -> int:
                                      emit_shape=args.emit_shape,
                                      variance_model=variance_model,
                                      rule_variance=args.rule_variance,
-                                     gene_factor=args.gene_factor)
+                                     gene_factor=args.gene_factor,
+                                     alpha_table=args.alpha_table)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -723,6 +741,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
+         "alpha_table": None if args.alpha_table is None else str(args.alpha_table),
          "dual_fallback": args.dual_fallback,
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,

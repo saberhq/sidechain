@@ -76,6 +76,7 @@ from sidechain.models.count_emitters import (
     log2fc_from_cpm,
     remap_to_axis,
 )
+from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     RULE_VARIANCES,
@@ -1299,6 +1300,13 @@ def main(argv: list[str] | None = None) -> int:
                          "`factor` (finite, >= 0); a gene the table does not name keeps 1. Recorded in "
                          "<out>.gene_factor.json with the table's sha256 (sidechain.submit.gene_factor; the "
                          "same flag on sidechain.eval.loco)")
+    ap.add_argument("--alpha-table", type=Path, default=None, metavar="TABLE",
+                    help="a per-target multiplier on --alpha (T1): a parquet or CSV with `target` (perturbation "
+                         "labels) and `factor` (finite, >= 0); a named perturbation's pooled log2FC vector is scaled "
+                         "by --alpha times its factor, in both channels, its own gene pinned after; an unnamed one "
+                         "keeps --alpha. Recorded in <out>.alpha_table.json with the table's sha256 "
+                         "(sidechain.submit.alpha_table; the same flag on sidechain.eval.loco). No registered "
+                         "knob letter yet (ADR 0005): a model-named stem refuses it")
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="a second amplitude for the pseudobulk channel (letter b, ADR 0005): the "
                          "emitted cells' equal-weight per-cell mean follows --alpha, their "
@@ -1422,6 +1430,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.gene_factor is not None and args.emitter != "delta-transfer":
         ap.error("--gene-factor multiplies pooled per-target deltas, so it only applies to "
                  "delta-transfer")
+    if args.alpha_table is not None and args.emitter != "delta-transfer":
+        ap.error("--alpha-table multiplies pooled per-target deltas, so it only applies to "
+                 "delta-transfer")
     if args.emit_lambda is not None and args.dispersion is not None:
         ap.error("--dispersion and --emit-lambda are one dial (even is 0, poisson is 1) -- pass one")
     if args.emit_lambda is not None and not 0.0 <= args.emit_lambda <= 1.0:
@@ -1506,6 +1517,11 @@ def main(argv: list[str] | None = None) -> int:
         if "h" in letters and not head_moved:
             ap.error(f"'{stem}' carries the letter h, which says a per-gene table makes a chosen "
                      "set of genes callable, but --scatter-table is not given")
+    if CLAIMS_RE.match(stem) and args.alpha_table is not None:
+        # T1: the per-target amplitude has no registered letter yet (ADR 0005): an arm is scored on the
+        # mirror under a freeform label, and the letter is minted only when one first reaches the board.
+        ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
+                 "(ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and variance_moved:
         # T98: the variance behind the pooling weight has no registered letter yet (ADR 0005): an
         # arm is scored on the mirror under a freeform label, and the letter is minted only when
@@ -1547,6 +1563,10 @@ def main(argv: list[str] | None = None) -> int:
     # take stops it in seconds; applied in `finalize`, last before alpha
     gene_factor, gene_factor_record = (load_gene_factor(args.gene_factor, axis)
                                        if args.gene_factor is not None else (None, None))
+    # the per-target multiplier on alpha (T1): read against the perturbation list before any pooling;
+    # applied in `finalize`, with alpha
+    alpha_of, alpha_table_record = (load_alpha_table(args.alpha_table, perts)
+                                    if args.alpha_table is not None else (None, None))
     # T85: read before the pooling, so a table the build cannot take stops it in seconds
     scatter_of, scatter_record = (read_context_scatter_table(args.scatter_table, axis, perts, contexts)
                                   if args.scatter_table is not None else (None, None))
@@ -1560,6 +1580,8 @@ def main(argv: list[str] | None = None) -> int:
     out.with_suffix(".args.json").write_text(json.dumps(vars(args), indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
+    if alpha_table_record is not None:
+        out.with_suffix(".alpha_table.json").write_text(json.dumps(alpha_table_record, indent=1) + "\n")
 
     # -- per-perturbation log2FC vectors (None = no shift)
     t0 = time.time()
@@ -1643,12 +1665,14 @@ def main(argv: list[str] | None = None) -> int:
             if vec is not None:
                 if gene_factor is not None:
                     vec *= gene_factor         # last before alpha, so both channels carry it
+                # the per-target factor (T1) rides on alpha in both channels; 1.0 leaves the product bit-identical
+                f_t = alpha_of[p] if alpha_of is not None else 1.0
                 if bulk_map is not None:
-                    b = vec * bulk_alpha
+                    b = vec * (bulk_alpha * f_t)
                     if p in gene_pos:
                         b[gene_pos[p]] = TARGET_SELF_LOG2FC
                     bulk_map[p] = b
-                vec *= args.alpha
+                vec *= args.alpha * f_t
                 if p in gene_pos:
                     vec[gene_pos[p]] = TARGET_SELF_LOG2FC
         return bulk_map
