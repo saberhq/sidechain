@@ -77,6 +77,7 @@ from sidechain.models.count_emitters import (
     remap_to_axis,
 )
 from sidechain.submit.alpha_table import load_alpha_table
+from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     RULE_VARIANCES,
@@ -1391,6 +1392,7 @@ def main(argv: list[str] | None = None) -> int:
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
     add_neighbour_args(ap, twin="sidechain.eval.loco")
     add_variance_args(ap, twin="sidechain.eval.loco")
+    add_ctrl_axes_args(ap, twin="sidechain.eval.loco")
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -1469,6 +1471,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.scatter_table is not None and bulk_alpha is None:
         ap.error("--scatter-table acts on the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
+    check_ctrl_axes_args(ap, args)                       # T125
+    if args.ctrl_axes and args.emitter != "delta-transfer":
+        ap.error("--ctrl-axes acts on pooled per-target deltas, so it only applies to delta-transfer")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -1521,6 +1526,10 @@ def main(argv: list[str] | None = None) -> int:
         # T1: the per-target amplitude has no registered letter yet (ADR 0005): an arm is scored on the
         # mirror under a freeform label, and the letter is minted only when one first reaches the board.
         ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
+                 "(ADR 0005): register the letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.ctrl_axes:
+        # T125: the control-cell axes have no registered letter yet (ADR 0005), as --alpha-table above
+        ap.error(f"'{stem}' is named like a model, and --ctrl-axes has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and variance_moved:
         # T98: the variance behind the pooling weight has no registered letter yet (ADR 0005): an
@@ -1577,7 +1586,11 @@ def main(argv: list[str] | None = None) -> int:
     # incident class this sidecar exists to close.
     out = Path(args.out).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.with_suffix(".args.json").write_text(json.dumps(vars(args), indent=1, default=str) + "\n")
+    recorded = vars(args)
+    if not args.ctrl_axes:
+        # off, the record is what a build before the flag wrote (T125)
+        recorded = {k: v for k, v in recorded.items() if not k.startswith("ctrl_axes")}
+    out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
     if alpha_table_record is not None:
@@ -1744,6 +1757,8 @@ def main(argv: list[str] | None = None) -> int:
     shaped = args.emit_shape == "controls"
     shape_kw = {"shape": True} if shaped else {}
     in_shape: dict[str, dict] = {}
+    ctrl_axes_record = ({"k": args.ctrl_axes, "eta": args.ctrl_axes_eta, "basis": args.ctrl_axes_basis,
+                         "share": args.ctrl_axes_share, "contexts": {}} if args.ctrl_axes else None)
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
             prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize,
@@ -1754,6 +1769,21 @@ def main(argv: list[str] | None = None) -> int:
                                     else per_context_shifts(prof))
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
+            if args.ctrl_axes:
+                # T125: this context's control-cell axes out of the summed-profile channel only, into a
+                # new map (the contexts share `bulk_shifts`); the per-cell shifts are not touched
+                from sidechain.submit.ctrl_axes import control_axes, deflate_map
+                axes_v, axes_rec = control_axes(data_dir / control_files[ctx], k=args.ctrl_axes,
+                                                min_libsize=args.min_libsize, basis=args.ctrl_axes_basis,
+                                                cache_dir=args.ctrl_axes_cache, genes=genes)
+                ctx_bulk, defl = deflate_map(ctx_bulk, prof.bulk_fraction, axes_v, args.ctrl_axes_eta, gene_pos,
+                                             share=args.ctrl_axes_share)
+                ctrl_axes_record["contexts"][ctx] = {"axes": axes_rec, "deflation": defl}
+                print(f"  {ctx}: ctrl-axes {args.ctrl_axes_basis} K={args.ctrl_axes} eta={args.ctrl_axes_eta:g}: "
+                      f"{axes_rec['variance_share_on_axes']:.1%} of the controls' variance on the axes; "
+                      f"median {defl['share_on_axes']['median']:.1%} of a target's summed-profile change "
+                      f"removed; worst residual {defl['residual_max']:.1e}", flush=True)
+                del axes_v
             left_on_template: list[str] = []
             held, unmet = 0, []                    # cells held to the emitter's caps; genes its solve left to the fit
             dialled: dict[str, int] = {}           # target -> genes whose scatter its block carries
@@ -1837,6 +1867,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  {ctx}: fell back: "
                           + ", ".join(f"{p} ({why})" for p, why in fell_back[ctx]["template"]), flush=True)
     info = verify_h5ad(h5ad, contract)
+    if ctrl_axes_record is not None:
+        # beside the fallback counts in .dual.json: a deflated target that fell back carries none of it
+        ctrl_axes_record["dual_fallbacks"] = dual_fallbacks
+        out.with_suffix(".ctrl_axes.json").write_text(json.dumps(ctrl_axes_record, indent=1) + "\n")
     if dual_fallbacks:
         # absent bulk_anchor = mean_cpm, so the letter-b records already written stay as they are
         anchor = {"bulk_anchor": args.bulk_anchor} if args.bulk_anchor != "mean_cpm" else {}

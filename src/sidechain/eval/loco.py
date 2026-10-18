@@ -63,6 +63,7 @@ from sidechain.submit.build import (
     sources_from_specs,
 )
 from sidechain.submit.alpha_table import load_alpha_table
+from sidechain.submit.ctrl_axes import DEFAULT_CACHE as CTRL_AXES_CACHE, add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.variance_model import (
     VarianceModel,
@@ -141,6 +142,11 @@ def build_transfer_prediction(
     rule_variance: str = "model",
     gene_factor: Path | None = None,
     alpha_table: Path | None = None,
+    ctrl_axes: int = 0,
+    ctrl_axes_eta: float = 1.0,
+    ctrl_axes_basis: str = "pca",
+    ctrl_axes_share: float = 1.0,
+    ctrl_axes_cache: Path | None = CTRL_AXES_CACHE,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -153,6 +159,13 @@ def build_transfer_prediction(
     each named target's pooled vector is scaled by alpha times its factor, in both channels, the
     target's own gene pinned after it as always; a target it does not name keeps alpha. Outside the
     delta cache's key, like `gene_factor`. None is the historical path.
+
+    `ctrl_axes` (T125; `sidechain.submit.ctrl_axes`) removes `ctrl_axes_eta` of each target's summed-profile
+    change along the top `ctrl_axes` axes of this fold's own control cells (`ctrl_axes_basis` `random` is the
+    twin), on the summed-profile channel of the pooled anchor only, after the pin; the per-cell channel is
+    untouched. `ctrl_axes_share` below 1 deflates only the targets whose summed-profile change is smallest, so
+    every target is predicted before the first is emitted (the same deltas, the same emission). Outside the
+    delta cache's key. 0 is the historical path.
 
     `variance_model` and `rule_variance` (T98; `sidechain.submit.variance_model`) are passed to
     every `pooled_delta` call -- the targets, the neighbour pool and a delta-cache build -- and
@@ -280,6 +293,15 @@ def build_transfer_prediction(
     if shaped and not two_channel:
         raise SystemExit("--emit-shape controls acts on the two-channel emission -- pass --alpha-bulk "
                          "or --bulk-anchor pooled")
+    # T125: the fold's own control-cell axes, read from the same control cells the profile was
+    axes_v, ctrl_axes_per = None, {}
+    if ctrl_axes:
+        if bulk_anchor != "pooled":
+            raise SystemExit("--ctrl-axes acts on the summed-profile channel of the pooled anchor: "
+                             "pass --bulk-anchor pooled")
+        from sidechain.submit.ctrl_axes import change_size, control_axes, deflate_bulk, summarize, weakest
+        axes_v, axes_rec = control_axes(ctrl_tmp, k=ctrl_axes, min_libsize=min_libsize,
+                                        basis=ctrl_axes_basis, cache_dir=ctrl_axes_cache, genes=axis)
     out_h5 = open_anndata_h5(out_path, "w")
     writer = CsrWriter(out_h5, len(axis))
     obs_labels, covered = [], 0
@@ -337,7 +359,8 @@ def build_transfer_prediction(
                             neighbour_size=neighbour_size, neighbour_select=neighbour_select,
                             neighbour_cand=neighbour_cand, neighbour_picks=neighbour_picks),
             delta_of, axis)
-    for p in perts:
+    def predict(p):
+        """The target's pooled vector at alpha with its pin, and the vector before alpha (None, None uncovered)."""
         d = cache.get(p, pool_stats) if cache is not None else pooled_delta(
             p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
             shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
@@ -345,8 +368,8 @@ def build_transfer_prediction(
             gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
             coverage_tiers=coverage_tiers,
             similarity_beta=similarity_beta, stats=pool_stats, **pool_variance)
+        d0 = None
         if d is not None:
-            covered += 1
             if arm is not None:
                 d = arm.fuse(p, d)
             if basal_mod is not None:
@@ -360,6 +383,29 @@ def build_transfer_prediction(
             d = d * a_t
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
+        return d, d0
+
+    def bulk_of(p, d0):
+        # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
+        # the knockdown pin is the same on both, and everything upstream is untouched.
+        d_bulk = d0 * ((alpha_bulk if alpha_bulk is not None else alpha) * (at[p] if at is not None else 1.0))
+        if p in gene_pos:
+            d_bulk[gene_pos[p]] = -2.32
+        return d_bulk
+
+    def held(p):
+        return () if p not in gene_pos else (gene_pos[p],)
+
+    # T125: a share below 1 needs every target's summed-profile change before the first is emitted
+    ahead, deflated = None, None
+    if axes_v is not None and ctrl_axes_share < 1.0:
+        ahead = {p: predict(p) for p in perts}
+        deflated = weakest({p: change_size(bulk_of(p, d0), prof.bulk_fraction, held(p))
+                            for p, (d, d0) in ahead.items() if d is not None}, ctrl_axes_share)
+    for p in perts:
+        d, d0 = ahead.pop(p) if ahead is not None else predict(p)
+        if d is not None:
+            covered += 1
         n = cells_per_pert or int((labels == p).sum())
         if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
             writer.append_csr(em.emit(n, d))
@@ -371,11 +417,10 @@ def build_transfer_prediction(
             # run without the flag; under the pooled anchor the path is the same either way.
             writer.append_csr(dual(n, None, None, p))
         else:
-            # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
-            # the knockdown pin is the same on both, and everything upstream is untouched.
-            d_bulk = d0 * ((alpha_bulk if alpha_bulk is not None else alpha) * (at[p] if at is not None else 1.0))
-            if p in gene_pos:
-                d_bulk[gene_pos[p]] = -2.32
+            d_bulk = bulk_of(p, d0)
+            if axes_v is not None and (deflated is None or p in deflated):
+                d_bulk, ctrl_axes_per[p] = deflate_bulk(d_bulk, prof.bulk_fraction, axes_v, ctrl_axes_eta,
+                                                        held=held(p))
             scatter = None
             if scatter_of is not None and p in scatter_of:
                 scatter = np.ones(len(axis))
@@ -411,6 +456,12 @@ def build_transfer_prediction(
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             "gene_factor": gf_record,
             "alpha_table": at_record,
+            # T125: present only with --ctrl-axes
+            **({"ctrl_axes": {"k": ctrl_axes, "eta": ctrl_axes_eta, "basis": ctrl_axes_basis,
+                              "share": ctrl_axes_share, "axes": axes_rec,
+                              "deflation": {**summarize(ctrl_axes_per),
+                                            "targets_left_as_they_were": covered - len(ctrl_axes_per)}}}
+               if axes_v is not None else {}),
             # targets whose two moments were jointly unreachable and carried one amplitude
             "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0)) if two_channel else None,
             # which rung a failed target fell to, by name, with why the requested pair failed
@@ -608,6 +659,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="add back the second-order bias of log2 of a noisy mean (`Var(m)/(2(m+c)^2 ln2)`), per arm, before pooling. The control arm is far deeper than any perturbed arm, so the two biases do not cancel and what is left is a shared negative shift on low-expression genes -- 9-12%% of a median delta on our genome-wide sources. Measured to cost 0.0027 raw pds; off by default (private research/ideas/batch-effect-diagnostics.md, T18 check 6)")
     add_neighbour_args(ap, twin="sidechain.submit.build")
     add_variance_args(ap, twin="sidechain.submit.build")
+    add_ctrl_axes_args(ap, twin="sidechain.submit.build")
     ap.add_argument("--delta-cache", type=Path, default=None, metavar="DIR",
                     help="read every pooled delta (targets and neighbour pool) from a per-fold "
                          "cache under DIR instead of pooling it (sidechain.eval.delta_cache): "
@@ -628,6 +680,7 @@ def main(argv: list[str] | None = None) -> int:
     check_neighbour_args(ap, args)
     check_shrink_args(ap, args)
     variance_model = check_variance_args(ap, args)       # T98
+    check_ctrl_axes_args(ap, args)                       # T125
     if not variance_model.is_shipped and args.basal_slope != "off":
         ap.error("--variance-model with --basal-slope is not wired (the slope's fits would read the "
                  "shipped variance while the pool read the model's)")
@@ -717,7 +770,11 @@ def main(argv: list[str] | None = None) -> int:
                                      variance_model=variance_model,
                                      rule_variance=args.rule_variance,
                                      gene_factor=args.gene_factor,
-                                     alpha_table=args.alpha_table)
+                                     alpha_table=args.alpha_table,
+                                     ctrl_axes=args.ctrl_axes, ctrl_axes_eta=args.ctrl_axes_eta,
+                                     ctrl_axes_basis=args.ctrl_axes_basis,
+                                     ctrl_axes_share=args.ctrl_axes_share,
+                                     ctrl_axes_cache=args.ctrl_axes_cache)
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -742,6 +799,9 @@ def main(argv: list[str] | None = None) -> int:
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
          "alpha_table": None if args.alpha_table is None else str(args.alpha_table),
+         **({"ctrl_axes": args.ctrl_axes, "ctrl_axes_eta": args.ctrl_axes_eta,
+             "ctrl_axes_basis": args.ctrl_axes_basis, "ctrl_axes_share": args.ctrl_axes_share}
+            if args.ctrl_axes else {}),
          "dual_fallback": args.dual_fallback,
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,
