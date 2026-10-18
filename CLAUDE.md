@@ -133,7 +133,8 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   word, one ledger note each. Box lifetime is his call: no timer, no kill, no self-delete; a stop
   you set never ends running work, and a renewed `brev login` cancels it; pull → register → verify →
   delete, or stop where the type allows (`/sidechain-brev`, trap 17). CPU-only tails leave the GPU
-  box. Final-phase builds need no GPU; the stoppable CPU box `sidechain-cpu-t118-s4` is the standby candidate (T118).
+  box. Builds go on a GPU box and are scored on the same machine (a scoring bundle is bound to its backend
+  and device); past that, box use is flexible (Saber, 2026-10-18; the CPU standby was retired, T118).
 
 ## Review tiers — how much review, and when none
 
