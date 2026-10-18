@@ -50,6 +50,7 @@ def test_axes_are_the_centred_principal_axes_nested_and_cached(tmp_path):
     # the same span as the dense SVD's top five
     assert np.allclose(axes.T @ axes, vt[:5].T @ vt[:5], atol=1e-4)
     assert rec["cache"] and (tmp_path / "c" / f"{rec['key']}.npz").exists()
+    assert not list((tmp_path / "c").glob("*partial*"))           # each writer's temp file renamed into place
     assert 0 < rec["variance_share_first_axis"] < rec["variance_share_on_axes"] < 1
     again, rec2 = ca.control_axes(tmp_path / "ctrl.h5ad", k=3, min_libsize=0, cache_dir=tmp_path / "c")
     assert rec2["key"] == rec["key"] and np.array_equal(again, axes[:3])          # nested, read from the cache

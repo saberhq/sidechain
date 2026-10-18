@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import uuid
 from pathlib import Path
 
 import anndata as ad
@@ -189,7 +191,8 @@ def control_axes(path: Path, *, k: int, min_libsize: float, basis: str = "pca",
             sd_axes = np.sqrt((np.asarray(proj, dtype=np.float64) ** 2).sum(axis=0) / max(n - 1, 1))
         if cached is not None:
             cached.parent.mkdir(parents=True, exist_ok=True)
-            tmp = cached.with_name(cached.stem + ".partial.npz")
+            # one temp file per writer: arms sharing a cache may compute the same key side by side
+            tmp = cached.with_name(f"{cached.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial.npz")
             np.savez(tmp, axes=axes, sd_axes=sd_axes, total_var=total_var)
             tmp.replace(cached)
     axes = np.asarray(axes[:k], dtype=np.float64)
