@@ -55,11 +55,14 @@ from sidechain.submit.build import (
     check_shrink_rule,
     neighbour_arm_for,
     parse_coverage_tiers,
+    parse_source_contexts,
     parse_transfer_floor,
     pooled_delta,
     read_scatter_frame,
+    route_sources,
     scatter_pairs,
     shrink_kwargs,
+    source_name,
     sources_from_specs,
 )
 from sidechain.submit.alpha_table import load_alpha_table
@@ -541,6 +544,13 @@ def main(argv: list[str] | None = None) -> int:
                          "evidence stands behind that gene (n_eff), as cut:factor pairs, "
                          "e.g. '3:0.10,10:0.50'. Same knob in sidechain.submit.build, so a "
                          "scored arm submits verbatim.")
+    ap.add_argument("--source-context", action="append", default=[], metavar="NAME=CTX[,CTX]",
+                    help="the per-context source switch, as on sidechain.submit.build (T126): the source "
+                         "whose file stem is NAME votes only in the named contexts. Needs --context, the "
+                         "challenge context this fold's held-out line stands in for; a source not routed "
+                         "to it is left out of the pool, so a build's routes score verbatim")
+    ap.add_argument("--context", default=None, metavar="CTX",
+                    help="the challenge context this fold stands in for, read by --source-context only")
     ap.add_argument("--transfer-floor", action="append", default=[], metavar="NAME=TAU2",
                     help="per-source transfer-error floor tau^2 added to that source's "
                          "variance before it becomes a pooling weight, keyed by the source "
@@ -689,9 +699,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.delta_cache_jobs < 1 or (args.delta_cache_jobs != 1 and not args.delta_cache_build):
         ap.error("--delta-cache-jobs is a count >= 1 and only acts with --delta-cache-build")
     if args.delta_cache is not None and (args.shrink_source or args.lfc_source
-                                         or args.transfer_floor):
+                                         or args.transfer_floor or args.source_context):
         ap.error("--delta-cache holds the plain pool only: no --shrink-source, "
-                 "--lfc-source or --transfer-floor")
+                 "--lfc-source, --transfer-floor or --source-context")
     if args.neighbour_w and args.basal_slope != "off":
         ap.error("--neighbour-w with --basal-slope is not wired (sidechain.submit.build has no "
                  "basal slope to pair it with)")
@@ -721,6 +731,14 @@ def main(argv: list[str] | None = None) -> int:
         sources.append(tab)
     sources = apply_transfer_floors(sources, parse_transfer_floor(args.transfer_floor))
     sources = apply_dispersion_fits(sources, parse_dispersion_fits(args.dispersion_fit))   # T98
+    routes = parse_source_contexts(args.source_context)                                    # T126
+    if routes and args.context is None:
+        ap.error("--source-context needs --context: the challenge context this fold's held-out line "
+                 "stands in for")
+    if args.context is not None and not routes:
+        ap.error("--context is read by --source-context only")
+    if routes:
+        sources = route_sources(sources, routes, [args.context], check_contexts=False)[args.context]
     variance_model.check_sources(sources)
     delta_cache = None
     if args.delta_cache is not None:
@@ -787,11 +805,16 @@ def main(argv: list[str] | None = None) -> int:
     # of what produced the run.
     res["sources"] = {"pseudobulk": args.source, "shrink_pseudobulk": args.shrink_source,
                       "lfc": args.lfc_source}
+    if routes:
+        # off, the record is what an arm before the flag wrote (T126)
+        res["sources"] |= {"source_context": {n: list(c) for n, c in routes.items()},
+                           "context": args.context, "pooled": [source_name(s) for s in sources]}
     (out / "summary.json").write_text(json.dumps(res, indent=1) + "\n")
     log_run(
         {"entry": "loco", "real": str(args.real), "bundle": str(args.bundle),
          "out": str(out), "sources": args.source, "shrink_sources": args.shrink_source,
          "lfc_sources": args.lfc_source,
+         **({"source_context": list(args.source_context), "context": args.context} if routes else {}),
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
          "shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage,

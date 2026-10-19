@@ -25,7 +25,9 @@ essential-scale arms and genome-wide arms (see `pooled_delta`). `--lfc-source` a
 contrast already taken instead of cells (Feng 2026), built by
 `python -m sidechain.data.lfc_table`. It pools identically; it just derives its per-gene
 variance from an adjusted p-value rather than from CPM spread, and abstains (zero weight) on
-genes whose p-value has saturated.
+genes whose p-value has saturated. `--source-context NAME=A` lets the source whose file stem is
+NAME vote in context A only (T126): each distinct pool is pooled once, and `<out>.routing.json`
+says which contexts pooled which sources.
 
 `--shrink-k`, `--shrink-stage` and `--shrink-rule` move the shrinkage of transferred log2FCs
 off its default (the garrote at one standard error, per source): a harder threshold, the rule
@@ -363,6 +365,81 @@ def apply_transfer_floors(sources: list, floors: dict[str, float]) -> list:
         obj = src[0] if isinstance(src, tuple) else src
         obj.transfer_floor = tau2
     return sources
+
+
+def source_name(src) -> str | None:
+    """The basename stem a source was loaded under (`sources_from_specs`, `--lfc-source`, the two caches)."""
+    obj = src[0] if isinstance(src, tuple) else src
+    return getattr(obj, "sidechain_name", None)
+
+
+def parse_source_contexts(specs: list[str] | None) -> dict[str, tuple[str, ...]]:
+    """``['cd4_all_rho01_kd=A']`` -> ``{'cd4_all_rho01_kd': ('A',)}``; ``NAME=A,B`` names two; None/[] -> ``{}``.
+
+    Keyed by the source file's basename stem, as `--transfer-floor` is, for the same reason: the
+    pool's order is a command-line accident. `route_sources` refuses a name that matches no source.
+    """
+    out: dict[str, tuple[str, ...]] = {}
+    for part in specs or []:
+        name, _, value = part.partition("=")
+        names = tuple(c.strip() for c in value.split(",") if c.strip())
+        if not name or not names:
+            raise SystemExit(f"--source-context: {part!r} is not NAME=CTX[,CTX...], e.g. "
+                             "'cd4_all_rho01_kd=A'")
+        if len(set(names)) != len(names):
+            raise SystemExit(f"--source-context: {part!r} names a context twice")
+        if name in out:
+            raise SystemExit(f"--source-context: {name!r} given twice")
+        out[name] = names
+    return out
+
+
+def route_sources(sources: list, routes: dict[str, tuple[str, ...]], contexts: list[str],
+                  *, check_contexts: bool = True) -> dict[str, list]:
+    """Each context's own pool (`--source-context`): every source votes in every context, except a
+    source named in `routes`, which votes only in the contexts named for it. A pool keeps the
+    command line's order, and its members are the same objects as in `sources`.
+
+    Refused, because each is a build that pools a screen where its record says it does not: a name
+    that matches no source or more than one, a route naming a context outside `contexts` (unless
+    `check_contexts` is off: a fold stands in for one context of a challenge it does not read), and
+    a context left with no source at all.
+    """
+    names = [source_name(s) for s in sources]
+    missing = sorted(set(routes) - {n for n in names if n is not None})
+    if missing:
+        raise SystemExit(f"--source-context names {missing} match no source; have "
+                         f"{sorted(n for n in names if n is not None)}")
+    twice = sorted(n for n in routes if names.count(n) > 1)
+    if twice:
+        raise SystemExit(f"--source-context names {twice} match more than one source: two files share "
+                         "the stem, so the route cannot say which")
+    if check_contexts:
+        unknown = sorted({c for cs in routes.values() for c in cs} - set(contexts))
+        if unknown:
+            raise SystemExit(f"--source-context names context(s) {unknown}, which this build does not "
+                             f"write ({', '.join(contexts)})")
+    pools = {ctx: [s for s, n in zip(sources, names) if n not in routes or ctx in routes[n]]
+             for ctx in contexts}
+    empty = [ctx for ctx, pool in pools.items() if not pool]
+    if empty:
+        raise SystemExit(f"--source-context leaves context(s) {empty} with no source")
+    return pools
+
+
+def context_groups(pools: dict[str, list], contexts: list[str]) -> list[tuple[tuple[str, ...], list]]:
+    """The contexts whose pools hold the same sources, grouped in context order, so that each
+    distinct pool is pooled once: ``[(('A',), pool_a), (('B', 'C'), pool_bc)]``."""
+    groups: list[tuple[tuple[str, ...], list]] = []
+    for ctx in contexts:
+        pool = pools[ctx]
+        for i, (ctxs, have) in enumerate(groups):
+            if len(have) == len(pool) and all(a is b for a, b in zip(have, pool)):
+                groups[i] = (ctxs + (ctx,), have)
+                break
+        else:
+            groups.append(((ctx,), pool))
+    return groups
 
 
 def coverage_factor(n_eff: np.ndarray, tiers: tuple[tuple[float, float], ...]) -> np.ndarray:
@@ -1390,6 +1467,14 @@ def main(argv: list[str] | None = None) -> int:
                          "cannot claim more certainty than its measured error against a "
                          "held-out line supports. Fitted, never tuned. Same knob in "
                          "sidechain.eval.loco, so a mirror-scored arm submits verbatim.")
+    ap.add_argument("--source-context", action="append", default=[], metavar="NAME=CTX[,CTX]",
+                    help="the per-context source switch (T126): the source whose file stem is NAME votes "
+                         "only in the named contexts, every other source in every context (repeatable, "
+                         "one per source), e.g. 'cd4_all_rho01_kd=A'. Each distinct pool is pooled once, "
+                         "neighbour arm included; <out>.routing.json records which contexts got which "
+                         "sources, and a routed build writes one <out>.neighbour.<contexts>.json per pool. "
+                         "Same flag on sidechain.eval.loco, with --context. No registered knob letter yet "
+                         "(ADR 0005): a model-named stem refuses it")
     add_neighbour_args(ap, twin="sidechain.eval.loco")
     add_variance_args(ap, twin="sidechain.eval.loco")
     add_ctrl_axes_args(ap, twin="sidechain.eval.loco")
@@ -1474,6 +1559,9 @@ def main(argv: list[str] | None = None) -> int:
     check_ctrl_axes_args(ap, args)                       # T125
     if args.ctrl_axes and args.emitter != "delta-transfer":
         ap.error("--ctrl-axes acts on pooled per-target deltas, so it only applies to delta-transfer")
+    routes = parse_source_contexts(args.source_context)  # T126; checked against the sources once they load
+    if routes and args.emitter != "delta-transfer":
+        ap.error("--source-context chooses which sources pool per context, so it only applies to delta-transfer")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -1531,6 +1619,10 @@ def main(argv: list[str] | None = None) -> int:
         # T125: the control-cell axes have no registered letter yet (ADR 0005), as --alpha-table above
         ap.error(f"'{stem}' is named like a model, and --ctrl-axes has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and routes:
+        # T126: the per-context source switch has no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --source-context has no registered knob letter "
+                 "yet (ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and variance_moved:
         # T98: the variance behind the pooling weight has no registered letter yet (ADR 0005): an
         # arm is scored on the mirror under a freeform label, and the letter is minted only when
@@ -1590,6 +1682,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.ctrl_axes:
         # off, the record is what a build before the flag wrote (T125)
         recorded = {k: v for k, v in recorded.items() if not k.startswith("ctrl_axes")}
+    if not routes:
+        recorded = {k: v for k, v in recorded.items() if k != "source_context"}     # likewise (T126)
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
@@ -1617,6 +1711,8 @@ def main(argv: list[str] | None = None) -> int:
         generic = h1_mean_shift(h1, cfg["control_label"], axis)
         shifts = {p: generic.copy() for p in perts}
     sources = None
+    pools = None                   # T126: {context: its sources} under --source-context
+    group_maps: list[dict] = []    # one per distinct pool (gamma 1): its contexts, sources and shifts
     if args.emitter == "delta-transfer":
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
@@ -1644,21 +1740,33 @@ def main(argv: list[str] | None = None) -> int:
             out.with_suffix(".variance.json").write_text(json.dumps(
                 {**args._variance_model.record(sources), "rule_variance": args.rule_variance},
                 indent=1) + "\n")
+        # T126: each context's own pool under --source-context, pooled once per distinct pool. Unrouted
+        # there is one group, every context, and it pools into `shifts` itself, as every build before.
+        pools = route_sources(sources, routes, contexts) if routes else None
+        groups = context_groups(pools, contexts) if routes else [(tuple(contexts), sources)]
         if args.gamma == 1.0:
-            covered = []
-            for p in perts:
-                d = pooled_delta(p, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
-                                 log_bias_correct=args.log_bias_correct,
-                                 var_floor=args.var_floor, coverage_tiers=cov_tiers,
-                                 stats=pool_stats)
-                if d is None:
-                    fallback += 1          # keep the generic shift
-                else:
-                    shifts[p] = d
-                    covered.append(p)
-            if args.neighbour_w:
-                fuse_neighbours(args, shifts, covered, sources, axis, cov_tiers,
-                                out.with_suffix(".neighbour.json"), fit_stats=pool_fit_stats)
+            for ctxs, pool in groups:
+                g_shifts = shifts if not routes else {p: generic.copy() for p in perts}
+                g_record = out.with_suffix(("." + "-".join(ctxs) if routes else "") + ".neighbour.json")
+                covered = []
+                g_fallback = 0
+                for p in perts:
+                    d = pooled_delta(p, pool, axis, **shrink_kwargs(args), **variance_kwargs(args),
+                                     log_bias_correct=args.log_bias_correct,
+                                     var_floor=args.var_floor, coverage_tiers=cov_tiers,
+                                     stats=pool_stats)
+                    if d is None:
+                        g_fallback += 1    # keep the generic shift
+                    else:
+                        g_shifts[p] = d
+                        covered.append(p)
+                if args.neighbour_w:
+                    fuse_neighbours(args, g_shifts, covered, pool, axis, cov_tiers,
+                                    g_record, fit_stats=pool_fit_stats)
+                fallback += g_fallback
+                group_maps.append({"contexts": list(ctxs), "sources": [source_name(s) for s in pool],
+                                   "shifts": g_shifts, "covered": len(covered), "fallback": g_fallback,
+                                   "neighbour_record": g_record.name if args.neighbour_w else None})
             if variance_moved:
                 # the counts the model left behind, targets and neighbour pool apart (T98)
                 rec_path = out.with_suffix(".variance.json")
@@ -1720,8 +1828,9 @@ def main(argv: list[str] | None = None) -> int:
             local = {p: generic.copy() for p in perts}
             fb = 0
             ctrl_cpm = prof.fraction * 1e6
+            ctx_pool = sources if pools is None else pools[prof.name]
             for p in perts:
-                d = pooled_delta(p, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
+                d = pooled_delta(p, ctx_pool, axis, **shrink_kwargs(args), **variance_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,
@@ -1736,9 +1845,25 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
               "write loop", flush=True)
+    elif routes:
+        for g in group_maps:
+            g["bulk"] = finalize(g["shifts"])
+            print(f"  contexts {', '.join(g['contexts'])}: {len(g['sources'])} sources "
+                  f"({', '.join(map(str, g['sources']))}); fallback-to-generic: {g['fallback']}", flush=True)
+        print(pool_line(f"shifts ready in {time.time() - t0:.0f}s for {len(group_maps)} pools", fallback),
+              flush=True)
     else:
         bulk_shifts = finalize(shifts)
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
+    if routes:
+        # which contexts pooled which sources; the shifts themselves are in the cells
+        out.with_suffix(".routing.json").write_text(json.dumps(
+            {"source_context": {n: list(c) for n, c in routes.items()},
+             "pools": ([{k: v for k, v in g.items() if k not in ("shifts", "bulk")} for g in group_maps]
+                       if group_maps else
+                       [{"contexts": [c], "sources": [source_name(s) for s in pools[c]]} for c in contexts])},
+            indent=1) + "\n")
+    by_context = {c: (g["shifts"], g["bulk"]) for g in group_maps for c in g["contexts"]} if routes else None
     if rule_moved and not args.no_shrink:
         # Written as soon as the shifts exist, before the write loop: every fit is done by now (the
         # adaptive rule is refused with gamma != 1, the one path that pools inside the loop).
@@ -1765,8 +1890,9 @@ def main(argv: list[str] | None = None) -> int:
                                                 **({"keep_cells": True} if shaped else {}))
             if list(prof.genes) != genes:
                 raise SystemExit(f"context {ctx} var_names differ from gene_names.csv")
-            ctx_shifts, ctx_bulk = ((shifts, bulk_shifts) if per_context_shifts is None
-                                    else per_context_shifts(prof))
+            ctx_shifts, ctx_bulk = (per_context_shifts(prof) if per_context_shifts is not None
+                                    else by_context[ctx] if by_context is not None
+                                    else (shifts, bulk_shifts))
             em = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)
             if args.ctrl_axes:
