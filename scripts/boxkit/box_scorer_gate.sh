@@ -21,6 +21,7 @@
 #   BOX_SCORER_WEDGE_S   a step that waited this long with no step live anywhere is admitted on the accounting alone (default 1800)
 #   BOX_POLL_S           seconds between admission attempts (default 20)
 #   BOX_LIVENESS         tmux (a reservation file named for a tmux session is live while the session is; default) or none
+#   BOX_MEMINFO          the file MemAvailable and MemTotal are read from (default /proc/meminfo; a Mac has none, and both read 9999)
 export PATH="$HOME/.local/bin:$PATH"
 set -uo pipefail
 T=${BOX_STATE:-$HOME/box_state}
@@ -33,8 +34,9 @@ if [ "${1:-}" != run ]; then exec "$CE" "$@"; fi
 
 GIB=${BOX_SCORER_GIB:-0}
 case $GIB in ''|*[!0-9]*) GIB=0;; esac
-memfree()  { awk '/MemAvailable/{print int($2/1048576)}' /proc/meminfo 2>/dev/null || echo 9999; }
-memtotal() { awk '/MemTotal/{print int($2/1048576)}' /proc/meminfo 2>/dev/null || echo 9999; }
+MEMINFO=${BOX_MEMINFO:-/proc/meminfo}
+memfree()  { awk '/MemAvailable/{print int($2/1048576)}' "$MEMINFO" 2>/dev/null || echo 9999; }
+memtotal() { awk '/MemTotal/{print int($2/1048576)}' "$MEMINFO" 2>/dev/null || echo 9999; }
 BUDGET=${BOX_BUDGET_GIB:-$(( $(memtotal) - 14 ))}
 MARGIN=${BOX_FREE_MARGIN_GIB:-6}
 TIMEOUT_S=${BOX_SCORER_TIMEOUT_S:-5400}

@@ -112,13 +112,28 @@ def _stub(tmp_path, seconds):
     return stub, log
 
 
+def _meminfo(path, gib):
+    """A fake /proc/meminfo with `gib` GiB total and available, swapped in whole so the gate never reads half a file."""
+    kb = gib * 1048576
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(f"MemTotal:       {kb} kB\nMemAvailable:   {kb} kB\n")
+    os.replace(tmp, path)
+    return path
+
+
 def _gate(tmp_path, stub, args, **env):
+    # the gate reads the machine's own free memory unless told otherwise: GitHub's 16 GB runner
+    # never has the 16 GiB free a 10 GiB step needs (the step plus the 6 GiB margin), so every step waited
+    mem = tmp_path / "meminfo"
+    if not mem.exists():
+        _meminfo(mem, 256)
     e = {
         **os.environ,
         "BOX_STATE": str(tmp_path / "state"),
         "BOX_LIVENESS": "none",
         "BOX_POLL_S": "1",
         "BOX_BUDGET_GIB": "100",
+        "BOX_MEMINFO": str(mem),
         **env,
     }
     return subprocess.Popen(
@@ -176,6 +191,17 @@ def test_gate_admits_what_the_memory_budget_allows(tmp_path):
     ]
     assert all(p.wait(timeout=60) == 0 for p in ps)
     assert _max_concurrent(log) == 2  # 40 + 40 fits 100, a third does not
+
+
+def test_gate_holds_a_step_until_the_box_really_has_the_memory(tmp_path):
+    stub, log = _stub(tmp_path, 0)
+    mem = _meminfo(tmp_path / "meminfo", 12)  # under 10 + the 6 GiB margin
+    p = _gate(tmp_path, stub, ["run"], BOX_SCORER_GIB="10", BOX_CARDS="1")
+    time.sleep(3)
+    assert p.poll() is None and not log.exists()
+    _meminfo(mem, 64)
+    assert p.wait(timeout=20) == 0 and "start" in log.read_text()
+    assert "memfree 12G" in (tmp_path / "state" / "scorer_gate.log").read_text()
 
 
 def test_gate_caps_the_pools_and_picks_a_card(tmp_path):
