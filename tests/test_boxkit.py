@@ -355,3 +355,22 @@ def test_done_cli_reads_the_marker_over_ssh(tmp_path):
         and r.stdout.splitlines()[0] == "READY"
         and "brev_key.sh delete bx" in r.stdout
     )
+
+
+def _cpu_env(tmp_path, cpuinfo):
+    info = tmp_path / "cpuinfo"
+    info.write_text(cpuinfo)
+    script = f'. "{KIT / "box_cpu_env.sh"}"; echo "$BOX_CPU_ENV|${{OPENBLAS_CORETYPE:-}}|${{NPY_DISABLE_CPU_FEATURES:-}}"'
+    env = {k: v for k, v in os.environ.items() if k not in ("OPENBLAS_CORETYPE", "NPY_DISABLE_CPU_FEATURES")}
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True,
+                       env={**env, "BOX_CPUINFO": str(info)})
+    return r.stdout.strip().split("|")
+
+
+def test_cpu_env_pins_only_an_amd_box_with_avx512(tmp_path):
+    zen4 = "vendor_id\t: AuthenticAMD\nmodel name\t: AMD EPYC 9554\nflags\t\t: fpu sse avx2 avx512f avx512bw\n"
+    zen3 = "vendor_id\t: AuthenticAMD\nmodel name\t: AMD EPYC 7763\nflags\t\t: fpu sse avx2\n"
+    intel = "vendor_id\t: GenuineIntel\nmodel name\t: Intel Xeon Gold 6338\nflags\t\t: fpu sse avx2 avx512f\n"
+    assert _cpu_env(tmp_path, zen4) == ["pinned to AVX2 (AMD with AVX-512)", "ZEN", "X86_V4 AVX512_ICL AVX512_SPR"]
+    assert _cpu_env(tmp_path, zen3) == ["unchanged (no AVX-512 AMD CPU)", "", ""]
+    assert _cpu_env(tmp_path, intel) == ["unchanged (no AVX-512 AMD CPU)", "", ""]

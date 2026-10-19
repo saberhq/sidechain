@@ -11,5 +11,6 @@ Tools that every box run uses, whatever the task. Each is tested in `tests/test_
 | `box_scorer_gate.sh` | a scoring step waits for a free card and enough free memory, then runs under the caps |
 | `box_order.py` | orders a queue longest-first inside each dependency layer |
 | `box_done.py` | reads a kit's done marker and prints the commands that end the box (never runs them) |
+| `box_cpu_env.sh` | sourced before a kit's launch: on an AMD box with AVX-512 (Zen 4) it pins numpy, OpenBLAS, torch and MKL to AVX2, so the box computes what our Zen 3 records were made on; nothing elsewhere |
 
 How the pieces fit and what is not built yet: `DESIGN.md`. The planner that prices a queue on a machine before it is rented is `private/research/protocol/box_plan.py` (private repo).
