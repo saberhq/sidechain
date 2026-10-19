@@ -95,6 +95,16 @@ with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
     f.write(text)
 os.replace(tmp, path)
 EOF
+read -r -d '' PY_UNHOST <<'EOF' || true
+import os, re, sys
+path, name = sys.argv[1:]
+if os.path.exists(path):
+    text = re.sub(r"(?m)^Host " + re.escape(name) + r"\n(?:[ \t]+.*\n?)*", "", open(path).read())
+    tmp = path + ".tmp"
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+EOF
 read -r -d '' PY_INCLUDE <<'EOF' || true
 import os, sys
 path, line = sys.argv[1:]
@@ -222,7 +232,8 @@ print(json.dumps({"cloud": c, "region": r, "shade_instance_type": t, "shade_clou
     name="${2:?usage: delete NAME}"
     id="$(id_of "$name")"
     call POST "/instances/$id/delete" >/dev/null
-    echo "$name $id delete requested; \`scripts/shade.sh ls\` shows it deleting, then deleted"
+    "$PY" -c "$PY_UNHOST" "$HOSTS" "$name"
+    echo "$name $id delete requested, its host entry removed; \`scripts/shade.sh info $id\` reads deleted when it is gone"
     ;;
 
   *)
