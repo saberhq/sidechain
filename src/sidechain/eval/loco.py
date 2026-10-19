@@ -68,6 +68,7 @@ from sidechain.submit.build import (
 from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import DEFAULT_CACHE as CTRL_AXES_CACHE, add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
+from sidechain.submit.pie_source import add_prediction_source_args, check_prediction_source_args, pie_shift_map
 from sidechain.submit.variance_model import (
     VarianceModel,
     add_variance_args,
@@ -150,6 +151,9 @@ def build_transfer_prediction(
     ctrl_axes_basis: str = "pca",
     ctrl_axes_share: float = 1.0,
     ctrl_axes_cache: Path | None = CTRL_AXES_CACHE,
+    prediction_source: str = "ser",
+    pie_parquet: Path | None = None,
+    pie_context: str | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -170,6 +174,11 @@ def build_transfer_prediction(
     every target is predicted before the first is emitted (the same deltas, the same emission). Outside the
     delta cache's key. 0 is the historical path.
 
+    `prediction_source` `pie` (T85; `sidechain.submit.pie_source`) takes each target's map before alpha from
+    the `pie_context` rows of `pie_parquet` in place of the pooled delta; `sources` must be empty and the
+    knobs that act inside the pool are refused. A target with no row is uncovered, as a target no source
+    covers. `ser` is the historical path.
+
     `variance_model` and `rule_variance` (T98; `sidechain.submit.variance_model`) are passed to
     every `pooled_delta` call -- the targets, the neighbour pool and a delta-cache build -- and
     recorded; None / `shipped` is the historical path. Refused with a basal slope, whose own fits
@@ -185,6 +194,15 @@ def build_transfer_prediction(
     if emit_shape not in ("template", "controls"):
         raise SystemExit(f"emit_shape must be 'template' or 'controls', got {emit_shape!r}")
     shaped = emit_shape == "controls"            # T85: every block is re-rated control cells
+    if prediction_source not in ("ser", "pie"):
+        raise SystemExit(f"prediction_source must be 'ser' or 'pie', got {prediction_source!r}")
+    pie = prediction_source == "pie"
+    if pie and (pie_parquet is None or not pie_context):
+        raise SystemExit("prediction_source pie needs pie_parquet and pie_context")
+    if pie and (sources or delta_cache is not None or neighbour_w or basal_slope != "off" or gamma != 1.0
+                or similarity_beta != 0.0 or coverage_tiers is not None):
+        raise SystemExit("prediction_source pie stands where the pooled delta stands: no sources, delta cache, "
+                         "neighbour arm, basal slope, gamma, similarity weight or coverage tiers")
     check_shrink_rule(shrink_k, shrink_stage, shrink_rule)     # before any file is written
     vm = variance_model if variance_model is not None else VarianceModel()
     if not vm.is_shipped and basal_slope != "off":
@@ -227,6 +245,7 @@ def build_transfer_prediction(
     axis = real.var_names.astype(str).to_numpy()
     gf, gf_record = load_gene_factor(gene_factor, axis) if gene_factor is not None else (None, None)
     at, at_record = load_alpha_table(alpha_table, perts) if alpha_table is not None else (None, None)
+    pie_map, pie_record = pie_shift_map(pie_parquet, pie_context, axis, perts) if pie else (None, None)
     cache = None
     if delta_cache is not None:
         from sidechain.eval.delta_cache import DeltaCache, build_cache, key_fields
@@ -364,13 +383,16 @@ def build_transfer_prediction(
             delta_of, axis)
     def predict(p):
         """The target's pooled vector at alpha with its pin, and the vector before alpha (None, None uncovered)."""
-        d = cache.get(p, pool_stats) if cache is not None else pooled_delta(
-            p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
-            shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
-            log_bias_correct=log_bias_correct,
-            gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
-            coverage_tiers=coverage_tiers,
-            similarity_beta=similarity_beta, stats=pool_stats, **pool_variance)
+        if pie_map is not None:
+            d = pie_map.pop(p, None)       # T85: PIE's map where the pooled delta stands; read once
+        else:
+            d = cache.get(p, pool_stats) if cache is not None else pooled_delta(
+                p, sources, axis, shrinkage=shrinkage, shrink_k=shrink_k,
+                shrink_stage=shrink_stage, shrink_rule=shrink_rule, var_floor=var_floor,
+                log_bias_correct=log_bias_correct,
+                gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
+                coverage_tiers=coverage_tiers,
+                similarity_beta=similarity_beta, stats=pool_stats, **pool_variance)
         d0 = None
         if d is not None:
             if arm is not None:
@@ -459,6 +481,8 @@ def build_transfer_prediction(
             "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
             "gene_factor": gf_record,
             "alpha_table": at_record,
+            # T85: present only with prediction_source pie
+            **({"prediction_source": {"source": "pie", **pie_record}} if pie else {}),
             # T125: present only with --ctrl-axes
             **({"ctrl_axes": {"k": ctrl_axes, "eta": ctrl_axes_eta, "basis": ctrl_axes_basis,
                               "share": ctrl_axes_share, "axes": axes_rec,
@@ -670,6 +694,7 @@ def main(argv: list[str] | None = None) -> int:
     add_neighbour_args(ap, twin="sidechain.submit.build")
     add_variance_args(ap, twin="sidechain.submit.build")
     add_ctrl_axes_args(ap, twin="sidechain.submit.build")
+    add_prediction_source_args(ap, twin="sidechain.submit.build", per_context=False)
     ap.add_argument("--delta-cache", type=Path, default=None, metavar="DIR",
                     help="read every pooled delta (targets and neighbour pool) from a per-fold "
                          "cache under DIR instead of pooling it (sidechain.eval.delta_cache): "
@@ -691,6 +716,18 @@ def main(argv: list[str] | None = None) -> int:
     check_shrink_args(ap, args)
     variance_model = check_variance_args(ap, args)       # T98
     check_ctrl_axes_args(ap, args)                       # T125
+    check_prediction_source_args(ap, args, per_context=False)   # T85
+    pie = args.prediction_source == "pie"
+    if pie and (args.source or args.shrink_source or args.lfc_source or args.source_context
+                or args.delta_cache is not None or args.neighbour_w or args.basal_slope != "off"
+                or args.gamma != 1.0 or args.similarity_beta != 0.0 or args.coverage_tiers
+                or args.transfer_floor or args.dispersion_fit or not variance_model.is_shipped
+                or (args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")
+                or args.log_bias_correct):
+        ap.error("--prediction-source pie stands where the pooled delta stands: no --source, --shrink-source, "
+                 "--lfc-source, --source-context, --delta-cache, --neighbour-w, --basal-slope, --gamma, "
+                 "--similarity-beta, --coverage-tiers, --transfer-floor, --dispersion-fit, --variance-model, "
+                 "shrinkage rule or --log-bias-correct")
     if not variance_model.is_shipped and args.basal_slope != "off":
         ap.error("--variance-model with --basal-slope is not wired (the slope's fits would read the "
                  "shipped variance while the pool read the model's)")
@@ -722,7 +759,7 @@ def main(argv: list[str] | None = None) -> int:
     # and scoring one is how you find out what that corpus is worth alone.
     # At least one of the two is still mandatory -- an arm with no sources at
     # all would score the fallback shift and look like a model.
-    if not args.source and not args.shrink_source and not args.lfc_source:
+    if not pie and not args.source and not args.shrink_source and not args.lfc_source:
         ap.error("need at least one --source, --shrink-source or --lfc-source")
     sources = sources_from_specs(args.source, args.shrink_source)
     for path in args.lfc_source:
@@ -792,7 +829,9 @@ def main(argv: list[str] | None = None) -> int:
                                      ctrl_axes=args.ctrl_axes, ctrl_axes_eta=args.ctrl_axes_eta,
                                      ctrl_axes_basis=args.ctrl_axes_basis,
                                      ctrl_axes_share=args.ctrl_axes_share,
-                                     ctrl_axes_cache=args.ctrl_axes_cache)
+                                     ctrl_axes_cache=args.ctrl_axes_cache,
+                                     **({"prediction_source": "pie", "pie_parquet": args.pie_parquet,
+                                         "pie_context": args.pie_context} if pie else {}))
     print(json.dumps(info), flush=True)
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
@@ -825,6 +864,8 @@ def main(argv: list[str] | None = None) -> int:
          **({"ctrl_axes": args.ctrl_axes, "ctrl_axes_eta": args.ctrl_axes_eta,
              "ctrl_axes_basis": args.ctrl_axes_basis, "ctrl_axes_share": args.ctrl_axes_share}
             if args.ctrl_axes else {}),
+         **({"prediction_source": "pie", "pie_parquet": str(args.pie_parquet), "pie_context": args.pie_context}
+            if pie else {}),
          "dual_fallback": args.dual_fallback,
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,

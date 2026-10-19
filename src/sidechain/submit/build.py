@@ -81,6 +81,12 @@ from sidechain.models.count_emitters import (
 from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
+from sidechain.submit.pie_source import (
+    add_prediction_source_args,
+    check_prediction_source_args,
+    parse_pie_contexts,
+    pie_shift_map,
+)
 from sidechain.submit.variance_model import (
     RULE_VARIANCES,
     VarianceModel,
@@ -1479,6 +1485,7 @@ def main(argv: list[str] | None = None) -> int:
     add_neighbour_args(ap, twin="sidechain.eval.loco")
     add_variance_args(ap, twin="sidechain.eval.loco")
     add_ctrl_axes_args(ap, twin="sidechain.eval.loco")
+    add_prediction_source_args(ap, twin="sidechain.eval.loco", per_context=True)
     ap.add_argument("--limit-perts", type=int, help="build only the first N perturbations (pipeline tests)")
     ap.add_argument("--seed", type=int, default=20260821)
     ap.add_argument("--dispersion", choices=["poisson", "even"], default=None,
@@ -1563,6 +1570,18 @@ def main(argv: list[str] | None = None) -> int:
     routes = parse_source_contexts(args.source_context)  # T126; checked against the sources once they load
     if routes and args.emitter != "delta-transfer":
         ap.error("--source-context chooses which sources pool per context, so it only applies to delta-transfer")
+    check_prediction_source_args(ap, args, per_context=True)    # T85
+    pie = args.prediction_source == "pie"
+    if pie and args.emitter != "delta-transfer":
+        ap.error("--prediction-source pie stands where the pooled delta stands, so it only applies to delta-transfer")
+    if pie and (args.gwps_cache or args.source or args.shrink_source or args.lfc_source or routes
+                or args.neighbour_w or args.gamma != 1.0 or args.coverage_tiers or args.transfer_floor
+                or args.dispersion_fit or variance_moved or args.log_bias_correct
+                or (args.shrink_k, args.shrink_stage, args.shrink_rule) != (1.0, "source", "garrote")):
+        ap.error("--prediction-source pie stands where the pooled delta stands: no --gwps-cache, --source, "
+                 "--shrink-source, --lfc-source, --source-context, --neighbour-w, --gamma, --coverage-tiers, "
+                 "--transfer-floor, --dispersion-fit, --variance-model, shrinkage rule or --log-bias-correct "
+                 "(--h1-cache stays: its mean shift is what a target PIE has no row for carries)")
 
     stem = Path(args.out).name
     check_out_leaf(stem, context="submit.build", require_slug=True)
@@ -1624,6 +1643,10 @@ def main(argv: list[str] | None = None) -> int:
         # mirror under a freeform label, and the letter is minted only when one first reaches the board.
         ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and pie:
+        # T85: PIE as the prediction source has no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --prediction-source pie has no registered knob letter "
+                 "yet (ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and routes:
         # T126: the per-context source switch has no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --source-context has no registered knob letter "
@@ -1689,6 +1712,9 @@ def main(argv: list[str] | None = None) -> int:
         recorded = {k: v for k, v in recorded.items() if not k.startswith("ctrl_axes")}
     if not routes:
         recorded = {k: v for k, v in recorded.items() if k != "source_context"}     # likewise (T126)
+    if not pie:
+        recorded = {k: v for k, v in recorded.items()                               # likewise (T85)
+                    if k not in ("prediction_source", "pie_parquet", "pie_context")}
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
@@ -1718,7 +1744,23 @@ def main(argv: list[str] | None = None) -> int:
     sources = None
     pools = None                   # T126: {context: its sources} under --source-context
     group_maps: list[dict] = []    # one per distinct pool (gamma 1): its contexts, sources and shifts
-    if args.emitter == "delta-transfer":
+    if pie:
+        # T85: PIE's map stands where the pooled delta stands, one map per distinct parquet context; a
+        # perturbation with no row keeps the generic shift, as a target no source covers
+        pie_of = parse_pie_contexts(args.pie_context, contexts)
+        pie_records = {}
+        for name in dict.fromkeys(pie_of[c] for c in contexts):
+            ctxs = [c for c in contexts if pie_of[c] == name]
+            m, rec = pie_shift_map(args.pie_parquet, name, axis, perts)
+            g_shifts = {p: m.pop(p) if p in m else generic.copy() for p in perts}
+            fb = rec["perturbations_missing"]
+            fallback += fb
+            pie_records[name] = {"contexts": ctxs, **rec}
+            group_maps.append({"contexts": ctxs, "sources": [f"pie:{name}"], "shifts": g_shifts,
+                               "covered": len(perts) - fb, "fallback": fb, "neighbour_record": None})
+        out.with_suffix(".pie.json").write_text(json.dumps(
+            {"prediction_source": "pie", "pie_context": pie_of, "maps": pie_records}, indent=1) + "\n")
+    elif args.emitter == "delta-transfer":
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
         # (final-phase: before) A final build takes `--gwps-cache k562_gwps_all_pseudobulk.npz` (control
@@ -1850,7 +1892,7 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
               "write loop", flush=True)
-    elif routes:
+    elif routes or pie:
         for g in group_maps:
             g["bulk"] = finalize(g["shifts"])
             print(f"  contexts {', '.join(g['contexts'])}: {len(g['sources'])} sources "
@@ -1868,7 +1910,8 @@ def main(argv: list[str] | None = None) -> int:
                        if group_maps else
                        [{"contexts": [c], "sources": [source_name(s) for s in pools[c]]} for c in contexts])},
             indent=1) + "\n")
-    by_context = {c: (g["shifts"], g["bulk"]) for g in group_maps for c in g["contexts"]} if routes else None
+    by_context = ({c: (g["shifts"], g["bulk"]) for g in group_maps for c in g["contexts"]}
+                  if routes or pie else None)
     if rule_moved and not args.no_shrink:
         # Written as soon as the shifts exist, before the write loop: every fit is done by now (the
         # adaptive rule is refused with gamma != 1, the one path that pools inside the loop).
