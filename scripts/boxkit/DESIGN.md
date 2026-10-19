@@ -11,7 +11,8 @@
 | `box_order.py` | where the queue is made | longest estimate first inside each dependency layer |
 | `box_done.py` | the Mac | reads a kit's done marker over ssh and prints the commands that end the box; never runs them |
 
-The planner that prices a queue on a machine before it is rented is `private/research/protocol/box_plan.py`; the ledger takes
+The planner that prices a queue on a machine before it is rented is `private/research/protocol/box_plan.py` (any queue through
+`--queue-file`, with a worker cap; `box_plan_entry_night.json` beside it is an entry's night); the ledger takes
 `box start --predict-hours --predict-usd`, `box pause` / `resume` for a stoppable box, and `box join` for a second task on a running box.
 
 ## Not built: the generic worker (K7) and shared directories (K8)
@@ -31,5 +32,6 @@ The split worth making:
 - **one work directory, named once:** every script reads it from the same variable (`BOX_WORK`) with no per-task default. T111's
   `realised_energy.py` fell back to `~/t111` when `T111_WORK` was unset, so a renamed copy of the kit failed it silently (T102, 2026-10-15).
 
-It is not built because a library with one instance guesses its interface. The first customer is the next queue that needs a box (T114's
-step 3 is waiting on a GO); extract the common part from T111's kit while building that task's hooks, and keep T111's kit as the test.
+Not built when T118 closed (2026-10-18), with box use left flexible. Since 2026-10-16 each entry's kit is a copy of the one before it,
+with a diff against it: T85's list kit (ran clean on 2026-10-16), then T84's entry 1, then T125's entry 2. Extract the common part above
+only if the copies start to drift apart in ways that cost a night.
