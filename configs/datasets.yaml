@@ -1288,8 +1288,10 @@ datasets:
   # are countable from the per-cell table (`top_guide_umi == 20`,
   # `pct_mt >= 20`) without re-reading a lane.
   #
-  # role: analysis, not train: no build reads this source. Flipping it to
-  # `train` is a decision, and this is where it would be recorded.
+  # role: train since 2026-10-19 (T126): the every-source entry's build reads
+  # this screen as a source in the pool, on Saber's word of 2026-10-18 to put
+  # every source on file into one entry. Until then it read `analysis` ("no
+  # build reads this source").
   # ==========================================================================
   - name: pan2026_h1_crispri
     enabled: true
@@ -1335,7 +1337,7 @@ datasets:
           control_label: non-targeting
           gene_id_col: id                  # matrix/features/id is the Ensembl id; `name` the symbol
           modality: crispri
-          role: analysis
+          role: train
           granularity: cell
           batch_col: lane                  # the GEO sample, 85 of them
           expression_feature_type: "Gene Expression"
