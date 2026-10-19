@@ -59,7 +59,7 @@ def add_ctrl_axes_args(ap, *, twin: str) -> None:
                          "context's own control cells) from each target's predicted summed profile; the "
                          "per-cell channel is untouched. 0 (the default) is off. Needs --bulk-anchor pooled. "
                          f"Recorded with the axes' hash (sidechain.submit.ctrl_axes; the same flag on {twin}). "
-                         "No registered knob letter yet (ADR 0005): a model-named stem refuses it")
+                         "Knob letter x (ADR 0005): a model-named stem carries x exactly when this is on")
     ap.add_argument("--ctrl-axes-eta", type=float, default=1.0, metavar="ETA",
                     help="with --ctrl-axes: the share of the along-axis part removed, in (0, 1] (default 1)")
     ap.add_argument("--ctrl-axes-basis", choices=list(BASES), default="pca",

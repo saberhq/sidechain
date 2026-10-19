@@ -1611,14 +1611,18 @@ def main(argv: list[str] | None = None) -> int:
         if "h" in letters and not head_moved:
             ap.error(f"'{stem}' carries the letter h, which says a per-gene table makes a chosen "
                      "set of genes callable, but --scatter-table is not given")
+        # The context's own control-cell axes out of the summed profile are letter `x` (ADR 0005,
+        # registered 2026-10-19, T125): no letter is the summed profile as the pooled anchor emits it.
+        if args.ctrl_axes and "x" not in letters:
+            ap.error(f"'{stem}': --ctrl-axes takes the context's control-cell axes out of the summed "
+                     "profile, so the name must carry the letter x (ADR 0005) -- or build under a freeform stem")
+        if "x" in letters and not args.ctrl_axes:
+            ap.error(f"'{stem}' carries the letter x, which says the control-cell axes come out of the "
+                     "summed profile, but --ctrl-axes is 0")
     if CLAIMS_RE.match(stem) and args.alpha_table is not None:
         # T1: the per-target amplitude has no registered letter yet (ADR 0005): an arm is scored on the
         # mirror under a freeform label, and the letter is minted only when one first reaches the board.
         ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
-                 "(ADR 0005): register the letter first, or build under a freeform stem")
-    if CLAIMS_RE.match(stem) and args.ctrl_axes:
-        # T125: the control-cell axes have no registered letter yet (ADR 0005), as --alpha-table above
-        ap.error(f"'{stem}' is named like a model, and --ctrl-axes has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and routes:
         # T126: the per-context source switch has no registered letter yet (ADR 0005), as above

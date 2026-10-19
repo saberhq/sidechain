@@ -5,7 +5,7 @@ cached by their inputs; the projection removes eta of the emitted change's along
 target's own gene; eta 0 and no axes are no-ops; on `submit.build` the per-cell channel is bit-identical with
 the flag on while the summed-profile channel moves, the record is written, and off the build writes what it
 wrote before (no record, no new keys in args.json); on `eval.loco` the same, and the flag needs the pooled
-anchor and refuses a model-named build stem.
+anchor, and a model-named build stem carries the letter x exactly when the flag is on (ADR 0005).
 """
 from __future__ import annotations
 
@@ -138,13 +138,23 @@ def test_build_moves_only_the_summed_profile_and_records_it(challenge, monkeypat
     assert json.loads((challenge["out"] / "axes.args.json").read_text())["ctrl_axes"] == 1
 
 
-def test_build_refuses_without_the_pooled_anchor_and_under_a_model_name(challenge):  # noqa: F811
+def test_build_refuses_without_the_pooled_anchor(challenge):  # noqa: F811
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "x", ["--ctrl-axes", "1"]))
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "x", ["--bulk-anchor", "pooled", "--ctrl-axes-eta", "0.5"]))
-    with pytest.raises(SystemExit):
-        build.main(_argv(challenge, "ser-99a_delta_test_v1", ["--bulk-anchor", "pooled", "--ctrl-axes", "1"]))
+
+
+def test_a_model_named_stem_carries_the_letter_x_both_ways(challenge, monkeypatch, tmp_path, capsys):  # noqa: F811
+    _spy(monkeypatch)
+    axes = ["--bulk-anchor", "pooled", "--ctrl-axes", "1", "--ctrl-axes-cache", str(tmp_path / "c")]
+    with pytest.raises(SystemExit):                                   # the flag needs the letter
+        build.main(_argv(challenge, "ser-99w_delta_test_v1", axes))
+    assert "must carry the letter x" in capsys.readouterr().err
+    with pytest.raises(SystemExit):                                   # the letter needs the flag
+        build.main(_argv(challenge, "ser-99wx_delta_test_v1", ["--bulk-anchor", "pooled"]))
+    assert "carries the letter x" in capsys.readouterr().err
+    assert build.main(_argv(challenge, "ser-99wx_delta_test_v1", axes)) == 0
 
 
 # ------------------------------------------------------------------------------------ eval.loco
