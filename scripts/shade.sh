@@ -44,6 +44,15 @@ call() {
   esac
 }
 
+# METHOD PATH JSON-or-"" PYTHON-CODE [ARGS...]: the body is fetched first and parsed after, so a refused call stops
+# with its own reason (an HTTP 409 OUT_OF_STOCK) instead of a JSON error from an empty pipe.
+callpy() {
+  local m="$1" p="$2" d="$3" code="$4" out
+  shift 4
+  out="$(call "$m" "$p" "$d")" || exit 1
+  printf '%s' "$out" | "$PY" -c "$code" "$@"
+}
+
 # The JSON readers (python3 from the OS: no project env needed on the Mac side).
 read -r -d '' PY_LIVE <<'EOF' || true
 import json, sys
@@ -118,7 +127,7 @@ EOF
 # NAME or id -> the id of the one live instance by that name.
 id_of() {
   if [[ "$1" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then echo "$1"; return; fi
-  call GET /instances | "$PY" -c "$PY_LIVE" "$1" id
+  callpy GET /instances "" "$PY_LIVE" "$1" id
 }
 
 # NAME IP USER PORT -> its host block in $HOSTS (replacing an older one), and the Include line in ~/.ssh/config once.
@@ -148,7 +157,7 @@ case "${1:-}" in
 
   --check)
     need_key
-    n="$(call GET /instances | "$PY" -c 'import json,sys; print(len(json.load(sys.stdin).get("instances", [])))')"
+    n="$(callpy GET /instances "" 'import json,sys; print(len(json.load(sys.stdin).get("instances", [])))')"
     echo "OK -- the key answers; $n instance(s) on the account"
     ;;
 
@@ -157,20 +166,20 @@ case "${1:-}" in
     q="available=true&sort=price"
     [ -n "${2:-}" ] && q="$q&gpu_type=$2"
     [ -n "${3:-}" ] && q="$q&num_gpus=$3"
-    call GET "/instances/types?$q" | "$PY" -c "$PY_TYPES"
+    callpy GET "/instances/types?$q" "" "$PY_TYPES"
     ;;
 
   sshkey)
     need_key
     [ -f "$KEYFILE" ] || ssh-keygen -q -t ed25519 -N "" -C "sidechain-shadeform" -f "$KEYFILE"
     pub="$(cat "$KEYFILE.pub")"
-    have="$(call GET /sshkeys | "$PY" -c '
+    have="$(callpy GET /sshkeys "" '
 import json, sys
 pub = sys.argv[1].split()[1]
 print(next((k["id"] for k in json.load(sys.stdin).get("ssh_keys", []) if pub in k.get("public_key", "")), ""))' "$pub")"
     if [ -z "$have" ]; then
       body="$("$PY" -c 'import json,sys; print(json.dumps({"name": "sidechain-mac", "public_key": sys.argv[1]}))' "$pub")"
-      have="$(call POST /sshkeys/add "$body" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+      have="$(callpy POST /sshkeys/add "$body" 'import json,sys; print(json.load(sys.stdin)["id"])')"
       echo "registered $KEYFILE.pub as $have"
     else
       echo "already registered as $have"
@@ -184,13 +193,14 @@ print(next((k["id"] for k in json.load(sys.stdin).get("ssh_keys", []) if pub in 
     name="${2:?usage: create NAME CLOUD SHADE_TYPE REGION}"; cloud="${3:?cloud}"; stype="${4:?shade instance type}"
     region="${5:?region}"
     [ -f "$KEYFILE" ] || die "no $KEYFILE: run \`scripts/shade.sh sshkey\` first"
-    if call GET /instances | "$PY" -c "$PY_LIVE" "$name" exists; then die "an instance named $name is already live"; fi
+    live="$(call GET /instances)" || exit 1
+    if printf '%s' "$live" | "$PY" -c "$PY_LIVE" "$name" exists; then die "an instance named $name is already live"; fi
     body="$("$PY" -c '
 import json, sys
 n, c, t, r = sys.argv[1:]
 print(json.dumps({"cloud": c, "region": r, "shade_instance_type": t, "shade_cloud": True, "name": n,
                   "os": "ubuntu22.04_cuda12.2_shade_os"}))' "$name" "$cloud" "$stype" "$region")"
-    id="$(call POST /instances/create "$body" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+    id="$(callpy POST /instances/create "$body" 'import json,sys; print(json.load(sys.stdin)["id"])')"
     echo "$name $id creating ($cloud $stype $region). Next: scripts/shade.sh wait $name"
     ;;
 
@@ -218,13 +228,14 @@ print(json.dumps({"cloud": c, "region": r, "shade_instance_type": t, "shade_clou
 
   ls)
     need_key
-    call GET /instances | "$PY" -c "$PY_LS"
+    callpy GET /instances "" "$PY_LS"
     ;;
 
   info)
     need_key
     id="$(id_of "${2:?usage: info NAME}")"
-    echo "$2 $id $(call GET "/instances/$id/info" | "$PY" -c "$PY_INFO")"
+    line="$(callpy GET "/instances/$id/info" "" "$PY_INFO")"
+    echo "$2 $id $line"
     ;;
 
   delete)
