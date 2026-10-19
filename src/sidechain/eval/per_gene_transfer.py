@@ -192,7 +192,10 @@ def gate_from_de_real(parquet: str | Path, targets: list[str], genes: np.ndarray
     ``p_adj < threshold`` with a finite real log2FC, drops the target's own gene, and
     reports how many perturbations clear ``min_gate_size`` -- the ones nmae scores.
     """
-    df = pd.read_parquet(parquet, columns=["target", "feature", "log2_fold_change", "p_adj"])
+    # the threshold is applied in the read, so a table too big for memory (the wide K562 fold's ~81 M rows)
+    # only ever materialises its significant rows; the line after it is then a no-op on p_adj
+    df = pd.read_parquet(parquet, columns=["target", "feature", "log2_fold_change", "p_adj"],
+                         filters=[("p_adj", "<", p_adj)])
     df = df[(df["p_adj"] < p_adj) & np.isfinite(df["log2_fold_change"])]
     tpos = {t: i for i, t in enumerate(targets)}
     gpos = {g: i for i, g in enumerate(genes)}

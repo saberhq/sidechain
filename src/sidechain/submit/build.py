@@ -1354,7 +1354,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--gwps-cache")
     ap.add_argument("--gwps-control", default="control", metavar="LABEL",
                     help="the control label inside --gwps-cache (default 'control', the "
-                         "panel-streamed cache's spelling). k562_gwps_union_pseudobulk.npz spells "
+                         "spelling of the panel-streamed cache and of k562_gwps_all_pseudobulk.npz, "
+                         "the screen's 9,866 knockdowns). k562_gwps_union_pseudobulk.npz spells "
                          "it 'non-targeting'; its rows for the 272 panel targets pool bit-identically "
                          "to the panel cache's, and it carries 821 of the neighbour pool's 849 "
                          "(T103), as eval.loco's folds do")
@@ -1716,10 +1717,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.emitter == "delta-transfer":
         if not args.gwps_cache:
             raise SystemExit("--gwps-cache is required for delta-transfer")
-        # (final-phase: before) The documented --gwps-cache was streamed with `--keep pert_counts.csv`
-        # and holds the validation panel's 272 targets only: on a new panel this arm stops voting
-        # and nothing says so, because the genome-wide X-Atlas arms keep `fallback 0`. Stream
-        # K562-gwps once with no --keep, then narrow it per panel (scripts/subset_pseudobulk_labels.py).
+        # (final-phase: before) A final build takes `--gwps-cache k562_gwps_all_pseudobulk.npz` (control
+        # 'control'): all 9,866 knockdowns of the screen, its rows bit-identical to the panel caches' (T93,
+        # 2026-10-19). The panel caches hold 272 or 821 targets: on a new panel they stop voting and nothing
+        # says so, because the genome-wide X-Atlas arms keep `fallback 0`.
         gwps = PseudobulkSums.load(args.gwps_cache)
         gwps.sidechain_name = Path(args.gwps_cache).expanduser().stem
         gwps.sidechain_path = Path(args.gwps_cache).expanduser()

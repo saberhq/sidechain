@@ -168,13 +168,13 @@ container only and the server reads the file on a 128 GB machine, so **the Mac c
 uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/vcc2025/adata_{Training,Validation,Test}.h5ad \
     --label-col target_gene --control non-targeting --control-once --out ~/data/sidechain/cache/vcc2026/h1_pseudobulk.npz
 uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/external/zenodo-13350497/ReplogleWeissman2022_K562_gwps.h5ad \
-    --label-col perturbation --keep ~/data/sidechain/vcc2026/pert_counts.csv --control control \
-    --out ~/data/sidechain/cache/vcc2026/k562_gwps_targets_pseudobulk.npz
+    --label-col perturbation --control control \
+    --out ~/data/sidechain/cache/vcc2026/k562_gwps_all_pseudobulk.npz      # every knockdown, any panel (2026-10-19)
 
 # 2. build (emitter x dispersion), ~15 min; writes <out>.h5ad and <out>.vcc
 uv run python -m sidechain.submit.build --emitter delta-transfer --dispersion even \
     --h1-cache ~/data/sidechain/cache/vcc2026/h1_pseudobulk.npz \
-    --gwps-cache ~/data/sidechain/cache/vcc2026/k562_gwps_targets_pseudobulk.npz \
+    --gwps-cache ~/data/sidechain/cache/vcc2026/k562_gwps_all_pseudobulk.npz \
     --out ~/data/sidechain/vcc2026/submissions/<name>
 
 # 3. smoke-test the layout on a 3-perturbation panel before any full build
