@@ -18,6 +18,22 @@ coloured as the leaderboard colours them.
 
 {{< board >}}
 
+## SER-21aefhkrswx — submitted 2026-10-19
+
+**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
+list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the
+cell line's own control-cell axes taken out of the summed profile.**
+SER-19aefhkrsw with one change. Untreated cells of a line differ from each other along a few
+programmes, such as sequencing depth and the cell cycle, and many knockdowns move cells along the
+same directions. Here the 50 leading directions of each line's own control cells are taken out of
+the predicted summed profile of the 85 % of knockdowns whose predicted change is smallest; the
+cell-to-cell spread is left as it was.
+
+It scored 0.1757 against SER-19aefhkrsw's 0.1684. The score that ranks each prediction against
+every knockdown rose from 0.678 to 0.728, the score for the summed profile's distance fell from
+0.151 to 0.143, and the four scores that read the cells' rank tests held.
+
 ## SER-19aefhkrsw — submitted 2026-10-16
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
