@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Ship the Lamin API key to a Brev box. ADR 0007 §4. Run FROM THE MAC, once per box,
-# before `brev_bootstrap.sh`:
+# Ship the Lamin API key to a box over plain ssh (a Brev box, or any host in ~/.ssh/config). ADR 0007 §4.
+# Run FROM THE MAC, once per box, before `brev_bootstrap.sh`:
 #
 #   scripts/brev_lamin_key.sh sidechain-gpu
 #
@@ -22,7 +22,7 @@
 # debugging this script, do NOT add `set -x`.
 set -euo pipefail
 
-BOX="${1:?usage: scripts/brev_lamin_key.sh <brev-instance>   (e.g. sidechain-gpu)}"
+BOX="${1:?usage: scripts/brev_lamin_key.sh <ssh host>   (e.g. sidechain-gpu-t84)}"
 SRC="${LAMIN_USER_ENV:-$HOME/.lamin/current_user.env}"
 
 # A BOX SHOULD GET ITS OWN KEY. The hub allows five named keys per account, each with its
@@ -61,7 +61,8 @@ TMP="$(umask 077 && mktemp "${TMPDIR:-/tmp}/lamin_env.XXXXXX")"
 trap 'rm -f "$TMP"' EXIT INT TERM
 printf 'export LAMIN_API_KEY=%s\n' "$KEY" > "$TMP"
 
-brev copy "$TMP" "$BOX:~/.lamin_env"
-brev exec "$BOX" -- 'chmod 600 ~/.lamin_env && echo "lamin key placed at ~/.lamin_env"'
+# plain scp/ssh: reaches a Brev box or any other host in ~/.ssh/config
+scp -q -o BatchMode=yes "$TMP" "$BOX:.lamin_env"
+ssh -o BatchMode=yes -T "$BOX" 'chmod 600 ~/.lamin_env && echo "lamin key placed at ~/.lamin_env"'
 
-echo "next: brev exec $BOX -- 'bash ~/brev_bootstrap.sh'   # it sources ~/.lamin_env and logs in"
+echo "next: ssh $BOX 'bash ~/brev_bootstrap.sh'   # it sources ~/.lamin_env and logs in"
