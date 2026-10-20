@@ -81,6 +81,9 @@ from sidechain.models.count_emitters import (
 from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
+from sidechain.submit.knee import AIM_MARGIN as KNEE_AIM_MARGIN
+from sidechain.submit.knee import TARGET_SUM as KNEE_TARGET_SUM
+from sidechain.submit.knee import KneeMeter, next_alpha_bulk
 from sidechain.submit.pie_source import (
     add_prediction_source_args,
     check_prediction_source_args,
@@ -1352,6 +1355,34 @@ def read_context_scatter_table(path: Path, axis: np.ndarray, perts: list[str],
     return out, record
 
 
+class BulkAtCeiling(dict):
+    """`--alpha-bulk-target`'s summed-profile map: `{target: log2FC}` at the `--alpha-bulk` ceiling, as the
+    build's map is, plus each target's vector before any amplitude and its per-target factor, so that `at(a)`
+    is the map a build with `--alpha-bulk a` would carry, value for value (T84)."""
+
+    def __init__(self, gene_pos: dict):
+        super().__init__()
+        self.gene_pos = gene_pos
+        self.base: dict[str, np.ndarray] = {}
+        self.factor: dict[str, float] = {}
+
+    def keep(self, p: str, vec: np.ndarray, f_t: float) -> None:
+        self.base[p] = vec.copy()
+        self.factor[p] = f_t
+
+    def at(self, alpha_bulk: float) -> dict:
+        out = {}
+        for p in self:
+            b = self.base[p] * (alpha_bulk * self.factor[p])     # finalize's arithmetic, at this strength
+            if p in self.gene_pos:
+                b[self.gene_pos[p]] = TARGET_SELF_LOG2FC
+            out[p] = b
+        return out
+
+
+KNEE_MAX_READS = 4      # --alpha-bulk-target: reads per context, the ceiling's included
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--challenge-config", default="challenges/vcc2026/config.yaml")
@@ -1402,6 +1433,16 @@ def main(argv: list[str] | None = None) -> int:
                          "delta-transfer emitter; a perturbation whose two moments cannot both be "
                          "met carries one amplitude and is counted. Unset = one amplitude, "
                          "bit-identical")
+    ap.add_argument("--alpha-bulk-target", type=float, default=None, metavar="R",
+                    help="T84: choose each context's summed-profile strength by the mse refund knee. "
+                         "--alpha-bulk is the ceiling: each context is emitted at it in memory and "
+                         "cell-eval2's budget over claim is read on those cells (sidechain.submit.knee); "
+                         "while it is above R the strength is lowered to alpha_bulk * sqrt(0.98 R / ratio), "
+                         "never below --alpha, and read again (at most 4 reads), then the context is "
+                         "written at the strength chosen. R in (0, 1); 0.9 is entry 1's rule. Needs "
+                         "--alpha-bulk above --alpha. Recorded in <out>.alpha_bulk.json and .dual.json. "
+                         "build only (not on sidechain.eval.loco). No registered knob letter yet "
+                         "(ADR 0005): a model-named stem refuses it. Unset = bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
                     help="T84 round 2: which control profile the pseudobulk channel is built on. "
                          "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
@@ -1543,6 +1584,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.dispersion == "even" or args.emit_lambda == 0.0:
             ap.error("--alpha-bulk needs a depth spread (--emit-lambda > 0 or --dispersion "
                      "poisson): at lambda 0 the pseudobulk and the per-cell mean coincide")
+    if args.alpha_bulk_target is not None:
+        # T84: the knee rule lowers --alpha-bulk per context, so it needs a ceiling above its floor
+        if args.alpha_bulk is None:
+            ap.error("--alpha-bulk-target lowers --alpha-bulk per context: pass --alpha-bulk (the ceiling)")
+        if not 0.0 < args.alpha_bulk_target < 1.0:
+            ap.error(f"--alpha-bulk-target is a budget-over-claim ratio in (0, 1), got {args.alpha_bulk_target}")
+        if not args.alpha_bulk > args.alpha:
+            ap.error(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward --alpha, so "
+                     f"--alpha-bulk ({args.alpha_bulk:g}) must be above --alpha ({args.alpha:g})")
     if args.bulk_anchor != "mean_cpm":
         if args.emitter != "delta-transfer":
             ap.error("--bulk-anchor pooled moves the pseudobulk of pooled per-target deltas, so "
@@ -1643,6 +1693,10 @@ def main(argv: list[str] | None = None) -> int:
         # mirror under a freeform label, and the letter is minted only when one first reaches the board.
         ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.alpha_bulk_target is not None:
+        # T84: the per-context strength rule has no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --alpha-bulk-target has no registered knob letter "
+                 "yet (ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and pie:
         # T85: PIE as the prediction source has no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --prediction-source pie has no registered knob letter "
@@ -1715,6 +1769,9 @@ def main(argv: list[str] | None = None) -> int:
     if not pie:
         recorded = {k: v for k, v in recorded.items()                               # likewise (T85)
                     if k not in ("prediction_source", "pie_parquet", "pie_context")}
+    knee_target = args.alpha_bulk_target
+    if knee_target is None:
+        recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_target"}  # likewise (T84)
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
@@ -1828,7 +1885,8 @@ def main(argv: list[str] | None = None) -> int:
         # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
         # With --alpha-bulk the SAME pooled vector is also scaled by the pseudobulk amplitude
         # (taken before alpha touches it) and pinned identically; the emitter gets both.
-        bulk_map = {} if bulk_alpha is not None else None
+        bulk_map = (None if bulk_alpha is None
+                    else {} if knee_target is None else BulkAtCeiling(gene_pos))
         for p, vec in shift_map.items():
             if vec is not None:
                 if gene_factor is not None:
@@ -1840,6 +1898,8 @@ def main(argv: list[str] | None = None) -> int:
                     if p in gene_pos:
                         b[gene_pos[p]] = TARGET_SELF_LOG2FC
                     bulk_map[p] = b
+                    if knee_target is not None:
+                        bulk_map.keep(p, vec, f_t)     # T84: the vector before any amplitude, for a lower one
                 vec *= args.alpha * f_t
                 if p in gene_pos:
                     vec[gene_pos[p]] = TARGET_SELF_LOG2FC
@@ -1932,6 +1992,69 @@ def main(argv: list[str] | None = None) -> int:
     in_shape: dict[str, dict] = {}
     ctrl_axes_record = ({"k": args.ctrl_axes, "eta": args.ctrl_axes_eta, "basis": args.ctrl_axes_basis,
                          "share": args.ctrl_axes_share, "contexts": {}} if args.ctrl_axes else None)
+
+    def draw(em, ctx, p, ctx_shifts, ctx_bulk):
+        """One (context, perturbation) block; whether it went through the two-channel emission, and with
+        the scatter table."""
+        if ctx_bulk is None or ctx_shifts[p] is None:
+            return em.emit(contract.cells_per_pert, ctx_shifts[p]), False, False
+        # letter b: two amplitudes in one count matrix; a perturbation whose two
+        # moments are jointly unreachable carries one amplitude and is counted.
+        # (final-phase: knobs) Under --emit-shape controls a target no source covers is
+        # re-rated to the generic shift it carries here, a block of a kind no mirror arm
+        # has scored: eval.loco emits such a target as control cells with nothing
+        # predicted. A/B/C have none (the log's fallback-to-generic: 0); read that count
+        # on the first D/E/F build before a shaped entry goes up.
+        scatter_kw = {}
+        if scatter_of is not None and p in scatter_of[ctx]:
+            scatter = np.ones(len(axis))
+            scatter[scatter_of[ctx][p][0]] = scatter_of[ctx][p][1]
+            scatter_kw = {"scatter": scatter}
+        block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
+                             on_fail=on_fail, **shape_kw, **scatter_kw)
+        return block, True, bool(scatter_kw)
+
+    # T84 --alpha-bulk-target: per context, the summed strength the knee rule chose and how it chose it
+    knee_record = ({"alpha": args.alpha, "alpha_bulk_ceiling": args.alpha_bulk, "alpha_bulk_target": knee_target,
+                    "max_reads": KNEE_MAX_READS, "target_sum": KNEE_TARGET_SUM, "aim_margin": KNEE_AIM_MARGIN,
+                    "rule": "alpha_bulk' = alpha_bulk * sqrt((1 - aim_margin) * target / ratio), never below alpha; "
+                            "ratio = cell-eval2 budget / claim (uncapped) on the context's emitted cells",
+                    "contexts": {}} if knee_target is not None else None)
+    alpha_bulk_of: dict[str, float] = {}
+
+    def choose_alpha_bulk(prof, ci, ctx, ctx_shifts, ctx_bulk, deflate):
+        """Emit the context in memory from the ceiling down until its budget over claim is at most the target;
+        returns the strength, its record, and the column sums of the cells read at it."""
+        ceiling, floor = args.alpha_bulk, args.alpha
+        a, reads, meter = ceiling, [], None
+        while True:
+            m = ctx_bulk if a == ceiling else ctx_bulk.at(a)
+            if deflate is not None:
+                m = deflate(m)
+            pem = PoissonEmitter(prof, seed=args.seed + ci, dispersion=args.dispersion,
+                                 lam=args.emit_lambda, bulk_anchor=args.bulk_anchor)   # the write pass's seed
+            meter = KneeMeter(perts, axis)
+            for p in perts:
+                meter.add(p, draw(pem, ctx, p, ctx_shifts, m)[0])
+            r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(pem, "dual_fallbacks", 0))}
+            reads.append(r)
+            ratio = r["ratio_budget_over_claim"]
+            print(f"  {ctx}: knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
+                  f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {knee_target:g})  "
+                  f"{time.time() - t0:.0f}s", flush=True)
+            if ratio <= knee_target or a <= floor or len(reads) >= KNEE_MAX_READS or not math.isfinite(ratio):
+                break
+            a = next_alpha_bulk(a, ratio, knee_target, floor)
+        met = ratio <= knee_target
+        if not met:
+            why = ("at the floor --alpha" if a <= floor else
+                   f"after {KNEE_MAX_READS} reads" if len(reads) >= KNEE_MAX_READS else "the ratio is not finite")
+            print(f"  WARNING {ctx}: budget over claim {ratio:.4f} is above the target {knee_target:g} {why}; "
+                  f"written at alpha_bulk={a:.4f}", flush=True)
+        rec = {"alpha_bulk": a, "met": met, "reads": len(reads), "at_floor": a <= floor,
+               "ratio_budget_over_claim": ratio, "tries": reads}
+        return a, rec, meter.sums
+
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
             prof = ContextProfile.from_controls(data_dir / control_files[ctx], ctx, min_libsize=args.min_libsize,
@@ -1950,6 +2073,18 @@ def main(argv: list[str] | None = None) -> int:
                 axes_v, axes_rec = control_axes(data_dir / control_files[ctx], k=args.ctrl_axes,
                                                 min_libsize=args.min_libsize, basis=args.ctrl_axes_basis,
                                                 cache_dir=args.ctrl_axes_cache, genes=genes)
+            knee_probe = None
+            if knee_target is not None:
+                # T84: this context's summed strength, chosen on its own emitted cells before any is written
+                a_ctx, knee_record["contexts"][ctx], knee_probe = choose_alpha_bulk(
+                    prof, ci, ctx, ctx_shifts, ctx_bulk,
+                    (lambda m, f=prof.bulk_fraction, v=axes_v: deflate_map(m, f, v, args.ctrl_axes_eta, gene_pos,
+                                                                         share=args.ctrl_axes_share)[0])
+                    if args.ctrl_axes else None)
+                if a_ctx != args.alpha_bulk:
+                    ctx_bulk = ctx_bulk.at(a_ctx)
+                alpha_bulk_of[ctx] = a_ctx
+            if args.ctrl_axes:
                 ctx_bulk, defl = deflate_map(ctx_bulk, prof.bulk_fraction, axes_v, args.ctrl_axes_eta, gene_pos,
                                              share=args.ctrl_axes_share)
                 ctrl_axes_record["contexts"][ctx] = {"axes": axes_rec, "deflation": defl}
@@ -1958,28 +2093,14 @@ def main(argv: list[str] | None = None) -> int:
                       f"median {defl['share_on_axes']['median']:.1%} of a target's summed-profile change "
                       f"removed; worst residual {defl['residual_max']:.1e}", flush=True)
                 del axes_v
+            written = KneeMeter(perts, axis, jackknife=False) if knee_probe is not None else None
             left_on_template: list[str] = []
             held, unmet = 0, []                    # cells held to the emitter's caps; genes its solve left to the fit
             dialled: dict[str, int] = {}           # target -> genes whose scatter its block carries
             for k, p in enumerate(perts):
-                if ctx_bulk is None or ctx_shifts[p] is None:
-                    block = em.emit(contract.cells_per_pert, ctx_shifts[p])
-                else:
-                    # letter b: two amplitudes in one count matrix; a perturbation whose two
-                    # moments are jointly unreachable carries one amplitude and is counted.
-                    # (final-phase: knobs) Under --emit-shape controls a target no source covers is
-                    # re-rated to the generic shift it carries here, a block of a kind no mirror arm
-                    # has scored: eval.loco emits such a target as control cells with nothing
-                    # predicted. A/B/C have none (the log's fallback-to-generic: 0); read that count
-                    # on the first D/E/F build before a shaped entry goes up.
-                    scatter_kw = {}
-                    if scatter_of is not None and p in scatter_of[ctx]:
-                        scatter = np.ones(len(axis))
-                        scatter[scatter_of[ctx][p][0]] = scatter_of[ctx][p][1]
-                        scatter_kw = {"scatter": scatter}
-                    block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
-                                         on_fail=on_fail, **shape_kw, **scatter_kw)
-                    if scatter_kw:                 # 0 on the template rung: that block carries none of it
+                block, dual, dialling = draw(em, ctx, p, ctx_shifts, ctx_bulk)
+                if dual:
+                    if dialling:                   # 0 on the template rung: that block carries none of it
                         dialled[p] = int(getattr(em, "last_sharpened", 0) or 0)
                     if shaped and not getattr(em, "last_shaped", False):
                         left_on_template.append(p)
@@ -1990,6 +2111,8 @@ def main(argv: list[str] | None = None) -> int:
                     if how in ("anchor", "template"):
                         fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
                             how, []).append([p, getattr(em, "last_dual_reason", None)])
+                if written is not None:
+                    written.add(p, block)
                 w.add_block(block, ctx, p)
                 if (k + 1) % 50 == 0:
                     print(f"  {ctx}: {k + 1}/{len(perts)} perturbations  {time.time() - t0:.0f}s", flush=True)
@@ -2033,14 +2156,24 @@ def main(argv: list[str] | None = None) -> int:
                 # the default rung's line is the one SER-10abefnw's and SER-11abefknw's logs carry
                 tail = ("amplitude on the mean_cpm profile" if args.dual_fallback == "template" else
                         f"amplitude, {dual_fallbacks[ctx] - kept} of them from the one-amplitude template")
-                print(f"  {ctx}: alpha_bulk={bulk_alpha:g} anchor={args.bulk_anchor}: "
+                print(f"  {ctx}: alpha_bulk={alpha_bulk_of.get(ctx, bulk_alpha):g} anchor={args.bulk_anchor}: "
                       f"{dual_fallbacks[ctx]} of {len(perts)} perturbations carried one {tail}",
                       flush=True)
                 if args.dual_fallback == "template" and fell_back.get(ctx):
                     # names for the log only: the default rung's .dual.json keeps its shipped shape
                     print(f"  {ctx}: fell back: "
                           + ", ".join(f"{p} ({why})" for p, why in fell_back[ctx]["template"]), flush=True)
+            if written is not None:
+                # T84: the cells written are the cells the knee was read on (same seed, same strength)
+                same = bool(np.array_equal(written.sums, knee_probe))
+                knee_record["contexts"][ctx] |= {"dual_fallbacks": dual_fallbacks[ctx],
+                                                 "written_cells_are_the_cells_read": same}
+                if not same:
+                    raise SystemExit(f"--alpha-bulk-target: context {ctx}'s written cells are not the cells its "
+                                     "knee was read on -- the emission is not reproducible at a fixed seed")
     info = verify_h5ad(h5ad, contract)
+    if knee_record is not None:
+        out.with_suffix(".alpha_bulk.json").write_text(json.dumps(knee_record, indent=1) + "\n")
     if ctrl_axes_record is not None:
         # beside the fallback counts in .dual.json: a deflated target that fell back carries none of it
         ctrl_axes_record["dual_fallbacks"] = dual_fallbacks
@@ -2059,6 +2192,9 @@ def main(argv: list[str] | None = None) -> int:
             anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
         if scatter_record is not None:             # likewise
             anchor["scatter_table"] = scatter_record
+        if knee_record is not None:                # likewise (T84)
+            anchor["alpha_bulk_target"] = knee_target
+            anchor["alpha_bulk_by_context"] = alpha_bulk_of
         info = {**info, "alpha_bulk": args.alpha_bulk, **anchor, "dual_fallbacks": dual_fallbacks}
         out.with_suffix(".dual.json").write_text(json.dumps(
             {"alpha": args.alpha, "alpha_bulk": args.alpha_bulk, **anchor,
