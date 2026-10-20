@@ -8,7 +8,7 @@
 #   scripts/shade.sh sshkey                     # make ~/.ssh/sidechain_shade_ed25519 if absent, register it, make it the default
 #   scripts/shade.sh create sidechain-gpu-t125 hyperstack A100_80Gx2 canada-1
 #   scripts/shade.sh wait sidechain-gpu-t125    # until active, then writes its host entry: `ssh sidechain-gpu-t125`
-#   scripts/shade.sh ls | info NAME | delete NAME
+#   scripts/shade.sh ls [--json] | info NAME | delete NAME     # --json: the board's Box panel reads it
 #
 # The API: https://docs.shadeform.ai/api-reference (base https://api.shadeform.ai/v1, header X-API-KEY). The key reaches
 # curl on stdin (`-K -`), never argv; it is never echoed, written into the repo or committed. Do not add `set -x`.
@@ -91,6 +91,16 @@ for i in json.load(sys.stdin).get("instances", []):
     print("{:26s} {:16s} {:13s} {:20s} {:16s} {:9s} spent ${} {}".format(
         i.get("name", ""), i.get("status", ""), i.get("cloud", ""), i.get("shade_instance_type", ""), i.get("ip") or "-",
         "$%.2f/h" % (p / 100.0) if p is not None else "", i.get("cost_estimate") or 0, i["id"]))
+EOF
+read -r -d '' PY_LSJSON <<'EOF' || true
+import json, sys
+out = []
+for i in json.load(sys.stdin).get("instances", []):
+    p = i.get("hourly_price")
+    out.append({"name": i.get("name"), "status": i.get("status"), "cloud": i.get("cloud"),
+                "type": i.get("shade_instance_type"), "hourly_usd": p / 100.0 if p is not None else None,
+                "cost_usd": i.get("cost_estimate"), "id": i.get("id"), "created_at": i.get("created_at")})
+print(json.dumps(out))
 EOF
 read -r -d '' PY_HOST <<'EOF' || true
 import os, re, sys
@@ -228,7 +238,7 @@ print(json.dumps({"cloud": c, "region": r, "shade_instance_type": t, "shade_clou
 
   ls)
     need_key
-    callpy GET /instances "" "$PY_LS"
+    if [ "${2:-}" = "--json" ]; then callpy GET /instances "" "$PY_LSJSON"; else callpy GET /instances "" "$PY_LS"; fi
     ;;
 
   info)

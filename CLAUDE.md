@@ -229,6 +229,9 @@ no block; a peer (a separate session you message) files its own. Every brief you
 with `T<n> · from <your session id> · one line`; a session with no task writes `—` in place of the
 id (Saber, 2026-09-21 — not every session works a pre-determined task), and work you will discard
 is `— · throwaway`. The mother is the part the board cannot do without.**
+**A headless `claude -p` run from your shell** is your tool, and the hooks file nothing for it; pass
+`--no-session-persistence`, or each run is saved as a new session in VS Code's list (T79, 2026-10-19: thirteen). An MCP
+server added after you started is reached by Saber reopening this session (same conversation, its tools loaded).
 **Keep-alive** (Saber, 2026-10-14): the prompt cache lives one hour, and he often reads a report
 later than that. So a reply that ends a unit of work with a `returned` or `waiting` block first
 schedules one ping: `CronCreate`, `recurring: false`, at now + 50 min (read the clock in the turn's
