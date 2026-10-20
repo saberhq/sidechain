@@ -18,6 +18,21 @@ coloured as the leaderboard colours them.
 
 {{< board >}}
 
+## SER-28abefhkrswx — submitted 2026-10-20
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 · f = floored source
+weights · h = a chosen list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the cell line's own control-cell
+axes taken out of the summed profile.**
+SER-27abefhkrswx with one change, to which genes the list of 2,700 callable genes holds. For the third of knockdowns whose
+predicted change is largest, the list takes the genes predicted to move most; for the other two thirds it keeps the genes
+whose predicted move the significance test sees most clearly, as SER-27abefhkrswx does. The summed profile and the cells'
+other genes are unchanged.
+
+It scored 0.1875, level with SER-27abefhkrswx's 0.1875. The score that counts the genes the test calls in the right
+direction and the expression-accuracy score rose a little, the overlap between the genes called and the genes that really
+changed fell by as much, and the other three scores held.
+
 ## SER-27abefhkrswx — submitted 2026-10-20
 
 *Wondering where SER-22 to SER-26 went? The validation board closes on Oct 22 and we had more models lined up than days
