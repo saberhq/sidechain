@@ -57,7 +57,7 @@ SOURCES = [
      "line": "HEK293T", "role": "prior"},
     {"path": "cache/vcc2026/feng_genomewide_lfc.npz", "name": "Genome-wide CRISPRi, published log2FCs",
      "line": "iPSC pool", "role": "bench", "loader": "lfc",
-     "note": "a published per-gene contrast table, not cells; scored on the local mirror, did not earn a slot in the pool"},
+     "note": "a published per-gene contrast table, not cells"},
     {"path": "derived/gwcd4i/views/cd4_all_rho01_kd.npz", "name": "Genome-scale CRISPRi, published DE contrasts",
      "line": "CD4 T cells", "role": "bench", "loader": "lfc",
      "note": "the publisher's per-target contrasts across four donors and three states, not cells"},
