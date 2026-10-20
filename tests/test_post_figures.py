@@ -56,11 +56,11 @@ def test_members_use_scaled_values_from_the_file():
             assert pf.short(e["name"]) not in labels
 
 
-def test_callset_uses_raw_values_of_the_four_named_entries():
+def test_callset_uses_raw_values_of_the_named_entries():
     svg = pf.fig_callset(ENTRIES)
     labels = texts(svg)
     by = {e["name"]: e for e in ENTRIES}
-    for n in ("SER-14aefksw", "SER-15aefkrsw", "SER-16aefhkrsw", "SER-17aefhkrsw"):
+    for n in ("SER-14aefksw", "SER-15aefkrsw", "SER-16aefhkrsw", "SER-17aefhkrsw", "SER-19aefhkrsw", "SER-20aefhkrsw"):
         for m in ("fid", "reach", "jac"):
             assert f"{by[n]['members'][m]['raw']:.3f}" in labels, (n, m)
 
@@ -92,10 +92,17 @@ def test_tabs_timeline_names_every_tab():
 
 def test_diagrams_carry_every_letter_and_every_node():
     labels = texts(pf.fig_recipe())
-    for letter in "ndgfctsakpebwrh":
+    for letter in "ndgfctsvakpebwrhx":
         assert letter in labels, letter
     for verb, _, _ in pf.RECIPE:
         assert verb in labels
     labels = texts(pf.fig_loop())
     for name, _ in pf.LOOP:
         assert name in labels
+
+
+def test_tick_labels_print_every_step_distinctly():
+    assert pf.tick_nd([-0.01, -0.005, 0.0, 0.005]) == 3
+    assert pf.tick_nd([0.1, 0.15, 0.2]) == 2
+    labels = texts(pf.fig_members(ENTRIES))
+    assert "0.01" not in labels or "0.005" not in labels

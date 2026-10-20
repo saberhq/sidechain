@@ -50,7 +50,7 @@ MEMBER_TITLE = {
     "pds": "pds · which knockdown is this",
     "mse": "mse · distance of the summed profile",
     "nmae": "nmae · fold-change accuracy",
-    "fid": "fid · called genes pointing the right way",
+    "fid": "fid · calls pointing the right way",
     "reach": "reach · how far down the real list",
     "jac": "jac · the same genes called",
 }
@@ -129,6 +129,14 @@ def fmt(v: float, nd=3) -> str:
     return f"{v:.{nd}f}"
 
 
+def tick_nd(ticks, least=2) -> int:
+    """Decimals that print every tick distinctly: a 0.005 step needs three, not two."""
+    for nd in range(least, 6):
+        if all(abs(round(t, nd) - t) < 1e-9 for t in ticks):
+            return nd
+    return 6
+
+
 def nice_ticks(lo, hi, n=4):
     span = hi - lo
     raw = span / max(n, 1)
@@ -183,7 +191,7 @@ def fig_overall(entries):
     body = []
     for t in ticks:
         body.append(line(L, Y(t), W - R, Y(t)))
-        body.append(text(L - 6, Y(t), fmt(t, 2), 9.5, INK3, "end", dy="0.35em"))
+        body.append(text(L - 6, Y(t), fmt(t, tick_nd(ticks)), 9.5, INK3, "end", dy="0.35em"))
     body.append(line(L, T, L, H - B, RULE_STRONG))
     latest = len(es) - 1
     for i, (e, x, v) in enumerate(zip(es, xs, vals)):
@@ -191,10 +199,11 @@ def fig_overall(entries):
         body.append(dot(x, Y(v), 4.2 if is_latest else 3.2, MARK if is_latest else GREY))
         body.append(text(x + 3, H - B + 12, e["name"], 8.5, INK if is_latest else INK3, "end", weight=500 if is_latest else 400, rotate=-50, title=f'{e["name"]} · {e["date"]} · {fmt(v, 4)}'))
     # direct labels on the points the text turns on
-    named = {"SER-1", "SER-2", "SER-3fn", "SER-3afn", "SER-10abefnw", "SER-12aefkw", "SER-14aefksw", "SER-17aefhkrsw"}
+    named = {"SER-1", "SER-2", "SER-3fn", "SER-3afn", "SER-10abefnw", "SER-12aefkw", "SER-14aefksw", "SER-17aefhkrsw",
+             "SER-21aefhkrswx"}
     for e, x, v in zip(es, xs, vals):
-        if e["name"] in named:
-            body.append(text(x, Y(v) - 8, fmt(v, 3), 8.5, INK if e["name"].startswith("SER-17") else INK3, "middle"))
+        if e["name"] in named or e is es[-1]:
+            body.append(text(x, Y(v) - 8, fmt(v, 3), 8.5, INK if e is es[-1] else INK3, "middle"))
     body.append(text(L, 12, "overall score · the plain mean of six scaled members · 0 = the context-mean baseline", 9.5, INK3))
     return svg(W, H, body, "Overall score per Sidechain entry on the Virtual Cell Challenge 2026 board, in entry order")
 
@@ -219,9 +228,10 @@ def fig_members(entries):
         def Y(v, y0=y0, y1=y1, oy=oy, T=T, B=B): return oy + T + (PH - T - B) * (y1 - v) / (y1 - y0)
         xs = [ox + L + (PW - L - R) * (i + 0.5) / len(es) for i in range(len(es))]
         body.append(text(ox + L, oy + 11, MEMBER_TITLE[m], 9, INK2, weight=500))
-        for t in nice_ticks(y0, y1, 3):
+        ticks = nice_ticks(y0, y1, 3)
+        for t in ticks:
             body.append(line(ox + L, Y(t), ox + PW - R, Y(t), RULE if abs(t) > 1e-9 else RULE_STRONG, 1 if abs(t) > 1e-9 else 0.8))
-            body.append(text(ox + L - 4, Y(t), fmt(t, 2), 8.5, INK3, "end", dy="0.35em"))
+            body.append(text(ox + L - 4, Y(t), fmt(t, tick_nd(ticks)), 8.5, INK3, "end", dy="0.35em"))
         for i, (e, x, v) in enumerate(zip(es, xs, vals)):
             is_latest = i == len(es) - 1
             body.append(dot(x, Y(v), 3.6 if is_latest else 2.6, MARK if is_latest else GREY, ring=False))
@@ -232,13 +242,16 @@ def fig_members(entries):
 
 
 def fig_callset(entries):
-    """The trade the shape story turns on: raw fid, reach and jac for SER-14 (artificial
-    cells) and SER-15 → 16 → 17 (real-shaped cells with no list, a 300-gene list, a
-    1,500-gene list). The three on the right are the pair of calibration runs and the
-    entry that followed; this figure is about them, so they are on it."""
+    """The trade the shape story turns on: raw fid, reach and jac for SER-14 (drawn cells)
+    and the real-cell entries along the list of callable genes: SER-15 (no list), SER-16
+    (300), SER-17 (1,500), SER-19 (2,700) and SER-20 (every callable gene). Three of them
+    are calibration runs; this figure is about them, so they are on it. The last normal
+    entry of the row is drawn in carmine."""
     by = {e["name"]: e for e in entries}
-    order = [("SER-14aefksw", "SER-14\nartificial"), ("SER-15aefkrsw", "SER-15\nreal cells"),
-             ("SER-16aefhkrsw", "SER-16\nlist 300"), ("SER-17aefhkrsw", "SER-17\nlist 1,500")]
+    order = [("SER-14aefksw", "drawn\n14"), ("SER-15aefkrsw", "none\n15"),
+             ("SER-16aefhkrsw", "300\n16"), ("SER-17aefhkrsw", "1,500\n17"),
+             ("SER-19aefhkrsw", "2,700\n19"), ("SER-20aefhkrsw", "all\n20")]
+    mark = [n for n, _ in order if not by[n].get("class")][-1]
     PW, PH, GX = 214, 170, 12
     W = 3 * PW + 2 * GX
     H = PH + 6
@@ -253,19 +266,23 @@ def fig_callset(entries):
         def Y(v, y0=y0, y1=y1, T=T, B=B): return T + (PH - T - B) * (y1 - v) / (y1 - y0)
         xs = [ox + L + (PW - L - R) * (i + 0.5) / len(order) for i in range(len(order))]
         body.append(text(ox + L, 11, f"raw {m}", 9, INK2, weight=500))
-        for t in nice_ticks(y0, y1, 3):
+        if k == 0:
+            body.append(text(ox + L - 4, PH - B + 14, "list", 7.5, INK3, "end"))
+            body.append(text(ox + L - 4, PH - B + 25, "SER-", 7.5, INK3, "end"))
+        ticks = nice_ticks(y0, y1, 3)
+        for t in ticks:
             body.append(line(ox + L, Y(t), ox + PW - R, Y(t), RULE if abs(t) > 1e-9 else RULE_STRONG))
-            body.append(text(ox + L - 4, Y(t), fmt(t, 2), 8.5, INK3, "end", dy="0.35em"))
+            body.append(text(ox + L - 4, Y(t), fmt(t, tick_nd(ticks)), 8.5, INK3, "end", dy="0.35em"))
         ref = vals[0]
         body.append(line(xs[0], Y(ref), xs[-1], Y(ref), GREY, 1, dash="3 3"))
         for i, ((n, lab), x, v) in enumerate(zip(order, xs, vals)):
-            is_latest = n.startswith("SER-17")
+            is_latest = n == mark
             body.append(dot(x, Y(v), 4 if is_latest else 3.2, MARK if is_latest else GREY))
-            body.append(text(x, Y(v) - 8, fmt(v, 3), 8.5, INK if is_latest else INK3, "middle"))
+            body.append(text(x, Y(v) - 8, fmt(v, 3), 8, INK if is_latest else INK3, "middle"))
             l1, l2 = lab.split("\n")
-            body.append(text(x, PH - B + 14, l1, 8.5, INK if is_latest else INK3, "middle"))
+            body.append(text(x, PH - B + 14, l1, 8, INK if is_latest else INK3, "middle"))
             body.append(text(x, PH - B + 25, l2, 7.5, INK3, "middle"))
-    return svg(W, H, body, "Raw fid, reach and jac for SER-14 and the three real-shaped entries SER-15, SER-16, SER-17")
+    return svg(W, H, body, "Raw fid, reach and jac for SER-14 and the real-cell entries along the callable-gene list, SER-15 to SER-20")
 
 
 # --- the corpus post ----------------------------------------------------------------
@@ -403,9 +420,9 @@ ARROW_DEF = ('<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" marke
 
 RECIPE = [
     ("Borrow", "a log2 fold change per gene\nfrom every screen that silenced it", [("n", "shrinkage off"), ("d", "shrink scope, never sent"), ("g", "exponent γ")]),
-    ("Pool", "one weighted average per gene\nsure sources count for more", [("f", "floor"), ("c", "tiers"), ("t", "τ², retired"), ("s", "adaptive rule")]),
+    ("Pool", "one weighted average per gene\nsure sources count for more", [("f", "floor"), ("c", "tiers"), ("t", "τ², retired"), ("s", "adaptive rule"), ("v", "noise curve")]),
     ("Adjust", "resize or nudge\nthe pooled change", [("a", "strength α"), ("k", "neighbours")]),
-    ("Emit", "400 cells of counts per knockdown\non the context's own controls", [("p", "Poisson"), ("e", "dial λ"), ("b", "two strengths"), ("w", "pooled anchor"), ("r", "real cells"), ("h", "callable list")]),
+    ("Emit", "400 cells of counts per knockdown\non the context's own controls", [("p", "Poisson"), ("e", "dial λ"), ("b", "two strengths"), ("w", "pooled anchor"), ("r", "real cells"), ("h", "callable list"), ("x", "control axes out")]),
 ]
 
 
@@ -413,7 +430,7 @@ def fig_recipe(recipe=RECIPE):
     """The SER recipe in four verbs, with the knob letters on the stage each one turns."""
     W, H = 680, 262
     n = len(recipe)
-    BW, BH, GAP = 146, 54, 18
+    BW, BH, GAP = 136, 54, 18
     L = (W - (n * BW + (n - 1) * GAP)) / 2
     y0 = 58
     body = [ARROW_DEF, text(L, 14, "the SER recipe · four verbs · the letters a model's name can carry, on the stage each one turns", 9.5, INK3)]
