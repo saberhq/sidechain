@@ -318,38 +318,38 @@ It scored 0.0788.
 Each lowercase letter in a name is one knob moved off the series' plain recipe, with the same meaning in every series. The
 entry that first carried it is in brackets.
 
-- **a · amplified transfer.** The screens we borrow from silenced their genes only partly, so the borrowed effects are
+- **`a` · amplified transfer.** The screens we borrow from silenced their genes only partly, so the borrowed effects are
   scaled up toward the size of a full knockdown. (SER-3afn)
-- **b · summed-profile strength set apart.** The scorer reads a knockdown's cells twice, added up into one summed profile
-  and one by one; `b` lets the summed profile carry the borrowed response at a different strength from the single cells.
+- **`b` · summed-profile strength set apart.** The scorer reads a knockdown's cells twice, added up into one summed profile
+  and one by one; this knob lets the summed profile carry the borrowed response at a different strength from the single cells.
   (SER-7abefn)
-- **c · coverage-tiered weights.** A source's vote on a gene also counts how much evidence stands behind that gene in that
+- **`c` · coverage-tiered weights.** A source's vote on a gene also counts how much evidence stands behind that gene in that
   screen. (SER-5acfnt)
-- **e · emission dial.** How much cell-to-cell noise the predicted cells carry, set between evenly spread cells and the
+- **`e` · emission dial.** How much cell-to-cell noise the predicted cells carry, set between evenly spread cells and the
   full noise of random counting. (SER-6aefn)
-- **f · floored source weights.** A source's vote on a gene is capped by how well its cells could have measured that gene.
+- **`f` · floored source weights.** A source's vote on a gene is capped by how well its cells could have measured that gene.
   (SER-3fn)
-- **g · abundance-ratio transfer.** The borrowed change is bent toward how abundant the gene is at rest in the new line;
+- **`g` · abundance-ratio transfer.** The borrowed change is bent toward how abundant the gene is at rest in the new line;
   tested once, and the plain fold change held. (SER-3afgn)
-- **h · a chosen list of callable genes.** For a list of genes in each knockdown, the spread across cells is narrowed so
+- **`h` · a chosen list of callable genes.** For a list of genes in each knockdown, the spread across cells is narrowed so
   the scorer's test can call them changed, with each gene's total count unchanged. Which genes, and how many, is what later
   entries move. (SER-16aefhkrsw)
-- **k · neighbour genes blended in.** Each knockdown's borrowed response is nudged toward the average response of the
+- **`k` · neighbour genes blended in.** Each knockdown's borrowed response is nudged toward the average response of the
   genes near it on a gene map, which turns its direction and keeps its size. (SER-8abefkn)
-- **n · no shrinkage.** The borrowed changes are used as measured, with no pull toward zero. (SER-1n)
-- **p · Poisson cells.** The predicted cells carry the full noise of random counting, in place of evenly spread cells.
+- **`n` · no shrinkage.** The borrowed changes are used as measured, with no pull toward zero. (SER-1n)
+- **`p` · Poisson cells.** The predicted cells carry the full noise of random counting, in place of evenly spread cells.
   (SER-1p)
-- **r · cells built from real control cells.** Each predicted cell starts as a real untreated cell of the line, with its
+- **`r` · cells built from real control cells.** Each predicted cell starts as a real untreated cell of the line, with its
   counts moved to the prediction. (SER-15aefkrsw)
-- **s · a different shrinkage rule.** The sources are combined first, and each change is then shrunk by how believable it
+- **`s` · a different shrinkage rule.** The sources are combined first, and each change is then shrunk by how believable it
   looks next to all of that knockdown's genes. (SER-14aefksw)
-- **t · transfer-error floor.** A source's measured error on a held-out line is added to its uncertainty before it votes.
+- **`t` · transfer-error floor.** A source's measured error on a held-out line is added to its uncertainty before it votes.
   Retired after one entry. (SER-5acfnt)
-- **v · a fitted noise curve.** A source's noise is read from one curve fitted over all of its knockdowns, not from each
+- **`v` · a fitted noise curve.** A source's noise is read from one curve fitted over all of its knockdowns, not from each
   knockdown's own cells. (SER-18aefksvw)
-- **w · the scorer's control profile.** The summed profile of the predicted cells is built on the pooled control profile
+- **`w` · the scorer's control profile.** The summed profile of the predicted cells is built on the pooled control profile
   the scorer itself uses. (SER-10abefnw)
-- **x · control-cell directions taken out.** The main directions along which a line's own untreated cells differ are taken
+- **`x` · control-cell directions taken out.** The main directions along which a line's own untreated cells differ are taken
   out of the summed profile of most knockdowns. (SER-21aefhkrswx)
 
 ## The six scores
