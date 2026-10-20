@@ -1,283 +1,214 @@
 ---
 title: Models
-description: Every model Sidechain has put on the Virtual Cell Challenge 2026 board — what each one is, what its name means, and what it borrows.
+description: Every model Sidechain has put on the Virtual Cell Challenge 2026 board — the idea each one tested, what it scored, and what its name means.
 ---
 
-Every submission's board card points here. The name grammar in one line: a **series tag**
-(`SER` — cross-line delta transfer; `PHE` — the deep generative models), a **model number**
-(new sources or structure; since SER-4afn, every new entry), and lowercase **knob letters**, each marking exactly one setting
-moved off the series baseline — so `SER-3fn` reads as "SER model 3, with knobs `f` and `n`
-on". Scores live in the [standings table](../#standings) and, member by member, in the table
-below — the rest of this page is what the numbers are attached to.
+All but one come from the SER series, which predicts what silencing a gene (a knockdown) does to a cell line it has never
+seen by borrowing what silencing the same gene did in large public screens of other cell lines, the sources. The one
+exception, PHE-2, is a neural network that predicts the knockdowns directly. Every entry so far was scored on the
+challenge's three validation cell lines; the three lines that decide the final ranking arrive on October 22.
+
+A name reads in three parts. In `SER-28abefhkrswx`, `SER` is the series, `28` the model number, and each lowercase letter
+a knob moved off the series' plain recipe, ten of them here. A letter keeps one meaning in every series, and it says that a
+knob is on, not where it is set: setting the same knob differently takes a new model number.
+
+Each section says what its model set out to test and how it scored, and leaves out where its knobs were set: how strong,
+how many, how far. What each knob does is explained once, at the end of the page, under [The knobs](#the-knobs), and what
+each of the board's six scores reads is under [The six scores](#the-six-scores). "Our own held-out tests" are public
+screens of other cell lines, kept from the model and scored the way the board scores.
 
 ## Every entry on one board
 
-The leaderboard's table with Sidechain's entries alone on it, by overall score, calibration runs
-included. Each of the six members shows the scaled score the board ranks on over the raw value,
-coloured as the leaderboard colours them.
+The leaderboard's table with only Sidechain's entries on it, by overall score, calibration runs included. Each cell holds
+the scaled score the board ranks on over the raw value, coloured as the leaderboard colours it, and a model's name opens
+its section below.
+
+Wondering where SER-22 to SER-26 went? The validation board closes on Oct 22 and we had more models lined up than days
+left to score them, so we skipped ahead to SER-27abefhkrswx; the missing numbers are the models that never made it to the
+start line.
 
 {{< board >}}
 
 ## SER-28abefhkrswx — submitted 2026-10-20
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 · f = floored source
-weights · h = a chosen list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the cell line's own control-cell
-axes taken out of the summed profile.**
-SER-27abefhkrswx with one change, to which genes the list of 2,700 callable genes holds. For the third of knockdowns whose
-predicted change is largest, the list takes the genes predicted to move most; for the other two thirds it keeps the genes
-whose predicted move the significance test sees most clearly, as SER-27abefhkrswx does. The summed profile and the cells'
-other genes are unchanged.
+SER-27abefhkrswx with one change: which genes go on its list of callable genes (`h`). For the knockdowns whose predicted
+change is largest, the list now takes the genes predicted to move most; for the rest it keeps, as before, the genes whose
+predicted move the scorer's test can see most clearly.
 
-It scored 0.1875, level with SER-27abefhkrswx's 0.1875. The score that counts the genes the test calls in the right
-direction and the expression-accuracy score rose a little, the overlap between the genes called and the genes that really
-changed fell by as much, and the other three scores held.
+It scored 0.1875, level with SER-27abefhkrswx. Direction (fid) and size of change (nmae) rose a little, overlap (jac) fell
+by about as much, and the other three scores held.
 
 ## SER-27abefhkrswx — submitted 2026-10-20
 
-*Wondering where SER-22 to SER-26 went? The validation board closes on Oct 22 and we had more models lined up than days
-left to score them, so we skipped ahead to this one; the missing numbers are the models that never made it to the start
-line.*
+SER-21aefhkrswx with `b` back on, so the summed profile of a knockdown's cells carries the borrowed response more strongly
+than each single cell does: the idea SER-7abefn first tried, now on top of everything added since. It went after the
+distance score (mse), which had barely moved since SER-14aefksw.
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 · f = floored source
-weights · h = a chosen list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the cell line's own control-cell
-axes taken out of the summed profile.**
-SER-21aefhkrswx with one change: `b` is back, so the summed profile carries the borrowed response more strongly than each
-cell does. The score for the summed profile's distance forgives part of the scatter that 400 sampled cells carry, up to
-how different the 300 predicted profiles are from one another, and the stronger summed profile uses much more of that
-allowance while staying under it.
-
-It scored 0.1875 against SER-21aefhkrswx's 0.1757. The score for the summed profile's distance rose from 0.143 to 0.212,
-and the other five scores held.
+It scored 0.1875 against SER-21aefhkrswx's 0.1757. Nearly all of the gain is in distance (mse), which rose from 0.143 to
+0.212; the other five scores held.
 
 ## SER-21aefhkrswx — submitted 2026-10-19
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
-list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the
-cell line's own control-cell axes taken out of the summed profile.**
-SER-19aefhkrsw with one change. Untreated cells of a line differ from each other along a few
-programmes, such as sequencing depth and the cell cycle, and many knockdowns move cells along the
-same directions. Here the 50 leading directions of each line's own control cells are taken out of
-the predicted summed profile of the 85 % of knockdowns whose predicted change is smallest; the
-cell-to-cell spread is left as it was.
+SER-19aefhkrsw with one new knob, `x`. Untreated cells of one line already differ from each other along a few main
+directions, such as how deeply each cell was sequenced and where it is in the cell cycle, and many knockdowns push cells
+along those same directions. Here the directions, read from each line's own control cells, are taken out of the predicted
+summed profile of most knockdowns, all but those with the largest predicted change; the single cells are left as they
+were.
 
-It scored 0.1757 against SER-19aefhkrsw's 0.1684. The score that ranks each prediction against
-every knockdown rose from 0.678 to 0.728, the score for the summed profile's distance fell from
-0.151 to 0.143, and the four scores that read the cells' rank tests held.
+It scored 0.1757 against SER-19aefhkrsw's 0.1684. Telling knockdowns apart (pds) rose from 0.678 to 0.728, distance (mse)
+fell a little, and the four test-based scores held.
+
+## SER-20aefhkrsw — submitted 2026-10-19 · calibration run
+
+SER-19aefhkrsw with its list of callable genes (`h`) taken to the far end: every gene that can be made callable in a
+knockdown goes on the list. A calibration run, to see on the board what the longest possible list scores beside the
+shorter ones SER-16aefhkrsw to SER-19aefhkrsw tried.
+
+It scored 0.1673 against SER-19aefhkrsw's 0.1684. Reach fell from 0.104 to 0.088, overlap (jac) rose a little, and the
+other four scores held.
 
 ## SER-19aefhkrsw — submitted 2026-10-16
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
-list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
-SER-17aefhkrsw with a longer list: for each knockdown, the 2,700 genes whose predicted change
-stands out most have their cell-to-cell variation narrowed, in place of 1,500.
+SER-17aefhkrsw with a longer list of callable genes (`h`): in each knockdown, more of the genes whose predicted change
+stands out most are made callable.
 
-It scored 0.1684 against SER-17aefhkrsw's 0.1657. The score that counts the genes the test calls
-in the right direction rose, and so did the overlap between the genes called and the genes that
-really changed; the test reached slightly fewer of the genes that really changed, and the three
-other scores held.
+It scored 0.1684 against SER-17aefhkrsw's 0.1657. Direction (fid) and overlap (jac) rose, reach fell a little, and the
+other three scores held.
 
 ## SER-18aefksvw — submitted 2026-10-16 · calibration run
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
-genes blended in · s = shrinkage rule moved · v = a fitted noise curve behind the pooling weights
-and the shrinkage rule · w = summed profile on the pooled control profile.**
-SER-14aefksw with one change. When the knockdown effects borrowed from the four source cell lines
-are pooled, each line's vote is weighted by how noisy its measurement is. There that noise was read
-from each knockdown's own cells; here it is read from a curve fitted once per source line over all
-of its knockdowns, which says how the cell-to-cell spread of a gene falls as its expression rises
-(`v`), and the same curve stands behind the shrinkage rule. This submission is a calibration run,
-to measure how a change of this kind carries over to the challenge's cell contexts.
+SER-14aefksw with one new knob, `v`. When the effects borrowed from the sources are pooled, a source's vote counts for
+more where its measurement is less noisy. Until here that noise was read from each knockdown's own cells; here it is read
+from one curve per source, fitted over all of its knockdowns, of how a gene's cell-to-cell spread falls as its expression
+rises. The same curve feeds the shrinkage rule (`s`). A calibration run, to see how a change of this kind carries over to
+the challenge's cell lines.
 
-It scored 0.1612 against SER-14aefksw's 0.1626. The score that separates knockdowns from one another
-is lower, the summed-profile score and the reach of the differential-expression test are higher, the
-expression-accuracy and direction scores are a little lower, and the overlap held.
+It scored 0.1612 against SER-14aefksw's 0.1626. Telling knockdowns apart (pds) fell; distance (mse) and reach rose; size
+of change (nmae) and direction (fid) fell a little, and overlap (jac) held.
 
 ## SER-17aefhkrsw — submitted 2026-10-08
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
-list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
-SER-16aefhkrsw with a longer list: for each knockdown, the 1,500 genes whose predicted change
-stands out most have their cell-to-cell variation narrowed, in place of 300.
+SER-16aefhkrsw with a longer list of callable genes (`h`): the second point on the question of how long that list should
+be.
 
-It scored 0.1657 against SER-14aefksw's 0.1626 and SER-16aefhkrsw's 0.1423. Against
-SER-16aefhkrsw the gain is in the score that counts the genes the test calls in the right
-direction; the overlap between the genes called and the genes that really changed rose a little,
-the test reached slightly fewer of the genes that really changed, and the other three scores
-held. Against SER-14aefksw the summed-profile and expression-accuracy scores are higher and the
-test reached more of the genes that really changed; the direction score is lower by about as much
-as that last gain, and the overlap is a little lower.
+It scored 0.1657 against SER-16aefhkrsw's 0.1423 and SER-14aefksw's 0.1626. Against SER-16aefhkrsw the gain is in
+direction (fid); overlap (jac) rose a little and reach fell a little. Against SER-14aefksw, telling knockdowns apart
+(pds), distance (mse) and reach are higher, and direction (fid) is lower by about as much as reach gained.
 
 ## SER-16aefhkrsw — submitted 2026-10-08 · calibration run
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
-list of genes made callable · k = neighbour genes blended in · r = cells built from real control
-cells · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
-SER-15aefkrsw with one change. There the 400 cells of a knockdown kept the cell-to-cell variation
-real cells have, and the differential-expression test called only a handful of genes in a typical
-knockdown. Here, for each knockdown, the 300 genes whose predicted change stands out most have
-that variation narrowed (`h`), so the test calls most of them; each gene's total count is
-unchanged. This submission is a calibration run, to measure what a short list of called genes
-scores on the challenge's cell contexts.
+SER-15aefkrsw with one new knob, `h`. In SER-15aefkrsw the predicted cells kept all the cell-to-cell variety real cells
+have, and that variety hid most predicted changes from the scorer's test: it called only a handful of genes changed in a
+typical knockdown. Here, for a short list of genes in each knockdown, those whose predicted change stands out most, the
+spread across cells is narrowed so that the test can call them; each gene's total count is unchanged. A calibration run,
+to see what a short list scores on the challenge's cell lines.
 
-It scored 0.1423 against its parent SER-15aefkrsw's −0.0039 and SER-14aefksw's 0.1626. The score
-that counts the genes the test calls in the right direction won back most of what SER-15aefkrsw
-had lost on it and stayed below SER-14aefksw's. The overlap between the genes called and the
-genes that really changed fell below both. The test reached slightly fewer of the genes that
-really changed than in SER-15aefkrsw, and the other three scores held.
+It scored 0.1423 against SER-15aefkrsw's −0.0039 and SER-14aefksw's 0.1626. Direction (fid) won back most of what
+SER-15aefkrsw had lost on it and stayed below SER-14aefksw's; overlap (jac) fell below both, and reach fell a little.
 
 ## SER-15aefkrsw — submitted 2026-10-07 · calibration run
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
-genes blended in · r = cells built from real control cells · s = shrinkage rule moved · w = summed
-profile on the pooled control profile.** SER-14aefksw with one change, in how each knockdown's 400
-cells are written. In SER-14aefksw all 400 were drawn around one profile: the context's control
-profile, moved by the predicted change. Here each one starts as a real control cell of that
-context and has its counts moved to the predicted change (`r`), so the 400 keep the cell-to-cell
-variation real cells have. The emission dial (`e`) stays in the name and shapes no cell here. This
-submission is a calibration run, to measure how much of a gain on our own held-out tests carries
-over to the challenge's cell contexts.
+SER-14aefksw with one new knob, `r`, in how each knockdown's 400 cells are written. In SER-14aefksw all 400 were drawn
+around one profile: the line's control profile, moved by the predicted change. Here each one starts as a real control
+cell of that line and has its counts moved to the predicted change, so the 400 keep the variety real cells have. The
+emission dial (`e`) stays in the name and shapes no cell here. A calibration run, to see how much of a gain on our own
+held-out tests carries over to the challenge's cell lines.
 
-It scored −0.0039 against its parent SER-14aefksw's 0.1626. One of the six scores is more than
-the whole fall: the one that counts the genes the differential-expression test calls in the right
-direction. The other five rose or held. Locally, on four held-out test sets from three cell
-lines, it had scored above SER-14aefksw's recipe on every one.
+It scored −0.0039 against SER-14aefksw's 0.1626. One score, direction (fid), fell by more than the whole drop; the other
+five rose or held. On four of our own held-out tests, from three cell lines, it had scored above SER-14aefksw's recipe on
+every one.
 
 ## SER-14aefksw — submitted 2026-10-03
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
-genes blended in · s = shrinkage rule moved · w = summed profile on the pooled control profile.**
-SER-12aefkw with the shrinkage rule changed. There, each borrowed gene change was shrunk by its own
-measurement noise in every source cell line, and a change no larger than its noise was dropped.
-Here the changes are first combined across the source cell lines, and each one is then shrunk by
-how believable it is against all of that knockdown's genes together, so a weak change ends small
-rather than zero.
+SER-12aefkw with a new shrinkage rule (`s`). Borrowed gene changes are noisy, so each one is pulled toward zero by how far
+it can be trusted. Until here each change was shrunk by its own measurement noise in every source, and a change no bigger
+than its noise was dropped. Here the changes are first combined across the sources, and each one is then shrunk by how
+believable it looks next to all of that knockdown's other genes, so a weak change ends small rather than zero.
 
-The best entry so far — 0.1626 against its parent SER-12aefkw's 0.1438. The predicted profiles sit
-closer to the control cells, and the expression-accuracy score left zero for the first time; that
-score is more than the whole gain. The summed-profile score rose a little, fold-change accuracy
-fell, and the differential-expression test reached slightly fewer of the genes that really changed.
-Locally the rule had read as a trade between those same scores.
+It scored 0.1626 against SER-12aefkw's 0.1438. Distance (mse) moved off zero for the first time, by more than the whole
+gain; telling knockdowns apart (pds) rose a little, size of change (nmae) fell, and reach fell a little. On our own
+held-out tests the rule had read as a trade between those same scores.
 
 ## SER-13aefknw — submitted 2026-10-02
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
-genes blended in · n = no shrinkage · w = summed profile on the pooled control profile.**
-SER-11abefknw with one setting moved back to the series baseline: the summed profile of each
-knockdown's 400 cells carries the borrowed response at the same strength as the cells themselves
-(`b` off). Sent after SER-12aefkw so that the two together read the shrinkage setting on its own.
+SER-11abefknw with `b` turned off, so the summed profile carries the borrowed response at the same strength as each cell.
+Sent beside SER-12aefkw, which also turned `n` off, so that the two together read the shrinkage setting on its own.
 
-Level with its parent — 0.1360 against SER-11abefknw's 0.1360. The summed-profile score rose a
-little and the differential-expression test reached slightly fewer of the genes that really
-changed. Locally the setting had read as a small gain on three cell lines.
+It scored 0.1360, level with SER-11abefknw. Telling knockdowns apart (pds) rose a little and reach fell a little. On our
+own held-out tests the change had read as a small gain on three cell lines.
 
 ## SER-12aefkw — submitted 2026-10-02
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · k = neighbour
-genes blended in · w = summed profile on the pooled control profile.** SER-11abefknw with two
-settings moved back to the series baseline. The summed profile of each knockdown's 400 cells now
-carries the borrowed response at the same strength as the cells themselves (`b` off), and each
-borrowed gene change is shrunk toward zero by its own measurement noise, so a change no larger
-than its noise is dropped (`n` off).
+SER-11abefknw with two knobs turned off. Without `b`, the summed profile carries the borrowed response at the same
+strength as each cell; without `n`, shrinkage is back on, so each borrowed gene change is pulled toward zero by its own
+measurement noise, and a change no bigger than its noise is dropped.
 
-The best entry so far — 0.1438 against its parent SER-11abefknw's 0.1360. The summed-profile score
-and fold-change accuracy rose; the differential-expression test reached fewer of the genes that
-really changed. Locally the two settings had read as a small gain for one strength and a trade for
-shrinkage.
+It scored 0.1438 against SER-11abefknw's 0.1360. Telling knockdowns apart (pds) and size of change (nmae) rose; reach
+fell. On our own held-out tests the two changes had read as a small gain for the first and a trade for the second.
 
 ## SER-11abefknw — submitted 2026-09-30
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · k = neighbour genes blended in · n = no shrinkage · w = summed profile
-on the pooled control profile.** SER-10abefnw with the change SER-9abefkn made. Each knockdown's
-borrowed response is nudged toward the average borrowed response of the 25 genes nearest to it in
-the same STRING protein-interaction map, chosen from the same fixed list of 842 knockdowns, with a
-slightly weaker nudge. As there, the nudge turns the part of the response specific to this knockdown
-and keeps its size.
+SER-10abefnw with the neighbour knob (`k`) SER-9abefkn tried: each knockdown's borrowed response is nudged toward the
+average response of the genes nearest to it in the STRING protein-interaction network, a map that places genes whose
+proteins work together close to each other. The nudge turns the part of the response specific to this knockdown and
+keeps its size.
 
-The best entry so far — 0.1360 against its parent SER-10abefnw's 0.1353. The differential-expression
-test reached more of the genes that really changed; fold-change accuracy and the summed-profile score
-each fell a little. Locally, on five held-out test sets from three cell lines, the gain was about ten
-times as large.
+It scored 0.1360 against SER-10abefnw's 0.1353. Reach rose; size of change (nmae) and telling knockdowns apart (pds) each
+fell a little. On our own held-out tests, from three cell lines, the gain had been about ten times as large.
 
 ## SER-10abefnw — submitted 2026-09-30
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · n = no shrinkage · w = summed profile on the pooled control profile.**
-SER-7abefn with one change. Each knockdown's predicted cells are built on a profile of the
-context's control cells. Until now that profile was the average of each control cell's own
-composition, every cell counting once. The scorer, though, compares summed profiles, where a deep
-cell counts more than a shallow one. Where a gene's share of a cell's counts depends on how deep
-the cell is, the two profiles differ, and every prediction carried that difference. `w` builds the
-summed profile of the predicted cells on the pooled control profile instead, the one the scorer
-uses, and leaves each cell's own profile where it was.
+SER-7abefn with one new knob, `w`. Each knockdown's predicted cells are built on a profile of the line's control cells.
+Until here that profile was the average of each control cell's own make-up, every cell counting once. The scorer, though,
+adds cells up before it compares them, so a deeply sequenced cell counts for more than a shallow one. Where a gene's share
+of a cell depends on how deep the cell is, the two profiles differ, and every prediction carried that difference. `w`
+builds the summed profile of the predicted cells on the pooled profile the scorer uses, and leaves each single cell where
+it was.
 
-The best entry at the time — 0.1353 against its parent SER-7abefn's 0.1131, nearly all of it in the
-summed-profile score, which rose from 0.485 to 0.612; the cell-by-cell scores held. Locally, on
-five held-out test sets from three cell lines, the gain was about the same size.
+It scored 0.1353 against SER-7abefn's 0.1131, nearly all of it in telling knockdowns apart (pds), which rose from 0.485 to
+0.612; the four test-based scores held. On our own held-out tests the gain had been about the same size.
 
 ## SER-9abefkn — submitted 2026-09-29
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
-with one change of the kind SER-8abefkn made, with a different map, fewer neighbours and a
-stronger nudge. Each knockdown's borrowed response is nudged toward the average borrowed response
-of the 25 genes nearest to it, chosen from the same fixed list of 842 knockdowns, in an embedding
-of the STRING protein-interaction network: a map that places genes whose proteins work together
-close to each other. As there, the nudge turns the part of the response specific to this
-knockdown and keeps its size.
+SER-7abefn with the neighbour knob (`k`) as SER-8abefkn tried it, on a different gene map: the STRING protein-interaction
+network, which places genes whose proteins work together close to each other. Each knockdown's borrowed response is
+nudged toward the average response of its nearest genes on that map; the nudge turns the part of the response specific to
+this knockdown and keeps its size.
 
-The best entry at the time — 0.1144 against its parent SER-7abefn's 0.1131. The summed-profile score
-rose most, the differential-expression test reached more of the genes that really changed, and
-fold-change accuracy fell by about half of what those two gained. Locally, on the five held-out
-test sets from three cell lines its settings were picked on, the gain was about six times as
-large.
+It scored 0.1144 against SER-7abefn's 0.1131. Telling knockdowns apart (pds) rose most, reach rose, and size of change
+(nmae) fell by about half of what those two gained. On the held-out tests its settings were picked on, the gain had been
+about six times as large.
 
 ## SER-8abefkn — submitted 2026-09-29 · calibration run
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · k = neighbour genes blended in · n = no shrinkage.** SER-7abefn
-with one change. Each knockdown's borrowed response is nudged toward the average borrowed
-response of the 50 genes nearest to it in Tahoe-x1's gene embedding, a map of genes learned
-from single-cell data, chosen from a fixed list of 842 knockdowns. The nudge turns the part of
-the response specific to this knockdown a little, and keeps its size. Sent to measure how much
-of a gain on our own held-out tests carries over to the challenge's cell contexts.
+SER-7abefn with one new knob, `k`. Each knockdown's borrowed response is nudged toward the average response of the genes
+nearest to it in Tahoe-x1's gene embedding, a map of genes learned from single-cell data. The nudge turns the part of the
+response specific to this knockdown a little, and keeps its size. A calibration run, to see how much of a gain on our own
+held-out tests carries over to the challenge's cell lines.
 
-It scored level with SER-7abefn, 0.1132 against 0.1131. The summed-profile score rose, and two
-of the cell-by-cell scores together fell by most of that gain. On five held-out test sets from
-three cell lines, the one that fell most had risen on every set.
+It scored 0.1132, level with SER-7abefn's 0.1131. Telling knockdowns apart (pds) rose, and two of the test-based scores
+together fell by most of that gain. On our own held-out tests, the one that fell most had risen on every one.
 
 ## SER-7abefn — submitted 2026-09-17
 
-**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 ·
-f = floored source weights · n = no shrinkage.** SER-6aefn with one change. The scorer reads
-the 400 predicted cells of a knockdown twice: once added up into one profile, once cell by
-cell. Until now both readings carried the borrowed response at one strength, 1.35. `b` lets
-the summed profile carry it at 1.5 while each cell still carries it at 1.35, by moving counts
-between deeper and shallower cells without changing any cell's depth.
+SER-6aefn with one new knob, `b`. The scorer reads a knockdown's 400 predicted cells twice: once added up into one summed
+profile, and once cell by cell. Until here both readings carried the borrowed response at the same strength. `b` lets the
+summed profile carry it more strongly than each single cell, by moving counts between deeper and shallower cells without
+changing any cell's depth.
 
-The best entry at the time — 0.1131 against SER-6aefn's 0.1091. The summed-profile score rose and
-the cell-by-cell scores held, the pattern the local sweep showed on six held-out test sets
-from three cell lines before it was submitted. The gain on the board is smaller than it was
-locally.
+It scored 0.1131 against SER-6aefn's 0.1091. Telling knockdowns apart (pds) rose and the four test-based scores held, the
+pattern our own held-out tests on three cell lines had shown; the gain on the board is smaller.
 
 ## SER-6aefn — submitted 2026-09-12
 
-**a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · n = no
-shrinkage.** SER-4afn with one change, and the first new knob since the source weights: `e`
-sets how much cell-to-cell noise the 400 predicted cells carry. At λ 0.5 they are drawn with
-half the spread that Poisson counting would give, instead of every cell sitting at the same
-depth. That lets the differential-expression test call the right genes a little more often,
-at a small cost in fold-change accuracy.
+SER-4afn with one new knob, `e`, the emission dial: how much cell-to-cell noise the 400 predicted cells carry. Until here
+every predicted cell sat evenly at the line's depth, with as little noise as possible; `e` sets the noise somewhere
+between that and the full noise of counting molecules at random. That lets the scorer's test call the right genes a
+little more often, at a small cost in size of change.
 
-It scored 0.1091 against SER-4afn's 0.1078, and the gain landed where the local
-sweep said it would: more of the genes that really changed are reached, with slightly worse
-fold-change accuracy paying for it. The dial was swept on six held-out cell lines before it
-was submitted, and it moved the same way on all six.
+It scored 0.1091 against SER-4afn's 0.1078, and the gain landed where our own held-out tests said it would: reach rose,
+and size of change (nmae) paid a little for it. The dial moved the same way on all six held-out cell lines it was tried
+on.
 
 ## PHE-2 — submitted 2026-09-07 · calibration run
 
@@ -301,78 +232,140 @@ of expressed genes a real cell does, which is the first place to look.
 
 ## SER-5acfnt — submitted 2026-09-01
 
-**a = amplified transfer · c = coverage-tiered pooling weights · f = floored source weights ·
-n = no shrinkage · t = per-source transfer-error floor.** SER-4afn with two changes to how the
-four sources vote on a gene. `c` lets a source's weight for one gene know how much evidence
-stands behind *that gene* in *that* screen, rather than only how large the screen was overall.
-`t` adds each source's measured transfer error to its variance before the vote is counted, so
-a source cannot claim more certainty than its record against a held-out line supports.
+SER-4afn with two new knobs on how the sources vote on a gene. `c` lets a source's weight for one gene know how much
+evidence stands behind that gene in that screen, not only how large the screen was overall. `t` adds each source's
+measured error on a held-out line to its uncertainty before the votes are counted, so a source cannot claim more
+certainty than its record supports.
 
-It came back a hair below SER-4afn — no improvement. `t` has since been retired: shuffling
-which measured error belonged to which source scored as well as assigning them correctly, so
-the knob was flattening the pool rather than carrying information about it. `c` was not
-tested on its own here and stays.
+It scored 0.1075, a hair below SER-4afn's 0.1078. `t` has since been retired: shuffling which measured error belonged to
+which source scored as well as assigning them correctly, so the knob was flattening the vote rather than informing it.
+`c` was not tested on its own here.
 
 ## SER-4afn — submitted 2026-08-31
 
-**a = amplified transfer · f = floored source weights · n = no shrinkage.** SER-3afn with the
-amplification stepped back from its local-benchmark optimum to the value the measured
-knockdown depths of the actual submission pool predict. Model 4 rather than a new letter: the
-name records *which* dials are on, never their values, so a value change mints a new number.
+SER-3afn with the amplification (`a`) set again: stepped back from the strength our own held-out tests liked best to the
+strength that the measured knockdown depth of the screens we borrow from points to. A new setting of a knob takes a new
+model number, so this is model 4.
+
+It scored 0.1078 against SER-3afn's 0.1071. Size of change (nmae) rose and telling knockdowns apart (pds) fell.
 
 ## SER-3afn — submitted 2026-08-30
 
-**a = amplified transfer · f = floored source weights · n = no shrinkage.** SER-3fn with the
-transferred effects scaled up to reference strength. The screens we borrow from silenced
-their targets only partially — some reached less than half a full knockdown — so the effects
-they measured are systematically smaller than what a reference-strength knockdown produces.
-Measuring each screen's realized knockdown from its own on-target rows predicted the right
-correction almost exactly before it was scored.
+SER-3fn with one new knob, `a`: the borrowed effects scaled up toward the size of a full knockdown. The screens we borrow
+from silenced their genes only partly, so the effects they measured are smaller than what a complete knockdown produces.
+Measuring how far each screen really silenced its genes, from its own data, predicted the right correction almost exactly
+before it was scored.
+
+It scored 0.1071 against SER-3fn's 0.1034. Telling knockdowns apart (pds) and reach rose; size of change (nmae) fell.
 
 ## SER-3afgn — submitted 2026-08-30
 
-**a = amplified transfer · f = floored source weights · g = abundance-ratio transfer
-exponent · n = no shrinkage.** SER-3afn plus one deliberate probe: instead of transferring
-each gene's *fold change* unchanged, bend the transferred effect toward the new line's own
-resting abundance of that gene. The local benchmark said the plain fold-change rule is
-already the optimum; this entry tested that verdict on the real board — and confirmed it.
+SER-3afn plus one deliberate probe, `g`: instead of carrying each gene's fold change over unchanged, bend the borrowed
+effect toward how abundant that gene is at rest in the new line. Our own held-out tests said the plain fold change was
+already the best rule; this entry tested that verdict on the real board, and it held.
+
+It scored 0.0992 against SER-3afn's 0.1071.
 
 ## SER-3fn — submitted 2026-08-27
 
-**f = floored source weights · n = no shrinkage.** SER-3n with one change: when sources are
-pooled per gene, each one's vote is now bounded by how well it could possibly have measured
-that gene given its cell counts — a source that happened to observe zero spread no longer
-counts as infinitely certain, and a source that saw a perturbation only once abstains
-entirely. Same four sources, re-anchored on the new line's resting state.
+SER-3n with one new knob, `f`. When the sources are pooled per gene, each one's vote is now capped by how well it could
+have measured that gene with the cells it had: a source that happened to see no spread no longer counts as infinitely
+certain, and a source that saw a knockdown only once sits it out.
+
+It scored 0.1034 against SER-3n's 0.0963. Size of change (nmae) and telling knockdowns apart (pds) rose; reach fell.
 
 ## SER-3n — submitted 2026-08-27
 
-**n = no shrinkage.** SER-2's pool with the two genome-wide screens read in full — every gene
-they measured rather than the challenge panel alone — so the per-gene votes ride on a much
-wider expression axis.
+SER-2's four sources with the two genome-wide screens read in full, every gene they measured rather than the challenge's
+panel alone, so each gene's vote rests on a much wider view of expression.
+
+It scored 0.0963 against SER-2's 0.0937.
 
 ## SER-2 — submitted 2026-08-24
 
-Named before the knob letters existed (shrinkage is off, as in SER-1n). The pool grows from
-two sources to four: K562 genome-wide and H1, plus the challenge-panel slice of two
-genome-wide CRISPRi screens in colon and kidney lines — the first entry to cover all 300
-target genes with a measured effect instead of a generic fallback.
+Named before the knob letters existed; shrinkage is off, as in SER-1n. The sources grow from two to four: the K562
+genome-wide screen and H1, plus the challenge-panel part of two genome-wide CRISPRi screens in colon and kidney lines. It
+is the first entry to cover all 300 target genes with a measured effect instead of a generic fallback.
+
+It scored 0.0937 against SER-1n's 0.0822.
 
 ## SER-1n — submitted 2026-08-22
 
-**n = no shrinkage.** SER-1 with the gene-wise shrinkage of transferred effects switched
-off: the many small, noisy per-gene effects that shrinkage silenced turn out to carry the
-direction signal the perturbation-matching metric reads.
+SER-1 with the shrinkage of borrowed effects switched off (`n`): the many small, noisy per-gene effects that shrinkage
+silenced turn out to carry the direction signal that telling knockdowns apart reads.
+
+It scored 0.0822 against SER-1's 0.0788.
 
 ## SER-1p — submitted 2026-08-21
 
-**p = Poisson cells.** SER-1 with the emitted cells drawn with independent Poisson noise
-instead of minimum-variance spread — a one-knob experiment on how cell-level dispersion
-prices into the DE metrics. It answered its question; `even` stayed.
+SER-1 with its predicted cells carrying the full noise of random counting (`p`, Poisson cells) instead of sitting evenly at
+the line's depth: a one-knob test of how cell-to-cell noise prices into the test-based scores. Evenly spread cells won,
+and stayed.
+
+It scored 0.0730 against SER-1's 0.0788.
 
 ## SER-1 — submitted 2026-08-21
 
-The first entry, and the family's baseline: each gene's knockdown effect borrowed from the
-K562 genome-wide screen where it was measured (272 of 300 targets) and from H1 (25), pooled
-per gene by measurement confidence, re-anchored on each new line's resting control profile,
-and emitted as 400 cells per perturbation at the line's own depth.
+The first entry, and the series' plain recipe. Each target gene's knockdown effect is borrowed from the screen where it was
+measured, the K562 genome-wide screen (272 of the 300 targets) or H1 (25), pooled per gene by how confidently each source
+measured it, set on each new line's own resting control profile, and written out as 400 cells per knockdown at the line's
+own sequencing depth.
+
+It scored 0.0788.
+
+## The knobs
+
+Each lowercase letter in a name is one knob moved off the series' plain recipe, with the same meaning in every series. The
+entry that first carried it is in brackets.
+
+- **a · amplified transfer.** The screens we borrow from silenced their genes only partly, so the borrowed effects are
+  scaled up toward the size of a full knockdown. (SER-3afn)
+- **b · summed-profile strength set apart.** The scorer reads a knockdown's cells twice, added up into one summed profile
+  and one by one; `b` lets the summed profile carry the borrowed response at a different strength from the single cells.
+  (SER-7abefn)
+- **c · coverage-tiered weights.** A source's vote on a gene also counts how much evidence stands behind that gene in that
+  screen. (SER-5acfnt)
+- **e · emission dial.** How much cell-to-cell noise the predicted cells carry, set between evenly spread cells and the
+  full noise of random counting. (SER-6aefn)
+- **f · floored source weights.** A source's vote on a gene is capped by how well its cells could have measured that gene.
+  (SER-3fn)
+- **g · abundance-ratio transfer.** The borrowed change is bent toward how abundant the gene is at rest in the new line;
+  tested once, and the plain fold change held. (SER-3afgn)
+- **h · a chosen list of callable genes.** For a list of genes in each knockdown, the spread across cells is narrowed so
+  the scorer's test can call them changed, with each gene's total count unchanged. Which genes, and how many, is what later
+  entries move. (SER-16aefhkrsw)
+- **k · neighbour genes blended in.** Each knockdown's borrowed response is nudged toward the average response of the
+  genes near it on a gene map, which turns its direction and keeps its size. (SER-8abefkn)
+- **n · no shrinkage.** The borrowed changes are used as measured, with no pull toward zero. (SER-1n)
+- **p · Poisson cells.** The predicted cells carry the full noise of random counting, in place of evenly spread cells.
+  (SER-1p)
+- **r · cells built from real control cells.** Each predicted cell starts as a real untreated cell of the line, with its
+  counts moved to the prediction. (SER-15aefkrsw)
+- **s · a different shrinkage rule.** The sources are combined first, and each change is then shrunk by how believable it
+  looks next to all of that knockdown's genes. (SER-14aefksw)
+- **t · transfer-error floor.** A source's measured error on a held-out line is added to its uncertainty before it votes.
+  Retired after one entry. (SER-5acfnt)
+- **v · a fitted noise curve.** A source's noise is read from one curve fitted over all of its knockdowns, not from each
+  knockdown's own cells. (SER-18aefksvw)
+- **w · the scorer's control profile.** The summed profile of the predicted cells is built on the pooled control profile
+  the scorer itself uses. (SER-10abefnw)
+- **x · control-cell directions taken out.** The main directions along which a line's own untreated cells differ are taken
+  out of the summed profile of most knockdowns. (SER-21aefhkrswx)
+
+## The six scores
+
+The board scores an entry on six things, each scaled so that 0 is what predicting a line's average knockdown earns and 1
+is what one half of the real experiment earns predicting the other half; the overall score is their plain average over
+the three cell lines. The last four read one test, which compares a knockdown's predicted cells with the line's control
+cells gene by gene and calls a gene changed when the difference is clear.
+
+- **pds · telling knockdowns apart.** Is each predicted summed profile closer to its own real knockdown than to the
+  others?
+- **mse · distance.** How far the predicted summed profile sits from the real one, after the scatter expected from
+  sampling a few hundred cells is taken off.
+- **jac · overlap.** How well the genes the test calls changed match the genes that really changed.
+- **nmae · size of change.** On the genes that really changed, how close the predicted fold changes are to the real ones.
+- **fid · direction.** Of the genes the test calls changed, the share moving the right way, discounted when too few are
+  called.
+- **reach · reach.** Going down the genes that really changed in our order of confidence, how far before the predicted
+  directions start going wrong.

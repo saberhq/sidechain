@@ -28,7 +28,8 @@
 {{- /* A board of nothing but calibration runs has no other entry to call best; fall back. */ -}}
 {{ $scale := cond (gt (len $rest) 0) $rest $entries }}
 {{ $best := index $scale 0 }}
-{{ range $scale }}{{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
+{{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
+{{ range $scale }}{{ if ge .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
 {{ $latest := index $entries (sub $n 1) }}
 {{ $field := dict }}
 {{ $fieldFile := resources.Get "data/field.json" }}

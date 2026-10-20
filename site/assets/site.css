@@ -33,6 +33,10 @@
    apart for red-green colour-blind readers. Each sits near 2.7:1 on one of the two grounds,
    which is why every bar has its number beside it. */
 :root { --mark: #A62B4D; --bar-rest: var(--viz-8); }
+/* --chip: inline code chips, carmine at half strength over whatever sits behind them, with the
+   theme's ink as text (7.1:1 light, 10:1 dark). Saber, 2026-10-20: the pink wash read "too
+   pinkish" and hard in dark mode; full carmine was too strong. */
+:root { --chip: color-mix(in srgb, var(--mark) 50%, transparent); }
 /* The washes of the models page's table: --wash-up behind a member cell above zero, --wash-dn behind one at or
    below, mixed into the ground at --wash-k of the cell's tint, never as text (the sign stays in the figures). In the
    light theme they are --up and a plain red kept apart from carmine, which marks the best bar on the landing page.
@@ -232,7 +236,7 @@ a.sc-pt:hover, a.sc-pt:focus-visible, a.sc-pt.is-hot { background: var(--ink); b
 /* A chosen point's model card, under that line: the same sentence its row opens to. */
 .sc-spark-card { margin: 8px auto 0; max-width: 60ch; }
 .sc-spark-card p { margin: 0; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
-.sc-spark-card code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sc-spark-card code { font-family: var(--font-mono); font-size: 0.92em; background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
 .sc-spark-close { margin-left: 10px; padding: 0 4px; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-3); }
 .sc-spark-close:hover { color: var(--ink); }
 a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink); }
@@ -266,6 +270,11 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-bar-track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px dashed var(--rule); }
 .sc-bar { position: relative; z-index: 1; display: block; height: 100%; background: var(--bar-rest); border-radius: 0 4px 4px 0; }
 .sc-bar-row--best .sc-bar { background: var(--mark); }
+/* The submissions' bars: every name label is --label-ch characters of its own monospace wide
+   (entries.html sets it from the longest name), so each row's grid sizes the column alike and
+   no name runs into its bar (Saber, 2026-10-20). */
+.sc-bars--named .sc-bar-row { grid-template-columns: max-content 1fr 64px; gap: 16px; }
+.sc-bars--named .sc-bar-label { width: calc(var(--label-ch) * 1ch); }
 .sc-bar-row--bench .sc-bar { opacity: 0.45; }
 .sc-bar-row--bench .sc-bar-label, .sc-bar-row--bench .sc-bar-value { color: var(--ink-3); }
 /* A calibration run sits in its own strip below: same idiom, stepped back, with a rule
@@ -290,7 +299,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-entry { scroll-margin-top: var(--space-6); }
 .sc-entry-body { margin: 2px 0 12px 130px; max-width: 58ch; }
 .sc-entry-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); }
-.sc-entry-body code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sc-entry-body code { font-family: var(--font-mono); font-size: 0.92em; background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
 .sc-entry-body p { margin: 6px 0 0; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
 
 /* ---------- Tables ---------- */
@@ -342,7 +351,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-table th:last-child, .sc-table td:last-child { padding-right: 0; }
 .sc-mono { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); white-space: nowrap; }
 .sc-num { text-align: right; font-variant-numeric: tabular-nums; }
-.sc-table code { font-family: var(--font-mono); font-size: 0.92em; background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sc-table code { font-family: var(--font-mono); font-size: 0.92em; background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
 .sc-series { font-weight: 500; color: var(--ink); }
 .sc-measure { max-width: var(--measure); margin-top: 14px; }
 .sc-footmark { color: var(--accent); cursor: help; }
@@ -424,7 +433,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sq-prose p:has(> img) + p > em:only-child { font-style: normal; }
 .sq-prose code {
   font-family: var(--font-mono); font-size: 0.92em;
-  background: var(--accent-wash); padding: 1px 4px; border-radius: var(--radius-sm);
+  background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm);
 }
 .sq-prose pre {
   background: var(--surface-sunken); border: var(--rule-w) solid var(--rule);
@@ -509,6 +518,8 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
   .sc-stand-row .sc-stat-label { min-height: 3.2em; }
   .sc-bar-row { grid-template-columns: 104px 1fr 56px; gap: 8px; }
   .sc-entry .sc-bar-label { font-size: 11px; }
+  .sc-bars--named .sc-bar-row { grid-template-columns: max-content 1fr 56px; gap: 12px; }
+  .sc-bars--named .sc-bars-axis .sc-bar-label { font-size: 11px; }
   .sc-entry-body { margin-left: 14px; }
   .sq-siteheader-in .sq-nav { gap: var(--space-2) 14px; }
 }

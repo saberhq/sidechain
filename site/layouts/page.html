@@ -5,6 +5,8 @@
     <div class="sq-kicker">{{ .Section | default "page" }}</div>
     <h1 class="sq-article-title">{{ .Title }}</h1>
     {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
+    {{- /* The post byline's rule without its byline, so the subtitle reads as one (Saber, 2026-10-20). */}}
+    <div class="sq-byline"><span class="sq-byline-rule"></span></div>
     <div class="sq-prose">
       {{ .Content }}
     </div>

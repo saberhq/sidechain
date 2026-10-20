@@ -36,23 +36,29 @@
 {{- /* A board of nothing but calibration runs has nothing to set the axis by; fall back. */ -}}
 {{ $scale := cond (gt (len $rest) 0) $rest $entries }}
 {{ $best := index $scale 0 }}
-{{ range $scale }}{{ if gt .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
+{{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
+{{ range $scale }}{{ if ge .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
 
 {{- /* Bars: one per submission, scale 0 → a round ceiling above the best (0.1 steps), which
        is 0.2 for as long as no entry passes it. */ -}}
+{{- /* The name column is as wide as the longest name plus its "+ " (Saber, 2026-10-20: the
+       longest names ran into the bars); site.css reads --label-ch. */ -}}
+{{ $lch := 0 }}
+{{ range $entries }}{{ if gt (len .name) $lch }}{{ $lch = len .name }}{{ end }}{{ end }}
+{{ $lch = add $lch 2 }}
 {{ $ceil := math.Ceil (mul $best.overall 10) }}
 {{ $ceil = div $ceil 10.0 }}
 {{ if lt $ceil 0.1 }}{{ $ceil = 0.1 }}{{ end }}
-<figure class="sc-bars" aria-label="Overall score per scored submission; a name opens that model's card">
+<figure class="sc-bars sc-bars--named" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission; a name opens that model's card">
   <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
-  <div class="sc-bar-row sc-bars-axis"><span></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
+  <div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
   {{ range collections.Reverse $rest }}
   {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" (eq .name $best.name)) }}
   {{ end }}
 </figure>
 
 {{ if $calibration }}
-<figure class="sc-bars sc-bars--aside" aria-label="Calibration runs, drawn apart from the other submissions">
+<figure class="sc-bars sc-bars--aside sc-bars--named" style="--label-ch: {{ $lch }}" aria-label="Calibration runs, drawn apart from the other submissions">
   <figcaption class="sc-bars-title">Calibration runs · <a href="{{ $models.RelPermalink }}#calibration-runs">what this means →</a></figcaption>
   {{- /* Same off-scale rule as the rows above -- the class changes the grouping, never how
          a number is drawn. */ -}}

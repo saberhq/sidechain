@@ -25,7 +25,8 @@ defined beside it, all measured: `--up`, the green of a figure that rose (`#0073
 `#5DC290`; the figure keeps its sign, because green and carmine sit close for red-green
 colour-blind readers); `--mark`, carmine as a fill — the best bar and the plot's latest point —
 which is the light value in both themes, because the lifted dark carmine reads pink as a
-fill; and `--bar-rest`, the grey of every other bar. Re-measure before substituting any of
+fill; and `--bar-rest`, the grey of every other bar. Inline code chips are `--chip`, `--mark` at
+half strength, with the theme's ink as text (7.1:1 light, 10:1 dark). Re-measure before substituting any of
 them: 4.5:1 for text on its ground, and the dataviz palette validator for marks.
 
 ## How it is built

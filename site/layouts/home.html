@@ -12,7 +12,7 @@
       <p class="sq-tagline">{{ .Site.Params.description }}</p>
       <div class="sq-hero-actions">
         <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
-        <a class="sq-btn sq-btn--secondary" href="{{ .Site.Params.linkedin }}" target="_blank" rel="noopener">Follow along on LinkedIn <span class="sq-glyph">↗</span></a>
+        <a class="sq-btn sq-btn--secondary" href="{{ (.Site.GetPage "/models").RelPermalink }}">The models <span class="sq-glyph">→</span></a>
       </div>
     </section>
 
@@ -24,7 +24,7 @@
       {{- /* In this order (Saber, 2026-10-05): the plot, the figures, the paragraph, the bars. */}}
       {{ partial "standing.html" . }}
       <div class="sc-intro">
-        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each name means and what it borrows.</p>
+        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each model tried and what its name means.</p>
       </div>
       {{ partial "entries.html" . }}
     </section>
