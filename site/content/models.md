@@ -18,6 +18,24 @@ coloured as the leaderboard colours them.
 
 {{< board >}}
 
+## SER-27abefhkrswx — submitted 2026-10-20
+
+*Wondering where SER-22 to SER-26 went? The validation board closes on Oct 22 and we had more models lined up than days
+left to score them, so we skipped ahead to this one; the missing numbers are the models that never made it to the start
+line.*
+
+**a = amplified transfer · b = summed-profile strength set apart · e = emission dial at λ 0.5 · f = floored source
+weights · h = a chosen list of genes made callable · k = neighbour genes blended in · r = cells built from real control
+cells · s = shrinkage rule moved · w = summed profile on the pooled control profile · x = the cell line's own control-cell
+axes taken out of the summed profile.**
+SER-21aefhkrswx with one change: `b` is back, so the summed profile carries the borrowed response more strongly than each
+cell does. The score for the summed profile's distance forgives part of the scatter that 400 sampled cells carry, up to
+how different the 300 predicted profiles are from one another, and the stronger summed profile uses much more of that
+allowance while staying under it.
+
+It scored 0.1875 against SER-21aefhkrswx's 0.1757. The score for the summed profile's distance rose from 0.143 to 0.212,
+and the other five scores held.
+
 ## SER-21aefhkrswx — submitted 2026-10-19
 
 **a = amplified transfer · e = emission dial at λ 0.5 · f = floored source weights · h = a chosen
