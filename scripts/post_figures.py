@@ -243,14 +243,15 @@ def fig_members(entries):
 
 def fig_callset(entries):
     """The trade the shape story turns on: raw fid, reach and jac for SER-14 (drawn cells)
-    and the real-cell entries along the list of callable genes: SER-15 (no list), SER-16
-    (300), SER-17 (1,500), SER-19 (2,700) and SER-20 (every callable gene). Three of them
+    and the real-cell entries along the list of callable genes: SER-15 (no list), then
+    SER-16, SER-17 and SER-19 with longer lists, and SER-20 with every callable gene. Three of them
     are calibration runs; this figure is about them, so they are on it. The last normal
     entry of the row is drawn in carmine."""
     by = {e["name"]: e for e in entries}
+    # list lengths stay qualitative: no knob value goes public (Saber, 2026-10-19)
     order = [("SER-14aefksw", "drawn\n14"), ("SER-15aefkrsw", "none\n15"),
-             ("SER-16aefhkrsw", "300\n16"), ("SER-17aefhkrsw", "1,500\n17"),
-             ("SER-19aefhkrsw", "2,700\n19"), ("SER-20aefhkrsw", "all\n20")]
+             ("SER-16aefhkrsw", "short\n16"), ("SER-17aefhkrsw", "mid\n17"),
+             ("SER-19aefhkrsw", "long\n19"), ("SER-20aefhkrsw", "all\n20")]
     mark = [n for n, _ in order if not by[n].get("class")][-1]
     PW, PH, GX = 214, 170, 12
     W = 3 * PW + 2 * GX
