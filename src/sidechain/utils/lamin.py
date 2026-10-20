@@ -29,6 +29,11 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Every saved file already sits at its key under the data root: without this, lamindb's
+# save() copies it again into ~/Library/Caches/lamindb (16.8 GB of submissions by 2026-10-19,
+# T116). `1` trips only that check; lamindb's other two uses test for the string `true`.
+os.environ.setdefault("LAMINDB_MULTI_INSTANCE", "1")
+
 DEFAULT_INSTANCE = "saberhq/sidechain"
 _DEFAULT_DATA_ROOT = Path.home() / "data" / "sidechain"
 

@@ -409,3 +409,10 @@ def test_the_export_writes_a_manifest_that_maps_uids_back_to_paths(root, monkeyp
     assert result["n_manifest"] == 1
     assert "aws s3 sync" in (out / "RESTORE.md").read_text()
     assert (out / "export_meta.json").exists()
+
+
+def test_importing_the_module_stops_lamindb_copying_every_save_into_its_cache():
+    # lamindb/models/save.py copies a saved file into the cache only while this is unset
+    import os
+
+    assert os.environ.get("LAMINDB_MULTI_INSTANCE") is not None
