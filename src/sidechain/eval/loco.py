@@ -145,6 +145,7 @@ def build_transfer_prediction(
     variance_model: VarianceModel | None = None,
     rule_variance: str = "model",
     gene_factor: Path | None = None,
+    gene_factor_context: str | None = None,
     alpha_table: Path | None = None,
     ctrl_axes: int = 0,
     ctrl_axes_eta: float = 1.0,
@@ -160,7 +161,9 @@ def build_transfer_prediction(
     `gene_factor` (T102; `sidechain.submit.gene_factor`) is a table of per-gene multipliers applied to
     each target's pooled vector last before alpha, in both channels, after the neighbour arm and the
     basal slope; a gene it does not name keeps 1. It sits outside the delta cache's key, so an arm that
-    differs by it alone reads the cache the shipped recipe built. None is the historical path.
+    differs by it alone reads the cache the shipped recipe built. None is the historical path. A per-line
+    table (T120: a `context` column) applies its rows for `gene_factor_context` plus the rows with an empty
+    context; the held-out line is not one of A/B/C, so the caller names which context's rows stand for it.
 
     `alpha_table` (T1; `sidechain.submit.alpha_table`) is a table of per-target multipliers on alpha:
     each named target's pooled vector is scaled by alpha times its factor, in both channels, the
@@ -243,7 +246,10 @@ def build_transfer_prediction(
     labels = real.obs[pert_col].astype(str).to_numpy()
     perts = sorted(set(labels) - {control})
     axis = real.var_names.astype(str).to_numpy()
-    gf, gf_record = load_gene_factor(gene_factor, axis) if gene_factor is not None else (None, None)
+    if gene_factor_context is not None and gene_factor is None:
+        raise SystemExit("gene_factor_context names which rows of a --gene-factor table apply: pass gene_factor")
+    gf, gf_record = (load_gene_factor(gene_factor, axis, context=gene_factor_context) if gene_factor is not None
+                     else (None, None))
     at, at_record = load_alpha_table(alpha_table, perts) if alpha_table is not None else (None, None)
     pie_map, pie_record = pie_shift_map(pie_parquet, pie_context, axis, perts) if pie else (None, None)
     cache = None
@@ -601,6 +607,11 @@ def main(argv: list[str] | None = None) -> int:
                          "`factor` (finite, >= 0); unnamed genes keep 1; recorded in summary.json under "
                          "build.gene_factor with the table's sha256 (sidechain.submit.gene_factor; the same "
                          "flag on sidechain.submit.build). Outside the delta cache's key.")
+    ap.add_argument("--gene-factor-context", default=None, metavar="CTX",
+                    help="T120: with a per-line --gene-factor table (a `context` column), the context whose rows "
+                         "apply on this fold, plus the rows with an empty context; e.g. k562 on "
+                         "loco_k562gwps_wide. Refused on a table without the column or with no row for CTX. "
+                         "Unset = the rows with an empty context only")
     ap.add_argument("--alpha-table", type=Path, default=None, metavar="TABLE",
                     help="T1: a per-target multiplier on --alpha, in both channels: a parquet or CSV with `target` "
                          "(perturbation labels) and `factor` (finite, >= 0); an unnamed target keeps --alpha; recorded "
@@ -825,6 +836,8 @@ def main(argv: list[str] | None = None) -> int:
                                      variance_model=variance_model,
                                      rule_variance=args.rule_variance,
                                      gene_factor=args.gene_factor,
+                                     **({"gene_factor_context": args.gene_factor_context}
+                                        if args.gene_factor_context is not None else {}),
                                      alpha_table=args.alpha_table,
                                      ctrl_axes=args.ctrl_axes, ctrl_axes_eta=args.ctrl_axes_eta,
                                      ctrl_axes_basis=args.ctrl_axes_basis,
@@ -860,6 +873,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
+         **({"gene_factor_context": args.gene_factor_context} if args.gene_factor_context is not None else {}),
          "alpha_table": None if args.alpha_table is None else str(args.alpha_table),
          **({"ctrl_axes": args.ctrl_axes, "ctrl_axes_eta": args.ctrl_axes_eta,
              "ctrl_axes_basis": args.ctrl_axes_basis, "ctrl_axes_share": args.ctrl_axes_share}

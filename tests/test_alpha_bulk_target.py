@@ -2,7 +2,8 @@
 
 Pinned here: the knee module's ratio is knee_built.py's arithmetic on the same cells; the step lowers the
 strength as sqrt(R / ratio) and never below the floor; the flag is refused without --alpha-bulk, outside
-(0, 1), with --alpha-bulk not above --alpha and on a model-named stem; off, the build writes what it wrote
+(0, 1), with --alpha-bulk not above --alpha and on a model-named stem without b (since 2026-10-20 the target
+is part of b's rule, so a stem with b carries it); off, the build writes what it wrote
 before (no record, no new args key, the knee never read); on, a context whose ratio at the ceiling is above R
 is lowered until it is at most R while a context below R keeps the ceiling, and each context's cells are
 those of a plain build at its chosen strength.
@@ -211,10 +212,21 @@ def test_refusals(ch, capsys):
         with pytest.raises(SystemExit):
             build.main(_argv(ch, "probe_refused", *extra))
         assert "--alpha-bulk-target" in capsys.readouterr().err
-    with pytest.raises(SystemExit):                                               # no registered letter yet
-        build.main(_argv(ch, "ser-99benw_t84_v1", "--alpha-bulk", "3", "--alpha-bulk-target", "0.9"))
-    assert "no registered knob letter" in capsys.readouterr().err
+    with pytest.raises(SystemExit):                                               # part of b's rule: needs b
+        build.main(_argv(ch, "ser-99enw_t84_v1", "--alpha-bulk", "3", "--alpha-bulk-target", "0.9"))
+    assert "part of letter b's rule" in capsys.readouterr().err
     assert not (ch["out"] / "probe_refused.h5ad").exists()
+
+
+def test_a_model_named_stem_with_b_carries_the_target(ch):
+    """Since 2026-10-20 the target is part of letter b's rule (ADR 0005, b's value the ceiling): a model-named
+    stem with b builds with it, and writes the cells the same flags write under a freeform stem."""
+    flags = ("--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9")
+    assert build.main(_argv(ch, "ser-99benw_t84_v1", *flags)) == 0
+    assert build.main(_argv(ch, "freeform", *flags)) == 0
+    a, b = ad.read_h5ad(ch["out"] / "ser-99benw_t84_v1.h5ad"), ad.read_h5ad(ch["out"] / "freeform.h5ad")
+    assert (a.X != b.X).nnz == 0
+    assert json.loads((ch["out"] / "ser-99benw_t84_v1.alpha_bulk.json").read_text())["alpha_bulk_target"] == 0.9
 
 
 def test_off_writes_what_it_wrote_and_never_reads_the_knee(ch, monkeypatch):

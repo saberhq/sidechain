@@ -80,7 +80,7 @@ from sidechain.models.count_emitters import (
 )
 from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
-from sidechain.submit.gene_factor import load_gene_factor
+from sidechain.submit.gene_factor import load_gene_factors, same_factor_groups
 from sidechain.submit.knee import AIM_MARGIN as KNEE_AIM_MARGIN
 from sidechain.submit.knee import TARGET_SUM as KNEE_TARGET_SUM
 from sidechain.submit.knee import KneeMeter, next_alpha_bulk
@@ -449,6 +449,22 @@ def context_groups(pools: dict[str, list], contexts: list[str]) -> list[tuple[tu
         else:
             groups.append(((ctx,), pool))
     return groups
+
+
+def split_by_factor(group_maps: list[dict], factor_groups: list[list[str]]) -> list[dict]:
+    """Each pooled map split by the contexts' gene factors (T120): a part per set of contexts that read the
+    same factor, in context order, the first part keeping the pooled map and every later part a copy, so
+    `finalize` can scale each part in place without touching another context's vectors."""
+    key = {c: i for i, g in enumerate(factor_groups) for c in g}
+    out = []
+    for g in group_maps:
+        parts: dict[int, list[str]] = {}
+        for c in g["contexts"]:
+            parts.setdefault(key[c], []).append(c)
+        for j, ctxs in enumerate(parts.values()):
+            shifts = g["shifts"] if j == 0 else {p: None if v is None else v.copy() for p, v in g["shifts"].items()}
+            out.append({**g, "contexts": ctxs, "shifts": shifts})
+    return out
 
 
 def coverage_factor(n_eff: np.ndarray, tiers: tuple[tuple[float, float], ...]) -> np.ndarray:
@@ -1413,9 +1429,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--gene-factor", type=Path, default=None, metavar="TABLE",
                     help="a per-gene multiplier on the pooled log2FC vector, applied last before --alpha and "
                          "the knockdown pin, in both channels: a parquet or CSV with `gene` (axis symbols) and "
-                         "`factor` (finite, >= 0); a gene the table does not name keeps 1. Recorded in "
+                         "`factor` (finite, >= 0); a gene the table does not name keeps 1. An optional "
+                         "`context` column makes it per line: a row with a context applies only to that "
+                         "context's cells, a row with an empty one to every context. Recorded in "
                          "<out>.gene_factor.json with the table's sha256 (sidechain.submit.gene_factor; the "
-                         "same flag on sidechain.eval.loco)")
+                         "same flag on sidechain.eval.loco, with --gene-factor-context). No registered knob "
+                         "letter yet (ADR 0005): a model-named stem refuses it")
     ap.add_argument("--alpha-table", type=Path, default=None, metavar="TABLE",
                     help="a per-target multiplier on --alpha (T1): a parquet or CSV with `target` (perturbation "
                          "labels) and `factor` (finite, >= 0); a named perturbation's pooled log2FC vector is scaled "
@@ -1441,8 +1460,9 @@ def main(argv: list[str] | None = None) -> int:
                          "never below --alpha, and read again (at most 4 reads), then the context is "
                          "written at the strength chosen. R in (0, 1); 0.9 is entry 1's rule. Needs "
                          "--alpha-bulk above --alpha. Recorded in <out>.alpha_bulk.json and .dual.json. "
-                         "build only (not on sidechain.eval.loco). No registered knob letter yet "
-                         "(ADR 0005): a model-named stem refuses it. Unset = bit-identical")
+                         "build only (not on sidechain.eval.loco). Part of letter b's rule since "
+                         "2026-10-20 (ADR 0005: b's value is the ceiling): a model-named stem carries it "
+                         "only with b. Unset = bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
                     help="T84 round 2: which control profile the pseudobulk channel is built on. "
                          "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
@@ -1693,10 +1713,15 @@ def main(argv: list[str] | None = None) -> int:
         # mirror under a freeform label, and the letter is minted only when one first reaches the board.
         ap.error(f"'{stem}' is named like a model, and --alpha-table has no registered knob letter yet "
                  "(ADR 0005): register the letter first, or build under a freeform stem")
-    if CLAIMS_RE.match(stem) and args.alpha_bulk_target is not None:
-        # T84: the per-context strength rule has no registered letter yet (ADR 0005), as above
-        ap.error(f"'{stem}' is named like a model, and --alpha-bulk-target has no registered knob letter "
-                 "yet (ADR 0005): register the letter first, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.alpha_bulk_target is not None and (named is None or "b" not in named.group(3)):
+        # T84: since 2026-10-20 the per-context target is part of letter b's rule (ADR 0005: b's value is the
+        # ceiling, each context lowered to R of its own mse knee), so a model-named stem carries it only with b
+        ap.error(f"'{stem}' is named like a model, and --alpha-bulk-target is part of letter b's rule "
+                 "(ADR 0005), but the name does not carry b: add it, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.gene_factor is not None:
+        # T102, T120: the per-gene multiplier has no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --gene-factor has no registered knob letter yet "
+                 "(ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and pie:
         # T85: PIE as the prediction source has no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --prediction-source pie has no registered knob letter "
@@ -1742,10 +1767,14 @@ def main(argv: list[str] | None = None) -> int:
         max_stored_entries=int(sub["max_stored_entries"]),
     )
     axis = np.asarray(genes)
-    # the per-gene multiplier (T102): read on the axis before any pooling, so a table the build cannot
-    # take stops it in seconds; applied in `finalize`, last before alpha
-    gene_factor, gene_factor_record = (load_gene_factor(args.gene_factor, axis)
-                                       if args.gene_factor is not None else (None, None))
+    # the per-gene multiplier (T102; per line, T120): read on the axis before any pooling, so a table the
+    # build cannot take stops it in seconds; applied in `finalize`, last before alpha, one vector per context
+    gene_factor_of, gene_factor_record = (load_gene_factors(args.gene_factor, axis, contexts)
+                                          if args.gene_factor is not None else (None, None))
+    # contexts whose factors differ cannot share one pooled map: split below, after the pool
+    factor_groups = (same_factor_groups(gene_factor_of, contexts) if gene_factor_of is not None
+                     else [list(contexts)])
+    factor_split = len(factor_groups) > 1
     # the per-target multiplier on alpha (T1): read against the perturbation list before any pooling;
     # applied in `finalize`, with alpha
     alpha_of, alpha_table_record = (load_alpha_table(args.alpha_table, perts)
@@ -1774,6 +1803,8 @@ def main(argv: list[str] | None = None) -> int:
         recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_target"}  # likewise (T84)
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
+        if factor_split:
+            gene_factor_record = {**gene_factor_record, "factor_groups": factor_groups}
         out.with_suffix(".gene_factor.json").write_text(json.dumps(gene_factor_record, indent=1) + "\n")
     if alpha_table_record is not None:
         out.with_suffix(".alpha_table.json").write_text(json.dumps(alpha_table_record, indent=1) + "\n")
@@ -1801,6 +1832,7 @@ def main(argv: list[str] | None = None) -> int:
     sources = None
     pools = None                   # T126: {context: its sources} under --source-context
     group_maps: list[dict] = []    # one per distinct pool (gamma 1): its contexts, sources and shifts
+    pool_maps = group_maps         # the distinct pools, as .routing.json records them (T120 splits group_maps)
     if pie:
         # T85: PIE's map stands where the pooled delta stands, one map per distinct parquet context; a
         # perturbation with no row keeps the generic shift, as a target no source covers
@@ -1881,7 +1913,7 @@ def main(argv: list[str] | None = None) -> int:
                 rec_path.write_text(json.dumps(rec, indent=1) + "\n")
     gene_pos = {g: i for i, g in enumerate(genes)}
 
-    def finalize(shift_map):
+    def finalize(shift_map, gene_factor):
         # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
         # With --alpha-bulk the SAME pooled vector is also scaled by the pseudobulk amplitude
         # (taken before alpha touches it) and pinned identically; the emitter gets both.
@@ -1946,32 +1978,36 @@ def main(argv: list[str] | None = None) -> int:
                     fb += 1
                 else:
                     local[p] = d
-            local_bulk = finalize(local)
+            local_bulk = finalize(local, None if gene_factor_of is None else gene_factor_of[prof.name])
             print(pool_line(f"  {prof.name}: gamma={args.gamma:g} shifts ready", fb), flush=True)
             return local, local_bulk
 
         print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
               "write loop", flush=True)
-    elif routes or pie:
+    elif routes or pie or factor_split:
+        if factor_split:
+            # T120: a per-line gene factor; each pool's contexts split by their factor, a copy of the
+            # pooled map for every part after the first (the pool itself is not re-run)
+            group_maps = split_by_factor(group_maps, factor_groups)
         for g in group_maps:
-            g["bulk"] = finalize(g["shifts"])
+            g["bulk"] = finalize(g["shifts"], None if gene_factor_of is None else gene_factor_of[g["contexts"][0]])
             print(f"  contexts {', '.join(g['contexts'])}: {len(g['sources'])} sources "
                   f"({', '.join(map(str, g['sources']))}); fallback-to-generic: {g['fallback']}", flush=True)
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s for {len(group_maps)} pools", fallback),
               flush=True)
     else:
-        bulk_shifts = finalize(shifts)
+        bulk_shifts = finalize(shifts, None if gene_factor_of is None else gene_factor_of[contexts[0]])
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
     if routes:
         # which contexts pooled which sources; the shifts themselves are in the cells
         out.with_suffix(".routing.json").write_text(json.dumps(
             {"source_context": {n: list(c) for n, c in routes.items()},
-             "pools": ([{k: v for k, v in g.items() if k not in ("shifts", "bulk")} for g in group_maps]
+             "pools": ([{k: v for k, v in g.items() if k not in ("shifts", "bulk")} for g in pool_maps]
                        if group_maps else
                        [{"contexts": [c], "sources": [source_name(s) for s in pools[c]]} for c in contexts])},
             indent=1) + "\n")
     by_context = ({c: (g["shifts"], g["bulk"]) for g in group_maps for c in g["contexts"]}
-                  if routes or pie else None)
+                  if routes or pie or factor_split else None)
     if rule_moved and not args.no_shrink:
         # Written as soon as the shifts exist, before the write loop: every fit is done by now (the
         # adaptive rule is refused with gamma != 1, the one path that pools inside the loop).
