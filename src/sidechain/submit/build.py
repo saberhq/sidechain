@@ -82,6 +82,8 @@ from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factors, same_factor_groups
 from sidechain.submit.knee import AIM_MARGIN as KNEE_AIM_MARGIN
+from sidechain.submit.source_vote import (parse_source_scales, parse_source_weights, pool_kwargs,
+                                          read_source_weight_table, source_votes, vote_groups)
 from sidechain.submit.knee import TARGET_SUM as KNEE_TARGET_SUM
 from sidechain.submit.knee import KneeMeter, next_alpha_bulk
 from sidechain.submit.pie_source import (
@@ -671,8 +673,16 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                  shrink_stage: str = "source",
                  shrink_rule: str = "garrote",
                  variance_model: VarianceModel | None = None,
-                 rule_variance: str = "model") -> np.ndarray | None:
+                 rule_variance: str = "model",
+                 source_vote=None,
+                 source_scale: dict[str, float] | None = None) -> np.ndarray | None:
     """Inverse-variance pool of the sources that perturbed `target`; None if none did.
+
+    `source_vote` (a `sidechain.submit.source_vote.SourceVote`) multiplies each source's pooling weight by
+    `m(name, target)`; a source whose m is 0 is skipped as if it were not in the pool. `source_scale`
+    (`{name: S}`) multiplies a source's fold change by S and its variance by S², its weight kept at the
+    unscaled value. Where any multiplier is not 1 the pooled stage reads the pooled variance as
+    `sum(m² S² w) / (sum m w)²`, which is `1 / sum(w)` when every m and S is 1; None is the historical call.
 
     `variance_model` (T98; `sidechain.submit.variance_model`) swaps the per-cell variance behind
     each pseudobulk source's weight for a model of it -- the dispersion curve, the gene's own
@@ -787,11 +797,27 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
         raise ValueError(f"variance_model {vm.spec()!r} needs var_floor='poisson' (see variance_model)")
     # a second denominator from the shipped variances, for a rule held on them while the weights move
     split_rule = vm is not None and rule_variance == "shipped"
+    voted = source_vote is not None or bool(source_scale)
+    if voted and split_rule:
+        raise ValueError("a source vote or strength with rule_variance='shipped' is not wired: the rule's "
+                         "second denominator would read plain weights")
+    den2 = np.zeros(len(axis)) if voted else None     # sum(m^2 S^2 w): the pooled variance's numerator
+    weighted = False                                   # any multiplier off 1 on this target
     clamp = 1e-6 if var_floor == "none" else 1e-12
     num = np.zeros(len(axis)); den = np.zeros(len(axis)); any_src = False
     den_rule = np.zeros(len(axis)) if split_rule else None
-    for src in (as_delta_source(s, var_floor=var_floor,
-                                log_bias_correct=log_bias_correct, variance_model=vm) for s in sources):
+    for raw in sources:
+        m, sc = 1.0, 1.0
+        if voted:
+            name = source_name(raw)
+            m = source_vote.m(name, target) if source_vote is not None else 1.0
+            sc = source_scale.get(name, 1.0) if source_scale and name is not None else 1.0
+            if m == 0.0:
+                # a zero vote is the source's absence from this pool, exactly as --source-context makes it
+                if stats is not None:
+                    stats["source_vote_zero_arms"] = stats.get("source_vote_zero_arms", 0) + 1
+                continue
+        src = as_delta_source(raw, var_floor=var_floor, log_bias_correct=log_bias_correct, variance_model=vm)
         if vm is not None and hasattr(src, "effect_pair"):
             got = src.effect_pair(target, stats=stats)
             if got is None:
@@ -912,6 +938,15 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
                 stats.get("gene_weights_var_le_1e-6", 0) + int((finite & (var <= 1e-6)).sum()))
             if not finite.any():
                 stats["source_arms_abstained"] = stats.get("source_arms_abstained", 0) + 1
+        if voted:
+            # the strength scales the fold change and leaves the weight at its unscaled value; the vote
+            # scales the weight; the pooled variance's numerator takes both squared
+            if sc != 1.0:
+                fc = fc * sc
+            den2 += remap_to_axis(w * (m * m * sc * sc), src.genes, axis, fill=0.0)
+            if m != 1.0:
+                w = w * m
+            weighted = weighted or m != 1.0 or sc != 1.0
         num += remap_to_axis(fc * w, src.genes, axis, fill=0.0)
         den += remap_to_axis(w, src.genes, axis, fill=0.0)
         if den_rule is not None:
@@ -933,6 +968,9 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
         if den_rule is not None:
             with np.errstate(divide="ignore"):
                 pooled_var = np.where(den_rule[nz] > 0, 1.0 / np.maximum(den_rule[nz], 1e-300), np.inf)
+        elif weighted:
+            # the variance of sum(m w S x) / sum(m w) with w = 1/v: sum(m^2 S^2 w) / (sum m w)^2
+            pooled_var = den2[nz] / den[nz] ** 2
         else:
             pooled_var = 1.0 / den[nz]
         out[nz] = (adaptive_shrink(out[nz], pooled_var, stats=stats) if shrink_rule == "adaptive"
@@ -946,6 +984,26 @@ def variance_kwargs(args) -> dict:
     if vm is None:
         vm = VarianceModel.parse(getattr(args, "variance_model", "shipped"))
     return {"variance_model": vm, "rule_variance": getattr(args, "rule_variance", "model")}
+
+
+def add_source_vote_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
+    """The vote weight and the strength per source (`sidechain.submit.source_vote`), shared by `submit.build`
+    and `eval.loco`."""
+    ap.add_argument("--source-weight", action="append", default=[], metavar="NAME=CTX:W",
+                    help="multiply the pooling weight of the source whose file stem is NAME by W >= 0 in context "
+                         "CTX (repeatable), e.g. 'cd4_all_rho01_kd=A:1.25'; W 0 leaves it out of that context's "
+                         "pool as --source-context does. Contexts that vote alike share one pool. Multiplies "
+                         "with --source-weight-table. Recorded in <out>.source_weight.json (sidechain.submit."
+                         f"source_vote; same flag on {twin}). No registered knob letter yet (ADR 0005)")
+    ap.add_argument("--source-weight-table", type=Path, default=None, metavar="TABLE",
+                    help="a parquet or CSV with `source`, `context`, `weight` and optionally `target`: the vote "
+                         "per (source, context) or per (source, context, knockdown); an unnamed pair keeps 1. "
+                         f"Recorded with its sha256 in <out>.source_weight.json (same flag on {twin})")
+    ap.add_argument("--source-scale", action="append", default=[], metavar="NAME=S",
+                    help="multiply the fold change of the source whose file stem is NAME by S > 0 before pooling "
+                         "(its variance by S^2), its pooling weight kept at the unscaled value: a strength, not a "
+                         f"vote (repeatable). Recorded in <out>.source_scale.json (same flag on {twin}). No "
+                         "registered knob letter yet (ADR 0005)")
 
 
 def add_shrink_args(ap: argparse.ArgumentParser, *, twin: str) -> None:
@@ -1231,7 +1289,8 @@ def neighbour_arm_for(args, delta_of, axis: np.ndarray):
 
 
 def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis: np.ndarray,
-                    cov_tiers, record_path: Path, fit_stats: dict | None = None) -> dict:
+                    cov_tiers, record_path: Path, fit_stats: dict | None = None,
+                    pool_kw: dict | None = None) -> dict:
     """Replace each covered target's pooled delta with its neighbour-fused one, in place.
 
     The pool is pooled exactly as the targets were (same sources, shrinkage, floor, tiers);
@@ -1249,7 +1308,7 @@ def fuse_neighbours(args, shifts: dict, covered: list[str], sources: list, axis:
             return shifts[label]
         return pooled_delta(label, sources, axis, **shrink_kwargs(args), **variance_kwargs(args),
                             log_bias_correct=args.log_bias_correct, var_floor=args.var_floor,
-                            coverage_tiers=cov_tiers, stats=fit_stats)
+                            coverage_tiers=cov_tiers, stats=fit_stats, **(pool_kw or {}))
 
     arm, record = neighbour_arm_for(args, delta_of, axis)
     for p in covered:
@@ -1543,6 +1602,7 @@ def main(argv: list[str] | None = None) -> int:
                          "sources, and a routed build writes one <out>.neighbour.<contexts>.json per pool. "
                          "Same flag on sidechain.eval.loco, with --context. No registered knob letter yet "
                          "(ADR 0005): a model-named stem refuses it")
+    add_source_vote_args(ap, twin="sidechain.eval.loco")
     add_neighbour_args(ap, twin="sidechain.eval.loco")
     add_variance_args(ap, twin="sidechain.eval.loco")
     add_ctrl_axes_args(ap, twin="sidechain.eval.loco")
@@ -1640,8 +1700,14 @@ def main(argv: list[str] | None = None) -> int:
     routes = parse_source_contexts(args.source_context)  # T126; checked against the sources once they load
     if routes and args.emitter != "delta-transfer":
         ap.error("--source-context chooses which sources pool per context, so it only applies to delta-transfer")
+    voting = bool(args.source_weight or args.source_weight_table is not None or args.source_scale)
+    if voting and args.emitter != "delta-transfer":
+        ap.error("--source-weight / --source-weight-table / --source-scale act inside the pool, so they only "
+                 "apply to delta-transfer")
     check_prediction_source_args(ap, args, per_context=True)    # T85
     pie = args.prediction_source == "pie"
+    if pie and voting:
+        ap.error("--prediction-source pie has no pool for --source-weight / --source-scale to act in")
     if pie and args.emitter != "delta-transfer":
         ap.error("--prediction-source pie stands where the pooled delta stands, so it only applies to delta-transfer")
     if pie and (args.gwps_cache or args.source or args.shrink_source or args.lfc_source or routes
@@ -1718,6 +1784,11 @@ def main(argv: list[str] | None = None) -> int:
         # ceiling, each context lowered to R of its own mse knee), so a model-named stem carries it only with b
         ap.error(f"'{stem}' is named like a model, and --alpha-bulk-target is part of letter b's rule "
                  "(ADR 0005), but the name does not carry b: add it, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and voting:
+        # final-phase instruments items 3 and 4: no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --source-weight / --source-weight-table / --source-scale "
+                 "have no registered knob letter yet (ADR 0005): register the letter first, or build under a "
+                 "freeform stem")
     if CLAIMS_RE.match(stem) and args.gene_factor is not None:
         # T102, T120: the per-gene multiplier has no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --gene-factor has no registered knob letter yet "
@@ -1795,6 +1866,9 @@ def main(argv: list[str] | None = None) -> int:
         recorded = {k: v for k, v in recorded.items() if not k.startswith("ctrl_axes")}
     if not routes:
         recorded = {k: v for k, v in recorded.items() if k != "source_context"}     # likewise (T126)
+    if not voting:
+        recorded = {k: v for k, v in recorded.items()                               # likewise (items 3, 4)
+                    if k not in ("source_weight", "source_weight_table", "source_scale")}
     if not pie:
         recorded = {k: v for k, v in recorded.items()                               # likewise (T85)
                     if k not in ("prediction_source", "pie_parquet", "pie_context")}
@@ -1831,6 +1905,8 @@ def main(argv: list[str] | None = None) -> int:
         shifts = {p: generic.copy() for p in perts}
     sources = None
     pools = None                   # T126: {context: its sources} under --source-context
+    votes, scales = None, {}       # items 3, 4: each context's vote per source, each source's strength
+    per_group = bool(routes)       # each context group pools into its own map (routes, or votes that differ)
     group_maps: list[dict] = []    # one per distinct pool (gamma 1): its contexts, sources and shifts
     pool_maps = group_maps         # the distinct pools, as .routing.json records them (T120 splits group_maps)
     if pie:
@@ -1876,21 +1952,36 @@ def main(argv: list[str] | None = None) -> int:
             out.with_suffix(".variance.json").write_text(json.dumps(
                 {**args._variance_model.record(sources), "rule_variance": args.rule_variance},
                 indent=1) + "\n")
+        # final-phase instruments items 3 and 4: each context's vote per source, each source's strength
+        names = [source_name(s) for s in sources]
+        votes, vote_record = source_votes(parse_source_weights(args.source_weight),
+                                          read_source_weight_table(args.source_weight_table), contexts, names)
+        scales = parse_source_scales(args.source_scale, names)
+        if scales:
+            out.with_suffix(".source_scale.json").write_text(json.dumps({"source_scale": scales}, indent=1) + "\n")
         # T126: each context's own pool under --source-context, pooled once per distinct pool. Unrouted
         # there is one group, every context, and it pools into `shifts` itself, as every build before.
         pools = route_sources(sources, routes, contexts) if routes else None
         groups = context_groups(pools, contexts) if routes else [(tuple(contexts), sources)]
+        n_pools = len(groups)
+        # contexts that share a pool but vote differently are pooled apart
+        groups = [(sub, pool) for ctxs, pool in groups for sub in vote_groups(ctxs, votes)]
+        per_group = bool(routes) or len(groups) > n_pools
+        if vote_record is not None:
+            vote_record["pools"] = [list(c) for c, _ in groups]
+            out.with_suffix(".source_weight.json").write_text(json.dumps(vote_record, indent=1) + "\n")
         if args.gamma == 1.0:
             for ctxs, pool in groups:
-                g_shifts = shifts if not routes else {p: generic.copy() for p in perts}
-                g_record = out.with_suffix(("." + "-".join(ctxs) if routes else "") + ".neighbour.json")
+                g_shifts = shifts if not per_group else {p: generic.copy() for p in perts}
+                g_record = out.with_suffix(("." + "-".join(ctxs) if per_group else "") + ".neighbour.json")
+                g_kw = pool_kwargs(votes, ctxs[0], scales)
                 covered = []
                 g_fallback = 0
                 for p in perts:
                     d = pooled_delta(p, pool, axis, **shrink_kwargs(args), **variance_kwargs(args),
                                      log_bias_correct=args.log_bias_correct,
                                      var_floor=args.var_floor, coverage_tiers=cov_tiers,
-                                     stats=pool_stats)
+                                     stats=pool_stats, **g_kw)
                     if d is None:
                         g_fallback += 1    # keep the generic shift
                     else:
@@ -1898,7 +1989,7 @@ def main(argv: list[str] | None = None) -> int:
                         covered.append(p)
                 if args.neighbour_w:
                     fuse_neighbours(args, g_shifts, covered, pool, axis, cov_tiers,
-                                    g_record, fit_stats=pool_fit_stats)
+                                    g_record, fit_stats=pool_fit_stats, pool_kw=g_kw)
                 fallback += g_fallback
                 group_maps.append({"contexts": list(ctxs), "sources": [source_name(s) for s in pool],
                                    "shifts": g_shifts, "covered": len(covered), "fallback": g_fallback,
@@ -1968,12 +2059,13 @@ def main(argv: list[str] | None = None) -> int:
             fb = 0
             ctrl_cpm = prof.fraction * 1e6
             ctx_pool = sources if pools is None else pools[prof.name]
+            ctx_kw = pool_kwargs(votes, prof.name, scales)
             for p in perts:
                 d = pooled_delta(p, ctx_pool, axis, **shrink_kwargs(args), **variance_kwargs(args),
                                  log_bias_correct=args.log_bias_correct,
                                  var_floor=args.var_floor, coverage_tiers=cov_tiers,
                                  gamma=args.gamma, ctrl_tgt_cpm=ctrl_cpm,
-                                 stats=pool_stats)
+                                 stats=pool_stats, **ctx_kw)
                 if d is None:
                     fb += 1
                 else:
@@ -1984,7 +2076,7 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"gamma={args.gamma:g}: shifts are context-specific and pooled inside the "
               "write loop", flush=True)
-    elif routes or pie or factor_split:
+    elif per_group or pie or factor_split:
         if factor_split:
             # T120: a per-line gene factor; each pool's contexts split by their factor, a copy of the
             # pooled map for every part after the first (the pool itself is not re-run)
@@ -2007,7 +2099,7 @@ def main(argv: list[str] | None = None) -> int:
                        [{"contexts": [c], "sources": [source_name(s) for s in pools[c]]} for c in contexts])},
             indent=1) + "\n")
     by_context = ({c: (g["shifts"], g["bulk"]) for g in group_maps for c in g["contexts"]}
-                  if routes or pie or factor_split else None)
+                  if per_group or pie or factor_split else None)
     if rule_moved and not args.no_shrink:
         # Written as soon as the shifts exist, before the write loop: every fit is done by now (the
         # adaptive rule is refused with gamma != 1, the one path that pools inside the loop).

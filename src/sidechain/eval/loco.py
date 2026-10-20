@@ -48,6 +48,7 @@ from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE, ContextProfile,
 from sidechain.submit.build import (
     add_neighbour_args,
     add_shrink_args,
+    add_source_vote_args,
     apply_transfer_floors,
     as_delta_source,
     check_neighbour_args,
@@ -68,6 +69,8 @@ from sidechain.submit.build import (
 from sidechain.submit.alpha_table import load_alpha_table
 from sidechain.submit.ctrl_axes import DEFAULT_CACHE as CTRL_AXES_CACHE, add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
+from sidechain.submit.source_vote import (parse_source_scales, parse_source_weights, pool_kwargs,
+                                          read_source_weight_table, source_votes)
 from sidechain.submit.pie_source import add_prediction_source_args, check_prediction_source_args, pie_shift_map
 from sidechain.submit.variance_model import (
     VarianceModel,
@@ -146,6 +149,8 @@ def build_transfer_prediction(
     rule_variance: str = "model",
     gene_factor: Path | None = None,
     gene_factor_context: str | None = None,
+    source_vote=None,
+    source_scale: dict[str, float] | None = None,
     alpha_table: Path | None = None,
     ctrl_axes: int = 0,
     ctrl_axes_eta: float = 1.0,
@@ -164,6 +169,10 @@ def build_transfer_prediction(
     differs by it alone reads the cache the shipped recipe built. None is the historical path. A per-line
     table (T120: a `context` column) applies its rows for `gene_factor_context` plus the rows with an empty
     context; the held-out line is not one of A/B/C, so the caller names which context's rows stand for it.
+
+    `source_vote` and `source_scale` (`sidechain.submit.source_vote`; final-phase instruments items 3 and 4)
+    reach every `pooled_delta` call, the targets' and the neighbour pool's, as `submit.build` passes them; a
+    delta cache holds the plain pool only, so they are refused with one. None / {} is the historical path.
 
     `alpha_table` (T1; `sidechain.submit.alpha_table`) is a table of per-target multipliers on alpha:
     each named target's pooled vector is scaled by alpha times its factor, in both channels, the
@@ -207,6 +216,11 @@ def build_transfer_prediction(
         raise SystemExit("prediction_source pie stands where the pooled delta stands: no sources, delta cache, "
                          "neighbour arm, basal slope, gamma, similarity weight or coverage tiers")
     check_shrink_rule(shrink_k, shrink_stage, shrink_rule)     # before any file is written
+    vote_kw = {**({"source_vote": source_vote} if source_vote is not None else {}),
+               **({"source_scale": source_scale} if source_scale else {})}
+    if vote_kw and (delta_cache is not None or pie):
+        raise SystemExit("source_vote / source_scale act inside the pool: no delta cache (it holds the plain "
+                         "pool) and no prediction_source pie")
     vm = variance_model if variance_model is not None else VarianceModel()
     if not vm.is_shipped and basal_slope != "off":
         raise SystemExit("--variance-model with --basal-slope is not wired: the slope's fits read the "
@@ -379,7 +393,7 @@ def build_transfer_prediction(
                                 var_floor=var_floor, stats=pool_fit_stats,
                                 log_bias_correct=log_bias_correct, gamma=gamma,
                                 ctrl_tgt_cpm=ctrl_cpm, coverage_tiers=coverage_tiers,
-                                similarity_beta=similarity_beta, **pool_variance)
+                                similarity_beta=similarity_beta, **pool_variance, **vote_kw)
 
         arm, arm_record = neighbour_arm_for(
             SimpleNamespace(neighbour_table=neighbour_table, neighbour_pool=neighbour_pool,
@@ -398,7 +412,7 @@ def build_transfer_prediction(
                 log_bias_correct=log_bias_correct,
                 gamma=gamma, ctrl_tgt_cpm=ctrl_cpm,
                 coverage_tiers=coverage_tiers,
-                similarity_beta=similarity_beta, stats=pool_stats, **pool_variance)
+                similarity_beta=similarity_beta, stats=pool_stats, **pool_variance, **vote_kw)
         d0 = None
         if d is not None:
             if arm is not None:
@@ -600,6 +614,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="switch the shrinkage of transferred log2FCs off entirely "
                          "(--shrink-stage and --shrink-rule are refused with it)")
     add_shrink_args(ap, twin="sidechain.submit.build")
+    add_source_vote_args(ap, twin="sidechain.submit.build")
+    ap.add_argument("--source-weight-context", default=None, metavar="CTX",
+                    help="the context whose --source-weight / --source-weight-table rows stand for this fold's "
+                         "held-out line (e.g. k562 on loco_k562gwps_wide); refused when no flag or row names it")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--gene-factor", type=Path, default=None, metavar="TABLE",
                     help="a per-gene multiplier on each target's pooled log2FC vector, applied last before "
@@ -787,6 +805,27 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--context is read by --source-context only")
     if routes:
         sources = route_sources(sources, routes, [args.context], check_contexts=False)[args.context]
+    # final-phase instruments items 3 and 4: the vote of the context standing for this fold, and the strengths
+    weights = parse_source_weights(args.source_weight)
+    weight_table = read_source_weight_table(args.source_weight_table)
+    if (weights or weight_table is not None) and args.source_weight_context is None:
+        ap.error("--source-weight / --source-weight-table need --source-weight-context: the context whose rows "
+                 "stand for this fold's held-out line")
+    if args.source_weight_context is not None and not weights and weight_table is None:
+        ap.error("--source-weight-context is read by --source-weight / --source-weight-table only")
+    names = [source_name(s) for s in sources]
+    vote, vote_record = None, None
+    if args.source_weight_context is not None:
+        named = {c for _, c in weights} | (set(weight_table["context"]) if weight_table is not None else set())
+        if args.source_weight_context not in named:
+            ap.error(f"--source-weight-context {args.source_weight_context!r}: no flag or table row names it "
+                     f"(they name {', '.join(sorted(named))})")
+        votes, vote_record = source_votes(weights, weight_table, [args.source_weight_context], names)
+        vote = pool_kwargs(votes, args.source_weight_context, {}).get("source_vote")
+    scales = parse_source_scales(args.source_scale, names)
+    if (vote_record is not None or scales) and (args.delta_cache is not None or pie):
+        ap.error("--source-weight / --source-weight-table / --source-scale act inside the pool: no --delta-cache "
+                 "(it holds the plain pool) and no --prediction-source pie")
     variance_model.check_sources(sources)
     delta_cache = None
     if args.delta_cache is not None:
@@ -838,6 +877,8 @@ def main(argv: list[str] | None = None) -> int:
                                      gene_factor=args.gene_factor,
                                      **({"gene_factor_context": args.gene_factor_context}
                                         if args.gene_factor_context is not None else {}),
+                                     **({"source_vote": vote} if vote is not None else {}),
+                                     **({"source_scale": scales} if scales else {}),
                                      alpha_table=args.alpha_table,
                                      ctrl_axes=args.ctrl_axes, ctrl_axes_eta=args.ctrl_axes_eta,
                                      ctrl_axes_basis=args.ctrl_axes_basis,
@@ -857,6 +898,10 @@ def main(argv: list[str] | None = None) -> int:
     # of what produced the run.
     res["sources"] = {"pseudobulk": args.source, "shrink_pseudobulk": args.shrink_source,
                       "lfc": args.lfc_source}
+    if vote_record is not None:
+        res["sources"] |= {"source_weight": vote_record, "source_weight_context": args.source_weight_context}
+    if scales:
+        res["sources"] |= {"source_scale": scales}
     if routes:
         # off, the record is what an arm before the flag wrote (T126)
         res["sources"] |= {"source_context": {n: list(c) for n, c in routes.items()},
@@ -867,6 +912,9 @@ def main(argv: list[str] | None = None) -> int:
          "out": str(out), "sources": args.source, "shrink_sources": args.shrink_source,
          "lfc_sources": args.lfc_source,
          **({"source_context": list(args.source_context), "context": args.context} if routes else {}),
+         **({"source_weight": list(args.source_weight), "source_weight_table": str(args.source_weight_table),
+             "source_weight_context": args.source_weight_context} if vote_record is not None else {}),
+         **({"source_scale": scales} if scales else {}),
          "dispersion": args.dispersion, "emit_lambda": args.emit_lambda,
          "shrinkage": not args.no_shrink,
          "shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage,
