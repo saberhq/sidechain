@@ -29,6 +29,19 @@ start line.
 
 {{< board >}}
 
+## SER-29abefhkrswx — submitted 2026-10-21
+
+SER-27abefhkrswx with two changes and no new knob. The pool of sources grows from four public screens to nine. The five
+added are a screen in CD4 T cells, a second screen in H1 stem cells, a pooled screen across stem-cell lines, a screen in a
+lung cancer line (Calu-3) and one in glioblastoma lines. And the strength of the summed profile (`b`) is no longer one
+setting shared by every line: each line gets its own, kept short of the point past which more strength costs distance
+(mse). The list of callable genes (`h`) follows the pool: it is chosen again on the larger pool's predictions, with the
+knob itself unchanged.
+
+It scored 0.2226 against SER-27abefhkrswx's 0.1875, and all six scores rose. Distance (mse) rose most, from 0.212 to
+0.299; telling knockdowns apart (pds) went from 0.729 to 0.757, and size of change (nmae) from 0.094 to 0.126. Direction
+(fid), reach and overlap (jac) also rose: from −0.013 to 0.012, from 0.105 to 0.139, and from −0.002 to 0.002.
+
 ## SER-28abefhkrswx — submitted 2026-10-20
 
 SER-27abefhkrswx with one change: which genes go on its list of callable genes (`h`). For the knockdowns whose predicted
