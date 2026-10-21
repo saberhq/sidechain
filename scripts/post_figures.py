@@ -204,7 +204,7 @@ def fig_overall(entries):
     for e, x, v in zip(es, xs, vals):
         if e["name"] in named or e is es[-1]:
             body.append(text(x, Y(v) - 8, fmt(v, 3), 8.5, INK if e is es[-1] else INK3, "middle"))
-    body.append(text(L, 12, "overall score · the plain mean of six scaled members · 0 = the context-mean baseline", 9.5, INK3))
+    body.append(text(L, 12, "overall score · the mean of six scaled metrics · 0 = each line's average-response baseline", 9.5, INK3))
     return svg(W, H, body, "Overall score per Sidechain entry on the Virtual Cell Challenge 2026 board, in entry order")
 
 
@@ -434,7 +434,7 @@ def fig_recipe(recipe=RECIPE):
     BW, BH, GAP = 136, 54, 18
     L = (W - (n * BW + (n - 1) * GAP)) / 2
     y0 = 58
-    body = [ARROW_DEF, text(L, 14, "the SER recipe · four verbs · the letters a model's name can carry, on the stage each one turns", 9.5, INK3)]
+    body = [ARROW_DEF, text(L, 14, "the SER recipe · four steps · the letters a model's name can carry, on the step each one changes", 9.5, INK3)]
     body += _arrow(L + BW / 2, y0 - 10, L + BW / 2, y0 - 1)
     body.append(text(L + 2, y0 - 16, "H1 · K562 · HCT116 · HEK293T screens", 8.5, INK3, "start"))
     xe = L + 3 * (BW + GAP)

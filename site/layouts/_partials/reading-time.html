@@ -1,0 +1,5 @@
+{{- /* Minutes to read the post's own text: Hugo's .ReadingTime counts every rendered word, the
+       labels inside inline figures included, so a post with several SVG figures read long. This
+       counts the source text with the shortcode calls taken out, at Hugo's 213 words a minute. */ -}}
+{{- $text := replaceRE `\{\{<[^>]*>\}\}` "" .RawContent -}}
+{{- return math.Max 1 (int (math.Ceil (div (float (countwords $text)) 213))) -}}
