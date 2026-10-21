@@ -5,18 +5,19 @@
   --font-sans: 'Geist', Helvetica, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* web scale (print/resume runs ~25% smaller; see readme) */
+  /* web scale (print/resume runs ~25% smaller; see readme). Sidechain reads about an eighth larger than
+     saberhq.com's tokens since 2026-10-20 (Saber: the post text read small; body 15 -> 17px). */
   --display-size: 44px;  --display-track: -0.032em; --display-leading: 1.05; /* w600 */
-  --h1-size: 30px;       --h1-track: -0.025em;      --h1-leading: 1.15;     /* w600 */
-  --h2-size: 21px;       --h2-track: -0.018em;      --h2-leading: 1.25;     /* w600 */
-  --h3-size: 16.5px;     --h3-track: -0.012em;      --h3-leading: 1.35;     /* w600 */
-  --body-size: 15px;     --body-track: -0.002em;    --body-leading: 1.6;    /* w400 */
-  --small-size: 13px;    --small-leading: 1.5;
+  --h1-size: 33px;       --h1-track: -0.025em;      --h1-leading: 1.15;     /* w600 */
+  --h2-size: 23px;       --h2-track: -0.018em;      --h2-leading: 1.25;     /* w600 */
+  --h3-size: 18.5px;     --h3-track: -0.012em;      --h3-leading: 1.35;     /* w600 */
+  --body-size: 17px;     --body-track: -0.002em;    --body-leading: 1.6;    /* w400 */
+  --small-size: 14.5px;    --small-leading: 1.5;
 
   /* instrument panel (all Geist Mono) */
-  --meta-size: 12px;   --meta-track: 0.005em;                      /* dates, locations, w400 */
-  --label-size: 11.5px; --label-track: 0.14em;  /* SECTION LABELS, uppercase, w500 */
-  --micro-size: 10px;  --micro-track: 0.06em;   /* footer strips, page numbers, w400 */
+  --meta-size: 13px;   --meta-track: 0.005em;                      /* dates, locations, w400 */
+  --label-size: 12.5px; --label-track: 0.14em;  /* SECTION LABELS, uppercase, w500 */
+  --micro-size: 11px;  --micro-track: 0.06em;   /* footer strips, page numbers, w400 */
 
   /* weights: 400 body · 500 mono emphasis · 600 headings. 700 rare, 300 large-display only. */
 }

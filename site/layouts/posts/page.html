@@ -7,13 +7,19 @@
 <article class="sq-article">
   <div class="sq-article-wrap">
     {{- /* The banner: one of Saber's photographs, above the title on every post that has
-           one. Fixed 5:2 frame (scripts/banner.py cuts it), caption is the date the photo
-           was taken — the frame and the quiet caption are the signature, not a treatment. */}}
+           one. Fixed 5:2 frame (scripts/banner.py cuts it). `image_light`, when a post has one,
+           replaces `image` in the light theme (Saber, 2026-10-21: a photo can suit one theme
+           only). The caption (where and when the photo was taken) sits on the photo itself, so
+           it never reads as the post's own date line below it. */}}
     {{ with .Params.image }}
     {{ $src := . }}
     {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
-    <figure class="sq-cover sc-banner">
-      <img src="{{ $src }}" alt="{{ $.Params.caption | default $.Title }}">
+    {{ $light := "" }}
+    {{ with $.Params.image_light }}{{ $light = . }}{{ with $.Resources.Get . }}{{ $light = .RelPermalink }}{{ end }}{{ end }}
+    {{ $alt := $.Params.image_alt | default $.Title }}
+    <figure class="sq-cover sc-banner{{ if $light }} sc-banner--themed{{ end }}">
+      <img class="sc-banner-img" src="{{ $src }}" alt="{{ $alt }}">
+      {{ with $light }}<img class="sc-banner-img sc-banner-img--light" src="{{ . }}" alt="{{ $alt }}">{{ end }}
       {{ with $.Params.caption }}<figcaption class="sc-banner-caption">{{ . }}</figcaption>{{ end }}
     </figure>
     {{ end }}
