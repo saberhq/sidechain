@@ -15,7 +15,8 @@ knob is on, not where it is set: setting the same knob differently takes a new m
 Each section says what its model set out to test and how it scored, and leaves out where its knobs were set: how strong,
 how many, how far. What each knob does is explained once, at the end of the page, under [The knobs](#the-knobs), and what
 each of the board's six scores reads is under [The six scores](#the-six-scores). "Our own held-out tests" are public
-screens of other cell lines, kept from the model and scored the way the board scores.
+screens of other cell lines, kept from the model and scored the way the board scores. The story behind these models, the reasoning
+at each fork and what did not work, is told in [Knobs N' Knockdowns](/posts/knobs-n-knockdowns/).
 
 ## Every entry on one board
 

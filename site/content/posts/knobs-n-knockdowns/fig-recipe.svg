@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 262" width="100%" style="max-width:680px;height:auto;display:block" role="img" aria-label="The SER recipe: borrow, pool, adjust, emit; the knob letters placed on the stage each one turns">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink-2, #45403A)"/></marker></defs>
+<text x="41.0" y="14.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9.5" fill="var(--ink-3, #6F6A62)" text-anchor="start" font-weight="400">the SER recipe · four steps · the letters a model's name can carry, on the step each one changes</text>
+<line x1="109.0" y1="48.0" x2="109.0" y2="57.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<text x="43.0" y="42.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="start" font-weight="400">H1 · K562 · HCT116 · HEK293T screens</text>
+<line x1="571.0" y1="48.0" x2="571.0" y2="57.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<text x="571.0" y="42.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">the context's 18,400 control cells</text>
+<rect x="41.0" y="58.0" width="136.0" height="54.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="109.0" y="85.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="11" fill="var(--ink, #191613)" text-anchor="middle" font-weight="500">Borrow</text>
+<text x="109.0" y="126.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">a log2 fold change per gene</text>
+<text x="109.0" y="137.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">from every screen that silenced it</text>
+<text x="51.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">n</text>
+<text x="65.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">shrinkage off</text>
+<text x="51.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">d</text>
+<text x="65.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">shrink scope, never sent</text>
+<text x="51.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">g</text>
+<text x="65.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">exponent γ</text>
+<line x1="179.0" y1="85.0" x2="193.0" y2="85.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="195.0" y="58.0" width="136.0" height="54.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="263.0" y="85.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="11" fill="var(--ink, #191613)" text-anchor="middle" font-weight="500">Pool</text>
+<text x="263.0" y="126.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">one weighted average per gene</text>
+<text x="263.0" y="137.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">sure sources count for more</text>
+<text x="205.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">f</text>
+<text x="219.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">floor</text>
+<text x="205.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">c</text>
+<text x="219.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">tiers</text>
+<text x="205.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">t</text>
+<text x="219.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">τ², retired</text>
+<text x="205.0" y="199.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">s</text>
+<text x="219.0" y="199.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">adaptive rule</text>
+<text x="205.0" y="212.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">v</text>
+<text x="219.0" y="212.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">noise curve</text>
+<line x1="333.0" y1="85.0" x2="347.0" y2="85.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="349.0" y="58.0" width="136.0" height="54.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="417.0" y="85.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="11" fill="var(--ink, #191613)" text-anchor="middle" font-weight="500">Adjust</text>
+<text x="417.0" y="126.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">resize or nudge</text>
+<text x="417.0" y="137.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">the pooled change</text>
+<text x="359.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">a</text>
+<text x="373.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">strength α</text>
+<text x="359.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">k</text>
+<text x="373.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">neighbours</text>
+<line x1="487.0" y1="85.0" x2="501.0" y2="85.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="503.0" y="58.0" width="136.0" height="54.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--mark, #A62B4D)" stroke-width="1.4"/>
+<text x="571.0" y="85.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="11" fill="var(--ink, #191613)" text-anchor="middle" font-weight="500">Emit</text>
+<text x="571.0" y="126.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">400 cells of counts per knockdown</text>
+<text x="571.0" y="137.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">on the context's own controls</text>
+<text x="513.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">p</text>
+<text x="527.0" y="160.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">Poisson</text>
+<text x="513.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">e</text>
+<text x="527.0" y="173.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">dial λ</text>
+<text x="513.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">b</text>
+<text x="527.0" y="186.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">two strengths</text>
+<text x="513.0" y="199.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">w</text>
+<text x="527.0" y="199.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">pooled anchor</text>
+<text x="513.0" y="212.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">r</text>
+<text x="527.0" y="212.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">real cells</text>
+<text x="513.0" y="225.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">h</text>
+<text x="527.0" y="225.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">callable list</text>
+<text x="513.0" y="238.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--mark, #A62B4D)" text-anchor="start" font-weight="600">x</text>
+<text x="527.0" y="238.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="400">control axes out</text>
+<line x1="641.0" y1="85.0" x2="676.0" y2="85.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<text x="676.0" y="77.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">scorer</text>
+</svg>

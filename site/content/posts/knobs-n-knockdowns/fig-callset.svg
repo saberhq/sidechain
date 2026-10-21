@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 666 176" width="100%" style="max-width:666px;height:auto;display:block" role="img" aria-label="Raw fid, reach and jac for SER-14 and the real-cell entries along the callable-gene list, SER-15 to SER-20">
+<text x="32.0" y="11.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="500">raw fid</text>
+<text x="28.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">list</text>
+<text x="28.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">SER-</text>
+<line x1="32.0" y1="111.7" x2="208.0" y2="111.7" stroke="var(--rule-strong, #191613)" stroke-width="1"/>
+<text x="28.0" y="111.7" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.00</text>
+<line x1="32.0" y1="80.6" x2="208.0" y2="80.6" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="28.0" y="80.6" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.20</text>
+<line x1="32.0" y1="49.4" x2="208.0" y2="49.4" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="28.0" y="49.4" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.40</text>
+<line x1="32.0" y1="18.3" x2="208.0" y2="18.3" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="28.0" y="18.3" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.60</text>
+<line x1="46.7" y1="32.3" x2="193.3" y2="32.3" stroke="var(--viz-8, #999999)" stroke-width="1" stroke-dasharray="3 3"/>
+<circle cx="46.7" cy="32.3" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="46.7" y="24.3" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.510</text>
+<text x="46.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">drawn</text>
+<text x="46.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">14</text>
+<circle cx="76.0" cy="84.8" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="76.0" y="76.8" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.173</text>
+<text x="76.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">none</text>
+<text x="76.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">15</text>
+<circle cx="105.3" cy="39.8" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="105.3" y="31.8" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.462</text>
+<text x="105.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">short</text>
+<text x="105.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">16</text>
+<circle cx="134.7" cy="33.3" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="134.7" y="25.3" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.503</text>
+<text x="134.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">mid</text>
+<text x="134.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">17</text>
+<circle cx="164.0" cy="32.6" r="4" fill="var(--mark, #A62B4D)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="164.0" y="24.6" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">0.508</text>
+<text x="164.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">long</text>
+<text x="164.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">19</text>
+<circle cx="193.3" cy="32.6" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="193.3" y="24.6" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.508</text>
+<text x="193.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">all</text>
+<text x="193.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">20</text>
+<text x="258.0" y="11.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="500">raw reach</text>
+<line x1="258.0" y1="111.7" x2="434.0" y2="111.7" stroke="var(--rule-strong, #191613)" stroke-width="1"/>
+<text x="254.0" y="111.7" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.00</text>
+<line x1="258.0" y1="71.6" x2="434.0" y2="71.6" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="254.0" y="71.6" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.10</text>
+<line x1="258.0" y1="31.5" x2="434.0" y2="31.5" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="254.0" y="31.5" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.20</text>
+<line x1="272.7" y1="48.9" x2="419.3" y2="48.9" stroke="var(--viz-8, #999999)" stroke-width="1" stroke-dasharray="3 3"/>
+<circle cx="272.7" cy="48.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="272.7" y="40.9" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.157</text>
+<text x="272.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">drawn</text>
+<text x="272.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">14</text>
+<circle cx="302.0" cy="32.3" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="302.0" y="24.3" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.198</text>
+<text x="302.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">none</text>
+<text x="302.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">15</text>
+<circle cx="331.3" cy="37.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="331.3" y="29.9" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.184</text>
+<text x="331.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">short</text>
+<text x="331.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">16</text>
+<circle cx="360.7" cy="41.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="360.7" y="33.5" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.175</text>
+<text x="360.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">mid</text>
+<text x="360.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">17</text>
+<circle cx="390.0" cy="43.2" r="4" fill="var(--mark, #A62B4D)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="390.0" y="35.2" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">0.171</text>
+<text x="390.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">long</text>
+<text x="390.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">19</text>
+<circle cx="419.3" cy="48.7" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="419.3" y="40.7" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.157</text>
+<text x="419.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">all</text>
+<text x="419.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">20</text>
+<text x="484.0" y="11.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9" fill="var(--ink-2, #45403A)" text-anchor="start" font-weight="500">raw jac</text>
+<line x1="484.0" y1="111.7" x2="660.0" y2="111.7" stroke="var(--rule-strong, #191613)" stroke-width="1"/>
+<text x="480.0" y="111.7" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.00</text>
+<line x1="484.0" y1="81.2" x2="660.0" y2="81.2" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="480.0" y="81.2" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.02</text>
+<line x1="484.0" y1="50.7" x2="660.0" y2="50.7" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="480.0" y="50.7" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.04</text>
+<line x1="484.0" y1="20.3" x2="660.0" y2="20.3" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="480.0" y="20.3" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.06</text>
+<line x1="498.7" y1="64.8" x2="645.3" y2="64.8" stroke="var(--viz-8, #999999)" stroke-width="1" stroke-dasharray="3 3"/>
+<circle cx="498.7" cy="64.8" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="498.7" y="56.8" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.031</text>
+<text x="498.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">drawn</text>
+<text x="498.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">14</text>
+<circle cx="528.0" cy="32.3" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="528.0" y="24.3" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.052</text>
+<text x="528.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">none</text>
+<text x="528.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">15</text>
+<circle cx="557.3" cy="75.0" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="557.3" y="67.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.024</text>
+<text x="557.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">short</text>
+<text x="557.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">16</text>
+<circle cx="586.7" cy="69.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="586.7" y="61.9" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.027</text>
+<text x="586.7" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">mid</text>
+<text x="586.7" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">17</text>
+<circle cx="616.0" cy="66.9" r="4" fill="var(--mark, #A62B4D)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="616.0" y="58.9" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">0.029</text>
+<text x="616.0" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">long</text>
+<text x="616.0" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">19</text>
+<circle cx="645.3" cy="62.8" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="645.3" y="54.8" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.032</text>
+<text x="645.3" y="140.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">all</text>
+<text x="645.3" y="151.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="7.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">20</text>
+</svg>

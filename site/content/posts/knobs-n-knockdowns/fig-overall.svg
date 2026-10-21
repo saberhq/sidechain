@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 318" width="100%" style="max-width:680px;height:auto;display:block" role="img" aria-label="Overall score per Sidechain entry on the Virtual Cell Challenge 2026 board, in entry order">
+<line x1="52.0" y1="179.6" x2="664.0" y2="179.6" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="46.0" y="179.6" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.10</text>
+<line x1="52.0" y1="123.5" x2="664.0" y2="123.5" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="46.0" y="123.5" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.15</text>
+<line x1="52.0" y1="67.5" x2="664.0" y2="67.5" stroke="var(--rule, #E3E0DA)" stroke-width="1"/>
+<text x="46.0" y="67.5" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">0.20</text>
+<line x1="52.0" y1="22.0" x2="52.0" y2="230.0" stroke="var(--rule-strong, #191613)" stroke-width="1"/>
+<circle cx="64.8" cy="203.4" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="67.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 67.75 242)"><title>SER-1 · 2026-08-21 · 0.0788</title>SER-1</text>
+<circle cx="90.2" cy="209.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="93.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 93.25 242)"><title>SER-1p · 2026-08-21 · 0.0730</title>SER-1p</text>
+<circle cx="115.8" cy="199.6" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="118.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 118.75 242)"><title>SER-1n · 2026-08-22 · 0.0822</title>SER-1n</text>
+<circle cx="141.2" cy="186.7" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="144.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 144.25 242)"><title>SER-2 · 2026-08-24 · 0.0937</title>SER-2</text>
+<circle cx="166.8" cy="183.7" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="169.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 169.75 242)"><title>SER-3n · 2026-08-27 · 0.0963</title>SER-3n</text>
+<circle cx="192.2" cy="175.8" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="195.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 195.25 242)"><title>SER-3fn · 2026-08-27 · 0.1034</title>SER-3fn</text>
+<circle cx="217.8" cy="180.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="220.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 220.75 242)"><title>SER-3afgn · 2026-08-30 · 0.0992</title>SER-3afgn</text>
+<circle cx="243.2" cy="171.6" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="246.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 246.25 242)"><title>SER-3afn · 2026-08-30 · 0.1071</title>SER-3afn</text>
+<circle cx="268.8" cy="170.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="271.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 271.75 242)"><title>SER-4afn · 2026-08-31 · 0.1078</title>SER-4afn</text>
+<circle cx="294.2" cy="171.2" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="297.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 297.25 242)"><title>SER-5acfnt · 2026-09-01 · 0.1075</title>SER-5acfnt</text>
+<circle cx="319.8" cy="169.4" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="322.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 322.75 242)"><title>SER-6aefn · 2026-09-12 · 0.1091</title>SER-6aefn</text>
+<circle cx="345.2" cy="164.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="348.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 348.25 242)"><title>SER-7abefn · 2026-09-17 · 0.1131</title>SER-7abefn</text>
+<circle cx="370.8" cy="163.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="373.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 373.75 242)"><title>SER-9abefkn · 2026-09-29 · 0.1144</title>SER-9abefkn</text>
+<circle cx="396.2" cy="140.0" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="399.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 399.25 242)"><title>SER-10abefnw · 2026-09-30 · 0.1353</title>SER-10abefnw</text>
+<circle cx="421.8" cy="139.2" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="424.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 424.75 242)"><title>SER-11abefknw · 2026-09-30 · 0.1360</title>SER-11abefknw</text>
+<circle cx="447.2" cy="130.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="450.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 450.25 242)"><title>SER-12aefkw · 2026-10-02 · 0.1438</title>SER-12aefkw</text>
+<circle cx="472.8" cy="139.2" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="475.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 475.75 242)"><title>SER-13aefknw · 2026-10-02 · 0.1360</title>SER-13aefknw</text>
+<circle cx="498.2" cy="109.4" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="501.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 501.25 242)"><title>SER-14aefksw · 2026-10-03 · 0.1626</title>SER-14aefksw</text>
+<circle cx="523.8" cy="105.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="526.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 526.75 242)"><title>SER-17aefhkrsw · 2026-10-08 · 0.1657</title>SER-17aefhkrsw</text>
+<circle cx="549.2" cy="102.9" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="552.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 552.25 242)"><title>SER-19aefhkrsw · 2026-10-16 · 0.1684</title>SER-19aefhkrsw</text>
+<circle cx="574.8" cy="94.7" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="577.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 577.75 242)"><title>SER-21aefhkrswx · 2026-10-19 · 0.1757</title>SER-21aefhkrswx</text>
+<circle cx="600.2" cy="81.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="603.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 603.25 242)"><title>SER-27abefhkrswx · 2026-10-20 · 0.1875</title>SER-27abefhkrswx</text>
+<circle cx="625.8" cy="81.5" r="3.2" fill="var(--viz-8, #999999)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="628.8" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400" transform="rotate(-50 628.75 242)"><title>SER-28abefhkrswx · 2026-10-20 · 0.1875</title>SER-28abefhkrswx</text>
+<circle cx="651.2" cy="42.1" r="4.2" fill="var(--mark, #A62B4D)" stroke="var(--paper, #FAF9F7)" stroke-width="1.5"/>
+<text x="654.2" y="242.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink, #191613)" text-anchor="end" font-weight="500" transform="rotate(-50 654.25 242)"><title>SER-29abefhkrswx · 2026-10-21 · 0.2226</title>SER-29abefhkrswx</text>
+<text x="64.8" y="195.4" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.079</text>
+<text x="141.2" y="178.7" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.094</text>
+<text x="192.2" y="167.8" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.103</text>
+<text x="243.2" y="163.6" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.107</text>
+<text x="396.2" y="132.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.135</text>
+<text x="447.2" y="122.5" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.144</text>
+<text x="498.2" y="101.4" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.163</text>
+<text x="523.8" y="97.9" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.166</text>
+<text x="574.8" y="86.7" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink-3, #6F6A62)" text-anchor="middle" font-weight="400">0.176</text>
+<text x="651.2" y="34.1" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="8.5" fill="var(--ink, #191613)" text-anchor="middle" font-weight="400">0.223</text>
+<text x="52.0" y="12.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="9.5" fill="var(--ink-3, #6F6A62)" text-anchor="start" font-weight="400">overall score · the mean of six scaled metrics · 0 = each line's average-response baseline</text>
+</svg>
