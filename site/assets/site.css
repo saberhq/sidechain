@@ -428,6 +428,28 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-pin { color: var(--accent); font-weight: 500; }
 
 /* ---------- Prose (markdown bodies) ---------- */
+/* ---------- Contents rail (posts) ---------- */
+/* After the board's Docs view: a quiet list of the post's sections beside the text, the one in view
+   marked in the accent; above the text as a fold when the window is too narrow for the rail. */
+.sq-article-wrap { position: relative; }
+.sc-toc-rail { display: none; }
+.sc-toc-h { font-family: var(--font-mono); font-size: var(--label-size); letter-spacing: var(--label-track);
+  text-transform: uppercase; color: var(--ink-3); margin: 0 0 10px; }
+.sc-toc-rail ul, .sc-toc-fold ul { list-style: none; margin: 0; padding: 0; }
+.sc-toc-rail a, .sc-toc-fold a { display: block; font-size: 13px; line-height: 1.35; color: var(--ink-3);
+  text-decoration: none; padding: 4px 0 4px 12px; border-left: 1.5px solid var(--rule); }
+.sc-toc-rail ul ul a, .sc-toc-fold ul ul a { padding-left: 24px; font-size: 12.5px; }
+.sc-toc-rail a:hover, .sc-toc-fold a:hover { color: var(--ink); }
+.sc-toc-rail a.on, .sc-toc-fold a.on { color: var(--accent); border-left-color: var(--accent); }
+.sc-toc-fold { margin: 0 0 28px; border: var(--rule-w) solid var(--rule); border-radius: var(--radius); padding: 8px 12px; }
+.sc-toc-fold > summary { cursor: pointer; font-family: var(--font-mono); font-size: var(--label-size);
+  letter-spacing: var(--label-track); text-transform: uppercase; color: var(--ink-3); }
+.sc-toc-fold[open] > summary { margin-bottom: 10px; }
+@media (min-width: 1280px) {
+  .sc-toc-fold { display: none; }
+  .sc-toc-rail { display: block; position: absolute; top: var(--space-8); bottom: 0; left: 100%; width: 210px; }
+  .sc-toc-inner { position: sticky; top: 96px; max-height: calc(100vh - 128px); overflow-y: auto; }
+}
 .sq-prose p { font-size: var(--body-size); line-height: var(--body-leading); letter-spacing: var(--body-track); text-wrap: pretty; margin: 0 0 18px; }
 .sq-prose h1 { font-size: var(--h1-size); font-weight: 600; letter-spacing: var(--h1-track); line-height: var(--h1-leading); margin: 0 0 10px; }
 .sq-prose h2 { font-size: var(--h2-size); font-weight: 600; letter-spacing: var(--h2-track); line-height: var(--h2-leading); margin: 40px 0 14px; }

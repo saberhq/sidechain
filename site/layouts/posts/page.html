@@ -42,10 +42,38 @@
         </span>
       {{ end }}
     </div>
+    {{- /* Contents (Saber, 2026-10-21, after the board's Docs view): the post's sections in a rail to
+           the right of the text, sticky, the section in view marked; a fold above the text when the
+           window is too narrow for the rail. Only for a post with two or more sections. */}}
+    {{- $toc := .TableOfContents }}
+    {{- $n := len (findRE `<li>` $toc) }}
+    {{- if ge $n 2 }}
+    <details class="sc-toc-fold"><summary>Contents · {{ len (findRE `<li>\s*<a` $toc) }}</summary>{{ $toc }}</details>
+    {{- end }}
     <div class="sq-prose">
       {{ .Content }}
     </div>
     {{ partial "post-actions.html" . }}
+    {{- if ge $n 2 }}
+    <aside class="sc-toc-rail" aria-label="Contents"><div class="sc-toc-inner"><div class="sc-toc-h">Contents</div>{{ $toc }}</div></aside>
+    <script>
+    (function () {
+      var links = Array.prototype.slice.call(document.querySelectorAll('.sc-toc-rail a, .sc-toc-fold a'));
+      var ids = [], heads = [];
+      links.forEach(function (a) { var id = decodeURIComponent(a.hash.slice(1)); if (ids.indexOf(id) < 0) { ids.push(id); var h = document.getElementById(id); if (h) heads.push(h); } });
+      if (!heads.length) return;
+      var ticking = false;
+      function mark() {
+        ticking = false;
+        var line = window.innerHeight * 0.25, cur = null;
+        heads.forEach(function (h) { if (h.getBoundingClientRect().top <= line) cur = h; });
+        links.forEach(function (a) { a.classList.toggle('on', !!cur && decodeURIComponent(a.hash.slice(1)) === cur.id); });
+      }
+      window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(mark); } }, { passive: true });
+      mark();
+    })();
+    </script>
+    {{- end }}
   </div>
 </article>
 {{ end }}
