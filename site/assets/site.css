@@ -393,9 +393,9 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-page-actions { grid-column: 1 / -1; margin-top: 0; }
 
 /* ---------- Article ---------- */
-/* The reading column widens with the window, about half of it, like the board's Standing tab
-   (Saber, 2026-10-21); 880px keeps a line of 17px text near 90 characters at most. */
-.sq-article-wrap { max-width: clamp(720px, 50vw, 880px); margin: 0 auto; padding: var(--space-8) var(--space-6) 0; }
+/* The reading column widens with the window, a little under half of it (Saber, 2026-10-21: wider
+   than 720px, narrower than half the window); 800px keeps a line of 17px text near 85 characters. */
+.sq-article-wrap { max-width: clamp(720px, 46vw, 800px); margin: 0 auto; padding: var(--space-8) var(--space-6) 0; }
 .sq-article-title {
   margin: 14px 0 0;
   font-size: var(--h1-size); font-weight: 600;
@@ -408,20 +408,22 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sq-cover { margin: 0 0 34px; }
 .sq-cover img { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: var(--radius); border: var(--rule-w) solid var(--rule); }
 /* The photo banner (scripts/banner.py): above the title, 5:2 frame, dated caption. */
-.sc-banner { margin: 0 0 26px; }
+.sc-banner { margin: 0 0 30px; }
 .sc-banner img { height: auto; aspect-ratio: 5 / 2; }
 .sc-banner { position: relative; }
 .sc-banner .sc-banner-img--light { display: none; }
 :root:not([data-theme="dark"]) .sc-banner--themed .sc-banner-img { display: none; }
 :root:not([data-theme="dark"]) .sc-banner--themed .sc-banner-img--light { display: block; }
-/* The caption is the photo's own line: on the photo, bottom right, so it never reads as the
-   post's date line under the banner. */
+/* The caption (where and when the photo was taken): small italic sans under the photo, right-aligned,
+   so it never reads as the post's mono date line below it. A themed banner shows the caption of
+   the photo in view. */
 .sc-banner-caption {
-  position: absolute; right: 12px; bottom: 10px; margin: 0;
-  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: var(--meta-track); line-height: 1.4;
-  color: rgba(255, 255, 255, 0.86); background: rgba(10, 9, 8, 0.42); padding: 3px 8px;
-  border-radius: var(--radius-sm); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  margin-top: 7px; font-family: var(--font-sans); font-style: italic; font-size: 12px; line-height: 1.4;
+  color: var(--ink-3); text-align: right;
 }
+.sc-banner .sc-cap--light { display: none; }
+:root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--dark { display: none; }
+:root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--light { display: inline; }
 /* The rail's pinned chip. */
 .sc-pin { color: var(--accent); font-weight: 500; }
 

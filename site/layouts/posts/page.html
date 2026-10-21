@@ -9,18 +9,22 @@
     {{- /* The banner: one of Saber's photographs, above the title on every post that has
            one. Fixed 5:2 frame (scripts/banner.py cuts it). `image_light`, when a post has one,
            replaces `image` in the light theme (Saber, 2026-10-21: a photo can suit one theme
-           only). The caption (where and when the photo was taken) sits on the photo itself, so
-           it never reads as the post's own date line below it. */}}
+           only), with its own `caption_light`. The caption (where and when the photo was taken) is
+           italic and small under the photo, set apart from the post's own date line. */}}
     {{ with .Params.image }}
     {{ $src := . }}
     {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
     {{ $light := "" }}
     {{ with $.Params.image_light }}{{ $light = . }}{{ with $.Resources.Get . }}{{ $light = .RelPermalink }}{{ end }}{{ end }}
     {{ $alt := $.Params.image_alt | default $.Title }}
+    {{ $cap := $.Params.caption }}{{ $capLight := $.Params.caption_light }}
     <figure class="sq-cover sc-banner{{ if $light }} sc-banner--themed{{ end }}">
       <img class="sc-banner-img" src="{{ $src }}" alt="{{ $alt }}">
-      {{ with $light }}<img class="sc-banner-img sc-banner-img--light" src="{{ . }}" alt="{{ $alt }}">{{ end }}
-      {{ with $.Params.caption }}<figcaption class="sc-banner-caption">{{ . }}</figcaption>{{ end }}
+      {{ with $light }}<img class="sc-banner-img sc-banner-img--light" src="{{ . }}" alt="{{ $.Params.image_light_alt | default $alt }}">{{ end }}
+      {{ if or $cap $capLight }}<figcaption class="sc-banner-caption">
+        {{- with $cap }}<span class="sc-cap{{ if and $light $capLight }} sc-cap--dark{{ end }}">{{ . }}</span>{{ end -}}
+        {{- if and $light $capLight }}<span class="sc-cap sc-cap--light">{{ $capLight }}</span>{{ end -}}
+      </figcaption>{{ end }}
     </figure>
     {{ end }}
     {{- /* A post may be edited after it is published: `lastmod` in its front matter prints
