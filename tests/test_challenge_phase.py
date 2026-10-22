@@ -57,12 +57,12 @@ def test_a_2025_config_has_no_rounds():
 
 def test_the_2026_config_is_ready_for_both_rounds():
     cfg = load_challenge_config(ROOT / "challenges" / "vcc2026" / "config.yaml")
-    assert challenge_phase(cfg) == "validation"
-    assert challenge_contexts(cfg) == ["A", "B", "C"]
-    assert challenge_data_dir(cfg) == Path("~/data/sidechain/vcc2026").expanduser()
-    assert challenge_control_files(cfg) == {"A": "context_A.h5ad", "B": "context_B.h5ad", "C": "context_C.h5ad"}
-    final = {**cfg, "phase": "final"}
-    assert challenge_contexts(final) == ["D", "E", "F"]
-    assert challenge_data_dir(final) == Path("~/data/sidechain/vcc2026/final").expanduser()
-    assert challenge_control_files(final) == {"D": "context_D.h5ad", "E": "context_E.h5ad", "F": "context_F.h5ad"}
-    assert challenge_data_dir(final) != challenge_data_dir(cfg)     # never unzipped over the validation bundle
+    assert challenge_phase(cfg) == "final"                          # since the bundle's release, 2026-10-21
+    assert challenge_contexts(cfg) == ["D", "E", "F"]
+    assert challenge_data_dir(cfg) == Path("~/data/sidechain/vcc2026/final").expanduser()
+    assert challenge_control_files(cfg) == {"D": "context_D.h5ad", "E": "context_E.h5ad", "F": "context_F.h5ad"}
+    val = {**cfg, "phase": "validation"}
+    assert challenge_contexts(val) == ["A", "B", "C"]
+    assert challenge_data_dir(val) == Path("~/data/sidechain/vcc2026").expanduser()
+    assert challenge_control_files(val) == {"A": "context_A.h5ad", "B": "context_B.h5ad", "C": "context_C.h5ad"}
+    assert challenge_data_dir(cfg) != challenge_data_dir(val)       # never unzipped over the validation bundle
