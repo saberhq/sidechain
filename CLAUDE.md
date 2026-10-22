@@ -61,12 +61,13 @@ every session counts, so a new rule earns its lines.
 ## The task, in one paragraph
 
 Given expression data for genes that *have* been silenced, predict what happens when you silence a
-gene **never seen silenced**, in cell lines never seen: six anonymized lines (A/B/C now, D/E/F on
-**Oct 22**; only D/E/F decide prizes), 300 knockdowns × 400 cells per line, raw counts, 18,533
+gene **never seen silenced**, in cell lines never seen: six anonymized lines (A/B/C for validation, closed Oct 21;
+D/E/F released Oct 22, the only three that decide prizes), 300 knockdowns × 400 cells per line, raw counts, 18,533
 genes, six cell-eval2 metrics. Arc ships no training data. `challenges/vcc2026/CLAUDE.md` +
 `config.yaml` are authoritative for the spec and the submission contract — never re-derive it from
 the web; the argument: `reports/05`, `06`, `09`. **What happens on Oct 22 is one document,
-`private/FINAL-PHASE.md`** (T93): only the last final entry counts and no final score is shown (final-phase: none).
+`private/FINAL-PHASE.md`** (T93): only the last final entry counts and no final score is shown, to us either, until
+the winners on Nov 19 (final-phase: none).
 
 ## Where things are
 
@@ -119,8 +120,8 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   (`loco_hek293t_ch272`), the line by its name plus the study where that is ambiguous (Jurkat from
   Nadig 2024). "A source for context A" is the only shape a letter takes. **A two-arm comparison is
   exempt** (`arm A` vs `arm B`): that letters a contrast, not a context, and renaming the ~141 lines
-  that use it would rewrite shipped submission records. D/E/F are unreleased until Oct 22, so a
-  letter written today can only mean A, B or C (Saber, 2026-09-16).
+  that use it would rewrite shipped submission records. D/E/F were released on Oct 22, so a letter in
+  a record written before then can only mean A, B or C (Saber, 2026-09-16).
 - **Standings numbers are generated** (`scripts/standings.py`): never hand-edit the README table,
   `site/data/submissions.json`, `site/assets/data/field.json` or `RESULTS.md` ranks.
 - **Model names carry their knobs at birth and are never renamed after scoring** (ADR 0005);

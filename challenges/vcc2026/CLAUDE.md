@@ -6,12 +6,13 @@ carries the values, this file carries what will bite you. Verbatim sources:
 
 ## The shape
 
-- **Zero-shot, multi-context.** Six anonymized cell lines: A/B/C now (validation, live board),
-  D/E/F on **Oct 22** (final). **Only D/E/F decide the prizes.** Deadline Nov 5, 23:59 UTC.
+- **Zero-shot, multi-context.** Six anonymized cell lines: A/B/C (validation; its board closed 2026-10-21),
+  D/E/F (final, released 2026-10-22). **Only D/E/F decide the prizes.** Deadline Nov 5, 23:59 UTC.
   **The final phase has its own plan, `private/FINAL-PHASE.md`** (T93): the steps from the bundle
   landing to the last upload, the slot budget, and every "revisit on Oct 22" clause the ledgers
   carry. Its rules, from Arc's rules page: only the **last** final entry counts, no final
-  leaderboard is shown before the winners, the final panel is a **different** 300, two a day
+  leaderboard is shown before the winners and no final score returns to us either (vcc-cli 0.3.0), the final panel is a
+  **different** 300, two a day
   (`private/research/reading/vcc-2026-final-phase-rules.md`) (final-phase: none).
 - Per context you get **18,400 non-targeting control cells** (46 guides × 400, guide in
   `obs['ntc_id']`) and a list of **300 genes to knock down**. For each knockdown you return
@@ -125,8 +126,9 @@ agent can delete the item; only you can mint or paste the key.
     **The "28 targets are in nothing we hold" clause is pre-X-Atlas and stale (checked
     2026-09-01):** `cache/vcc2026/foldsub/{hct116,hek293t}_full_panel300.npz` each carry
     **300/300** of `pert_counts.csv`, and every build since SER-2 records `pool 300/300,
-    fallback 0`. So the generic-mean-shift fallback fires on **no** target today. Do not build an
+    fallback 0`. So the generic-mean-shift fallback fires on **no** validation target. Do not build an
     argument on the 28 without re-measuring; the per-corpus numbers above are still correct.
+    **On the final panel** (D/E/F, 2026-10-21) it fires on one target of 300, `ANG`, which no source we hold measured.
 
 ## Packaging and submitting
 
@@ -171,17 +173,34 @@ uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/external/zeno
     --label-col perturbation --control control \
     --out ~/data/sidechain/cache/vcc2026/k562_gwps_all_pseudobulk.npz      # every knockdown, any panel (2026-10-19)
 
-# 2. build (emitter x dispersion), ~15 min; writes <out>.h5ad and <out>.vcc
-uv run python -m sidechain.submit.build --emitter delta-transfer --dispersion even \
-    --h1-cache ~/data/sidechain/cache/vcc2026/h1_pseudobulk.npz \
-    --gwps-cache ~/data/sidechain/cache/vcc2026/k562_gwps_all_pseudobulk.npz \
-    --out ~/data/sidechain/vcc2026/submissions/<name>
+# 2. build: the recipe of the last validation entry, SER-29abefhkrswx, on whole source files (D=~/data/sidechain).
+#    On a GPU box: the two X-Atlas files do not open on a 16 GB Mac. Writes <out>.h5ad and <out>.vcc
+uv run python -m sidechain.submit.build --emitter delta-transfer \
+    --h1-cache $D/cache/vcc2026/h1_pseudobulk.npz \
+    --gwps-cache $D/cache/vcc2026/k562_gwps_all_pseudobulk.npz --gwps-control control \
+    --source $D/derived/xatlas-orion/hct116_full.npz:Non-Targeting \
+    --source $D/derived/xatlas-orion/hek293t_full.npz:Non-Targeting \
+    --source $D/derived/pan2026-h1/h1_pan2026.npz:non-targeting \
+    --source $D/derived/lamin-pertdata/sunshine23_all_pseudobulk.npz:control \
+    --source $D/derived/lamin-perturbench/mcfaline23_none_pseudobulk.npz:control \
+    --lfc-source $D/derived/gwcd4i/views/cd4_all_rho01_kd_all.npz \
+    --lfc-source $D/cache/vcc2026/feng_genomewide_lfc_all.npz \
+    --alpha 1.35 --alpha-bulk 2.6 --alpha-bulk-target 0.9 --bulk-anchor pooled --dual-fallback anchor \
+    --emit-shape controls --emit-lambda 0.5 --shrink-rule adaptive --shrink-stage pooled --var-floor poisson \
+    --neighbour-table <string_node2vec_table.pt> --neighbour-pool <pool.csv> --neighbour-k 25 --neighbour-w 0.2 \
+    --ctrl-axes 50 --ctrl-axes-share 0.85 --ctrl-axes-cache <a new dir per bundle> \
+    --scatter-table <the call-list table designed on this bundle's controls, 2,700 genes> \
+    --out $D/vcc2026/submissions/<name>
+#    The exact call of an entry is its <name>.args.json beside the file; copy it rather than this block, and swap only
+#    the inputs. Each source is read from its whole file, never a panel cut: a cut made for one panel goes quiet on
+#    another and nothing reports it. The call-list table takes about 65 min a line to design; read <name>.alpha_bulk.json
+#    (each line's summed strength under its own knee) and <name>.dual.json (fallback counts) before trusting the file.
 
 # 3. smoke-test the layout on a 3-perturbation panel before any full build
 uv run python -m sidechain.submit.build --emitter control-null --limit-perts 3 --out .../_smoke
 vcc prep .../_smoke.h5ad -g gene_names.csv --perts .../_smoke.pert_counts.csv --dry-run
 
-# 4. submit (2 per day, UTC)
+# 4. submit (2 per day, UTC); the final phase needs vcc-cli 0.3.0 and returns no score until the winners are announced
 vcc submit ~/data/sidechain/vcc2026/submissions/<name>.vcc -m "<model name>" --wait
 ```
 
