@@ -161,6 +161,7 @@ def build_transfer_prediction(
     pie_parquet: Path | None = None,
     pie_context: str | None = None,
     alpha_bulk_target: float | None = None,
+    alpha_bulk_floor: float | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -203,6 +204,7 @@ def build_transfer_prediction(
     strength is lowered by `next_alpha_bulk` (never below alpha, at most `KNEE_MAX_READS` reads, the ceiling's
     included), each read a fresh emitter at `seed` into its own file; the read that stops is the prediction,
     so its cells are what a run at that `alpha_bulk` writes. None is the historical path.
+    `alpha_bulk_floor` is the rule's lowest strength in place of alpha (it may sit below alpha); None is alpha.
 
     `delta_cache` (T103 round three; `sidechain.eval.delta_cache`) is `{"dir": ..., "sources":
     [[stem, sha256, control], ...], "build_jobs": N or None}`: with `build_jobs` the pooled delta
@@ -350,9 +352,18 @@ def build_transfer_prediction(
             raise SystemExit("--alpha-bulk-target lowers --alpha-bulk: pass --alpha-bulk (the ceiling)")
         if not 0.0 < alpha_bulk_target < 1.0:
             raise SystemExit(f"--alpha-bulk-target is a budget-over-claim ratio in (0, 1), got {alpha_bulk_target}")
-        if not alpha_bulk > alpha:
+        if alpha_bulk_floor is None and not alpha_bulk > alpha:
             raise SystemExit(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward --alpha, so "
                              f"--alpha-bulk ({alpha_bulk:g}) must be above --alpha ({alpha:g})")
+    if alpha_bulk_floor is not None:
+        if alpha_bulk_target is None:
+            raise SystemExit("--alpha-bulk-floor is the knee rule's lowest strength: pass --alpha-bulk-target")
+        if not (np.isfinite(alpha_bulk_floor) and alpha_bulk_floor > 0):
+            raise SystemExit(f"--alpha-bulk-floor must be a positive strength, got {alpha_bulk_floor}")
+        if not alpha_bulk > alpha_bulk_floor:
+            raise SystemExit(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward "
+                             f"--alpha-bulk-floor, so --alpha-bulk ({alpha_bulk:g}) must be above "
+                             f"--alpha-bulk-floor ({alpha_bulk_floor:g})")
     # T125: the fold's own control-cell axes, read from the same control cells the profile was
     axes_v, ctrl_axes_per = None, {}
     if ctrl_axes:
@@ -529,6 +540,7 @@ def build_transfer_prediction(
         from sidechain.submit.knee import AIM_MARGIN, TARGET_SUM, KneeMeter, next_alpha_bulk
 
         a, reads, files = alpha_bulk, [], []
+        floor = alpha if alpha_bulk_floor is None else alpha_bulk_floor
         while True:
             path = out_path.with_name(f"{out_path.stem}.knee{len(reads)}.h5ad")
             meter = KneeMeter(perts, axis)
@@ -539,15 +551,16 @@ def build_transfer_prediction(
             ratio = r["ratio_budget_over_claim"]
             print(f"  knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
                   f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {alpha_bulk_target:g})", flush=True)
-            if ratio <= alpha_bulk_target or a <= alpha or len(reads) >= KNEE_MAX_READS or not np.isfinite(ratio):
+            if ratio <= alpha_bulk_target or a <= floor or len(reads) >= KNEE_MAX_READS or not np.isfinite(ratio):
                 break
-            a = next_alpha_bulk(a, ratio, alpha_bulk_target, alpha)
+            a = next_alpha_bulk(a, ratio, alpha_bulk_target, floor)
             path.unlink(missing_ok=True)           # a read that does not stop is not kept: one file on disk at a time
         files[-1].replace(out_path)
         knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
                        "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
+                       **({"alpha_bulk_floor": alpha_bulk_floor} if alpha_bulk_floor is not None else {}),
                        "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
-                       "at_floor": bool(a <= alpha), "ratio_budget_over_claim": ratio, "tries": reads}
+                       "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads}
         if not knee_record["met"]:
             print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)
@@ -724,6 +737,11 @@ def main(argv: list[str] | None = None) -> int:
                          "(sidechain.submit.knee.next_alpha_bulk, never below --alpha, at most 4 reads) and "
                          "the fold is emitted again; the read that stops is the prediction. Recorded under "
                          "build.alpha_bulk_knee in summary.json. Unset = bit-identical")
+    ap.add_argument("--alpha-bulk-floor", type=float, default=None, metavar="FLOOR",
+                    help="the lowest summed-profile strength --alpha-bulk-target may choose, in place of --alpha "
+                         "(sidechain.submit.build's flag of the same name); a value below --alpha lets the summed "
+                         "strength settle under the per-cell strength. Needs --alpha-bulk-target. Recorded under "
+                         "build.alpha_bulk_knee. Unset = --alpha, bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
                     help="T84 round 2: which control profile the pseudobulk channel is built on. "
                          "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
@@ -939,6 +957,7 @@ def main(argv: list[str] | None = None) -> int:
                                      similarity_beta=args.similarity_beta,
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
                                      alpha_bulk_target=args.alpha_bulk_target,
+                                     alpha_bulk_floor=args.alpha_bulk_floor,
                                      bulk_anchor=args.bulk_anchor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
                                      min_libsize=args.min_libsize,
@@ -1004,6 +1023,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
          **({"alpha_bulk_target": args.alpha_bulk_target} if args.alpha_bulk_target is not None else {}),
+         **({"alpha_bulk_floor": args.alpha_bulk_floor} if args.alpha_bulk_floor is not None else {}),
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
          **({"gene_factor_context": args.gene_factor_context} if args.gene_factor_context is not None else {}),
          "alpha_table": None if args.alpha_table is None else str(args.alpha_table),

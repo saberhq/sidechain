@@ -310,3 +310,59 @@ def test_with_ctrl_axes_the_lowered_map_is_deflated_as_a_plain_build_at_that_str
     assert json.loads((ch["out"] / "rule_x.ctrl_axes.json").read_text())["contexts"]["X"]["deflation"]["targets"] > 0
     assert build.main(_argv(ch, "at_x", "--alpha-bulk", repr(rec["alpha_bulk"]), *ax)) == 0
     assert np.array_equal(_cells(ch["out"] / "rule_x.h5ad", "X"), _cells(ch["out"] / "at_x.h5ad", "X"))
+
+
+# -- --alpha-bulk-floor (T93) ---------------------------------------------------------------------------------
+
+def test_without_the_floor_nothing_new_is_written_and_a_floor_at_alpha_is_the_same_rule(ch):
+    assert build.main(_argv(ch, "low", "--alpha-bulk", "1.05", "--alpha-bulk-target", "0.01")) == 0
+    rec = json.loads((ch["out"] / "low.alpha_bulk.json").read_text())
+    assert "alpha_bulk_floor" not in rec and "never below alpha;" in rec["rule"]
+    assert "alpha_bulk_floor" not in json.loads((ch["out"] / "low.args.json").read_text())
+    assert build.main(_argv(ch, "low_f", "--alpha-bulk", "1.05", "--alpha-bulk-target", "0.01",
+                            "--alpha-bulk-floor", "1.0")) == 0
+    rec_f = json.loads((ch["out"] / "low_f.alpha_bulk.json").read_text())
+    assert rec_f.pop("alpha_bulk_floor") == 1.0
+    assert rec_f.pop("rule") == rec.pop("rule").replace("never below alpha;", "never below alpha_bulk_floor;")
+    assert rec_f == rec
+    a, b = ad.read_h5ad(ch["out"] / "low.h5ad"), ad.read_h5ad(ch["out"] / "low_f.h5ad")
+    assert (a.X != b.X).nnz == 0
+
+
+def test_a_floor_below_alpha_lets_the_knee_settle_below_the_per_cell_strength(ch):
+    flags = ("--alpha", "1.45", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9")
+    assert build.main(_argv(ch, "cells_floor", *flags)) == 0                    # today's floor: --alpha
+    x0 = json.loads((ch["out"] / "cells_floor.alpha_bulk.json").read_text())["contexts"]["X"]
+    assert x0["alpha_bulk"] == 1.45 and x0["at_floor"] and not x0["met"]       # the fixture's premise
+    assert build.main(_argv(ch, "low_floor", *flags, "--alpha-bulk-floor", "0.5")) == 0
+    rec = json.loads((ch["out"] / "low_floor.alpha_bulk.json").read_text())
+    assert rec["alpha_bulk_floor"] == 0.5 and rec["alpha"] == 1.45
+    x = rec["contexts"]["X"]
+    assert x["met"] and not x["at_floor"] and 0.5 < x["alpha_bulk"] < 1.45
+    assert x["ratio_budget_over_claim"] <= 0.9 and all(t["dual_fallbacks"] == 0 for t in x["tries"])
+    for a, b in zip(x["tries"], x["tries"][1:]):
+        assert b["alpha_bulk"] == knee.next_alpha_bulk(a["alpha_bulk"], a["ratio_budget_over_claim"], 0.9, 0.5)
+    assert x["written_cells_are_the_cells_read"]
+    # the written cells are a plain build's with the summed strength under the per-cell one
+    assert build.main(_argv(ch, "plain_low", "--alpha", "1.45", "--alpha-bulk", repr(x["alpha_bulk"]))) == 0
+    assert np.array_equal(_cells(ch["out"] / "low_floor.h5ad", "X"), _cells(ch["out"] / "plain_low.h5ad", "X"))
+    assert _ratios(ch["out"] / "low_floor.h5ad")["X"] == pytest.approx(x["ratio_budget_over_claim"], rel=1e-12)
+
+
+def test_the_floor_flag_is_refused_where_it_cannot_act(ch, capsys):
+    for extra in (["--alpha-bulk", "1.5", "--alpha-bulk-floor", "0.5"],                     # no target
+                  ["--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9", "--alpha-bulk-floor", "0"],
+                  ["--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9", "--alpha-bulk-floor", "nan"],
+                  ["--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9", "--alpha-bulk-floor", "1.5"]):
+        with pytest.raises(SystemExit):
+            build.main(_argv(ch, "probe_refused", *extra))
+        assert "--alpha-bulk-floor" in capsys.readouterr().err
+    assert not (ch["out"] / "probe_refused.h5ad").exists()
+    # a model-named stem cannot carry the floor: it changes letter b's rule with no registered name yet (ADR 0005)
+    with pytest.raises(SystemExit):
+        build.main(_argv(ch, "ser-99benw_t93_v1", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9",
+                         "--alpha-bulk-floor", "0.5"))
+    assert "--alpha-bulk-floor changes letter b's rule" in capsys.readouterr().err
+    # with a floor the ceiling needs only to be above it, not above --alpha
+    assert build.main(_argv(ch, "under", "--alpha", "1.6", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9",
+                            "--alpha-bulk-floor", "0.5")) == 0

@@ -1522,6 +1522,11 @@ def main(argv: list[str] | None = None) -> int:
                          "the same flag on sidechain.eval.loco since 2026-10-22 (T93). Part of letter b's rule since "
                          "2026-10-20 (ADR 0005: b's value is the ceiling): a model-named stem carries it "
                          "only with b. Unset = bit-identical")
+    ap.add_argument("--alpha-bulk-floor", type=float, default=None, metavar="FLOOR",
+                    help="the lowest summed-profile strength --alpha-bulk-target may choose, in place of "
+                         "--alpha; a value below --alpha lets a context's summed strength settle under its "
+                         "per-cell strength. Needs --alpha-bulk-target and --alpha-bulk above it. Recorded in "
+                         "<out>.alpha_bulk.json. The same flag on sidechain.eval.loco. Unset = --alpha, bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
                     help="T84 round 2: which control profile the pseudobulk channel is built on. "
                          "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
@@ -1670,9 +1675,18 @@ def main(argv: list[str] | None = None) -> int:
             ap.error("--alpha-bulk-target lowers --alpha-bulk per context: pass --alpha-bulk (the ceiling)")
         if not 0.0 < args.alpha_bulk_target < 1.0:
             ap.error(f"--alpha-bulk-target is a budget-over-claim ratio in (0, 1), got {args.alpha_bulk_target}")
-        if not args.alpha_bulk > args.alpha:
+        if args.alpha_bulk_floor is None and not args.alpha_bulk > args.alpha:
             ap.error(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward --alpha, so "
                      f"--alpha-bulk ({args.alpha_bulk:g}) must be above --alpha ({args.alpha:g})")
+    if args.alpha_bulk_floor is not None:
+        if args.alpha_bulk_target is None:
+            ap.error("--alpha-bulk-floor is the knee rule's lowest strength: pass --alpha-bulk-target")
+        if not (math.isfinite(args.alpha_bulk_floor) and args.alpha_bulk_floor > 0):
+            ap.error(f"--alpha-bulk-floor must be a positive strength, got {args.alpha_bulk_floor}")
+        if not args.alpha_bulk > args.alpha_bulk_floor:
+            ap.error(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward --alpha-bulk-floor, "
+                     f"so --alpha-bulk ({args.alpha_bulk:g}) must be above --alpha-bulk-floor "
+                     f"({args.alpha_bulk_floor:g})")
     if args.bulk_anchor != "mean_cpm":
         if args.emitter != "delta-transfer":
             ap.error("--bulk-anchor pooled moves the pseudobulk of pooled per-target deltas, so "
@@ -1784,6 +1798,10 @@ def main(argv: list[str] | None = None) -> int:
         # ceiling, each context lowered to R of its own mse knee), so a model-named stem carries it only with b
         ap.error(f"'{stem}' is named like a model, and --alpha-bulk-target is part of letter b's rule "
                  "(ADR 0005), but the name does not carry b: add it, or build under a freeform stem")
+    if CLAIMS_RE.match(stem) and args.alpha_bulk_floor is not None:
+        # T93: a floor other than --alpha changes letter b's rule, and no name records it yet (ADR 0005)
+        ap.error(f"'{stem}' is named like a model, and --alpha-bulk-floor changes letter b's rule with no "
+                 "registered name yet (ADR 0005): register it first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and voting:
         # final-phase instruments items 3 and 4: no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --source-weight / --source-weight-table / --source-scale "
@@ -1875,6 +1893,8 @@ def main(argv: list[str] | None = None) -> int:
     knee_target = args.alpha_bulk_target
     if knee_target is None:
         recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_target"}  # likewise (T84)
+    if args.alpha_bulk_floor is None:
+        recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_floor"}   # likewise (T93)
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         if factor_split:
@@ -2145,15 +2165,18 @@ def main(argv: list[str] | None = None) -> int:
     # T84 --alpha-bulk-target: per context, the summed strength the knee rule chose and how it chose it
     knee_record = ({"alpha": args.alpha, "alpha_bulk_ceiling": args.alpha_bulk, "alpha_bulk_target": knee_target,
                     "max_reads": KNEE_MAX_READS, "target_sum": KNEE_TARGET_SUM, "aim_margin": KNEE_AIM_MARGIN,
-                    "rule": "alpha_bulk' = alpha_bulk * sqrt((1 - aim_margin) * target / ratio), never below alpha; "
+                    "rule": "alpha_bulk' = alpha_bulk * sqrt((1 - aim_margin) * target / ratio), never below "
+                            f"{'alpha' if args.alpha_bulk_floor is None else 'alpha_bulk_floor'}; "
                             "ratio = cell-eval2 budget / claim (uncapped) on the context's emitted cells",
+                    **({"alpha_bulk_floor": args.alpha_bulk_floor} if args.alpha_bulk_floor is not None else {}),
                     "contexts": {}} if knee_target is not None else None)
     alpha_bulk_of: dict[str, float] = {}
 
     def choose_alpha_bulk(prof, ci, ctx, ctx_shifts, ctx_bulk, deflate):
         """Emit the context in memory from the ceiling down until its budget over claim is at most the target;
         returns the strength, its record, and the column sums of the cells read at it."""
-        ceiling, floor = args.alpha_bulk, args.alpha
+        ceiling = args.alpha_bulk
+        floor = args.alpha if args.alpha_bulk_floor is None else args.alpha_bulk_floor
         a, reads, meter = ceiling, [], None
         while True:
             m = ctx_bulk if a == ceiling else ctx_bulk.at(a)
@@ -2175,7 +2198,7 @@ def main(argv: list[str] | None = None) -> int:
             a = next_alpha_bulk(a, ratio, knee_target, floor)
         met = ratio <= knee_target
         if not met:
-            why = ("at the floor --alpha" if a <= floor else
+            why = (f"at the floor {'--alpha' if args.alpha_bulk_floor is None else '--alpha-bulk-floor'}" if a <= floor else
                    f"after {KNEE_MAX_READS} reads" if len(reads) >= KNEE_MAX_READS else "the ratio is not finite")
             print(f"  WARNING {ctx}: budget over claim {ratio:.4f} is above the target {knee_target:g} {why}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)

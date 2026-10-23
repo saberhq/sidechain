@@ -83,3 +83,42 @@ def test_the_flag_is_refused_where_it_cannot_act(fold, extra, msg):
     kw = {**KW, "alpha_bulk_target": 0.9, **extra}
     with pytest.raises(SystemExit, match=msg):
         loco.build_transfer_prediction(real, sources, tmp / "r.h5ad", **kw)
+
+
+def test_without_the_floor_the_record_is_unchanged_and_a_floor_at_alpha_is_the_same_run(fold):
+    tmp, real, sources = fold
+    kw = {**KW, "alpha_bulk": 1.2, "alpha_bulk_target": 0.5, "seed": 3}
+    a = loco.build_transfer_prediction(real, sources, tmp / "a.h5ad", **kw)
+    b = loco.build_transfer_prediction(real, sources, tmp / "b.h5ad", **kw, alpha_bulk_floor=KW["alpha"])
+    assert "alpha_bulk_floor" not in a["alpha_bulk_knee"]
+    assert b["alpha_bulk_knee"].pop("alpha_bulk_floor") == KW["alpha"]
+    a.pop("pred"), b.pop("pred")
+    assert a == b
+    x, y = ad.read_h5ad(tmp / "a.h5ad"), ad.read_h5ad(tmp / "b.h5ad")
+    assert (x.X != y.X).nnz == 0
+
+
+def test_a_floor_below_alpha_lets_the_fold_settle_below_the_per_cell_strength(fold):
+    tmp, real, sources = fold
+    kw = {**KW, "alpha": 0.5}
+    info = loco.build_transfer_prediction(real, sources, tmp / "k.h5ad", **kw, alpha_bulk=0.6,
+                                          alpha_bulk_target=0.5, alpha_bulk_floor=0.2, seed=3)
+    k = info["alpha_bulk_knee"]
+    assert k["alpha_bulk_floor"] == 0.2 and k["reads"] >= 2 and info["alpha_bulk"] == k["alpha_bulk"] < 0.5
+    assert k["at_floor"] == (k["alpha_bulk"] <= 0.2)
+    plain = loco.build_transfer_prediction(real, sources, tmp / "p.h5ad", **kw, alpha_bulk=k["alpha_bulk"], seed=3)
+    a, b = ad.read_h5ad(tmp / "k.h5ad"), ad.read_h5ad(tmp / "p.h5ad")
+    assert (a.X != b.X).nnz == 0
+    assert plain["alpha_bulk"] == k["alpha_bulk"]
+
+
+@pytest.mark.parametrize("extra, msg", [
+    ({"alpha_bulk_target": None, "alpha_bulk_floor": 0.5}, "pass --alpha-bulk-target"),
+    ({"alpha_bulk_floor": 0.0}, "positive strength"),
+    ({"alpha_bulk_floor": 2.0}, "must be above --alpha-bulk-floor"),
+])
+def test_the_floor_is_refused_where_it_cannot_act(fold, extra, msg):
+    tmp, real, sources = fold
+    kw = {**KW, "alpha_bulk": 2.0, "alpha_bulk_target": 0.9, **extra}
+    with pytest.raises(SystemExit, match=msg):
+        loco.build_transfer_prediction(real, sources, tmp / "r.h5ad", **kw)
