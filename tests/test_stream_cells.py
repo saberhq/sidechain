@@ -62,3 +62,15 @@ def test_cell_sink_without_a_barcode_column_still_writes(tmp_path):
     sink.write(out)
     obs = ad.read_h5ad(out).obs
     assert len(obs) == 3 and "cell_barcode" not in obs.columns
+
+
+def test_a_write_after_the_last_spill_took_every_cell(tmp_path):
+    """The tail is empty when the last file's spill took every held cell: no empty shard, no crash."""
+    sink = CellSink(_axis(), {("AATF", "B1"): 3})
+    sink.fold(_frame(), "B1")
+    out = tmp_path / "cells.h5ad"
+    spilled = sink.maybe_flush(out, None, max_nnz=1)
+    assert spilled["shard"] == "s01" and spilled["cells"] == 3
+    info = sink.write(out)
+    assert info["cells"] == 0 and info["shard"] is None
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["cells_s01.h5ad"]

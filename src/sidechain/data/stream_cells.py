@@ -241,6 +241,8 @@ class CellSink:
         # If anything was already spilled, the tail becomes one more shard so every cell lives
         # in a file of the same shape -- never a mix of "the shards" plus a differently-named whole.
         if getattr(self, "_shard_no", 0):
+            if not self.blocks:                  # the last spill took every cell: the shards are the whole capture
+                return {"cells": 0, "genes": int(len(self.axis.genes)), "nnz": 0, "file_gb": 0.0, "shard": None}
             self._shard_no += 1
             stem = out.with_suffix("")
             return self._drain(Path(f"{stem}_s{self._shard_no:02d}.h5ad"), gene_ids,
@@ -355,7 +357,8 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("no cells kept -- check --keep against the corpus's labels")
     info = sink.write(args.out.expanduser(), gene_ids=ids)
     if shards:
-        info = {"shards": shards + [info], "cells": sum(s["cells"] for s in shards) + info["cells"],
+        info = {"shards": shards + ([info] if info["cells"] else []),
+                "cells": sum(s["cells"] for s in shards) + info["cells"],
                 "nnz": sum(s["nnz"] for s in shards) + info["nnz"],
                 "file_gb": round(sum(s["file_gb"] for s in shards) + info["file_gb"], 3),
                 "genes": info["genes"]}
