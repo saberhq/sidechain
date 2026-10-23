@@ -877,9 +877,10 @@ def pooled_delta(target: str, sources: list, axis: np.ndarray,
             #
             # beta is the sharpness and beta = 0 is exactly uniform (x**0 == 1), so the default
             # is bit-identical to every historical call -- the same endpoint property the
-            # emission dial has. Cosines here run ~0.9-0.99, so beta has to be large to
-            # separate them; that is a property of the measure, not a bug, and it is why this
-            # is an exponent rather than a multiplier.
+            # emission dial has. These cosines measured 0.92-0.97 over nine sources and six
+            # challenge lines (2026-10-23, T92's screen), so beta has to be large to separate
+            # them; that is a property of the measure, not a bug, and it is why this is an
+            # exponent rather than a multiplier.
             get_ctrl = getattr(src, "control_cpm", None)
             if get_ctrl is None:
                 # An LfcTable publishes only the contrast, so it has no control profile and

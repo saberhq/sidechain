@@ -791,8 +791,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="exponent on each source's control-profile cosine to the held-out "
                          "context, applied to its pooling weight (submit.build."
                          "control_similarity). 0 is uniform pooling and bit-identical to the "
-                         "historical call; cosines run ~0.9-0.99 so the exponent has to be "
-                         "large to separate sources. Needs a control profile, like --gamma.")
+                         "historical call; the cosines measured 0.92-0.97 over nine sources and six "
+                         "challenge lines (2026-10-23), so the exponent has to be large to separate "
+                         "sources. Needs a control profile, like --gamma.")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="transfer exponent on the target/source control-CPM ratio: 1 = the "
                          "fold change transfers (today's emitter, bit-identical), 0 = the "
