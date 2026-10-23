@@ -542,9 +542,8 @@ def build_transfer_prediction(
             if ratio <= alpha_bulk_target or a <= alpha or len(reads) >= KNEE_MAX_READS or not np.isfinite(ratio):
                 break
             a = next_alpha_bulk(a, ratio, alpha_bulk_target, alpha)
+            path.unlink(missing_ok=True)           # a read that does not stop is not kept: one file on disk at a time
         files[-1].replace(out_path)
-        for f in files[:-1]:
-            f.unlink(missing_ok=True)
         knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
                        "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
                        "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
