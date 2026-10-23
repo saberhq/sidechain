@@ -224,8 +224,11 @@ expect_by` / `→ <file>` / `ASK: type — question? rec: …`. You write `runni
 `returned` (the task is handed back); the hook sets `idle` and `gone`. The Stop hook
 (`status_hook.py`) lifts the block to the board and refuses one naming another session, a state
 outside those five, or a `review` ASK without a question mark; the ASK type is never optional (an
-untyped one is filed as `decision` today). A fenced block is documentation. No brief at session
-start means no hooks are wired here. **A subagent (an Agent or Workflow child in your context) sends
+untyped one is filed as `decision` today). **An ask you raised is yours to close:** Saber usually
+answers in your chat and without its id, so record his words and close it in the turn you act on it
+(`ledger.py ask answer A12 "…" && ledger.py ask consume A12`); the prompt hook lists your open asks
+each time he writes (T131). A fenced block is documentation. No brief at session start means no
+hooks are wired here. **A subagent (an Agent or Workflow child in your context) sends
 no block; a peer (a separate session you message) files its own. Every brief you hand a child opens
 with `T<n> · from <your session id> · one line`; a session with no task writes `—` in place of the
 id (Saber, 2026-09-21 — not every session works a pre-determined task), and work you will discard
