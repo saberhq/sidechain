@@ -36,7 +36,7 @@ CONTEXTS = {
 
 # ── tier 2: the corpus, one colour per study ───────────────────────────────────────────────────────────────────
 # A study shares its lab, chemistry and depth, which is most of what a QC plot shows, so a study is the unit of
-# colour; the lines inside a study are told apart by marker and label. The five hues pass the adjacent checks in this
+# colour; the lines inside a study are told apart by marker and label. The eight hues pass the adjacent checks in this
 # order in both themes; they do NOT pass all-pairs (no five muted hues do), so a corpus line is never drawn without
 # its label. Arc's 2025 H1 is an archive reference and stays neutral; the named-line panel is background.
 STUDIES = {
@@ -45,6 +45,9 @@ STUDIES = {
     "xatlas25": {"label": "X-Atlas Orion", "light": "#554e9b", "dark": "#7974c5"},
     "pan26": {"label": "Pan 2026", "light": "#b0a03c", "dark": "#a4932e"},
     "feng26": {"label": "Feng 2026", "light": "#9b548d", "dark": "#b86fa9"},
+    "mcfaline23": {"label": "McFaline-Figueroa 2023", "light": "#b77610", "dark": "#a36d24"},
+    "gwcd4i25": {"label": "Zhu 2025 (GWCD4i)", "light": "#1195b4", "dark": "#0792b1"},
+    "sunshine23": {"label": "Sunshine 2023", "light": "#5f8e17", "dark": "#64873d"},
     "vcc25": {"label": "Arc VCC 2025", "light": "#8a837a", "dark": "#918c84"},
     "scbasecount": {"label": "scBaseCount named lines", "light": "#bdb6ac", "dark": "#5c5853"},
 }
@@ -61,6 +64,14 @@ LINES = {
     "pan26_h1": {"study": "pan26", "line": "H1", "screen": "genome-scale", "marker": "star"},
     "feng26_ipsc": {"study": "feng26", "line": "iPSC lines", "screen": "targeted", "marker": "hexagon"},
     "vcc25_h1": {"study": "vcc25", "line": "H1", "screen": "VCC 2025", "marker": "star-open"},
+    "gwcd4i25_cd4_rest": {"study": "gwcd4i25", "line": "CD4 T cells, Rest", "screen": "genome-wide",
+                          "marker": "triangle-left"},
+    "gwcd4i25_cd4_stim48": {"study": "gwcd4i25", "line": "CD4 T cells, Stim48hr", "screen": "genome-wide",
+                            "marker": "triangle-right"},
+    "mcfaline23_u87": {"study": "mcfaline23", "line": "U-87 MG", "screen": "kinome", "marker": "octagon"},
+    "mcfaline23_a172": {"study": "mcfaline23", "line": "A172", "screen": "kinome", "marker": "hexagon2"},
+    "mcfaline23_t98g": {"study": "mcfaline23", "line": "T98G", "screen": "kinome", "marker": "pentagon-open"},
+    "sunshine23_calu3": {"study": "sunshine23", "line": "Calu-3", "screen": "host factors", "marker": "triangle-up-open"},
 }
 
 # ── scales that are not identity ───────────────────────────────────────────────────────────────────────────────
@@ -88,6 +99,8 @@ VALIDATION = {
     "A-F adjacent": "pass both themes; worst CVD dE 9.2 light / 9.4 dark",
     "A-F all-pairs": "FAIL on A vs D (normal-vision dE 10.5): test contexts draw as diamonds, or facet by round",
     "studies adjacent": "pass both themes in the order listed; worst CVD dE 9.0 light / 9.9 dark",
+    "studies adjacent, eight hues": "pass both themes with McFaline, GWCD4i and Sunshine after Feng (2026-10-23, "
+                                    "session `46f22ae3`); worst CVD dE 9.0 light / 9.9 dark, normal-vision 18.9 / 15.9",
     "studies all-pairs": "FAIL (no five muted hues pass): a corpus line always carries its label and marker",
 }
 
@@ -113,7 +126,8 @@ def marker(key: str) -> str:
 
 
 _MPL = {"circle": "o", "diamond": "D", "square": "s", "square-open": "s", "triangle-up": "^", "triangle-down": "v",
-        "pentagon": "p", "cross": "P", "x": "X", "star": "*", "star-open": "*", "hexagon": "h"}
+        "pentagon": "p", "cross": "P", "x": "X", "star": "*", "star-open": "*", "hexagon": "h", "triangle-left": "<",
+        "triangle-right": ">", "octagon": "8", "hexagon2": "H", "pentagon-open": "p", "triangle-up-open": "^"}
 
 
 def mpl_marker(key: str) -> str:
