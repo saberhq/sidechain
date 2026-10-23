@@ -3,7 +3,7 @@
     from sidechain.viz.palette import color, marker, PALETTE
     color("A")                    # '#2a78d6' (light theme); color("A", theme="dark")
     color("replogle22_rpe1")      # the study's colour: Replogle 2022 is teal in every chart
-    .venv/bin/python -m sidechain.viz.palette --json    # the whole plan as JSON (what the board's Figures tab reads)
+    .venv/bin/python -m sidechain.viz.palette --json    # the whole plan as JSON (what the board's Viz tab reads)
 
 Two tiers. The six challenge contexts own six saturated hues (A blue, B orange, C aqua; D violet, E magenta,
 F yellow): validation contexts draw as circles, test contexts as diamonds. A corpus line takes its STUDY's colour,

@@ -9,7 +9,7 @@ The metrics are the scverse/Cell Ranger set a single-cell QC reads first: UMIs p
 the share of counts on mitochondrial (MT-) and ribosomal-protein (RPL/RPS) genes, the share held by the cell's 50
 most-counted genes (a library dominated by few genes is a low-complexity or damaged cell) and the complexity ratio
 log10(genes) / log10(UMIs). Read counts and sequencing saturation need the reads, which no count matrix carries.
-Used by the board's Figures tab builders (private/scripts/figures/, T129).
+Used by the board's Viz tab builders (private/scripts/figures/, T129).
 """
 from __future__ import annotations
 
