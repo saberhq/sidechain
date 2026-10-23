@@ -25,7 +25,10 @@ each label's pooled delta once per fold.
 - **The counters are replayed.** `pooled_delta` counts into `stats`; each label's counts are
   stored and added back on a read, so a cached arm's record equals an uncached one's.
 - **Only the plain pool is cached**: gamma 1, no similarity weight, no coverage tiers, no
-  per-source override, no published-contrast source. Anything else is refused.
+  per-source override. Anything else is refused. A published-contrast source (`--lfc-source`, an
+  `LfcTable`) is part of the plain pool: its id is `[stem, sha256, LFC_TABLE]` after the `--source`
+  ids, and the module that reads it joins the code digests only when one is in the pool, so a
+  cache with none keeps the key it always had (T93, 2026-10-22).
 
 Off (no `--delta-cache`) this module is never imported into the path. `submit.build` has no
 such flag: a submission is one build and gains nothing from it.
@@ -62,20 +65,30 @@ def file_sha256(path: str | Path) -> str:
     return h.hexdigest()
 
 
-def source_ids(source_specs: Sequence[str]) -> list[list[str]]:
-    """`--source NPZ:CONTROL` specs -> [[stem, file sha256, control label], ...], in order."""
+# the third field of a published-contrast source's id: no control label can be spelled this way
+LFC_TABLE = "<lfc-table>"
+# read only for a pool that holds a published-contrast source
+LFC_MODULE = "sidechain.data.lfc_table"
+
+
+def source_ids(source_specs: Sequence[str], lfc_paths: Sequence[str] = ()) -> list[list[str]]:
+    """`--source NPZ:CONTROL` specs -> [[stem, file sha256, control label], ...], in order, then each
+    `--lfc-source NPZ` as [stem, file sha256, LFC_TABLE] (the order the pool holds them in)."""
     out = []
     for spec in source_specs:
         path, _, ctrl = spec.rpartition(":")
         out.append([Path(path).expanduser().stem, file_sha256(path), ctrl or "control"])
+    for path in lfc_paths:
+        out.append([Path(path).expanduser().stem, file_sha256(path), LFC_TABLE])
     return out
 
 
-def code_digests() -> dict:
-    """sha256 of each `CODE_MODULES` file as it is on disk."""
+def code_digests(lfc: bool = False) -> dict:
+    """sha256 of each `CODE_MODULES` file as it is on disk (and the LfcTable reader's, with `lfc`)."""
     import importlib
 
-    return {m: file_sha256(importlib.import_module(m).__file__) for m in CODE_MODULES}
+    mods = CODE_MODULES + ((LFC_MODULE,) if lfc else ())
+    return {m: file_sha256(importlib.import_module(m).__file__) for m in mods}
 
 
 def machine() -> dict:
@@ -113,7 +126,8 @@ def key_fields(sources: Sequence[Sequence[str]], axis: np.ndarray, pooling: dict
                      "tol_per_gene": adaptive_shrink.TOL_PER_GENE,
                      "calm_cycles": adaptive_shrink.CALM_CYCLES,
                      "min_genes": adaptive_shrink.MIN_GENES},
-        "code": code_digests(),
+        "code": (code_digests(lfc=True) if any(len(s) > 2 and s[2] == LFC_TABLE for s in sources)
+                 else code_digests()),
         "numpy": np.__version__,
         "threads": {v: os.environ.get(v) for v in THREAD_VARS},
         "machine": machine(),

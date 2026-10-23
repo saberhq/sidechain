@@ -1519,7 +1519,7 @@ def main(argv: list[str] | None = None) -> int:
                          "never below --alpha, and read again (at most 4 reads), then the context is "
                          "written at the strength chosen. R in (0, 1); 0.9 is entry 1's rule. Needs "
                          "--alpha-bulk above --alpha. Recorded in <out>.alpha_bulk.json and .dual.json. "
-                         "build only (not on sidechain.eval.loco). Part of letter b's rule since "
+                         "the same flag on sidechain.eval.loco since 2026-10-22 (T93). Part of letter b's rule since "
                          "2026-10-20 (ADR 0005: b's value is the ceiling): a model-named stem carries it "
                          "only with b. Unset = bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",

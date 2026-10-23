@@ -160,6 +160,7 @@ def build_transfer_prediction(
     prediction_source: str = "ser",
     pie_parquet: Path | None = None,
     pie_context: str | None = None,
+    alpha_bulk_target: float | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -195,6 +196,13 @@ def build_transfer_prediction(
     every `pooled_delta` call -- the targets, the neighbour pool and a delta-cache build -- and
     recorded; None / `shipped` is the historical path. Refused with a basal slope, whose own fits
     would read the shipped variance while the pool read the model's.
+
+    `alpha_bulk_target` (T84's knee rule, `sidechain.submit.build --alpha-bulk-target`; T93 brought it to
+    the folds) treats `alpha_bulk` as the ceiling: every target is emitted at it, cell-eval2's budget over
+    claim is read on those cells (`sidechain.submit.knee`), and while the ratio is above the target the
+    strength is lowered by `next_alpha_bulk` (never below alpha, at most `KNEE_MAX_READS` reads, the ceiling's
+    included), each read a fresh emitter at `seed` into its own file; the read that stops is the prediction,
+    so its cells are what a run at that `alpha_bulk` writes. None is the historical path.
 
     `delta_cache` (T103 round three; `sidechain.eval.delta_cache`) is `{"dir": ..., "sources":
     [[stem, sha256, control], ...], "build_jobs": N or None}`: with `build_jobs` the pooled delta
@@ -271,13 +279,15 @@ def build_transfer_prediction(
         from sidechain.eval.delta_cache import DeltaCache, build_cache, key_fields
         from sidechain.models.neighbour_arm import read_pool
 
-        plain = all(isinstance(s, tuple) and len(s) == 2
-                    and not getattr(s[0], "transfer_floor", 0.0) for s in sources)
+        # a --source arm or a published-contrast table (T93), neither with a transfer floor
+        plain = all((isinstance(s, tuple) and len(s) == 2 and not getattr(s[0], "transfer_floor", 0.0))
+                    or (isinstance(s, LfcTable) and not getattr(s, "transfer_floor", 0.0)) for s in sources)
         if (gamma != 1.0 or similarity_beta != 0.0 or coverage_tiers is not None
                 or basal_slope != "off" or not plain
                 or len(sources) != len(delta_cache["sources"])):
             raise SystemExit("--delta-cache holds the plain pool only: gamma 1, no similarity "
-                             "weight, no coverage tiers, no basal slope, --source arms alone")
+                             "weight, no coverage tiers, no basal slope, --source and --lfc-source "
+                             "arms alone")
         fields = key_fields(delta_cache["sources"], axis, {
             "shrinkage": shrinkage, "shrink_k": shrink_k, "shrink_stage": shrink_stage,
             "shrink_rule": shrink_rule, "var_floor": var_floor,
@@ -335,6 +345,14 @@ def build_transfer_prediction(
     if shaped and not two_channel:
         raise SystemExit("--emit-shape controls acts on the two-channel emission -- pass --alpha-bulk "
                          "or --bulk-anchor pooled")
+    if alpha_bulk_target is not None:
+        if alpha_bulk is None:
+            raise SystemExit("--alpha-bulk-target lowers --alpha-bulk: pass --alpha-bulk (the ceiling)")
+        if not 0.0 < alpha_bulk_target < 1.0:
+            raise SystemExit(f"--alpha-bulk-target is a budget-over-claim ratio in (0, 1), got {alpha_bulk_target}")
+        if not alpha_bulk > alpha:
+            raise SystemExit(f"--alpha-bulk-target lowers the summed strength from --alpha-bulk toward --alpha, so "
+                             f"--alpha-bulk ({alpha_bulk:g}) must be above --alpha ({alpha:g})")
     # T125: the fold's own control-cell axes, read from the same control cells the profile was
     axes_v, ctrl_axes_per = None, {}
     if ctrl_axes:
@@ -344,9 +362,7 @@ def build_transfer_prediction(
         from sidechain.submit.ctrl_axes import change_size, control_axes, deflate_bulk, summarize, weakest
         axes_v, axes_rec = control_axes(ctrl_tmp, k=ctrl_axes, min_libsize=min_libsize,
                                         basis=ctrl_axes_basis, cache_dir=ctrl_axes_cache, genes=axis)
-    out_h5 = open_anndata_h5(out_path, "w")
-    writer = CsrWriter(out_h5, len(axis))
-    obs_labels, covered = [], 0
+    covered = 0
     pool_stats: dict = {}
     # The transfer exponent reads the SAME control profile the emitter anchors on
     # (min_libsize-filtered, CPM within this file's own gene universe), so the
@@ -430,10 +446,12 @@ def build_transfer_prediction(
                 d[gene_pos[p]] = -2.32
         return d, d0
 
-    def bulk_of(p, d0):
+    def bulk_of(p, d0, a_bulk=None):
         # T84: the pseudobulk channel at its own amplitude, the per-cell channel at alpha;
         # the knockdown pin is the same on both, and everything upstream is untouched.
-        d_bulk = d0 * ((alpha_bulk if alpha_bulk is not None else alpha) * (at[p] if at is not None else 1.0))
+        # `a_bulk` is a knee read's strength (T93); None is alpha_bulk.
+        a_b = alpha_bulk if a_bulk is None else a_bulk
+        d_bulk = d0 * ((a_b if a_b is not None else alpha) * (at[p] if at is not None else 1.0))
         if p in gene_pos:
             d_bulk[gene_pos[p]] = -2.32
         return d_bulk
@@ -441,49 +459,105 @@ def build_transfer_prediction(
     def held(p):
         return () if p not in gene_pos else (gene_pos[p],)
 
-    # T125: a share below 1 needs every target's summed-profile change before the first is emitted
-    ahead, deflated = None, None
-    if axes_v is not None and ctrl_axes_share < 1.0:
+    # T125: a share below 1 needs every target's summed-profile change before the first is emitted;
+    # T93: so does a knee read, which emits every target more than once from the same predictions
+    ahead = None
+    if (axes_v is not None and ctrl_axes_share < 1.0) or alpha_bulk_target is not None:
         ahead = {p: predict(p) for p in perts}
-        deflated = weakest({p: change_size(bulk_of(p, d0), prof.bulk_fraction, held(p))
-                            for p, (d, d0) in ahead.items() if d is not None}, ctrl_axes_share)
-    for p in perts:
-        d, d0 = ahead.pop(p) if ahead is not None else predict(p)
-        if d is not None:
-            covered += 1
-        n = cells_per_pert or int((labels == p).sum())
-        if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
-            writer.append_csr(em.emit(n, d))
-        elif d is None:
-            # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile.
-            # --emit-shape controls sends an uncovered target here under either anchor, so that it
-            # is emitted in the controls' shape like every other. Under mean_cpm that is one more
-            # number drawn than `emit` draws, so the targets after it draw other cells than the
-            # run without the flag; under the pooled anchor the path is the same either way.
-            writer.append_csr(dual(n, None, None, p))
-        else:
-            d_bulk = bulk_of(p, d0)
-            if axes_v is not None and (deflated is None or p in deflated):
-                d_bulk, ctrl_axes_per[p] = deflate_bulk(d_bulk, prof.bulk_fraction, axes_v, ctrl_axes_eta,
-                                                        held=held(p))
-            scatter = None
-            if scatter_of is not None and p in scatter_of:
-                scatter = np.ones(len(axis))
-                scatter[scatter_of[p][0]] = scatter_of[p][1]
-            writer.append_csr(dual(n, d, d_bulk, p, scatter))
-        obs_labels += [p] * n
-    n_rows = writer.close()
-    assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
-    write_frame(out_h5, "obs", np.array([f"pred_{i}" for i in range(n_rows)], dtype=object),
-                {pert_col: np.asarray(obs_labels, dtype=object)})
-    write_frame(out_h5, "var", axis.astype(object), {})
-    out_h5.close()
+
+    def emit_pass(path, a_bulk=None, meter=None, fresh=False):
+        """Every target into `path` at the summed strength `a_bulk` (None: alpha_bulk). `fresh` starts a new
+        emitter at `seed`, as a knee read after the first does; each pass's records start empty."""
+        nonlocal em, covered
+        if fresh:
+            em = PoissonEmitter(prof, seed=seed, dispersion=dispersion, lam=emit_lambda, bulk_anchor=bulk_anchor)
+        covered = 0
+        for rec in (sharpened, in_shape, shape_held, shape_unmet, ctrl_axes_per):
+            rec.clear()
+        fell_back.clear()
+        fell_back.update({"anchor": [], "template": []})
+        deflated = None
+        if axes_v is not None and ctrl_axes_share < 1.0:
+            deflated = weakest({p: change_size(bulk_of(p, d0, a_bulk), prof.bulk_fraction, held(p))
+                                for p, (d, d0) in ahead.items() if d is not None}, ctrl_axes_share)
+        out_h5 = open_anndata_h5(path, "w")
+        writer = CsrWriter(out_h5, len(axis))
+        obs_labels = []
+        for p in perts:
+            d, d0 = (ahead[p] if alpha_bulk_target is not None else ahead.pop(p)) if ahead is not None else predict(p)
+            if d is not None:
+                covered += 1
+            n = cells_per_pert or int((labels == p).sum())
+            if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
+                block = em.emit(n, d)
+            elif d is None:
+                # an uncovered target under the pooled anchor: control cells, bulk on the pooled profile.
+                # --emit-shape controls sends an uncovered target here under either anchor, so that it
+                # is emitted in the controls' shape like every other. Under mean_cpm that is one more
+                # number drawn than `emit` draws, so the targets after it draw other cells than the
+                # run without the flag; under the pooled anchor the path is the same either way.
+                block = dual(n, None, None, p)
+            else:
+                d_bulk = bulk_of(p, d0, a_bulk)
+                if axes_v is not None and (deflated is None or p in deflated):
+                    d_bulk, ctrl_axes_per[p] = deflate_bulk(d_bulk, prof.bulk_fraction, axes_v, ctrl_axes_eta,
+                                                            held=held(p))
+                scatter = None
+                if scatter_of is not None and p in scatter_of:
+                    scatter = np.ones(len(axis))
+                    scatter[scatter_of[p][0]] = scatter_of[p][1]
+                block = dual(n, d, d_bulk, p, scatter)
+            writer.append_csr(block)
+            if meter is not None:
+                meter.add(p, block)
+            obs_labels += [p] * n
+        n_rows = writer.close()
+        assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
+        write_frame(out_h5, "obs", np.array([f"pred_{i}" for i in range(n_rows)], dtype=object),
+                    {pert_col: np.asarray(obs_labels, dtype=object)})
+        write_frame(out_h5, "var", axis.astype(object), {})
+        out_h5.close()
+        return n_rows, writer.nnz
+
+    knee_record = None
+    if alpha_bulk_target is None:
+        n_rows, nnz = emit_pass(out_path)
+    else:
+        # T84's rule on this fold's own emitted cells (sidechain.submit.build's choose_alpha_bulk): each read
+        # writes its file; the read that stops is renamed to the prediction and the others are removed
+        from sidechain.submit.build import KNEE_MAX_READS
+        from sidechain.submit.knee import AIM_MARGIN, TARGET_SUM, KneeMeter, next_alpha_bulk
+
+        a, reads, files = alpha_bulk, [], []
+        while True:
+            path = out_path.with_name(f"{out_path.stem}.knee{len(reads)}.h5ad")
+            meter = KneeMeter(perts, axis)
+            n_rows, nnz = emit_pass(path, a, meter, fresh=bool(reads))
+            files.append(path)
+            r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0))}
+            reads.append(r)
+            ratio = r["ratio_budget_over_claim"]
+            print(f"  knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
+                  f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {alpha_bulk_target:g})", flush=True)
+            if ratio <= alpha_bulk_target or a <= alpha or len(reads) >= KNEE_MAX_READS or not np.isfinite(ratio):
+                break
+            a = next_alpha_bulk(a, ratio, alpha_bulk_target, alpha)
+        files[-1].replace(out_path)
+        for f in files[:-1]:
+            f.unlink(missing_ok=True)
+        knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
+                       "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
+                       "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
+                       "at_floor": bool(a <= alpha), "ratio_budget_over_claim": ratio, "tries": reads}
+        if not knee_record["met"]:
+            print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
+                  f"written at alpha_bulk={a:.4f}", flush=True)
     # `shrinkage` alone under-describes a depth-aware run ('false' while one
     # arm was shrunk), so the per-source overrides are reported beside it,
     # aligned with the source list: None = followed the global flag.
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
             "cells": int(n_rows), "genes": len(axis), "dispersion": em.dispersion,
-            "nonzeros": int(writer.nnz),
+            "nonzeros": int(nnz),
             "emit_lambda": em.lam,
             "shrinkage": shrinkage,
             # which rule and where (T84); the three defaults are the historical rule
@@ -498,7 +572,10 @@ def build_transfer_prediction(
                                                     if k.startswith("adaptive_")}}}
                if shrinkage and shrink_rule == "adaptive" else {}),
             "shrink_overrides": [getattr(as_delta_source(s), "shrink", None) for s in sources],
-            "alpha": alpha, "alpha_bulk": alpha_bulk, "bulk_anchor": bulk_anchor,
+            "alpha": alpha, "alpha_bulk": alpha_bulk if knee_record is None else knee_record["alpha_bulk"],
+            "bulk_anchor": bulk_anchor,
+            # T93: present only with alpha_bulk_target (the knee rule's reads, as build's .alpha_bulk.json)
+            **({"alpha_bulk_knee": knee_record} if knee_record is not None else {}),
             "gene_factor": gf_record,
             "alpha_table": at_record,
             # T85: present only with prediction_source pie
@@ -641,6 +718,13 @@ def main(argv: list[str] | None = None) -> int:
                          "members read), their depth-weighted column sums follow this value "
                          "(what pds and mse read); count_emitters.PoissonEmitter.emit_dual. "
                          "Needs --emit-lambda > 0. Unset = one amplitude, bit-identical")
+    ap.add_argument("--alpha-bulk-target", type=float, default=None, metavar="R",
+                    help="T84's knee rule on this fold (sidechain.submit.build's flag of the same name; T93): "
+                         "--alpha-bulk is the ceiling; every target is emitted at it and cell-eval2's budget "
+                         "over claim is read on those cells; while it is above R the strength is lowered "
+                         "(sidechain.submit.knee.next_alpha_bulk, never below --alpha, at most 4 reads) and "
+                         "the fold is emitted again; the read that stops is the prediction. Recorded under "
+                         "build.alpha_bulk_knee in summary.json. Unset = bit-identical")
     ap.add_argument("--bulk-anchor", choices=["mean_cpm", "pooled"], default="mean_cpm",
                     help="T84 round 2: which control profile the pseudobulk channel is built on. "
                          "'mean_cpm' (default, bit-identical, every entry through SER-7abefn) is "
@@ -764,10 +848,9 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--delta-cache-build needs --delta-cache DIR")
     if args.delta_cache_jobs < 1 or (args.delta_cache_jobs != 1 and not args.delta_cache_build):
         ap.error("--delta-cache-jobs is a count >= 1 and only acts with --delta-cache-build")
-    if args.delta_cache is not None and (args.shrink_source or args.lfc_source
-                                         or args.transfer_floor or args.source_context):
+    if args.delta_cache is not None and (args.shrink_source or args.transfer_floor or args.source_context):
         ap.error("--delta-cache holds the plain pool only: no --shrink-source, "
-                 "--lfc-source, --transfer-floor or --source-context")
+                 "--transfer-floor or --source-context")
     if args.neighbour_w and args.basal_slope != "off":
         ap.error("--neighbour-w with --basal-slope is not wired (sidechain.submit.build has no "
                  "basal slope to pair it with)")
@@ -830,7 +913,7 @@ def main(argv: list[str] | None = None) -> int:
     delta_cache = None
     if args.delta_cache is not None:
         from sidechain.eval.delta_cache import source_ids
-        delta_cache = {"dir": args.delta_cache, "sources": source_ids(args.source),
+        delta_cache = {"dir": args.delta_cache, "sources": source_ids(args.source, args.lfc_source),
                        "build_jobs": args.delta_cache_jobs if args.delta_cache_build else None}
     out = args.out.expanduser()
     if args.delta_cache_build:
@@ -856,6 +939,7 @@ def main(argv: list[str] | None = None) -> int:
                                      coverage_tiers=cov_tiers,
                                      similarity_beta=args.similarity_beta,
                                      basal_slope=args.basal_slope, alpha_bulk=args.alpha_bulk,
+                                     alpha_bulk_target=args.alpha_bulk_target,
                                      bulk_anchor=args.bulk_anchor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
                                      min_libsize=args.min_libsize,
@@ -920,6 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
          "shrink_k": args.shrink_k, "shrink_stage": args.shrink_stage,
          "shrink_rule": args.shrink_rule,
          "alpha": args.alpha, "alpha_bulk": args.alpha_bulk, "bulk_anchor": args.bulk_anchor,
+         **({"alpha_bulk_target": args.alpha_bulk_target} if args.alpha_bulk_target is not None else {}),
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
          **({"gene_factor_context": args.gene_factor_context} if args.gene_factor_context is not None else {}),
          "alpha_table": None if args.alpha_table is None else str(args.alpha_table),

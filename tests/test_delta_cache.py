@@ -271,3 +271,53 @@ def test_the_flags_are_refused_where_they_cannot_act(fold, capsys):
         with pytest.raises(SystemExit):
             loco.main(argv + extra)
         assert msg in capsys.readouterr().err
+
+
+def _lfc_table(seed=3):
+    """A published-contrast source on the fold's genes for six of its labels, abstaining on a few cells."""
+    from sidechain.data.lfc_table import LfcTable
+
+    rng = np.random.default_rng(seed)
+    labs = [f"g{i}" for i in range(3, N_LAB)]
+    lfc = rng.normal(0, 0.4, size=(len(labs), G))
+    var = rng.uniform(0.02, 0.2, size=(len(labs), G))
+    var[rng.random(var.shape) < 0.1] = np.inf
+    tab = LfcTable(labels=labs, genes=np.array([f"g{i}" for i in range(G)]), lfc=lfc, var=var, source="tab")
+    tab.sidechain_name = "tab"
+    return tab
+
+
+def test_a_published_contrast_source_is_cached_bit_for_bit(fold):
+    """T93: an --lfc-source joins the plain pool; a cached arm with one is the uncached arm, and the
+    table's id and the LfcTable reader's digest are in the key only when a table is in the pool."""
+    tmp, real, sources, nb = fold
+    tab = _lfc_table()
+    with_tab = [*sources, tab]
+    ids = [*IDS, ["tab", "1" * 64, dc.LFC_TABLE]]
+    ref = loco.build_transfer_prediction(real, with_tab, tmp / "tab_plain.h5ad", **{**KW, **nb})
+    built = loco.build_transfer_prediction(real, with_tab, tmp / "unused.h5ad", **{**KW, **nb},
+                                           delta_cache={"dir": tmp / "tcache", "sources": ids,
+                                                        "build_jobs": 1})["delta_cache_built"]
+    got = loco.build_transfer_prediction(real, with_tab, tmp / "tab_cached.h5ad", **{**KW, **nb},
+                                         delta_cache={"dir": tmp / "tcache", "sources": ids})
+    a, b = ad.read_h5ad(tmp / "tab_plain.h5ad"), ad.read_h5ad(tmp / "tab_cached.h5ad")
+    assert (a.X != b.X).nnz == 0
+    assert got.pop("delta_cache")["key"] == built["key"]
+    got.pop("pred"), ref.pop("pred")
+    assert json.dumps(got) == json.dumps(ref)
+    axis = np.array([f"g{i}" for i in range(G)])
+    with_t, without = dc.key_fields(ids, axis, {}), dc.key_fields(IDS, axis, {})
+    assert dc.LFC_MODULE in with_t["code"] and dc.LFC_MODULE not in without["code"]
+    assert dc.key_of(with_t) != dc.key_of(without)
+    # the pool without the table cannot read the table's cache
+    with pytest.raises(SystemExit, match="no cache for this fold and these knobs"):
+        loco.build_transfer_prediction(real, sources, tmp / "x.h5ad", **{**KW, **nb},
+                                       delta_cache={"dir": tmp / "tcache", "sources": IDS})
+
+
+def test_lfc_source_ids_follow_the_source_ids(tmp_path):
+    a, t = tmp_path / "a.npz", tmp_path / "t.npz"
+    a.write_bytes(b"a"), t.write_bytes(b"t")
+    ids = dc.source_ids([f"{a}:ctrl"], [str(t)])
+    assert [x[0] for x in ids] == ["a", "t"] and ids[1][2] == dc.LFC_TABLE
+    assert ids[1][1] == dc.file_sha256(t)
