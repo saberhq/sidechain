@@ -122,3 +122,47 @@ def test_the_floor_is_refused_where_it_cannot_act(fold, extra, msg):
     kw = {**KW, "alpha_bulk": 2.0, "alpha_bulk_target": 0.9, **extra}
     with pytest.raises(SystemExit, match=msg):
         loco.build_transfer_prediction(real, sources, tmp / "r.h5ad", **kw)
+
+
+def test_an_undershoot_steps_back_up_and_the_file_is_a_plain_run_at_the_kept_strength(fold, monkeypatch):
+    """T134: a step that lands far under the target is stepped back up; the prediction is a plain run at the strength
+    the rule keeps. The square-root step is forced to overshoot (to 0.15) so the fixture undershoots."""
+    from sidechain.submit import knee
+    tmp, real, sources = fold
+    kw = {**KW, "alpha": 0.5, "alpha_bulk": 0.6, "alpha_bulk_target": 0.5, "alpha_bulk_floor": 0.12, "seed": 3}
+    monkeypatch.setattr(knee, "next_alpha_bulk", lambda a, r, t, floor, margin=0.0: 0.15)
+    info = loco.build_transfer_prediction(real, sources, tmp / "knee.h5ad", **kw)
+    k = info["alpha_bulk_knee"]
+    tries = [(t["alpha_bulk"], t["ratio_budget_over_claim"]) for t in k["tries"]]
+    assert tries[1][0] == 0.15 and tries[1][1] < (1 - knee.UNDERSHOOT) * 0.5      # the fixture's premise
+    assert len(tries) >= 3 and tries[1][0] < tries[2][0] < tries[0][0]          # stepped back up, inside the bracket
+    assert k["met"] and k["undershoot"] == knee.UNDERSHOOT and k["alpha_bulk"] > 0.15
+    assert not list(tmp.glob("knee.knee*.h5ad"))
+    plain = loco.build_transfer_prediction(real, sources, tmp / "plain.h5ad",
+                                           **{**kw, "alpha_bulk": k["alpha_bulk"], "alpha_bulk_target": None,
+                                              "alpha_bulk_floor": None})
+    a, b = ad.read_h5ad(tmp / "knee.h5ad"), ad.read_h5ad(tmp / "plain.h5ad")
+    assert (a.X != b.X).nnz == 0
+
+
+def test_an_earlier_read_is_kept_when_the_last_is_over_the_target(fold, monkeypatch):
+    """At the read limit with the last read over the target, the strongest read under it is written: emitted again at
+    its strength, so the file and its records are a plain run's there."""
+    from sidechain.submit import build, knee
+    tmp, real, sources = fold
+    kw = {**KW, "alpha": 0.5, "alpha_bulk": 0.6, "alpha_bulk_target": 0.5, "alpha_bulk_floor": 0.12, "seed": 3}
+    monkeypatch.setattr(knee, "next_alpha_bulk", lambda a, r, t, floor, margin=0.0: 0.15)
+    monkeypatch.setattr(knee, "bracket_alpha_bulk", lambda lo, hi, t, margin=0.0: hi[0] * 0.999)
+    monkeypatch.setattr(build, "KNEE_MAX_READS", 3)
+    info = loco.build_transfer_prediction(real, sources, tmp / "knee.h5ad", **kw)
+    k = info["alpha_bulk_knee"]
+    assert k["reads"] == 3 and k["tries"][2]["ratio_budget_over_claim"] > 0.5      # the premise: the last is over
+    assert k["kept_read"] == 2 and k["alpha_bulk"] == 0.15 == info["alpha_bulk"] and k["met"]
+    assert not list(tmp.glob("knee.knee*.h5ad"))
+    plain = loco.build_transfer_prediction(real, sources, tmp / "plain.h5ad",
+                                           **{**kw, "alpha_bulk": 0.15, "alpha_bulk_target": None,
+                                              "alpha_bulk_floor": None})
+    a, b = ad.read_h5ad(tmp / "knee.h5ad"), ad.read_h5ad(tmp / "plain.h5ad")
+    assert (a.X != b.X).nnz == 0
+    info.pop("pred"), plain.pop("pred"), info.pop("alpha_bulk_knee")
+    assert info == plain                                          # every record is the kept read's own

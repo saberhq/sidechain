@@ -79,13 +79,15 @@ from sidechain.models.count_emitters import (
     remap_to_axis,
 )
 from sidechain.submit.alpha_table import load_alpha_table
+from sidechain.submit.cell_map import CellMap
 from sidechain.submit.ctrl_axes import add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factors, same_factor_groups
 from sidechain.submit.knee import AIM_MARGIN as KNEE_AIM_MARGIN
+from sidechain.submit.knee import UNDERSHOOT as KNEE_UNDERSHOOT
 from sidechain.submit.source_vote import (parse_source_scales, parse_source_weights, pool_kwargs,
                                           read_source_weight_table, source_votes, vote_groups)
 from sidechain.submit.knee import TARGET_SUM as KNEE_TARGET_SUM
-from sidechain.submit.knee import KneeMeter, next_alpha_bulk
+from sidechain.submit.knee import KneeMeter, knee_keep, knee_next
 from sidechain.submit.pie_source import (
     add_prediction_source_args,
     check_prediction_source_args,
@@ -1495,6 +1497,12 @@ def main(argv: list[str] | None = None) -> int:
                          "<out>.gene_factor.json with the table's sha256 (sidechain.submit.gene_factor; the "
                          "same flag on sidechain.eval.loco, with --gene-factor-context). No registered knob "
                          "letter yet (ADR 0005): a model-named stem refuses it")
+    ap.add_argument("--cell-lfc-map", type=Path, default=None, metavar="JSON",
+                    help="T134: the per-cell channel, after --alpha, through a step map on its |log2FC| (JSON `lower`, "
+                         "`size`; sidechain.submit.cell_map), signs kept, the own gene pinned after it; the summed "
+                         "profile is untouched, so it needs the two-channel emission. Recorded in <out>.dual.json "
+                         "with the file's sha256 (the same flag on sidechain.eval.loco). No registered knob letter "
+                         "yet (ADR 0005): a model-named stem refuses it")
     ap.add_argument("--alpha-table", type=Path, default=None, metavar="TABLE",
                     help="a per-target multiplier on --alpha (T1): a parquet or CSV with `target` (perturbation "
                          "labels) and `factor` (finite, >= 0); a named perturbation's pooled log2FC vector is scaled "
@@ -1709,6 +1717,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.scatter_table is not None and bulk_alpha is None:
         ap.error("--scatter-table acts on the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
+    if args.cell_lfc_map is not None and bulk_alpha is None:
+        ap.error("--cell-lfc-map acts on the per-cell channel alone -- pass --alpha-bulk or "
+                 "--bulk-anchor pooled")
     check_ctrl_axes_args(ap, args)                       # T125
     if args.ctrl_axes and args.emitter != "delta-transfer":
         ap.error("--ctrl-axes acts on pooled per-target deltas, so it only applies to delta-transfer")
@@ -1808,6 +1819,10 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"'{stem}' is named like a model, and --source-weight / --source-weight-table / --source-scale "
                  "have no registered knob letter yet (ADR 0005): register the letter first, or build under a "
                  "freeform stem")
+    if CLAIMS_RE.match(stem) and args.cell_lfc_map is not None:
+        # T134: the per-cell step map has no registered letter yet (ADR 0005), as above
+        ap.error(f"'{stem}' is named like a model, and --cell-lfc-map has no registered knob letter yet "
+                 "(ADR 0005): register the letter first, or build under a freeform stem")
     if CLAIMS_RE.match(stem) and args.gene_factor is not None:
         # T102, T120: the per-gene multiplier has no registered letter yet (ADR 0005), as above
         ap.error(f"'{stem}' is named like a model, and --gene-factor has no registered knob letter yet "
@@ -1869,6 +1884,7 @@ def main(argv: list[str] | None = None) -> int:
     # applied in `finalize`, with alpha
     alpha_of, alpha_table_record = (load_alpha_table(args.alpha_table, perts)
                                     if args.alpha_table is not None else (None, None))
+    cell_map = CellMap.load(args.cell_lfc_map) if args.cell_lfc_map is not None else None    # T134
     # T85: read before the pooling, so a table the build cannot take stops it in seconds
     scatter_of, scatter_record = (read_context_scatter_table(args.scatter_table, axis, perts, contexts)
                                   if args.scatter_table is not None else (None, None))
@@ -1896,6 +1912,8 @@ def main(argv: list[str] | None = None) -> int:
         recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_target"}  # likewise (T84)
     if args.alpha_bulk_floor is None:
         recorded = {k: v for k, v in recorded.items() if k != "alpha_bulk_floor"}   # likewise (T93)
+    if cell_map is None:
+        recorded = {k: v for k, v in recorded.items() if k != "cell_lfc_map"}       # likewise (T134)
     out.with_suffix(".args.json").write_text(json.dumps(recorded, indent=1, default=str) + "\n")
     if gene_factor_record is not None:
         if factor_split:
@@ -2045,6 +2063,8 @@ def main(argv: list[str] | None = None) -> int:
                     if knee_target is not None:
                         bulk_map.keep(p, vec, f_t)     # T84: the vector before any amplitude, for a lower one
                 vec *= args.alpha * f_t
+                if cell_map is not None:
+                    vec[:] = cell_map.apply(vec)       # T134: the per-cell channel only, after alpha
                 if p in gene_pos:
                     vec[gene_pos[p]] = TARGET_SELF_LOG2FC
         return bulk_map
@@ -2166,8 +2186,12 @@ def main(argv: list[str] | None = None) -> int:
     # T84 --alpha-bulk-target: per context, the summed strength the knee rule chose and how it chose it
     knee_record = ({"alpha": args.alpha, "alpha_bulk_ceiling": args.alpha_bulk, "alpha_bulk_target": knee_target,
                     "max_reads": KNEE_MAX_READS, "target_sum": KNEE_TARGET_SUM, "aim_margin": KNEE_AIM_MARGIN,
+                    "undershoot": KNEE_UNDERSHOOT,
                     "rule": "alpha_bulk' = alpha_bulk * sqrt((1 - aim_margin) * target / ratio), never below "
                             f"{'alpha' if args.alpha_bulk_floor is None else 'alpha_bulk_floor'}; "
+                            "between two reads that straddle the target, the power law through both, solved for "
+                            "(1 - aim_margin) * target; a read under (1 - undershoot) * target below the ceiling "
+                            "steps back up; the strongest read at or under the target is written; "
                             "ratio = cell-eval2 budget / claim (uncapped) on the context's emitted cells",
                     **({"alpha_bulk_floor": args.alpha_bulk_floor} if args.alpha_bulk_floor is not None else {}),
                     "contexts": {}} if knee_target is not None else None)
@@ -2178,7 +2202,7 @@ def main(argv: list[str] | None = None) -> int:
         returns the strength, its record, and the column sums of the cells read at it."""
         ceiling = args.alpha_bulk
         floor = args.alpha if args.alpha_bulk_floor is None else args.alpha_bulk_floor
-        a, reads, meter = ceiling, [], None
+        a, reads, sums = ceiling, [], []
         while True:
             m = ctx_bulk if a == ceiling else ctx_bulk.at(a)
             if deflate is not None:
@@ -2190,13 +2214,18 @@ def main(argv: list[str] | None = None) -> int:
                 meter.add(p, draw(pem, ctx, p, ctx_shifts, m)[0])
             r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(pem, "dual_fallbacks", 0))}
             reads.append(r)
+            sums.append(meter.sums)
             ratio = r["ratio_budget_over_claim"]
             print(f"  {ctx}: knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
                   f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {knee_target:g})  "
                   f"{time.time() - t0:.0f}s", flush=True)
-            if ratio <= knee_target or a <= floor or len(reads) >= KNEE_MAX_READS or not math.isfinite(ratio):
+            pairs = [(x["alpha_bulk"], x["ratio_budget_over_claim"]) for x in reads]
+            nxt = knee_next(pairs, knee_target, floor, ceiling, KNEE_MAX_READS)
+            if nxt is None:
                 break
-            a = next_alpha_bulk(a, ratio, knee_target, floor)
+            a = nxt
+        kept = knee_keep(pairs, knee_target)        # T134: an undershoot stepped back up may keep an earlier read
+        a, ratio = pairs[kept]
         met = ratio <= knee_target
         if not met:
             why = (f"at the floor {'--alpha' if args.alpha_bulk_floor is None else '--alpha-bulk-floor'}" if a <= floor else
@@ -2204,8 +2233,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  WARNING {ctx}: budget over claim {ratio:.4f} is above the target {knee_target:g} {why}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)
         rec = {"alpha_bulk": a, "met": met, "reads": len(reads), "at_floor": a <= floor,
-               "ratio_budget_over_claim": ratio, "tries": reads}
-        return a, rec, meter.sums
+               "ratio_budget_over_claim": ratio, "tries": reads,
+               **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
+        return a, rec, sums[kept]
 
     with SubmissionWriter(h5ad, contract) as w:
         for ci, ctx in enumerate(contexts):
@@ -2344,6 +2374,8 @@ def main(argv: list[str] | None = None) -> int:
             anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
         if scatter_record is not None:             # likewise
             anchor["scatter_table"] = scatter_record
+        if cell_map is not None:                   # likewise (T134)
+            anchor["cell_lfc_map"] = cell_map.record()
         if knee_record is not None:                # likewise (T84)
             anchor["alpha_bulk_target"] = knee_target
             anchor["alpha_bulk_by_context"] = alpha_bulk_of

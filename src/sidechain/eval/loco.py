@@ -67,6 +67,7 @@ from sidechain.submit.build import (
     sources_from_specs,
 )
 from sidechain.submit.alpha_table import load_alpha_table
+from sidechain.submit.cell_map import CellMap
 from sidechain.submit.ctrl_axes import DEFAULT_CACHE as CTRL_AXES_CACHE, add_ctrl_axes_args, check_ctrl_axes_args
 from sidechain.submit.gene_factor import load_gene_factor
 from sidechain.submit.source_vote import (parse_source_scales, parse_source_weights, pool_kwargs,
@@ -162,6 +163,7 @@ def build_transfer_prediction(
     pie_context: str | None = None,
     alpha_bulk_target: float | None = None,
     alpha_bulk_floor: float | None = None,
+    cell_lfc_map: Path | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`.
 
@@ -205,6 +207,9 @@ def build_transfer_prediction(
     included), each read a fresh emitter at `seed` into its own file; the read that stops is the prediction,
     so its cells are what a run at that `alpha_bulk` writes. None is the historical path.
     `alpha_bulk_floor` is the rule's lowest strength in place of alpha (it may sit below alpha); None is alpha.
+    `cell_lfc_map` (T134; `sidechain.submit.cell_map`) passes the per-cell channel, after alpha, through a step map
+    on its |log2FC|, signs kept, the own gene pinned after it; the summed-profile channel is untouched, so it needs
+    the two-channel emission. None is the historical path.
 
     `delta_cache` (T103 round three; `sidechain.eval.delta_cache`) is `{"dir": ..., "sources":
     [[stem, sha256, control], ...], "build_jobs": N or None}`: with `build_jobs` the pooled delta
@@ -275,6 +280,7 @@ def build_transfer_prediction(
     gf, gf_record = (load_gene_factor(gene_factor, axis, context=gene_factor_context) if gene_factor is not None
                      else (None, None))
     at, at_record = load_alpha_table(alpha_table, perts) if alpha_table is not None else (None, None)
+    cmap = CellMap.load(cell_lfc_map) if cell_lfc_map is not None else None
     pie_map, pie_record = pie_shift_map(pie_parquet, pie_context, axis, perts) if pie else (None, None)
     cache = None
     if delta_cache is not None:
@@ -346,6 +352,9 @@ def build_transfer_prediction(
         scatter_of, scatter_record = read_scatter_table(scatter_table, axis, perts)
     if shaped and not two_channel:
         raise SystemExit("--emit-shape controls acts on the two-channel emission -- pass --alpha-bulk "
+                         "or --bulk-anchor pooled")
+    if cmap is not None and not two_channel:
+        raise SystemExit("--cell-lfc-map acts on the per-cell channel alone -- pass --alpha-bulk "
                          "or --bulk-anchor pooled")
     if alpha_bulk_target is not None:
         if alpha_bulk is None:
@@ -453,6 +462,8 @@ def build_transfer_prediction(
             # table (T1) rides on alpha: a factor of 1.0 leaves the product bit-identical.
             a_t = alpha * (at[p] if at is not None else 1.0)
             d = d * a_t
+            if cmap is not None:
+                d = cmap.apply(d).astype(d.dtype, copy=False)     # T134: the per-cell channel only
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         return d, d0
@@ -537,30 +548,41 @@ def build_transfer_prediction(
         # T84's rule on this fold's own emitted cells (sidechain.submit.build's choose_alpha_bulk): each read
         # writes its file; the read that stops is renamed to the prediction and the others are removed
         from sidechain.submit.build import KNEE_MAX_READS
-        from sidechain.submit.knee import AIM_MARGIN, TARGET_SUM, KneeMeter, next_alpha_bulk
+        from sidechain.submit.knee import AIM_MARGIN, TARGET_SUM, UNDERSHOOT, KneeMeter, knee_keep, knee_next
 
-        a, reads, files = alpha_bulk, [], []
+        a, reads = alpha_bulk, []
         floor = alpha if alpha_bulk_floor is None else alpha_bulk_floor
         while True:
             path = out_path.with_name(f"{out_path.stem}.knee{len(reads)}.h5ad")
             meter = KneeMeter(perts, axis)
             n_rows, nnz = emit_pass(path, a, meter, fresh=bool(reads))
-            files.append(path)
             r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0))}
             reads.append(r)
             ratio = r["ratio_budget_over_claim"]
             print(f"  knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
                   f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {alpha_bulk_target:g})", flush=True)
-            if ratio <= alpha_bulk_target or a <= floor or len(reads) >= KNEE_MAX_READS or not np.isfinite(ratio):
+            pairs = [(x["alpha_bulk"], x["ratio_budget_over_claim"]) for x in reads]
+            nxt = knee_next(pairs, alpha_bulk_target, floor, alpha_bulk, KNEE_MAX_READS)
+            if nxt is None:
                 break
-            a = next_alpha_bulk(a, ratio, alpha_bulk_target, floor)
+            a = nxt
             path.unlink(missing_ok=True)           # a read that does not stop is not kept: one file on disk at a time
-        files[-1].replace(out_path)
+        kept = knee_keep(pairs, alpha_bulk_target)     # T134: an undershoot stepped back up may keep an earlier read
+        if kept == len(reads) - 1:
+            path.replace(out_path)
+        else:
+            # the last read is over the target and an earlier one is under it: that read is emitted again (the same
+            # seed, so the same cells), so every record of the pass is its own
+            path.unlink(missing_ok=True)
+            n_rows, nnz = emit_pass(out_path, pairs[kept][0], None, fresh=True)
+        a, ratio = pairs[kept]
         knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
                        "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
+                       "undershoot": UNDERSHOOT,
                        **({"alpha_bulk_floor": alpha_bulk_floor} if alpha_bulk_floor is not None else {}),
                        "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
-                       "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads}
+                       "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads,
+                       **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
         if not knee_record["met"]:
             print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)
@@ -590,6 +612,8 @@ def build_transfer_prediction(
             **({"alpha_bulk_knee": knee_record} if knee_record is not None else {}),
             "gene_factor": gf_record,
             "alpha_table": at_record,
+            # T134: present only with --cell-lfc-map
+            **({"cell_lfc_map": cmap.record()} if cmap is not None else {}),
             # T85: present only with prediction_source pie
             **({"prediction_source": {"source": "pie", **pie_record}} if pie else {}),
             # T125: present only with --ctrl-axes
@@ -724,6 +748,11 @@ def main(argv: list[str] | None = None) -> int:
                          "(perturbation labels) and `factor` (finite, >= 0); an unnamed target keeps --alpha; recorded "
                          "in summary.json under build.alpha_table with the table's sha256 (sidechain.submit.alpha_table; "
                          "the same flag on sidechain.submit.build). Outside the delta cache's key.")
+    ap.add_argument("--cell-lfc-map", type=Path, default=None, metavar="JSON",
+                    help="T134: the per-cell channel, after --alpha, through a step map on its |log2FC| (JSON `lower`, "
+                         "`size`; sidechain.submit.cell_map), signs kept, the own gene pinned after it; the summed "
+                         "profile is untouched. Recorded in summary.json under build.cell_lfc_map with the file's "
+                         "sha256 (the same flag on sidechain.submit.build). Outside the delta cache's key.")
     ap.add_argument("--alpha-bulk", type=float, default=None, metavar="ALPHA_BULK",
                     help="T84: a second amplitude for the pseudobulk channel. The emitted cells' "
                          "equal-weight per-cell mean follows --alpha (what the four Wilcoxon "
@@ -983,6 +1012,7 @@ def main(argv: list[str] | None = None) -> int:
                                      **({"source_vote": vote} if vote is not None else {}),
                                      **({"source_scale": scales} if scales else {}),
                                      alpha_table=args.alpha_table,
+                                     **({"cell_lfc_map": args.cell_lfc_map} if args.cell_lfc_map is not None else {}),
                                      ctrl_axes=args.ctrl_axes, ctrl_axes_eta=args.ctrl_axes_eta,
                                      ctrl_axes_basis=args.ctrl_axes_basis,
                                      ctrl_axes_share=args.ctrl_axes_share,
@@ -1028,6 +1058,7 @@ def main(argv: list[str] | None = None) -> int:
          "gene_factor": None if args.gene_factor is None else str(args.gene_factor),
          **({"gene_factor_context": args.gene_factor_context} if args.gene_factor_context is not None else {}),
          "alpha_table": None if args.alpha_table is None else str(args.alpha_table),
+         **({"cell_lfc_map": str(args.cell_lfc_map)} if args.cell_lfc_map is not None else {}),
          **({"ctrl_axes": args.ctrl_axes, "ctrl_axes_eta": args.ctrl_axes_eta,
              "ctrl_axes_basis": args.ctrl_axes_basis, "ctrl_axes_share": args.ctrl_axes_share}
             if args.ctrl_axes else {}),

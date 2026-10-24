@@ -130,6 +130,74 @@ def test_the_step_is_sqrt_of_target_over_ratio_floored():
         knee.next_alpha_bulk(2.0, 1.2, 0.9, 1.0, margin=1.0)
 
 
+def _run_rule(law, ceiling, target, floor, max_reads, rule):
+    """The knee loop on a ratio law: `rule` 'new' is knee_next / knee_keep, 'old' the loop before T134."""
+    reads = [(ceiling, law(ceiling))]
+    while True:
+        a, r = reads[-1]
+        if rule == "old":
+            if r <= target or a <= floor or len(reads) >= max_reads or not math.isfinite(r):
+                return reads, len(reads) - 1
+            nxt = knee.next_alpha_bulk(a, r, target, floor)
+        else:
+            nxt = knee.knee_next(reads, target, floor, ceiling, max_reads)
+            if nxt is None:
+                return reads, knee.knee_keep(reads, target)
+        reads.append((nxt, law(nxt)))
+
+
+def test_the_step_back_up_after_an_undershoot():
+    """Night 1's HEK293T arm at per-cell strength 2.2 (T93, 2026-10-24): 2.6 read 2.2007, the square-root step went
+    to 1.646 and read 0.4626, under half the target, and the old rule wrote it there. The new rule steps back up
+    inside the bracket, on the power law through the two reads (exponent 3.41 here)."""
+    target, floor, ceiling = 0.9, 1.35, 2.6
+    reads = [(2.6, 2.2007272126488666), (1.6459799235489192, 0.46262987247620535)]
+    nxt = knee.knee_next(reads, target, floor, ceiling, 4)
+    k = math.log(reads[0][1] / reads[1][1]) / math.log(reads[0][0] / reads[1][0])
+    assert k == pytest.approx(3.41, abs=0.01)
+    assert nxt == pytest.approx(reads[1][0] * ((1 - knee.AIM_MARGIN) * target / reads[1][1]) ** (1 / k))
+    assert reads[1][0] < nxt < reads[0][0]
+    # on that law the rule lands between (1 - UNDERSHOOT) * target and the target within the four reads
+    law = lambda a: reads[1][1] * (a / reads[1][0]) ** k
+    got, kept = _run_rule(law, ceiling, target, floor, 4, "new")
+    assert (1 - knee.UNDERSHOOT) * target <= got[kept][1] <= target and len(got) == 3 and kept == 2
+
+
+def test_the_rule_is_the_old_one_until_a_read_undershoots():
+    """Every read sequence that never lands under (1 - UNDERSHOOT) * target below the ceiling is the old rule's,
+    strength for strength (A/B/C's exponent 1.96 and the square law; ceilings above and below the target)."""
+    for k in (1.96, 2.0):
+        for c, ceiling, floor in ((0.2, 2.6, 1.35), (0.12, 2.6, 1.35), (0.35, 1.9, 1.0), (0.05, 2.6, 1.35)):
+            law = lambda a, c=c, k=k: c * a ** k
+            old, old_kept = _run_rule(law, ceiling, 0.9, floor, 4, "old")
+            new, new_kept = _run_rule(law, ceiling, 0.9, floor, 4, "new")
+            if all(r >= 0.81 or a >= ceiling or r > 0.9 for a, r in old):
+                assert new == old and new_kept == old_kept
+    # a read at the ceiling under the target stops there, however far under
+    assert knee.knee_next([(2.6, 0.226)], 0.9, 1.35, 2.6, 4) is None
+    # over the target with nothing under it: the square-root step, as before
+    assert knee.knee_next([(2.6, 1.6)], 0.9, 1.35, 2.6, 4) == knee.next_alpha_bulk(2.6, 1.6, 0.9, 1.35)
+    # over the target at the floor, at the read limit, or on a ratio that is not finite: stop
+    assert knee.knee_next([(2.6, 3.0), (1.35, 1.2)], 0.9, 1.35, 2.6, 4) is None
+    assert knee.knee_next([(2.6, 3.0), (2.0, 2.0), (1.8, 1.5), (1.6, 0.4)], 0.9, 1.35, 2.6, 4) is None
+    assert knee.knee_next([(2.6, math.inf)], 0.9, 1.35, 2.6, 4) is None
+
+
+def test_a_bracket_steps_inside_it_and_the_strongest_read_under_the_target_is_kept():
+    # under, then over: the next read is inside the bracket, never on its ends
+    reads = [(2.6, 2.2), (1.6, 0.46), (2.4, 1.5)]
+    nxt = knee.knee_next(reads, 0.9, 1.35, 2.6, 5)
+    assert 1.6 < nxt < 2.4
+    # a bracket whose power law points past an end is held a twentieth of its width inside it
+    assert knee.bracket_alpha_bulk((1.6, 0.89), (2.4, 50.0), 0.9) == pytest.approx(1.6 + 0.8 / 20)
+    with pytest.raises(ValueError):
+        knee.bracket_alpha_bulk((1.6, 0.95), (2.4, 1.5), 0.9)          # not straddling
+    # the strongest read at or under the target is kept; with none under it, the last
+    assert knee.knee_keep([(2.6, 2.2), (1.6, 0.46), (2.0, 0.85), (2.2, 1.1)], 0.9) == 2
+    assert knee.knee_keep([(2.6, 2.2), (1.6, 0.46), (2.4, 1.5)], 0.9) == 1
+    assert knee.knee_keep([(2.6, 2.2), (2.0, 1.5)], 0.9) == 1
+
+
 # -- the build -----------------------------------------------------------------------------------------------
 
 def _cache(path, ctrl_label, rng):
@@ -366,3 +434,20 @@ def test_the_floor_flag_is_refused_where_it_cannot_act(ch, capsys):
     # with a floor the ceiling needs only to be above it, not above --alpha
     assert build.main(_argv(ch, "under", "--alpha", "1.6", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9",
                             "--alpha-bulk-floor", "0.5")) == 0
+
+
+def test_a_build_that_undershoots_keeps_the_strongest_read_under_the_target(ch, monkeypatch):
+    """T134 in the build: the square-root step forced to overshoot to the floor and the step back up forced over the
+    target, at three reads; the context is written at the read under the target, and its cells are those read there
+    (and a plain build's at that strength)."""
+    monkeypatch.setattr(knee, "next_alpha_bulk", lambda a, r, t, floor, margin=0.0: floor)
+    monkeypatch.setattr(knee, "bracket_alpha_bulk", lambda lo, hi, t, margin=0.0: hi[0] * 0.999)
+    monkeypatch.setattr(build, "KNEE_MAX_READS", 3)
+    assert build.main(_argv(ch, "rule", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9")) == 0
+    x = json.loads((ch["out"] / "rule.alpha_bulk.json").read_text())["contexts"]["X"]
+    t = [(r["alpha_bulk"], r["ratio_budget_over_claim"]) for r in x["tries"]]
+    assert t[1][0] == 1.0 and t[1][1] < (1 - knee.UNDERSHOOT) * 0.9 and t[2][1] > 0.9      # the premise
+    assert t[2][0] == pytest.approx(1.5 * 0.999)
+    assert x["kept_read"] == 2 and x["alpha_bulk"] == 1.0 and x["met"] and x["written_cells_are_the_cells_read"]
+    assert build.main(_argv(ch, "at_x", "--alpha-bulk", "1.0")) == 0
+    assert np.array_equal(_cells(ch["out"] / "rule.h5ad", "X"), _cells(ch["out"] / "at_x.h5ad", "X"))
