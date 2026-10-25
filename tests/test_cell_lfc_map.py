@@ -191,3 +191,74 @@ def test_build_refuses_the_map_where_it_cannot_act(ch, map_file, capsys):
     with pytest.raises(SystemExit):
         build.main(_argv(ch, "ser-99benw_t84_v1", "--alpha-bulk", "2.0", "--cell-lfc-map", str(map_file)))
     assert "no registered knob letter" in capsys.readouterr().err
+
+
+# -- the scale: a per-gene and per-target factor on the mapped size (T134, the screen-depth map) ------------------
+
+def _scaled(tmp_path, scale=None, contexts=None, name="scaled.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps({**MAP, **({"scale": scale} if scale else {}), **({"contexts": contexts} if contexts else {})}))
+    return p
+
+
+def test_the_scale_multiplies_the_mapped_size_gene_by_target_clipped(tmp_path):
+    m = CellMap.load(_scaled(tmp_path, {"gene": {"a": 2.0, "b": 0.5, "c": 8.0}, "target": {"K1": 1.0, "K2": 0.5},
+                                        "clip": [0.25, 4.0], "gene_default": 1.0}))
+    assert m.scaled and m.record()["scale"] == {"genes": 3, "gene_default": 1.0, "targets": 2, "clip": [0.25, 4.0]}
+    with pytest.raises(SystemExit, match="bound"):
+        m.apply(np.array([0.1, 0.1, 0.1, 0.1]))
+    b = m.bind(["a", "b", "c", "d"], ["K1", "K2"])
+    d = np.array([0.1, -0.1, 0.6, 0.0])
+    assert np.allclose(b.apply(d, target="K1"), [0.6, -0.15, 3.2, 0.0])          # 0.3x2, -0.3x0.5, 0.8x(8 -> 4), 0 stays
+    assert np.allclose(b.apply(d, target="K2"), [0.3, -0.075, 3.2, 0.0])         # x0.5 more; 0.25 not reached
+    assert np.isnan(b.apply(np.array([np.nan, 0.1, 0.1, 0.1]), target="K1")[0])
+    with pytest.raises(SystemExit, match="no target factor"):
+        m.bind(["a", "b", "c", "d"], ["K1", "K3"])
+    with pytest.raises(SystemExit, match="another gene space"):
+        m.bind(["x", "y", "z", "a"], ["K1"])
+    assert CellMap.load(_scaled(tmp_path, None, name="plain.json")).bind(["a"], ["K1"]).apply(d).tolist() == \
+        [0.3, -0.3, 0.8, 0.0]                                                      # unscaled: as before, target ignored
+
+
+@pytest.mark.parametrize("extra, msg", [
+    ({"scale": {"gene": {"a": -1.0}}}, ">= 0"),
+    ({"scale": {"gene": {"a": 1.0}, "clip": [2.0, 1.0]}}, "clip"),
+    ({"scale": {"gene": {"a": 1.0}, "spread": 2}}, "unknown keys"),
+    ({"scale": {"clip": [0.5, 2.0]}}, "needs `gene` and/or `target`"),
+    ({"scale": {"gene": {"a": 1.0}}, "contexts": {"D": {"gene": {"a": 1.0}}}}, "not both"),
+])
+def test_a_bad_scale_is_refused(tmp_path, extra, msg):
+    p = tmp_path / "bad.json"
+    p.write_text(json.dumps({**MAP, **extra}))
+    with pytest.raises(SystemExit, match=msg):
+        CellMap.load(p)
+
+
+def test_loco_applies_the_scale_on_the_per_cell_channel_only(fold, tmp_path, spy):
+    tmp, real, sources = fold
+    scale = {"gene": {f"g{i}": 0.5 + (i % 4) for i in range(G)}, "target": 0.8, "clip": [0.25, 4.0]}
+    p = _scaled(tmp_path, scale)
+    off = loco.build_transfer_prediction(real, sources, tmp / "off.h5ad", **KW)
+    n_off = len(spy)
+    on = loco.build_transfer_prediction(real, sources, tmp / "on.h5ad", **KW, cell_lfc_map=p)
+    assert on["cell_lfc_map"]["scale"]["genes"] == G
+    m = CellMap.load(p).bind([f"g{i}" for i in range(G)], [f"g{i}" for i in range(N_LAB)])
+    _same_but_mapped(spy[:n_off], spy[n_off:], m, own=list(range(N_LAB)))
+    with pytest.raises(SystemExit, match="one line"):
+        loco.build_transfer_prediction(real, sources, tmp / "x.h5ad", **KW,
+                                       cell_lfc_map=_scaled(tmp_path, contexts={"X": scale}, name="ctx.json"))
+
+
+def test_build_applies_the_context_s_own_scale(ch, tmp_path, spy):
+    scale = {"gene": {g: 0.5 + (i % 3) for i, g in enumerate(GENES)}, "target": 0.9, "clip": [0.25, 4.0]}
+    p = _scaled(tmp_path, contexts={"X": scale})
+    assert build.main(_argv(ch, "off", "--alpha-bulk", "2.0")) == 0
+    n_off = len(spy)
+    assert build.main(_argv(ch, "on", "--alpha-bulk", "2.0", "--cell-lfc-map", str(p))) == 0
+    _same_but_mapped(spy[:n_off], spy[n_off:], CellMap.load(p).bind(GENES, PERTS, context="X"),
+                     own=list(range(len(PERTS))))
+    rec = json.loads((ch["out"] / "on.dual.json").read_text())["cell_lfc_map"]
+    assert rec["scale"]["X"]["genes"] == GB
+    q = _scaled(tmp_path, contexts={"Y": scale}, name="other.json")
+    with pytest.raises(SystemExit, match="no scale for context 'X'"):
+        build.main(_argv(ch, "miss", "--alpha-bulk", "2.0", "--cell-lfc-map", str(q)))

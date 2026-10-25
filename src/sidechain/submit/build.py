@@ -1885,6 +1885,11 @@ def main(argv: list[str] | None = None) -> int:
     alpha_of, alpha_table_record = (load_alpha_table(args.alpha_table, perts)
                                     if args.alpha_table is not None else (None, None))
     cell_map = CellMap.load(args.cell_lfc_map) if args.cell_lfc_map is not None else None    # T134
+    if cell_map is not None and cell_map.contexts is not None:
+        # one scale per context (T134): contexts whose scales differ cannot share one pooled map either
+        factor_groups = [[c for c in grp if cell_map.context_key(c) == k]
+                         for grp in factor_groups for k in dict.fromkeys(cell_map.context_key(c) for c in grp)]
+        factor_split = len(factor_groups) > 1
     # T85: read before the pooling, so a table the build cannot take stops it in seconds
     scatter_of, scatter_record = (read_context_scatter_table(args.scatter_table, axis, perts, contexts)
                                   if args.scatter_table is not None else (None, None))
@@ -2043,12 +2048,13 @@ def main(argv: list[str] | None = None) -> int:
                 rec_path.write_text(json.dumps(rec, indent=1) + "\n")
     gene_pos = {g: i for i, g in enumerate(genes)}
 
-    def finalize(shift_map, gene_factor):
+    def finalize(shift_map, gene_factor, context=None):
         # alpha scales the pooled vector; gamma (if any) acted per source inside the pool.
         # With --alpha-bulk the SAME pooled vector is also scaled by the pseudobulk amplitude
         # (taken before alpha touches it) and pinned identically; the emitter gets both.
         bulk_map = (None if bulk_alpha is None
                     else {} if knee_target is None else BulkAtCeiling(gene_pos))
+        cm = None if cell_map is None else cell_map.bind(genes, perts, context=context)     # T134
         for p, vec in shift_map.items():
             if vec is not None:
                 if gene_factor is not None:
@@ -2063,8 +2069,8 @@ def main(argv: list[str] | None = None) -> int:
                     if knee_target is not None:
                         bulk_map.keep(p, vec, f_t)     # T84: the vector before any amplitude, for a lower one
                 vec *= args.alpha * f_t
-                if cell_map is not None:
-                    vec[:] = cell_map.apply(vec)       # T134: the per-cell channel only, after alpha
+                if cm is not None:
+                    vec[:] = cm.apply(vec, target=p)       # T134: the per-cell channel only, after alpha
                 if p in gene_pos:
                     vec[gene_pos[p]] = TARGET_SELF_LOG2FC
         return bulk_map
@@ -2111,7 +2117,8 @@ def main(argv: list[str] | None = None) -> int:
                     fb += 1
                 else:
                     local[p] = d
-            local_bulk = finalize(local, None if gene_factor_of is None else gene_factor_of[prof.name])
+            local_bulk = finalize(local, None if gene_factor_of is None else gene_factor_of[prof.name],
+                                  context=prof.name)
             print(pool_line(f"  {prof.name}: gamma={args.gamma:g} shifts ready", fb), flush=True)
             return local, local_bulk
 
@@ -2123,13 +2130,15 @@ def main(argv: list[str] | None = None) -> int:
             # pooled map for every part after the first (the pool itself is not re-run)
             group_maps = split_by_factor(group_maps, factor_groups)
         for g in group_maps:
-            g["bulk"] = finalize(g["shifts"], None if gene_factor_of is None else gene_factor_of[g["contexts"][0]])
+            g["bulk"] = finalize(g["shifts"], None if gene_factor_of is None else gene_factor_of[g["contexts"][0]],
+                                 context=g["contexts"][0])
             print(f"  contexts {', '.join(g['contexts'])}: {len(g['sources'])} sources "
                   f"({', '.join(map(str, g['sources']))}); fallback-to-generic: {g['fallback']}", flush=True)
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s for {len(group_maps)} pools", fallback),
               flush=True)
     else:
-        bulk_shifts = finalize(shifts, None if gene_factor_of is None else gene_factor_of[contexts[0]])
+        bulk_shifts = finalize(shifts, None if gene_factor_of is None else gene_factor_of[contexts[0]],
+                               context=contexts[0])
         print(pool_line(f"shifts ready in {time.time() - t0:.0f}s", fallback), flush=True)
     if routes:
         # which contexts pooled which sources; the shifts themselves are in the cells

@@ -281,6 +281,10 @@ def build_transfer_prediction(
                      else (None, None))
     at, at_record = load_alpha_table(alpha_table, perts) if alpha_table is not None else (None, None)
     cmap = CellMap.load(cell_lfc_map) if cell_lfc_map is not None else None
+    if cmap is not None:
+        if cmap.contexts is not None:
+            raise SystemExit("--cell-lfc-map: eval.loco reads one line; give the map one `scale`, not `contexts`")
+        cmap = cmap.bind(axis, perts)
     pie_map, pie_record = pie_shift_map(pie_parquet, pie_context, axis, perts) if pie else (None, None)
     cache = None
     if delta_cache is not None:
@@ -463,7 +467,7 @@ def build_transfer_prediction(
             a_t = alpha * (at[p] if at is not None else 1.0)
             d = d * a_t
             if cmap is not None:
-                d = cmap.apply(d).astype(d.dtype, copy=False)     # T134: the per-cell channel only
+                d = cmap.apply(d, target=p).astype(d.dtype, copy=False)     # T134: the per-cell channel only
             if p in gene_pos:
                 d[gene_pos[p]] = -2.32
         return d, d0
