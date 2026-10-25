@@ -74,6 +74,16 @@ LINES = {
     "sunshine23_calu3": {"study": "sunshine23", "line": "Calu-3", "screen": "host factors", "marker": "triangle-up-open"},
 }
 
+# compact names for a table's narrow first column (the board's Viz tab, T129): the line, then its study
+SHORT_LINES = {"replogle22_k562_ess": "K562 ess", "replogle22_k562_gwps": "K562 gw", "replogle22_rpe1": "RPE1",
+               "nadig24_jurkat": "Jurkat", "nadig24_hepg2": "HepG2", "xatlas25_hct116": "HCT116",
+               "xatlas25_hek293t": "HEK293T", "pan26_h1": "H1", "feng26_ipsc": "iPSC", "vcc25_h1": "H1",
+               "gwcd4i25_cd4_rest": "CD4 rest", "gwcd4i25_cd4_stim48": "CD4 stim", "mcfaline23_u87": "U-87 MG",
+               "mcfaline23_a172": "A172", "mcfaline23_t98g": "T98G", "sunshine23_calu3": "Calu-3"}
+SHORT_STUDIES = {"replogle22": "Replogle 22", "nadig24": "Nadig 24", "xatlas25": "X-Atlas", "pan26": "Pan 26",
+                 "feng26": "Feng 26", "mcfaline23": "McFaline 23", "gwcd4i25": "Zhu 25", "sunshine23": "Sunshine 23",
+                 "vcc25": "Arc 25", "scbasecount": "scBaseCount"}
+
 # ── scales that are not identity ───────────────────────────────────────────────────────────────────────────────
 # magnitude: the dataviz blue ramp from step 200 (step 100 vanishes into the surface under a point cloud); a dark
 # theme reverses the anchor so "more" is still "more ink against the surface".
@@ -157,6 +167,9 @@ def as_json() -> dict:
     for k in LINES:
         out["lines"][k]["light"], out["lines"][k]["dark"] = color(k), color(k, "dark")
         out["lines"][k]["label"] = label(k)
+        out["lines"][k]["short"] = SHORT_LINES.get(k, LINES[k]["line"])
+    for k in STUDIES:
+        out["studies"][k]["short"] = SHORT_STUDIES.get(k, STUDIES[k]["label"])
     return out
 
 

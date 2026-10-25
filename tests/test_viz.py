@@ -34,6 +34,10 @@ def test_as_json_resolves_every_line_and_is_serialisable():
     json.dumps(j)
     for k, v in j["lines"].items():
         assert v["light"] == palette.color(k) and v["label"] == palette.label(k)
+    # every line and study has a compact name for a table's first column, shorter than its label
+    assert set(palette.SHORT_LINES) == set(palette.LINES) and set(palette.SHORT_STUDIES) == set(palette.STUDIES)
+    assert all(len(v["short"]) <= 10 and len(v["short"]) < len(v["label"]) for v in j["lines"].values())
+    assert all(v["short"] for v in j["studies"].values())
 
 
 def test_gene_masks_keep_ribosomal_proteins_and_drop_the_rps6k_kinases():
