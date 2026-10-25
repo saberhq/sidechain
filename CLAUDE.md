@@ -195,7 +195,10 @@ register: `private/CLAUDE.md` → How to write for Saber.
 2. **What this step found** — in plain groups: what works, what does not, what we could not tell. A
    sentence carries one number, and every number says what it is (a score, or a difference between
    two named scores) and where it was scored (which fold, or the leaderboard); a comparison of several
-   numbers is a small table. Review bookkeeping is one line at most.
+   numbers is a small table. Arms read against a base lead with the per-line table (Saber, 2026-10-25):
+   a row per line, then the four-cell-type mean and its bar; columns overall, `pds`, `mse`, `nmae`, `fid`,
+   `reach`, `jac` as differences from the base, ▲/▼ past its own bar. Render it with
+   `private/research/protocol/results_table.py` (T135), never by hand. Review bookkeeping is one line at most.
 3. **What I need from you** — or `Nothing`. Each option says what it costs and what it gets, in words
    he already uses; a word coined during the work is spelled out in the sentence or dropped.
 4. **Next steps** — one line each.
