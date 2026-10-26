@@ -102,11 +102,11 @@ def fold(tmp_path):
     return tmp_path, tmp_path / "real.h5ad", [(src, "ctrl")]
 
 
-def _same_but_mapped(off, on, m, own):
+def _same_but_mapped(off, on, m, own, targets=None):
     assert len(off) == len(on) > 0
     for k, ((c0, b0), (c1, b1)) in enumerate(zip(off, on)):
         assert np.array_equal(b0, b1)                                   # the summed profile: the same vector
-        want = m.apply(c0)
+        want = m.apply(c0) if targets is None else m.apply(c0, target=targets[k])
         want[own[k]] = c0[own[k]]                                       # the own gene: pinned after the map
         assert np.allclose(c1, want, rtol=0, atol=1e-6)
         assert not np.allclose(c0, c1)
@@ -220,11 +220,46 @@ def test_the_scale_multiplies_the_mapped_size_gene_by_target_clipped(tmp_path):
         [0.3, -0.3, 0.8, 0.0]                                                      # unscaled: as before, target ignored
 
 
+def _pairs(tmp_path, rows, name="pairs.parquet"):
+    p = tmp_path / name
+    pd.DataFrame(rows, columns=["target", "feature", "factor"]).to_parquet(p)
+    return name
+
+
+def test_a_pair_table_multiplies_one_knockdown_s_gene_before_the_clip(tmp_path):
+    rel = _pairs(tmp_path, [("K1", "a", 0.5), ("K1", "c", 3.0), ("K2", "b", 0.0)])
+    m = CellMap.load(_scaled(tmp_path, {"gene": {"a": 2.0, "b": 1.0, "c": 1.0}, "target": 1.0, "pair": rel, "clip": [0.25, 4.0]}))
+    rec = m.record()["scale"]["pair"]
+    assert rec["pairs"] == 3 and rec["targets"] == 2 and len(rec["sha256"]) == 64
+    b = m.bind(["a", "b", "c", "d"], ["K1", "K2", "K3"])
+    d = np.array([0.1, -0.1, 0.6, 0.0])
+    assert np.allclose(b.apply(d, target="K1"), [0.3, -0.3, 2.4, 0.0])           # 0.3x2x0.5, -0.3, 0.8x3, 0 stays
+    assert np.allclose(b.apply(d, target="K2"), [0.6, -0.075, 0.8, 0.0])         # b x0 clipped up to 0.25
+    assert np.allclose(b.apply(d, target="K3"), [0.6, -0.3, 0.8, 0.0])           # no pair rows: the gene factor alone
+    only = CellMap.load(_scaled(tmp_path, {"pair": rel}, name="only.json")).bind(["a", "b", "c", "d"], ["K1", "K2"])
+    assert np.allclose(only.apply(d, target="K2"), [0.3, 0.0, 0.8, 0.0])         # no clip: 0 stays 0
+    with pytest.raises(SystemExit, match="another gene space"):
+        CellMap.load(_scaled(tmp_path, {"pair": rel}, name="o2.json")).bind(["x", "y", "z"], ["K1", "K2"])
+
+
+@pytest.mark.parametrize("rows, msg", [
+    ([("K1", "a", -1.0)], ">= 0"),
+    ([("K1", "a", float("nan"))], ">= 0"),
+    ([("K1", "a", 1.0), ("K1", "a", 2.0)], "repeats"),
+])
+def test_a_bad_pair_table_is_refused(tmp_path, rows, msg):
+    rel = _pairs(tmp_path, rows)
+    with pytest.raises(SystemExit, match=msg):
+        CellMap.load(_scaled(tmp_path, {"pair": rel}))
+    with pytest.raises(SystemExit, match="does not exist"):
+        CellMap.load(_scaled(tmp_path, {"pair": "missing.parquet"}, name="m.json"))
+
+
 @pytest.mark.parametrize("extra, msg", [
     ({"scale": {"gene": {"a": -1.0}}}, ">= 0"),
     ({"scale": {"gene": {"a": 1.0}, "clip": [2.0, 1.0]}}, "clip"),
     ({"scale": {"gene": {"a": 1.0}, "spread": 2}}, "unknown keys"),
-    ({"scale": {"clip": [0.5, 2.0]}}, "needs `gene` and/or `target`"),
+    ({"scale": {"clip": [0.5, 2.0]}}, "needs `gene`, `target` and/or `pair`"),
     ({"scale": {"gene": {"a": 1.0}}, "contexts": {"D": {"gene": {"a": 1.0}}}}, "not both"),
 ])
 def test_a_bad_scale_is_refused(tmp_path, extra, msg):
@@ -247,6 +282,18 @@ def test_loco_applies_the_scale_on_the_per_cell_channel_only(fold, tmp_path, spy
     with pytest.raises(SystemExit, match="one line"):
         loco.build_transfer_prediction(real, sources, tmp / "x.h5ad", **KW,
                                        cell_lfc_map=_scaled(tmp_path, contexts={"X": scale}, name="ctx.json"))
+
+
+def test_loco_applies_a_pair_table_on_the_per_cell_channel_only(fold, tmp_path, spy):
+    tmp, real, sources = fold
+    rows = [(f"g{k}", f"g{i}", 0.25 + ((i + k) % 5) * 0.4) for k in range(N_LAB) for i in range(G)]
+    p = _scaled(tmp_path, {"pair": _pairs(tmp_path, rows), "clip": [0.25, 4.0]})
+    off = loco.build_transfer_prediction(real, sources, tmp / "off.h5ad", **KW)
+    n_off = len(spy)
+    on = loco.build_transfer_prediction(real, sources, tmp / "on.h5ad", **KW, cell_lfc_map=p)
+    assert on["cell_lfc_map"]["scale"]["pair"]["pairs"] == N_LAB * G
+    m = CellMap.load(p).bind([f"g{i}" for i in range(G)], [f"g{i}" for i in range(N_LAB)])
+    _same_but_mapped(spy[:n_off], spy[n_off:], m, own=list(range(N_LAB)), targets=[f"g{k}" for k in range(N_LAB)])
 
 
 def test_build_applies_the_context_s_own_scale(ch, tmp_path, spy):
