@@ -1,0 +1,99 @@
+{{- /* The control-cells page (content/vcc2026-control-cells.md), in the landing page's frame: the work in the left
+       column, a sticky right rail. Here the rail holds the six contexts' medians instead of posts. The figures
+       come first, in three stacked sections, and the page's prose follows them as a fourth. The cards are drawn here
+       from static/data/controls/index.json, so they read with scripts off; assets/controls.js draws the figures from the
+       same directory (scripts/site_controls.py writes it). With no data on disk the page says so and the build passes. */ -}}
+{{ define "main" }}
+{{- $path := "static/data/controls/index.json" }}
+{{- $idx := dict }}
+{{- if os.FileExists $path }}{{ $idx = os.ReadFile $path | transform.Unmarshal }}{{ end }}
+{{- $css := resources.Get "controls.css" | resources.Minify | resources.Fingerprint "sha384" }}
+{{- $top := dict "href" "#top" "label" "↑ back to top" }}
+<link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}" crossorigin="anonymous">
+<div class="sq-wrap sc-journal cc-page">
+  <div class="sc-journal-main">
+    <section class="sq-hero cc-hero">
+      <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
+      <h1 class="cc-title">{{ .Title }}</h1>
+      {{ with .Description }}<p class="sq-tagline">{{ . }}</p>{{ end }}
+    </section>
+
+    {{ with $idx.contexts }}
+    <div id="cc-app" data-base="{{ "data/controls/" | relURL }}"
+         data-plotly="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"
+         data-plotly-sri="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7">
+      <section class="cc-sec" id="maps" data-sec="map">
+        {{ partial "section-head.html" (dict "num" "01" "label" "Maps & QC" "aside" $top) }}
+        <div class="cc-body"><noscript><p class="cc-err">The figures are drawn in the browser; with scripts off only the medians beside them can be shown.</p></noscript></div>
+      </section>
+      <section class="cc-sec" id="guides" data-sec="guides">
+        {{ partial "section-head.html" (dict "num" "02" "label" "Guides & clones" "aside" $top) }}
+        <div class="cc-body"></div>
+      </section>
+      <section class="cc-sec" id="genes" data-sec="genes">
+        {{ partial "section-head.html" (dict "num" "03" "label" "Highest-expressed genes" "aside" $top) }}
+        <div class="cc-body"></div>
+      </section>
+    </div>
+
+    {{ $n := (index $idx.contexts "A").n_cells }}
+    <section class="cc-sec cc-about" id="about">
+      {{ partial "section-head.html" (dict "num" "04" "label" "About these figures" "aside" $top) }}
+      <div class="cc-about-body">
+        {{ $.Content }}
+        <p><strong>How the numbers were made.</strong> Control cells only, {{ lang.FormatNumber 0 $n }} per context. Counts
+        were scaled to 10,000 per cell and log-transformed; each context's map uses its 2,000 most variable genes (scanpy,
+        Seurat flavour), scaled, a 50-component PCA, a 15-neighbour graph on the first 30 components, UMAP and Leiden
+        clusters (resolution 0.5). The joint map takes the 2,000 genes variable in the most contexts. The guide checks
+        compare each guide's centre with the context's in the first 20 components against 500 shuffles of the labels. The
+        assay is 10x Flex (probe-based) read on an Ultima UG100, per Arc; reads and sequencing saturation are not in the
+        released files, and the Flex panel has no ribosomal-protein genes.</p>
+        <p><strong>Data:</strong> the control cells Arc Institute released for the Virtual Cell Challenge 2026, computed
+        {{ $idx.stage_built }}. Every chart downloads as SVG from its toolbar.</p>
+      </div>
+    </section>
+    {{ else }}
+    <div class="sc-empty"><p>The data for this page has not been built yet (<code>scripts/site_controls.py</code>).</p></div>
+    {{ end }}
+  </div>
+
+  {{ with $idx.contexts }}
+  {{ $n := (index $idx.contexts "A").n_cells }}
+  <aside class="sc-rail" aria-labelledby="rail-label">
+    <div class="sc-rail-in">
+      <div class="sq-section-head sc-rail-head">
+        <h2 class="sq-section-label" id="rail-label">The six contexts</h2>
+        <span class="sq-section-fill"></span>
+        <a class="sq-section-aside" href="#about">how to read ↓</a>
+      </div>
+      <div class="cc-cards" role="group" aria-label="Show a context in the figures">
+        {{ range $c, $s := . }}
+        {{ $p := index $idx.palette.contexts $c }}
+        <button type="button" class="cc-card" data-ctx="{{ $c }}" aria-pressed="false" style="--sw:{{ $p.light | safeCSS }};--sw-dark:{{ $p.dark | safeCSS }}"
+                title="Show context {{ $c }} in every figure">
+          <span class="cc-card-top">
+            <span class="cc-card-id"><i class="cc-sw{{ if eq $p.marker "diamond" }} cc-sw--dia{{ end }} cc-sw--themed"></i>{{ $c }}</span>
+            <span class="cc-card-round">{{ $s.round }}</span>
+          </span>
+          <span class="cc-card-stats">
+            <span><b>{{ lang.FormatNumber 0 $s.median.total_umi }}</b><small>UMIs</small></span>
+            <span><b>{{ lang.FormatNumber 0 $s.median.n_genes }}</b><small>genes</small></span>
+            <span><b>{{ lang.FormatNumber 2 $s.median.pct_mt }}</b><small>mito UMI %</small></span>
+          </span>
+        </button>
+        {{ end }}
+      </div>
+      <p class="cc-rail-note">Medians per cell over {{ lang.FormatNumber 0 $n }} control cells each. Pick a context to show it in every figure.</p>
+    </div>
+  </aside>
+  {{ end }}
+
+  <div class="sq-post-actions sc-page-actions">
+    <button class="sq-action" type="button" data-scroll-top><span class="sq-glyph">↑</span> Back to top</button>
+  </div>
+</div>
+{{- with $idx.contexts }}
+{{- $js := resources.Get "controls.js" | resources.Minify | resources.Fingerprint "sha384" }}
+<script src="{{ $js.RelPermalink }}" integrity="{{ $js.Data.Integrity }}" crossorigin="anonymous" defer></script>
+{{- end }}
+{{ end }}

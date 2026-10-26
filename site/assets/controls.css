@@ -1,0 +1,128 @@
+/* The control-cells page (layouts/controls.html, assets/controls.js), loaded on that page only. The frame is the landing
+   page's journal (.sq-wrap.sc-journal in site.css): the work in the left column, a sticky rail of cards on the right,
+   here the six contexts instead of posts. Every `cc-` rule builds on the site's tokens and idiom: hairline structure,
+   Geist Mono for anything measured, carmine (--accent) as a mark, never a fill. Data colours come from the page's
+   index.json, never from here. */
+
+/* the hero: the landing page's, a little shorter so the first figure starts higher */
+.cc-hero { padding-top: var(--space-7); padding-bottom: var(--space-5); }
+.cc-page .sc-rail { padding-top: var(--space-7); }
+.cc-title { margin: 14px 0 0; font-size: var(--h1-size); font-weight: 600; letter-spacing: var(--h1-track); line-height: var(--h1-leading); }
+.cc-hero .sq-tagline { margin-top: 12px; }
+
+/* sections: stacked in the left column, each with the site's numbered head and a way back up */
+.cc-sec { padding-bottom: var(--space-7); scroll-margin-top: var(--space-4); }
+.cc-sec .sq-section-head { margin-bottom: 2px; }
+
+/* the rail: one quiet row per context, hairlines between, no boxes; the context on show wears an accent edge */
+.cc-cards { display: flex; flex-direction: column; margin-top: 10px; }
+.cc-card {
+  display: block; width: 100%; padding: 9px 0 9px 10px; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  background: none; border: 0; border-left: 2px solid transparent; border-bottom: var(--rule-w) solid var(--rule-faint);
+  transition: border-color var(--dur) var(--ease);
+}
+.cc-card:hover { border-left-color: var(--rule); }
+.cc-card[aria-pressed="true"] { border-left-color: var(--accent); }
+.cc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cc-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cc-card-id { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); }
+.cc-card-round { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-4); }
+.cc-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; margin-top: 4px; }
+.cc-card-stats > span { display: flex; flex-direction: column; min-width: 0; }
+.cc-card-stats b { font-family: var(--font-mono); font-size: 13px; font-weight: 400; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cc-card-stats small { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--meta-track); color: var(--ink-4); white-space: nowrap; }
+.cc-rail-note { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.cc-nowrap { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; }
+
+/* swatches: a context's colour and its marker (circle for validation, diamond for test) */
+.cc-sw { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.cc-sw--dia { border-radius: 1px; transform: rotate(45deg) scale(0.82); }
+.cc-sw--themed { background: var(--sw); }
+[data-theme="dark"] .cc-sw--themed { background: var(--sw-dark); }
+.cc-sw--plain { background: var(--ink-3); }
+.cc-nm { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); }
+
+/* chips: the site's tags as buttons; the one that is on wears the accent tag */
+.cc-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding-top: 8px; }
+.cc-ctl:first-child { padding-top: 12px; }
+.cc-set { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.cc-micro { min-width: 58px; margin-right: 2px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-4); }
+.cc-set + .cc-set .cc-micro { min-width: 0; }
+.cc-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--rule); }
+.cc-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; line-height: 1.5; cursor: pointer; list-style: none;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: var(--meta-track); color: var(--ink-3);
+  background: none; border: var(--rule-w) solid var(--rule); border-radius: var(--radius-sm);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.cc-chip::-webkit-details-marker { display: none; }
+.cc-chip:hover { color: var(--ink); border-color: var(--ink-4); }
+.cc-chip[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+/* "More filters": one chip that opens a small panel of the rest */
+.cc-more { position: relative; display: inline-block; }
+.cc-caret { margin-left: 2px; font-size: 9px; }
+.cc-more[open] > summary { color: var(--ink); border-color: var(--ink-4); }
+.cc-more-pop { position: absolute; z-index: 6; top: calc(100% + 6px); right: 0; display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  min-width: 150px; padding: 8px; background: var(--surface); border: var(--rule-w) solid var(--rule); border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12); }
+
+/* figures: a minimal key above each plot, the plot, one quiet line of what is shown */
+.cc-fig { margin: 0; min-width: 0; }
+.cc-fig--lead { margin-top: 14px; }
+.cc-stack { display: flex; flex-direction: column; gap: var(--space-5); margin-top: 14px; }
+.cc-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 20px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.cc-key span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cc-key .cc-key-h { color: var(--ink); font-weight: 500; }
+.cc-key .cc-key-v { font-variant-numeric: tabular-nums; }
+.cc-ramp { display: inline-block; width: 96px; height: 6px; border-radius: 3px; }
+.cc-plot { width: 100%; height: 320px; margin-top: 2px; }
+/* the lead figure fits a laptop screen with its chips: the whole plot and both axes in one look */
+.cc-plot--map { height: clamp(300px, calc(100vh - 455px), 500px); height: clamp(300px, calc(100svh - 455px), 500px); }
+.cc-plot--sq { height: 380px; }
+.cc-plot--bars { height: 240px; }
+.cc-plot--tall { height: 440px; }
+.cc-plot:empty::before { content: "loading…"; display: block; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+.cc-meta { margin-top: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+
+/* folds: a table kept closed until asked for */
+.cc-fold { margin-top: var(--space-4); border-top: var(--rule-w) solid var(--rule); }
+.cc-fold > summary { cursor: pointer; padding: 8px 0 2px; list-style: none; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.cc-fold > summary::-webkit-details-marker { display: none; }
+.cc-fold > summary::before { content: "+ "; color: var(--accent); }
+.cc-fold[open] > summary::before { content: "\2212 "; }
+.cc-fold > summary:hover { color: var(--ink); }
+
+/* tables */
+.cc-scroll { overflow-x: auto; margin-top: 8px; }
+.cc-tbl { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cc-tbl th { padding: 4px 10px 5px; text-align: right; white-space: nowrap; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); border-bottom: var(--rule-w) solid var(--rule-strong); }
+.cc-tbl td { padding: 5px 10px; text-align: right; white-space: nowrap; color: var(--ink-2); border-bottom: var(--rule-w) solid var(--rule); }
+.cc-tbl th:first-child, .cc-tbl td:first-child { padding-left: 0; text-align: left; }
+.cc-tbl th:last-child, .cc-tbl td:last-child { padding-right: 0; }
+
+/* the prose, after the figures */
+.cc-about-body { padding-top: 10px; }
+.cc-about-body p, .cc-about-body li { font-size: 15px; line-height: 1.6; color: var(--ink-2); text-wrap: pretty; }
+.cc-about-body p { margin: 0 0 14px; }
+.cc-about-body ul { margin: 0 0 14px; padding-left: 20px; }
+.cc-about-body li { margin: 4px 0; }
+.cc-about-body strong { font-weight: 600; color: var(--ink); }
+.cc-about-body code { font-family: var(--font-mono); font-size: 0.92em; background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm); }
+.cc-err { margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--rule); font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+
+/* a short screen cannot hold the rail beside the figures: it scrolls with the page */
+@media (min-width: 901px) and (max-height: 700px) {
+  .cc-page .sc-rail-in { position: static; }
+}
+@media (max-width: 900px) {
+  .cc-page .sc-rail { padding-top: 0; }
+  .cc-page .sc-rail-in { max-width: 420px; }
+}
+@media (max-width: 600px) {
+  .cc-hero { padding-top: var(--space-6); padding-bottom: var(--space-5); }
+  .cc-ctl { gap: 8px 14px; }
+  .cc-micro { min-width: 0; }
+  .cc-plot--map { height: min(105vw, 460px); }
+  .cc-plot--sq { height: 340px; }
+}
