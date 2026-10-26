@@ -9,7 +9,7 @@
     <section class="sq-hero">
       <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
       <h1 class="sc-wordmark"><span>Sidechain</span><span class="sc-wordmark-mark">.</span></h1>
-      <p class="sq-tagline">{{ .Site.Params.description }}</p>
+      <p class="sq-tagline">{{ with .Params.tagline }}{{ $.RenderString . }}{{ else }}{{ .Site.Params.description }}{{ end }}</p>
       <div class="sq-hero-actions">
         <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
         <a class="sq-btn sq-btn--secondary" href="{{ (.Site.GetPage "/models").RelPermalink }}">The models <span class="sq-glyph">→</span></a>
@@ -24,7 +24,7 @@
       {{- /* In this order (Saber, 2026-10-05): the plot, the figures, the paragraph, the bars. */}}
       {{ partial "standing.html" . }}
       <div class="sc-intro">
-        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so the rank is the one each entry held when it was scored. An entry's model card is the sentence beside it on the board, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each model tried and what its name means.</p>
+        <p>Every submission, as Arc scored it. The live board shows only a team's latest entry, so a name opens the rank that entry held when it was scored, and the <a href="{{ $models.RelPermalink }}">models page</a> says what each model tried and what its name means.</p>
       </div>
       {{ partial "entries.html" . }}
     </section>
@@ -35,19 +35,21 @@
     <div class="sc-rail-in">
       {{ $postsPage := .Site.GetPage "posts" }}
       {{ $posts := where .Site.RegularPages "Section" "posts" }}
-      {{- /* A post with `pinned: true` heads the rail regardless of date (the "what is
-             Sidechain" post); the rest follow newest-first. */}}
-      {{ $pinned := where $posts "Params.pinned" true }}
-      {{ $rail := first 5 (union $pinned.ByDate.Reverse (where $posts "Params.pinned" "!=" true).ByDate.Reverse) }}
+      {{- /* One list of posts and standalone pages (Saber, 2026-10-23): a page joins with `rail: true` in its front
+             matter, and each card's chip says which it is. An item with `pinned: true` heads the list regardless of
+             date; the rest follow newest-first. */}}
+      {{ $items := union $posts (where (where .Site.RegularPages "Params.rail" true) "Section" "!=" "posts") }}
+      {{ $pinned := where $items "Params.pinned" true }}
+      {{ $rail := first 5 (union $pinned.ByDate.Reverse (where $items "Params.pinned" "!=" true).ByDate.Reverse) }}
       <div class="sq-section-head sc-rail-head">
-        <h2 class="sq-section-label" id="rail-label">Posts</h2>
+        <h2 class="sq-section-label" id="rail-label">Latest</h2>
         <span class="sq-section-fill"></span>
-        <a class="sq-section-aside" href="{{ $postsPage.RelPermalink }}">all →</a>
+        <a class="sq-section-aside" href="{{ $postsPage.RelPermalink }}">all posts →</a>
       </div>
-      {{ if $posts }}
+      {{ if $items }}
       <div class="sc-rail-cards">
         {{ range $rail }}
-          {{ partial "post-card.html" . }}
+          {{ if eq .Section "posts" }}{{ partial "post-card.html" . }}{{ else }}{{ partial "page-card.html" . }}{{ end }}
         {{ end }}
       </div>
       {{ else }}

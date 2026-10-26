@@ -229,6 +229,9 @@ a.sc-pt--best { background: var(--up); box-shadow: none; }
 a.sc-pt--latest { width: 10px; height: 10px; margin: -5px 0 0 -5px; background: var(--mark); box-shadow: none; z-index: 1; }
 a.sc-pt:hover, a.sc-pt:focus-visible, a.sc-pt.is-hot { background: var(--ink); box-shadow: none; transform: scale(1.4); z-index: 2; outline: none; }
 .sc-spark-axis { display: flex; justify-content: space-between; margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+/* the dates keep to one line; on a phone only the count between them wraps, centred */
+.sc-spark-axis > span:first-child, .sc-spark-axis > span:nth-child(3) { white-space: nowrap; }
+.sc-spark-axis > span:nth-child(2) { flex: 1; padding: 0 10px; text-align: center; }
 /* The readout: the hovered entry, on the dates' own line so it never covers a point. */
 .sc-spark-axis.is-reading > span:not(.sc-spark-readout) { display: none; }
 .sc-spark-readout { flex: 1; text-align: center; color: var(--ink-2); }
@@ -268,6 +271,11 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-bar-label { font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink-2); white-space: nowrap; }
 .sc-bar-track { position: relative; height: 10px; border-left: 1px solid var(--rule-strong); }
 .sc-bar-track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px dashed var(--rule); }
+/* The named bars mark every 0.1 of the axis instead of its midpoint (Saber, 2026-10-23), labelled on the axis row. */
+.sc-bars--named .sc-bar-track::after { display: none; }
+.sc-grid { position: absolute; top: -3px; bottom: -3px; border-left: 1px dashed var(--rule); }
+.sc-bars-axis-ticks { position: relative; display: block; height: 1.5em; }
+.sc-bars-axis-ticks > span { position: absolute; top: 0; transform: translateX(-50%); }
 .sc-bar { position: relative; z-index: 1; display: block; height: 100%; background: var(--bar-rest); border-radius: 0 4px 4px 0; }
 .sc-bar-row--best .sc-bar { background: var(--mark); }
 /* The submissions' bars: every name label is --label-ch characters of its own monospace wide
@@ -299,6 +307,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-entry { scroll-margin-top: var(--space-6); }
 .sc-entry-body { margin: 2px 0 12px 130px; max-width: 58ch; }
 .sc-entry-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); }
+.sc-entry-meta a, .sc-entry-meta a:visited { color: var(--accent); }
 .sc-entry-body code { font-family: var(--font-mono); font-size: 0.92em; background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm); white-space: nowrap; }
 .sc-entry-body p { margin: 6px 0 0; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
 
@@ -424,8 +433,10 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-banner .sc-cap--light { display: none; }
 :root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--dark { display: none; }
 :root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--light { display: inline; }
-/* The rail's pinned chip. */
-.sc-pin { color: var(--accent); font-weight: 500; }
+/* A card's topline: the date, a chip for the kind, then what follows; PINNED sits at the right end. */
+.sc-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.sc-kind { padding: 0 6px; font-size: 9.5px; line-height: 1.6; }
+.sc-pin { margin-left: auto; color: var(--accent); font-weight: 500; }
 
 /* ---------- Prose (markdown bodies) ---------- */
 /* ---------- Contents rail (posts) ---------- */
@@ -503,7 +514,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 
 /* ---------- Journal layout (landing): the work left, the writing right ---------- */
 .sc-journal { display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: var(--space-8); align-items: start; }
-.sc-rail { padding-top: var(--space-9); }
+.sc-rail { align-self: stretch; padding-top: var(--space-9); }  /* the full row's height, so the cards inside can stick */
 .sc-rail-in { position: sticky; top: var(--space-5); }
 .sc-rail-head { border-top-color: var(--accent); }
 .sc-rail-head .sq-section-label { color: var(--accent); }

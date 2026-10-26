@@ -1,0 +1,11 @@
+{{- /* Page card — a post card for a standalone page (Saber, 2026-10-23): the same hairline card, its topline the
+       date and a chip for the kind ("interactive page" when `badge: interactive`), PINNED at the right end when
+       pinned. A page joins the landing page's rail with `rail: true` in its front matter, plus `date`, `description`,
+       and optionally `card_title` (the card's title, when the page's own is too short out of context), `badge` and
+       `cta`. Context: a page. */ -}}
+<a class="sq-card" href="{{ .RelPermalink }}">
+  <div class="sq-card-meta sc-card-meta"><span>{{ .Date.Format "2006-01-02" }}</span><span class="sq-tag sc-kind">{{ with .Params.badge }}{{ upper . }} {{ end }}PAGE</span>{{ if .Params.pinned }}<span class="sc-pin">PINNED</span>{{ end }}</div>
+  <div class="sq-card-title">{{ .Params.card_title | default .Title }}</div>
+  <p class="sq-card-desc">{{ .Description | default (.Summary | plainify | truncate 150) }}</p>
+  <p class="sq-card-read">{{ .Params.cta | default "Open →" }}</p>
+</a>

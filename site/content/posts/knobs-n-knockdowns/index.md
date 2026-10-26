@@ -2,6 +2,7 @@
 title: "Knobs N' Knockdowns"
 date: 2026-10-21
 draft: false
+pinned: true
 description: "How Sidechain's entries to Arc's Virtual Cell Challenge 2026 were built one setting at a time: what each setting does to a predicted cell, why it was tried, and what the leaderboard said back."
 short: "knobs n' knockdowns"
 image: cover.jpg

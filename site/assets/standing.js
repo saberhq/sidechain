@@ -97,7 +97,7 @@
     write(pt);
   }
 
-  /* Choosing a point puts its model card under the plot: the paragraph its row opens to,
+  /* Choosing a point puts its row's fold under the plot (the rank when scored and the link to the model),
      copied from that row so the two can never disagree. Choosing it again lets it go, and so
      do the close mark, Escape and a click anywhere else. */
   function choose(pt) {

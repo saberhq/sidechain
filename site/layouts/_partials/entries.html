@@ -1,6 +1,6 @@
 {{- /* "Where we stand", its last item: a bar per scored submission, latest first, and under
        it the calibration runs in a strip of their own. Each row is a fold-out: the model's
-       name opens its card, date, rank when scored and board name under the same bar
+       name opens the rank it held when scored and a link to its section on the models page
        (_partials/entry-row.html), so the bars are the one list of models on the page. They
        are also the plot's table view: every point above links to its row here (the row ids).
        Rendered at build time from data/submissions.json, which scripts/standings.py generates
@@ -49,9 +49,11 @@
 {{ $ceil := math.Ceil (mul $best.overall 10) }}
 {{ $ceil = div $ceil 10.0 }}
 {{ if lt $ceil 0.1 }}{{ $ceil = 0.1 }}{{ end }}
-<figure class="sc-bars sc-bars--named" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission; a name opens that model's card">
+<figure class="sc-bars sc-bars--named" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission; a name opens its rank and a link to what the model is">
   <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
-  <div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track"><span>0</span><span>{{ printf "%.1f" $ceil }}</span></span><span></span></div>
+  {{- /* the axis is labelled at every 0.1, where each row's dashed lines fall */}}
+  {{ $steps := int (math.Round (mul $ceil 10)) }}
+  <div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track sc-bars-axis-ticks">{{ range seq 0 $steps }}<span style="left: {{ printf "%.3f" (mul (div (float .) (float $steps)) 100) }}%">{{ if eq . 0 }}0{{ else }}{{ printf "%.1f" (div (float .) 10.0) }}{{ end }}</span>{{ end }}</span><span></span></div>
   {{ range collections.Reverse $rest }}
   {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" (eq .name $best.name)) }}
   {{ end }}

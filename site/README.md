@@ -5,16 +5,24 @@ A sibling of [saberhq.com](https://saberhq.com), not a twin — the same type an
 its own wordmark and layout, built and deployed from this repo.
 
 **The layout is a two-column journal** (Saber, 2026-08-23): the work in the left column,
-the writing in a sticky right rail of post cards; no header nav (the hero buttons and footer
+the writing in a sticky right rail of page and post cards (`.sc-rail` stretches to the row so the cards can stick); no header nav (the hero buttons and footer
 carry the links). The work column is the hero and one section, "Where we stand", in this
 order (Saber, 2026-10-05): the plot (the ledger dashboard's sparkline of rank percentile over
 entries; calibration runs are not plotted; choosing a point shows its model card under the
-plot), four figures at the
-dashboard's sizes, the paragraph, a bar per submission, latest first, whose name opens its
-model card, date and rank, and the calibration runs in a strip of their own. The page ends
+plot), two figures at the
+dashboard's sizes (Saber, 2026-10-23: Best with its gap to the score at rank 100, and Latest with the rank the
+leaderboard shows for it in the latest snapshot; the plot's axis counts every validation entry and says how many
+calibration runs it leaves out), the paragraph, a bar per submission, latest first, on an axis marked at every 0.1, whose name opens the rank it
+held when scored and a link to its section on the models page (Saber, 2026-10-23: the model card lives there, once), and the calibration runs in a strip of their own. The hero's line is
+Saber's own (2026-10-23): `tagline` in `content/_index.md`, markdown, while `description` there stays the search and
+link-preview text. The rail, headed "Latest", is one list of posts and standalone pages (Saber, 2026-10-23): any page with `rail: true`
+in its front matter gets a card (`layouts/_partials/page-card.html`, with its `date`, `description`, and optionally
+`card_title`, a one-word `badge` and `cta`). Every card's topline starts with the date and a chip for the kind, BLOG
+POST or INTERACTIVE PAGE, with PINNED at its right end; a `pinned: true` item heads the list, the rest follow
+newest first, five in all. The page ends
 with the posts' own "↑ Back to top".
-What the project is and where its name comes from live in the pinned post, not on the
-landing page (Saber, 2026-10-04).
+What the project is and where its name comes from live in the post "What Sidechain is", not on the
+landing page (Saber, 2026-10-04); since 2026-10-23 the pinned card is "Knobs N' Knockdowns".
 
 **The colour is carmine** (Saber, 2026-10-04): `--accent-2` in the tokens, `#A62B4D` light /
 `#DE5A78` dark, the colour that marks Sidechain on saberhq.com. `assets/site.css` re-points
@@ -126,19 +134,32 @@ page and leaves every other heading alone.
 **The field is generated too.** The same script writes `assets/data/field.json`: the number of
 teams on the leaderboard at every snapshot we hold (since 2026-08-20; the whole field twice a
 day since 2026-09-15), the score at rank 20 and rank 100 where a snapshot reaches that far,
-and Sidechain's row in the latest whole-field snapshot. The two gaps among the figures are
-read from it at build time (`layouts/_partials/standing.html`); the series itself is kept in
-the repo and drawn nowhere yet. It is a snapshot — the leaderboard moves and the page only
-rebuilds on a push — so the gaps print the file's as-of date and `--check` compares it at
-that time; re-run the script before a push to bring it current. The plot is drawn at build time and the rows are
+and Sidechain's row in the latest whole-field snapshot. The gap to rank 100 and the latest entry's rank
+are read from it at build time (`layouts/_partials/standing.html`); the series itself is kept in
+the repo and drawn nowhere yet. It is a snapshot — the page only rebuilds on a push, and the
+validation board is frozen since the round closed — so `--check` compares it at its as-of time; re-run the script
+before a push to bring it current. The plot is drawn at build time and the rows are
 `<details>`, so the section reads and opens with scripts off; `assets/standing.js` adds the
-plot's readout, the card of a chosen point, the two countdowns and the way back to the top.
+plot's readout, the card of a chosen point and the way back to the top.
 
 **Corpus coverage is a shortcode for posts**, not a landing-page section (Saber, 2026-08-23):
 drop `{{</* corpus */>}}` into a post to render the figure from `data/coverage.json`, which
 `uv run python -m sidechain.data.coverage` measures from the ingest caches — re-run it when an
 ingest changes a cache and commit the JSON. With no submission entries the standings section
 says so instead of failing the build.
+
+**The control-cells page is generated too.** `content/vcc2026-control-cells.md` with `layouts/controls.html`, at
+`/vcc2026-control-cells/`: the challenge's control cells, figures first, in the landing page's frame (Saber,
+2026-10-23): three stacked sections in the work column (the maps, UMAP, PCA or QC violins of the same cells, opening on
+all six coloured by cluster; the guides against the shuffles; the highest-expressed genes), the page's prose from the
+markdown body as a fourth, and a sticky rail of the six contexts' medians where the landing page has its posts, one
+quiet row each. A row shows its context in every section and leaves the page where it is; each section head carries
+"↑ back to top". Every visit opens on the same view; the chips are not kept between visits. Its data is written by
+`uv run python scripts/site_controls.py` into `static/data/controls/`, field by field from the private board's built
+`challenge` figure stage, so nothing the page does not draw reaches it, and a string outside the page's vocabulary
+stops the build (`--check` re-reads what is there). The cards are drawn at build time from that directory's
+`index.json`; `assets/controls.js` and `controls.css` load on this page only, with plotly.js from jsdelivr. With no data
+on disk the page says so and the build still passes.
 
 ## How it deploys
 

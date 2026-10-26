@@ -1,18 +1,29 @@
 {{- /* One submission's row in the bars (_partials/entries.html): label, bar, score — and,
-       folded under it, everything else about the entry: date, the rank it held when scored,
-       its name on the board and its model card. The row is the <summary>, so the name opens
-       it with no script at all.
+       folded under it, the rank the entry held when scored and a link to its section on the
+       models page, which says what the model is (Saber, 2026-10-23: the card text lived in two
+       places). The row is the <summary>, so the name opens it with no script at all. A dashed
+       line marks every 0.1 of the axis.
        Context: dict "e" (an entry of data/submissions.json) "ceil" (the axis ceiling), plus
        "best" (the highlighted row) or "aside" (a calibration run's stepped-back row). */ -}}
 {{ $e := .e }}
 {{ $off := or (lt $e.overall 0.0) (gt $e.overall .ceil) }}
 {{ $w := mul (div $e.overall .ceil) 100 }}
 {{ if lt $w 0.0 }}{{ $w = 0.0 }}{{ else if gt $w 100.0 }}{{ $w = 100.0 }}{{ end }}
+{{ $steps := int (math.Round (mul .ceil 10)) }}
+{{- /* The model's section on the models page: its heading's anchor starts with the lowercased name and "--". */ -}}
+{{ $models := site.GetPage "/models" }}
+{{ $href := "" }}
+{{ with $models }}
+  {{ $href = .RelPermalink }}
+  {{ $want := printf "%s--" (lower $e.name) }}
+  {{ range .Fragments.Identifiers }}{{ if strings.HasPrefix . $want }}{{ $href = printf "%s#%s" $models.RelPermalink . }}{{ end }}{{ end }}
+{{ end }}
 <details class="sc-entry" id="m-{{ $e.name | urlize }}">
   <summary>
     <span class="sc-bar-row{{ if .best }} sc-bar-row--best{{ end }}{{ if .aside }} sc-bar-row--aside{{ end }}">
       <span class="sc-bar-label"><span class="sc-entry-name">{{ $e.name }}</span></span>
       <span class="sc-bar-track">
+        {{- range seq $steps }}<i class="sc-grid" style="left: {{ printf "%.3f" (mul (div (float .) (float $steps)) 100) }}%" aria-hidden="true"></i>{{ end -}}
         {{- if $off -}}
         <span class="sc-bar-offscale">{{ if lt $e.overall 0.0 }}below zero · off this scale{{ else }}above this scale{{ end }}</span>
         {{- else -}}
@@ -26,7 +37,6 @@
     {{- /* No board snapshot was taken while the entry was still inside the page's ~50-row
            embed, so the field size is unknown. Print the rank alone rather than a dangling
            "of" — scripts/standings.py's rank_label does the same for the README. */}}
-    <div class="sc-entry-meta">{{ $e.date }}{{ if $e.rank }} · #{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }} when scored{{ end }} · on the board as <code>{{ $e.board_name }}</code></div>
-    {{ with $e.card }}<p>{{ . }}{{ if $e.card_retro }} <em>(card written after the entry was scored)</em>{{ end }}</p>{{ end }}
+    <div class="sc-entry-meta">{{ if $e.rank }}#{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }} when scored · {{ end }}{{ with $href }}<a href="{{ . }}">what this model is →</a>{{ end }}</div>
   </div>
 </details>
