@@ -173,28 +173,15 @@ uv run python -m sidechain.data.stream_pseudobulk ~/data/sidechain/external/zeno
     --label-col perturbation --control control \
     --out ~/data/sidechain/cache/vcc2026/k562_gwps_all_pseudobulk.npz      # every knockdown, any panel (2026-10-19)
 
-# 2. build: the recipe of the last validation entry, SER-29abefhkrswx, on whole source files (D=~/data/sidechain).
-#    On a GPU box: the two X-Atlas files do not open on a 16 GB Mac. Writes <out>.h5ad and <out>.vcc
+# 2. build an entry on whole source files (D=~/data/sidechain). On a GPU box: the X-Atlas files do not open on a
+#    16 GB Mac. Writes <out>.h5ad and <out>.vcc. An entry's exact call is its <name>.args.json beside the file: copy it
+#    and swap only the inputs. Each source is read from its whole file, never a panel cut.
 uv run python -m sidechain.submit.build --emitter delta-transfer \
     --h1-cache $D/cache/vcc2026/h1_pseudobulk.npz \
     --gwps-cache $D/cache/vcc2026/k562_gwps_all_pseudobulk.npz --gwps-control control \
-    --source $D/derived/xatlas-orion/hct116_full.npz:Non-Targeting \
-    --source $D/derived/xatlas-orion/hek293t_full.npz:Non-Targeting \
-    --source $D/derived/pan2026-h1/h1_pan2026.npz:non-targeting \
-    --source $D/derived/lamin-pertdata/sunshine23_all_pseudobulk.npz:control \
-    --source $D/derived/lamin-perturbench/mcfaline23_none_pseudobulk.npz:control \
-    --lfc-source $D/derived/gwcd4i/views/cd4_all_rho01_kd_all.npz \
-    --lfc-source $D/cache/vcc2026/feng_genomewide_lfc_all.npz \
-    --alpha 1.35 --alpha-bulk 2.6 --alpha-bulk-target 0.9 --bulk-anchor pooled --dual-fallback anchor \
-    --emit-shape controls --emit-lambda 0.5 --shrink-rule adaptive --shrink-stage pooled --var-floor poisson \
-    --neighbour-table <string_node2vec_table.pt> --neighbour-pool <pool.csv> --neighbour-k 25 --neighbour-w 0.2 \
-    --ctrl-axes 50 --ctrl-axes-share 0.85 --ctrl-axes-cache <a new dir per bundle> \
-    --scatter-table <the call-list table designed on this bundle's controls, 2,700 genes> \
+    --source <a pseudobulk .npz>:<its control label> ... <the entry's other flags, from its .args.json> \
     --out $D/vcc2026/submissions/<name>
-#    The exact call of an entry is its <name>.args.json beside the file; copy it rather than this block, and swap only
-#    the inputs. Each source is read from its whole file, never a panel cut: a cut made for one panel goes quiet on
-#    another and nothing reports it. The call-list table takes about 65 min a line to design; read <name>.alpha_bulk.json
-#    (each line's summed strength under its own knee) and <name>.dual.json (fallback counts) before trusting the file.
+#    Read the build's <name>.*.json records before trusting the file.
 
 # 3. smoke-test the layout on a 3-perturbation panel before any full build
 uv run python -m sidechain.submit.build --emitter control-null --limit-perts 3 --out .../_smoke
@@ -204,11 +191,9 @@ vcc prep .../_smoke.h5ad -g gene_names.csv --perts .../_smoke.pert_counts.csv --
 vcc submit ~/data/sidechain/vcc2026/submissions/<name>.vcc -m "<model name>" --wait
 ```
 
-Two modelling choices live in the emitter (`sidechain.models.count_emitters`), not in plumbing:
-**dispersion** (`even` = minimum-variance cells, which make the DE test call the whole
-universe and so satisfy `fid`'s coverage term; `poisson` = realistic cells, which call only a
-few hundred genes) and **shrinkage** of transferred log2FCs (gene-wise positive-part, on by
-default; `--no-shrink` to compare). Score a choice locally before spending a slot — the **2026 mirror** scores a held-out line
+Two modelling choices live in the emitter (`sidechain.models.count_emitters`), not in plumbing: the cells'
+**dispersion** (`even` or `poisson`) and **shrinkage** of transferred log2FCs (on by default; `--no-shrink` to compare).
+Score a choice locally before spending a slot — the **2026 mirror** scores a held-out line
 on Arc's own 0 = mean-response → 1 = replicate scale using cell-eval2's bundle machinery:
 
 ```bash

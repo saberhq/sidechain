@@ -1,21 +1,10 @@
-"""The `mse` refund share of a context's emitted cells: cell-eval2's budget over its claim (T84).
-
-cell-eval2 subtracts a sampling correction from `mse`, the CLAIM (the delete-1 jackknife of each knockdown's
-emitted cells, weighted per row and summed), and caps it at the BUDGET (the across-knockdown centred sum of
-squares of the predicted summed profiles, `bulk_lognorm_means` at target sum 50,000, each row's own gene left
-out). `ratio = budget / claim`; below 1 the refund is that share of the claim.
-
-The arithmetic is cell-eval2's own (`metrics.delta._exclusion_cols`, `_row_weights`, `_across_pert_budget`,
-`moments.jackknife_correction`, `prep.bulk_lognorm_means`), as
-`~/data/sidechain/runs/knobs/t84_stack_20261019/box/entry/knee_built.py` reads it off a built file; here it
-is read block by block as the cells are emitted, so nothing is written to disk.
+"""The ratio of cell-eval2's `mse` correction budget to its claim, read on a context's emitted cells.
 
     meter = KneeMeter(targets, genes)
     for t in targets: meter.add(t, block_of(t))      # a (cells x genes) count matrix per knockdown
     meter.read()     # {"budget", "claim_uncapped", "ratio_budget_over_claim", "knockdowns"}
 
-Used by `sidechain.submit.build --alpha-bulk-target` and `sidechain.eval.loco` (`knee_next` is the step,
-`knee_keep` the read written). Tasks: private/tasks/T84.md; the step back up, private/tasks/T134.md.
+Reads the blocks it is given; writes nothing. Notes: private/code-notes/src/sidechain/submit/knee.py.md
 """
 from __future__ import annotations
 
@@ -25,7 +14,7 @@ import numpy as np
 import scipy.sparse as sp
 
 TARGET_SUM = 50_000.0   # cell-eval2's bulk_lognorm target sum
-JK_CHUNK = 64           # cell-eval2's jackknife block size as knee_built.py calls it (a cost knob, not an answer knob)
+JK_CHUNK = 64           # cell-eval2's jackknife block size
 
 
 def block_stats(block) -> tuple[np.ndarray, float]:
@@ -103,24 +92,18 @@ AIM_MARGIN = 0.02       # a lowered strength aims at (1 - AIM_MARGIN) * target, 
 
 def next_alpha_bulk(alpha_bulk: float, ratio: float, target: float, floor: float,
                     margin: float = AIM_MARGIN) -> float:
-    """The next summed-profile strength: alpha_bulk * sqrt((1 - margin) * target / ratio), never below `floor`.
-
-    The ratio grows about as the square of the strength (A/B/C, 1.35 to 2.00: an exponent of 1.96), so the step
-    lands near the aim; with an exponent under 2 it lands a little above it, which the margin absorbs.
-    """
+    """The next summed-profile strength: alpha_bulk * sqrt((1 - margin) * target / ratio), never below `floor`."""
     if not (0.0 < target and ratio > 0 and math.isfinite(ratio) and 0.0 <= margin < 1.0):
         raise ValueError(f"next_alpha_bulk: target {target!r}, ratio {ratio!r} and margin {margin!r} out of range")
     return max(float(floor), float(alpha_bulk) * math.sqrt((1.0 - margin) * target / ratio))
 
 
-UNDERSHOOT = 0.10       # a read under (1 - UNDERSHOOT) * target, below the ceiling, is stepped back up (T134)
+UNDERSHOOT = 0.10       # a read under (1 - UNDERSHOOT) * target, below the ceiling, is stepped back up
 
 
 def bracket_alpha_bulk(lo: tuple[float, float], hi: tuple[float, float], target: float,
                        margin: float = AIM_MARGIN) -> float:
-    """The strength between two reads that straddle the target, `lo` = (strength, ratio) under it and `hi` over it:
-    the ratio taken as a power of the strength through both reads, solved for (1 - margin) * target, and kept
-    inside the bracket (a twentieth of its width from either end)."""
+    """The strength between two reads, `lo` under the target and `hi` over it, each (strength, ratio)."""
     (a_lo, r_lo), (a_hi, r_hi) = lo, hi
     if not (0.0 < a_lo < a_hi and 0.0 < r_lo <= target < r_hi and math.isfinite(r_hi)):
         raise ValueError(f"bracket_alpha_bulk: {lo!r} and {hi!r} do not straddle the target {target!r}")
@@ -132,15 +115,7 @@ def bracket_alpha_bulk(lo: tuple[float, float], hi: tuple[float, float], target:
 
 def knee_next(reads: list[tuple[float, float]], target: float, floor: float, ceiling: float, max_reads: int,
               margin: float = AIM_MARGIN, undershoot: float = UNDERSHOOT) -> float | None:
-    """The knee rule's next summed-profile strength after `reads`, (strength, ratio) in the order read, the
-    ceiling's first; None to stop.
-
-    Stops on a read at or under the target unless it is under (1 - undershoot) * target below the ceiling, on a
-    read at or under the floor that is over the target, at `max_reads`, or on a ratio that is not finite. A read
-    over the target steps down by `next_alpha_bulk`, or inside the bracket once a lower read is under the target;
-    an undershoot steps back up inside the bracket it makes with the lowest read above it that is over the target.
-    Until a read lands under the target the steps are `next_alpha_bulk`'s alone.
-    """
+    """The next summed-profile strength after `reads` ((strength, ratio), the ceiling's first); None to stop."""
     a, r = reads[-1]
     if len(reads) >= max_reads or not math.isfinite(r):
         return None
