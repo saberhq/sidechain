@@ -889,6 +889,10 @@ def test_the_printed_fetch_plan_makes_the_directories_a_nested_name_needs(tmp_pa
     from sidechain.ingest import fetch
     from sidechain.ingest.provenance import HostRecord, RemoteFile
 
+    # A roomy volume: the gate reads the machine's real free space and keeps 10 GB free, so a
+    # CI runner with 8.1 GB free refused this tiny fetch (2026-10-26).
+    monkeypatch.setattr("sidechain.ingest.provenance.shutil.disk_usage",
+                        lambda p: type("U", (), {"free": 500 * 10**9})())
     record = HostRecord(
         host="https", record_id="https://x/samples", api_url="u", title="t", license="unknown",
         retrieved="2026-10-09",
