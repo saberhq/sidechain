@@ -1,25 +1,10 @@
-"""A per-gene multiplier on the pooled delta, applied before alpha and the knockdown pin.
+"""A per-gene multiplier on the pooled delta, applied before alpha and the knockdown's own pin.
 
-`--gene-factor PATH` on `sidechain.submit.build` and `sidechain.eval.loco`: a parquet or CSV table with a
-`gene` column (symbols on the build's axis) and a `factor` column (finite, non-negative). Every gene the
-table does not name keeps 1.0, so the knob is exactly "multiply these genes' transferred log2FC by this
-much" and nothing else; a gene named twice, a negative or non-finite factor, or a missing column is refused
-before any work. The record written beside the build (`<stem>.gene_factor.json`, and `gene_factor` in
-loco's summary) carries the file's sha256 and what matched the axis, so a run can be tied to its table.
+    --gene-factor PATH [--gene-factor-context CTX]      (submit.build, eval.loco)
 
-An optional `context` column makes the table per line (T120): a row with a context applies only in that
-context, a row with an empty context applies in every context, and a (gene, context) pair named twice is
-refused -- which includes a gene with both an every-context row and a row of its own for some context
-(override or multiply would be a guess). `submit.build` applies each context's rows to that context's
-cells; `eval.loco` predicts one held-out line, so `--gene-factor-context CTX` names which context's rows
-apply there (the rows with an empty context always do). A table without the column reads exactly as
-before, record included.
-
-Where it acts: the last thing before alpha, on the pooled vector every other knob has already shaped (the
-neighbour arm's fusion, the basal slope), in both channels of a two-channel emission; the target's own gene
-is pinned after it as before. It is not a shrinkage rule (`s`: a function of each fold change's own size
-and spread) and not alpha (`a`: one constant for every gene). T102's trust shrink was its first arm:
-private research/ideas/utr-layer-context-invariance.md; the per-line form: private tasks/T120.md.
+Reads a parquet or CSV with `gene`, `factor` and optional `context` columns (unnamed genes keep 1.0); the
+callers write `<stem>.gene_factor.json` (loco: `gene_factor` in its summary).
+Notes: private/code-notes/src/sidechain/submit/gene_factor.py.md
 """
 from __future__ import annotations
 
@@ -117,11 +102,7 @@ def _sha256(path: Path) -> str:
 
 
 def load_gene_factor(path: Path, axis: np.ndarray, context: str | None = None) -> tuple[np.ndarray, dict]:
-    """The factor vector aligned to `axis` (1.0 where the table names no gene), and its record.
-
-    `context` picks a per-line table's rows for one held-out line (`eval.loco --gene-factor-context`): that
-    context's rows plus the every-context ones. It is refused on a table without a `context` column, and when
-    the table has no row for it, so a misspelt context never scores as the plain recipe."""
+    """The factor vector aligned to `axis` (1.0 where the table names no gene), and its record."""
     path = Path(path).expanduser()
     tab = read_gene_factor_table(path)
     named = table_contexts(tab)
@@ -145,12 +126,7 @@ def load_gene_factor(path: Path, axis: np.ndarray, context: str | None = None) -
 
 
 def load_gene_factors(path: Path, axis: np.ndarray, contexts: list[str]) -> tuple[dict[str, np.ndarray], dict]:
-    """One factor vector per build context, and the record.
-
-    A table without a `context` column gives every context the SAME array and the record `load_gene_factor`
-    writes (what a build before the column wrote). A per-line table gives each context its own rows plus the
-    every-context ones; a context of the table the build does not hold is recorded, and a table none of whose
-    rows applies to any context of the build is refused."""
+    """One factor vector per build context, and the record."""
     path = Path(path).expanduser()
     tab = read_gene_factor_table(path)
     if CONTEXT not in tab.columns:

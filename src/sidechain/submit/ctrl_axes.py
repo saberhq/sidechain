@@ -1,32 +1,9 @@
-"""The context's own control-cell axes, projected out of each target's predicted summed profile (T125).
+"""A context's own control-cell axes, projected out of each target's predicted summed profile.
 
-`--ctrl-axes K` on `sidechain.submit.build` and `sidechain.eval.loco`, with `--ctrl-axes-eta` (the share of
-the along-axis part removed, default 1) and `--ctrl-axes-basis` (`pca`, or `random` for the twin). Off at
-K = 0, the default, where nothing here is imported into the path.
+    --ctrl-axes K [--ctrl-axes-eta ETA --ctrl-axes-basis {pca,random} --ctrl-axes-share F]   (submit.build, eval.loco)
 
-The axes (`control_axes`). Each kept control cell (depth above `min_libsize`, the cells the emitter's profile
-reads) is put in the scorer's summed-profile space, log1p of counts per 50,000, and the cells are centred
-gene by gene. The top axes are the leading right singular vectors of that matrix, from a randomized SVD
-that never forms the centred matrix (`N_COMPUTE` axes, `OVERSAMPLE`, `POWER_ITERATIONS`, `SEED`); `K` takes
-the first K of them, so the arms at K 10, 25 and 50 are nested. The `random` basis is the twin: K
-orthonormal axes drawn with each gene's control variance in that space as its weight (the same genes lean
-on them as on the principal axes, without their co-variation). Both are cached under `cache_dir` by a
-sha256 over the kept cells' counts, the gene axis and these constants.
-
-The projection (`deflate_bulk`), per target, on the summed-profile channel only. The channel's log2FC `l`
-becomes the emitted pseudobulk fraction `p = anchor * 2^l / Z` (`PoissonEmitter._fraction`, `anchor` the
-pooled control profile); the scorer reads its change as `D = log1p(50,000 p) - log1p(50,000 anchor)`. The
-along-axis part `a = V D` is cut to `(1 - eta) a`, the result mapped back to a log2FC on the same anchor
-and normaliser (an unchanged `D` returns `l` to rounding), and, because the emitter renormalises the fraction,
-corrected (`deflate_bulk`) until the emitted change carries `(1 - eta) a` to `TOLERANCE`. The target's own
-gene is held at its pin and left out of the axes; a gene the controls never show stays where it was; a
-log2FC is floored at `LOG2FC_FLOOR` (the emitter would read minus infinity as no change). The per-cell
-channel is not touched, so the cells' per-gene means the four DE members read are where they were.
-
-The anchor is the controls above `min_libsize`; cell-eval2's control pseudobulk is every control cell of
-the real bundle, so on a fold that keeps a few shallow cells the two differ by those cells.
-
-Why and how it is scored: private research/ideas/control-cell-axis-deflation.md.
+Reads the context's control cells (h5ad); writes the axes to `--ctrl-axes-cache` (an .npz per input sha256).
+Notes: private/code-notes/src/sidechain/submit/ctrl_axes.py.md
 """
 from __future__ import annotations
 
@@ -55,16 +32,15 @@ DEFAULT_CACHE = Path("~/data/sidechain/cache/ctrl_axes")
 
 def add_ctrl_axes_args(ap, *, twin: str) -> None:
     ap.add_argument("--ctrl-axes", type=int, default=0, metavar="K",
-                    help="T125: remove the context's top K control-cell axes (log1p CP50K, centred, from the "
+                    help="remove the context's top K control-cell axes (log1p CP50K, centred, from the "
                          "context's own control cells) from each target's predicted summed profile; the "
                          "per-cell channel is untouched. 0 (the default) is off. Needs --bulk-anchor pooled. "
-                         f"Recorded with the axes' hash (sidechain.submit.ctrl_axes; the same flag on {twin}). "
-                         "Knob letter x (ADR 0005): a model-named stem carries x exactly when this is on")
+                         f"Recorded with the axes' hash (sidechain.submit.ctrl_axes; the same flag on {twin})")
     ap.add_argument("--ctrl-axes-eta", type=float, default=1.0, metavar="ETA",
                     help="with --ctrl-axes: the share of the along-axis part removed, in (0, 1] (default 1)")
     ap.add_argument("--ctrl-axes-basis", choices=list(BASES), default="pca",
                     help="with --ctrl-axes: 'pca', the controls' principal axes, or 'random', K orthonormal "
-                         "axes weighted by each gene's control variance (the twin)")
+                         "axes weighted by each gene's control variance")
     ap.add_argument("--ctrl-axes-share", type=float, default=1.0, metavar="F",
                     help="with --ctrl-axes: deflate only the share F of targets whose summed-profile change "
                          "is smallest (in (0, 1]; default 1, every target); the rest keep their summed profile")
@@ -215,13 +191,7 @@ def scorer_change(log2fc: np.ndarray, anchor: np.ndarray) -> np.ndarray:
 
 def deflate_bulk(log2fc: np.ndarray, anchor: np.ndarray, axes: np.ndarray, eta: float = 1.0, *,
                  held=(), corrections: int = MAX_CORRECTIONS) -> tuple[np.ndarray, dict]:
-    """`log2fc` with `eta` of its along-axis summed-profile change removed (module docstring), and a record.
-
-    The correction is a Newton step on the along-axis coefficients: the emitter's renormalisation moves the
-    emitted change by one scalar times a fixed profile, so the step's Jacobian is the identity less a rank-one
-    term, inverted in closed form. `corrections=0` is the projection alone, as the board's rigs describe it;
-    `one_shot_residual` records how much of the removed part that alone leaves in the emitted change.
-    """
+    """`log2fc` with `eta` of its along-axis summed-profile change removed, Newton-corrected, and a record."""
     l0 = np.asarray(log2fc, dtype=np.float64)
     anchor = np.asarray(anchor, dtype=np.float64)
     if l0.shape != anchor.shape or axes.shape[1] != l0.shape[0]:

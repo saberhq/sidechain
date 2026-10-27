@@ -1,20 +1,9 @@
-"""PIE's predicted log2 fold changes as the per-target shift map, in place of SER's pooled delta (T85).
+"""A PIE predictions parquet's `lfc_pred` as the per-target log2FC map, in place of the pooled delta.
 
-`--prediction-source {ser,pie}` on `sidechain.submit.build` and `sidechain.eval.loco`, with `--pie-parquet PATH`
-and `--pie-context NAME`. `ser` (the default) is the pooled delta, and nothing here is read. `pie` reads one
-context's rows of a PIE predictions parquet and puts each knockdown's `lfc_pred` where the pooled delta stood,
-before alpha; everything after it is the same code (the two strengths, the pooled anchor, the emitted shape, the
-control-cell axes, a scatter table, the knockdown's own pin).
+    --prediction-source {ser,pie} --pie-parquet PATH --pie-context [CTX=]NAME      (submit.build, eval.loco)
 
-The parquet: one row per (context, perturbation), columns `context`, `perturbation`, `dataset`, and per-gene list
-columns `p_de`, `lfc_pred`, `delta_p_pred`; the gene order is `genes[<dataset>]` in the JSON of the schema's
-`pie` metadata key. The map (`pie_shift_map`): `lfc_pred` at or below `FLOOR` set to 0, then clipped to
-`+-CLIP`; a non-finite value set to 0; a gene of the axis PIE does not score carries 0; a gene PIE scores that
-is not on the axis is dropped and counted. The knockdown's own gene is left as PIE gives it: the caller pins it
-to `TARGET_SELF_LOG2FC` after alpha, as on SER's path. A perturbation with no row is absent from the map, and
-the caller treats it as SER's path treats a target no source covers.
-
-Pointer: private plans/2026-10-19-pie-prediction-source.md; private research/ideas/pie-pooled-arm.md.
+Reads one context's rows of the parquet (gene order in its `pie` schema-metadata key); writes nothing.
+Notes: private/code-notes/src/sidechain/submit/pie_source.py.md
 """
 from __future__ import annotations
 
@@ -24,14 +13,14 @@ from pathlib import Path
 
 import numpy as np
 
-FLOOR = -10.0          # PIE's training label's zero-count floor, at or below which a value is set to 0
+FLOOR = -10.0          # a value at or below this is set to 0
 CLIP = 5.0
 SOURCES = ("ser", "pie")
 
 
 def add_prediction_source_args(ap, *, twin: str, per_context: bool) -> None:
     ap.add_argument("--prediction-source", choices=list(SOURCES), default="ser",
-                    help="T85: where each target's log2FC map comes from before alpha. 'ser' (the default) is "
+                    help="where each target's log2FC map comes from before alpha. 'ser' (the default) is "
                          "the pooled delta; 'pie' is PIE's lfc_pred from --pie-parquet (values at or below "
                          f"{FLOOR:g} set to 0, clipped to +-{CLIP:g}, unscored genes 0), and every later step "
                          f"is unchanged (sidechain.submit.pie_source; the same flag on {twin})")
@@ -44,8 +33,7 @@ def add_prediction_source_args(ap, *, twin: str, per_context: bool) -> None:
                              "neither reads the rows of its own name")
     else:
         ap.add_argument("--pie-context", default=None, metavar="NAME",
-                        help="with --prediction-source pie: the parquet's context rows this fold reads "
-                             "(e.g. 'unnamed' for the anonymous form, the line's name for the named one)")
+                        help="with --prediction-source pie: the parquet's context rows this fold reads")
 
 
 def check_prediction_source_args(ap, args, *, per_context: bool) -> None:

@@ -1,12 +1,8 @@
-"""`submit.build --alpha-bulk-target R` (T84) and `sidechain.submit.knee`.
+"""`submit.build --alpha-bulk-target R` and `--alpha-bulk-floor`, and `sidechain.submit.knee`.
 
-Pinned here: the knee module's ratio is knee_built.py's arithmetic on the same cells; the step lowers the
-strength as sqrt(R / ratio) and never below the floor; the flag is refused without --alpha-bulk, outside
-(0, 1), with --alpha-bulk not above --alpha and on a model-named stem without b (since 2026-10-20 the target
-is part of b's rule, so a stem with b carries it); off, the build writes what it wrote
-before (no record, no new args key, the knee never read); on, a context whose ratio at the ceiling is above R
-is lowered until it is at most R while a context below R keeps the ceiling, and each context's cells are
-those of a plain build at its chosen strength.
+    .venv/bin/python -m pytest -q tests/test_alpha_bulk_target.py
+
+Writes temporary builds only. Notes: private/code-notes/tests/test_alpha_bulk_target.py.md
 """
 from __future__ import annotations
 
@@ -46,7 +42,7 @@ def _blocks(seed=0, targets=PERTS, n=12, depth=400.0):
 
 
 def _reference(blocks, genes):
-    """knee_built.py's loop, copied: its budget_and_weights and its per-knockdown jackknife."""
+    """cell-eval2's budget and per-knockdown jackknife, called directly."""
     from cell_eval2.metrics import delta as ce
     from cell_eval2.moments import jackknife_correction
     from cell_eval2.prep import bulk_lognorm_means
@@ -86,7 +82,7 @@ def test_the_meter_is_knee_built_arithmetic():
 
 @pytest.mark.skipif(not KNEE_BUILT.exists(), reason="knee_built.py is a run record on Saber's Mac")
 def test_the_meter_matches_knee_built_py_on_a_file(tmp_path):
-    """knee_built.py itself, on a small built file of three contexts."""
+    """The reference script on a small built file of three contexts."""
     rows, obs = [], []
     reads = {}
     for ci, c in enumerate("ABC"):
@@ -112,16 +108,16 @@ def test_the_meter_matches_knee_built_py_on_a_file(tmp_path):
 
 
 def test_the_step_is_sqrt_of_target_over_ratio_floored():
-    assert knee.next_alpha_bulk(1.9, 1.88, 0.9, 1.35) == 1.35             # the K562 fold's read: to the floor
+    assert knee.next_alpha_bulk(1.9, 1.88, 0.9, 1.35) == 1.35             # to the floor
     assert knee.next_alpha_bulk(2.0, 1.6, 0.9, 1.0, margin=0.0) == pytest.approx(2.0 * math.sqrt(0.9 / 1.6))
     assert knee.next_alpha_bulk(2.0, 0.9, 0.9, 1.0, margin=0.0) == 2.0     # at the target, no margin: unchanged
     a = knee.next_alpha_bulk(3.0, 4.0, 0.8, 1.0, margin=0.0)
     assert a == pytest.approx(3.0 * math.sqrt(0.2)) and (a / 3.0) ** 2 * 4.0 == pytest.approx(0.8)
     # the default aims AIM_MARGIN under the target: on a ratio that grows as the square it lands there
     m = knee.AIM_MARGIN
-    a = knee.next_alpha_bulk(2.0, 0.972, 0.9, 1.35)                          # context A's read at 2.00
+    a = knee.next_alpha_bulk(2.0, 0.972, 0.9, 1.35)
     assert a == pytest.approx(2.0 * math.sqrt((1 - m) * 0.9 / 0.972)) and (a / 2.0) ** 2 * 0.972 < 0.9
-    # with A/B/C's measured exponent (1.96) it still lands under 0.9 from twice the target
+    # on a ratio law a little under the square it still lands under the target
     assert all((knee.next_alpha_bulk(2.0, r0, 0.9, 1.0) / 2.0) ** 1.96 * r0 <= 0.9 for r0 in (0.95, 1.2, 1.8))
     for bad in (0.0, -1.0, math.inf, math.nan):
         with pytest.raises(ValueError):
@@ -131,7 +127,7 @@ def test_the_step_is_sqrt_of_target_over_ratio_floored():
 
 
 def _run_rule(law, ceiling, target, floor, max_reads, rule):
-    """The knee loop on a ratio law: `rule` 'new' is knee_next / knee_keep, 'old' the loop before T134."""
+    """The knee loop on a ratio law: `rule` 'new' is knee_next / knee_keep, 'old' the square-root step alone."""
     reads = [(ceiling, law(ceiling))]
     while True:
         a, r = reads[-1]
@@ -147,9 +143,7 @@ def _run_rule(law, ceiling, target, floor, max_reads, rule):
 
 
 def test_the_step_back_up_after_an_undershoot():
-    """Night 1's HEK293T arm at per-cell strength 2.2 (T93, 2026-10-24): 2.6 read 2.2007, the square-root step went
-    to 1.646 and read 0.4626, under half the target, and the old rule wrote it there. The new rule steps back up
-    inside the bracket, on the power law through the two reads (exponent 3.41 here)."""
+    """A read far under the target steps back up inside the bracket, on the power law through the two reads."""
     target, floor, ceiling = 0.9, 1.35, 2.6
     reads = [(2.6, 2.2007272126488666), (1.6459799235489192, 0.46262987247620535)]
     nxt = knee.knee_next(reads, target, floor, ceiling, 4)
@@ -164,8 +158,7 @@ def test_the_step_back_up_after_an_undershoot():
 
 
 def test_the_rule_is_the_old_one_until_a_read_undershoots():
-    """Every read sequence that never lands under (1 - UNDERSHOOT) * target below the ceiling is the old rule's,
-    strength for strength (A/B/C's exponent 1.96 and the square law; ceilings above and below the target)."""
+    """A read sequence that never undershoots below the ceiling is the old rule's, strength for strength."""
     for k in (1.96, 2.0):
         for c, ceiling, floor in ((0.2, 2.6, 1.35), (0.12, 2.6, 1.35), (0.35, 1.9, 1.0), (0.05, 2.6, 1.35)):
             law = lambda a, c=c, k=k: c * a ** k
@@ -280,15 +273,14 @@ def test_refusals(ch, capsys):
         with pytest.raises(SystemExit):
             build.main(_argv(ch, "probe_refused", *extra))
         assert "--alpha-bulk-target" in capsys.readouterr().err
-    with pytest.raises(SystemExit):                                               # part of b's rule: needs b
+    with pytest.raises(SystemExit):
         build.main(_argv(ch, "ser-99enw_t84_v1", "--alpha-bulk", "3", "--alpha-bulk-target", "0.9"))
     assert "part of letter b's rule" in capsys.readouterr().err
     assert not (ch["out"] / "probe_refused.h5ad").exists()
 
 
 def test_a_model_named_stem_with_b_carries_the_target(ch):
-    """Since 2026-10-20 the target is part of letter b's rule (ADR 0005, b's value the ceiling): a model-named
-    stem with b builds with it, and writes the cells the same flags write under a freeform stem."""
+    """A model-named stem with b builds with the target, and writes what the same flags write under a freeform stem."""
     flags = ("--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9")
     assert build.main(_argv(ch, "ser-99benw_t84_v1", *flags)) == 0
     assert build.main(_argv(ch, "freeform", *flags)) == 0
@@ -380,7 +372,7 @@ def test_with_ctrl_axes_the_lowered_map_is_deflated_as_a_plain_build_at_that_str
     assert np.array_equal(_cells(ch["out"] / "rule_x.h5ad", "X"), _cells(ch["out"] / "at_x.h5ad", "X"))
 
 
-# -- --alpha-bulk-floor (T93) ---------------------------------------------------------------------------------
+# -- --alpha-bulk-floor ---------------------------------------------------------------------------------------
 
 def test_without_the_floor_nothing_new_is_written_and_a_floor_at_alpha_is_the_same_rule(ch):
     assert build.main(_argv(ch, "low", "--alpha-bulk", "1.05", "--alpha-bulk-target", "0.01")) == 0
@@ -399,7 +391,7 @@ def test_without_the_floor_nothing_new_is_written_and_a_floor_at_alpha_is_the_sa
 
 def test_a_floor_below_alpha_lets_the_knee_settle_below_the_per_cell_strength(ch):
     flags = ("--alpha", "1.45", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9")
-    assert build.main(_argv(ch, "cells_floor", *flags)) == 0                    # today's floor: --alpha
+    assert build.main(_argv(ch, "cells_floor", *flags)) == 0                    # the default floor: --alpha
     x0 = json.loads((ch["out"] / "cells_floor.alpha_bulk.json").read_text())["contexts"]["X"]
     assert x0["alpha_bulk"] == 1.45 and x0["at_floor"] and not x0["met"]       # the fixture's premise
     assert build.main(_argv(ch, "low_floor", *flags, "--alpha-bulk-floor", "0.5")) == 0
@@ -426,7 +418,7 @@ def test_the_floor_flag_is_refused_where_it_cannot_act(ch, capsys):
             build.main(_argv(ch, "probe_refused", *extra))
         assert "--alpha-bulk-floor" in capsys.readouterr().err
     assert not (ch["out"] / "probe_refused.h5ad").exists()
-    # a model-named stem cannot carry the floor: it changes letter b's rule with no registered name yet (ADR 0005)
+    # a model-named stem cannot carry the floor
     with pytest.raises(SystemExit):
         build.main(_argv(ch, "ser-99benw_t93_v1", "--alpha-bulk", "1.5", "--alpha-bulk-target", "0.9",
                          "--alpha-bulk-floor", "0.5"))
@@ -437,9 +429,7 @@ def test_the_floor_flag_is_refused_where_it_cannot_act(ch, capsys):
 
 
 def test_a_build_that_undershoots_keeps_the_strongest_read_under_the_target(ch, monkeypatch):
-    """T134 in the build: the square-root step forced to overshoot to the floor and the step back up forced over the
-    target, at three reads; the context is written at the read under the target, and its cells are those read there
-    (and a plain build's at that strength)."""
+    """Steps forced to undershoot, then overshoot: the context is written at the read under the target."""
     monkeypatch.setattr(knee, "next_alpha_bulk", lambda a, r, t, floor, margin=0.0: floor)
     monkeypatch.setattr(knee, "bracket_alpha_bulk", lambda lo, hi, t, margin=0.0: hi[0] * 0.999)
     monkeypatch.setattr(build, "KNEE_MAX_READS", 3)

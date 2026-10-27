@@ -1,24 +1,9 @@
-"""A vote weight per source per context, and a strength per source, for the pooled delta.
+"""Per-source vote weights per context, and per-source strengths, for the pooled delta.
 
-`--source-weight NAME=CTX:W` (repeatable) multiplies source NAME's pooling weight by W in context CTX;
-`--source-weight-table PARQUET` (columns `source`, `context`, optional `target`, `weight`) does the same per
-(source, context) or per (source, context, knockdown). A pair nothing names keeps 1, W 0 leaves the source out
-of that context's pool exactly as `--source-context` does, and the flag's W and the table's weight multiply
-(two instruments: a lineage weight on the command line, a per-knockdown table such as DepMap-matched weights).
-Within the table, a (source, context, target) named twice, and a (source, context) with both a row without a
-target and rows with one, are refused (override or multiply would be a guess).
+    --source-weight NAME=CTX:W   --source-weight-table PARQUET   --source-scale NAME=S   (submit.build, eval.loco)
 
-`--source-scale NAME=S` (repeatable) multiplies source NAME's fold change by S before pooling and its variance
-by S², while its pooling weight stays at the unscaled value: a strength, not a vote.
-
-The pooled mean with multipliers m is `sum(m w x) / sum(m w)` and its variance `sum(m² S² w) / (sum m w)²` for
-inverse-variance weights w; `pooled_delta` uses that form wherever a multiplier is not 1 and `1 / sum(w)`
-otherwise, so neutral values are bit-identical to a build without the flags.
-
-`submit.build` pools each context with its own votes (contexts that vote alike share one pool); `eval.loco`
-predicts one held-out line, so `--source-weight-context CTX` names which context's rows stand for it. Records:
-`<stem>.source_weight.json`, `<stem>.source_scale.json` (and `summary.json` on loco). The why and the readings:
-private plans/2026-10-20-final-phase-instruments.md items 3 and 4; tasks T123, T126.
+Reads the weight table; the callers write `<stem>.source_weight.json` and `<stem>.source_scale.json`.
+Notes: private/code-notes/src/sidechain/submit/source_vote.py.md
 """
 from __future__ import annotations
 
@@ -40,13 +25,13 @@ def _number(text: str, flag: str, part: str) -> float:
 
 
 def parse_source_weights(specs: list[str] | None) -> dict[tuple[str, str], float]:
-    """``['cd4_all_rho01_kd=A:1.25']`` -> ``{('cd4_all_rho01_kd', 'A'): 1.25}``; None/[] -> ``{}``."""
+    """``['src_x=A:1.5']`` -> ``{('src_x', 'A'): 1.5}``; None/[] -> ``{}``."""
     out: dict[tuple[str, str], float] = {}
     for part in specs or []:
         name, _, rest = part.partition("=")
         ctx, _, value = rest.rpartition(":")
         if not name or not ctx or not value:
-            raise SystemExit(f"--source-weight: {part!r} is not NAME=CTX:W, e.g. 'cd4_all_rho01_kd=A:1.25'")
+            raise SystemExit(f"--source-weight: {part!r} is not NAME=CTX:W, e.g. 'src_x=A:1.5'")
         key = (name, ctx)
         if key in out:
             raise SystemExit(f"--source-weight: {name!r} in context {ctx!r} given twice")
@@ -132,12 +117,7 @@ class SourceVote:
 
 def source_votes(flags: dict[tuple[str, str], float], table: pd.DataFrame | None, contexts: list[str],
                  source_names: list[str | None]) -> tuple[dict[str, SourceVote] | None, dict | None]:
-    """Each context's `SourceVote`, and the record; (None, None) when nothing is given.
-
-    Refused: a source name that matches no source or more than one, and flags and a table none of whose
-    rows applies to any of `contexts` (a misspelt context would otherwise build the plain recipe). A
-    context of the flags or the table outside `contexts` is recorded, not refused: one table may carry the
-    challenge's contexts and the fold lines' together."""
+    """Each context's `SourceVote`, and the record; (None, None) when nothing is given."""
     if not flags and table is None:
         return None, None
     have = [n for n in source_names if n is not None]
@@ -184,14 +164,13 @@ def vote_groups(ctxs, votes: dict[str, SourceVote] | None) -> list[tuple[str, ..
 
 
 def parse_source_scales(specs: list[str] | None, source_names: list[str | None]) -> dict[str, float]:
-    """``['k562_gwps_all_pseudobulk=0.8']`` -> ``{'k562_gwps_all_pseudobulk': 0.8}``; S finite and > 0; the
-    name must match exactly one source."""
+    """``['src_x=0.8']`` -> ``{'src_x': 0.8}``; S finite and > 0; the name must match exactly one source."""
     out: dict[str, float] = {}
     have = [n for n in source_names if n is not None]
     for part in specs or []:
         name, _, value = part.partition("=")
         if not name or not value:
-            raise SystemExit(f"--source-scale: {part!r} is not NAME=S, e.g. 'k562_gwps_all_pseudobulk=0.8'")
+            raise SystemExit(f"--source-scale: {part!r} is not NAME=S, e.g. 'src_x=0.8'")
         try:
             s = float(value)
         except ValueError:
@@ -208,7 +187,7 @@ def parse_source_scales(specs: list[str] | None, source_names: list[str | None])
 
 
 def pool_kwargs(votes: dict[str, SourceVote] | None, context: str | None, scales: dict[str, float]) -> dict:
-    """`pooled_delta`'s two keyword arguments for one context; {} when both are neutral (the historical call)."""
+    """`pooled_delta`'s two keyword arguments for one context; {} when both are neutral."""
     kw = {}
     if votes is not None and context is not None and not votes[context].is_identity:
         kw["source_vote"] = votes[context]

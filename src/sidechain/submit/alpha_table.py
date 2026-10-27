@@ -1,19 +1,10 @@
-"""A per-target multiplier on the amplitude: alpha_t = alpha * factor[t], read from a table.
+"""A per-target multiplier on the amplitude, alpha_t = alpha * factor[t], read from a table.
 
-`--alpha-table PATH` on `sidechain.submit.build` and `sidechain.eval.loco`: a parquet or CSV table with a
-`target` column (perturbation labels as the build names them) and a `factor` column (finite, non-negative).
-Every perturbation the table does not name keeps 1.0, so the knob is exactly "scale these knockdowns'
-transferred log2FC by this much on top of alpha" and nothing else; a target named twice, a negative or
-non-finite factor, or a missing column is refused before any work. The record written beside the build
-(`<stem>.alpha_table.json`, and `alpha_table` in loco's summary) carries the file's sha256 and what matched
-the perturbations, so a run can be tied to its table.
+    --alpha-table PATH      on sidechain.submit.build and sidechain.eval.loco
 
-Where it acts: with alpha, on the pooled vector every other knob has already shaped (the neighbour arm's
-fusion, the basal slope, the per-gene factor), in both channels of a two-channel emission; the target's own
-gene is pinned after it as before. It is not alpha (`a`: one constant for every knockdown) and not the
-per-gene factor (`--gene-factor`: one multiplier per response gene, the same for every knockdown): it is one
-multiplier per knockdown, the same for every gene. T1's fitness-size prior was its first arm:
-private research/ideas/knockdown-fitness-size-prior.md.
+Reads a parquet or CSV with `target` and `factor` columns (a perturbation it does not name keeps 1.0);
+writes nothing, and returns the record the caller writes (`<stem>.alpha_table.json`, loco's summary).
+Notes: private/code-notes/src/sidechain/submit/alpha_table.py.md
 """
 from __future__ import annotations
 

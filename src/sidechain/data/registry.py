@@ -1,7 +1,8 @@
 """Load configs/data_sources.yaml and instantiate the enabled PriorSource objects.
 
-Adding a source is a YAML edit; this resolves `loader:` names to classes. The model
-never imports a specific source -- it consumes whatever the registry yields.
+    registry = load_registry("configs/data_sources.yaml", gene_index, id_type=...)
+
+Reads the YAML; writes nothing. Notes: private/code-notes/src/sidechain/data/registry.py.md
 """
 from __future__ import annotations
 
@@ -65,8 +66,7 @@ class Registry:
         return [s for s in self.sources if s.kind == "node_feature"]
 
     def describe(self) -> str:
-        """Graph shape WITHOUT building anything -- possible only because `kind`
-        is declared in YAML rather than discovered by calling build()."""
+        """The graph's shape, read from the YAML without building anything."""
         mgs = self.master_gene_space
         lines = [
             f"master gene space: {mgs.reference} {mgs.version} ({mgs.id_type})",
@@ -88,12 +88,7 @@ def load_registry(
     *,
     id_type: str | None = None,
 ) -> Registry:
-    """Return the enabled PriorSource objects plus the declared master gene space.
-
-    `id_type` is the ID space the caller actually built `gene_index` in. When
-    given it must match the registry's declared `master_gene_space.id_type` --
-    otherwise every source silently resolves zero genes.
-    """
+    """The enabled PriorSource objects and the master gene space; `id_type`, when given, must match it."""
     cfg = yaml.safe_load(resolve_config(config_path).read_text())
 
     mgs_raw = cfg.get("master_gene_space")
@@ -117,9 +112,7 @@ def load_registry(
 
     out: list[PriorSource] = []
     for spec in cfg.get("sources", []):
-        # Skip disabled sources BEFORE resolving the loader, so a shelved block
-        # may name a loader that isn't written yet (`enabled: false` is the
-        # documented way to sketch a source without implementing it).
+        # skipped before the loader is resolved: a disabled block may name a loader not yet written
         if not spec.get("enabled", True):
             continue
         loader_name = spec.get("loader")
