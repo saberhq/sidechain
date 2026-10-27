@@ -77,7 +77,7 @@ genes, six cell-eval2 metrics. Arc ships no training data. `challenges/vcc2026/C
 `config.yaml` are authoritative for the spec and the submission contract — never re-derive it from
 the web; the argument: `reports/05`, `06`, `09`. **What happens on Oct 22 is one document,
 `private/FINAL-PHASE.md`** (T93): only the last final entry counts and no final score is shown, to us either, until
-the winners on Nov 19 (final-phase: none).
+the winners on Nov 19.
 
 ## Where things are
 
@@ -117,10 +117,11 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   error message, test fixture or public doc: they live in the private file the pointer names. `(final-phase: …)`
   tags go in private files only.
 - **A new corpus** is a `configs/datasets.yaml` block behind the ADR 0003 gate
-  (`sidechain.ingest.fetch`). **A new prior** a build reads is a `data_sources.yaml` block plus a `PriorSource`
-  subclass (`src/sidechain/priors/base.py`) registered in `src/sidechain/data/registry.py`; blocks
-  declare `kind: edge | node_feature`; build edges with `PriorSource.to_edge_index`, never two
-  `to_positions` calls (why: `private/ARCHITECTURE.md`). A prior still under research lives in private.
+  (`sidechain.ingest.fetch`). **A new prior is built in private** (Saber, 2026-10-26: no new priors as public
+  modules): a `PriorSource` subclass of the public contract (`src/sidechain/priors/base.py`) in `private/scripts/`,
+  its registry block beside it, shipped to a box with the private kit when a build reads it; moving one to public
+  is his call. Blocks declare `kind: edge | node_feature`; build edges with `PriorSource.to_edge_index`, never two
+  `to_positions` calls (why: `private/ARCHITECTURE.md`).
 - **Two gene-ID spaces**, declared per year in `challenges/<year>/config.yaml`: 2025 carries
   Ensembl in `var['gene_id']` (18,080 genes); 2026 is symbols only, `var` empty, 18,533 genes.
   `loaders.gene_index` is strict and raises rather than falling back to `var_names` — that fallback
@@ -290,7 +291,7 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | QC on our h5ads, the controls bundle | `challenges/<year>/CLAUDE.md` · `sidechain.data.profile` · `sidechain.ingest.checks` | `reports/06` |
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
-| **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` in a private file, never in public code — and regenerate (final-phase: none) |
+| **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` in a private file, never in public code — and regenerate |
 | "what should I work on" | `private/TODO.md` `## p1` (generated) | `private/CLAUDE.md` → The mother session |
 | proceed or ask: a fork, a GO | this file § When to proceed · § Replying | — |
 | `pick up T<n>` | `private/tasks/T<n>.md`: the lede, `## Next step`, the last five Log lines (the prompt hook names them) | the newest hand-off the hook names; other sections on demand |
