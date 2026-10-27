@@ -4,7 +4,7 @@ Entry for the Arc **Virtual Cell Challenge 2026**: predict how a cell's transcri
 a gene is silenced. Solo entry: Saber, the one human, plus Claude Code sessions working together.
 
 This file is **the rules every session must follow — code and coordination.** The *why* lives in
-`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~280 lines / ~4.9k tokens today,
+`private/CLAUDE.md`. Size: complete beats short (Saber, A43) — ~310 lines / ~5.4k tokens today,
 against the audit's ~120 / ~2k. Trim what is stale, never what a session needs; anything loaded
 every session counts, so a new rule earns its lines.
 
@@ -33,6 +33,11 @@ every session counts, so a new rule earns its lines.
   run them as `.venv/bin/python <path>`.
 - **The why is private, the what is public; when unsure, private.** Never move content from a
   private doc into a tracked file: publishing is one commit, un-publishing is a history rewrite.
+- **Code splits by kind** (Saber, 2026-10-26; ADR 0014). Public holds the pipeline: what a build, a fold
+  score, an ingest, the box, Lamin or the site runs, and its tests. Research code (a screen, gate, probe,
+  diagnostic, board analysis, or a feature builder no build reads) lives in `private/scripts/` from its
+  first line, and moves here only when a build or fold score starts reading it. What already went public
+  stays; the boundary guards what comes next.
 
 ## Committing and pushing
 
@@ -44,9 +49,14 @@ every session counts, so a new rule earns its lines.
   edit and run a bare `git commit` (`/sidechain-commit`, step 2). Never `git stash -u`.
 - If `git status` shows changes you did not make, leave them alone and say so.
 - **Push, publish or deploy only on Saber's go; one go covers one push.** First
-  `git log --oneline origin/main..HEAD`, and say whose commits ride along.
-- Messages: `<scope>: <what>` plus a pointer to the doc that explains it; public short, private
-  may narrate briefly. Reasoning lives in editable files, never in a message.
+  `git log --oneline origin/main..HEAD`, and say whose commits ride along. Then read those messages and the
+  text the commits add (`git diff origin/main..HEAD`) for what the two rules below ban; fix a hit in a new
+  commit before the push, never by rewriting. A box never needs a push: it takes unpushed commits as a git
+  bundle (`/sidechain-brev`).
+- **Messages.** Public: one line, ``<scope>: <what the change does> (T<n>, session `<id>`)``. Never a private
+  file name or idea slug (the name is itself a finding), a measured number or score, an entry's settings,
+  a context's identity, a competitor's method, or a plan. Private may narrate briefly, with
+  pointers. Reasoning lives in editable files, never in a message.
 - **Never delegated to a child agent:** `vcc submit` (a session runs it only on Saber's GO for that entry —
   `private/SUBMISSION-QUEUE.md` rule 3; since 2026-10-08 his GO can also be written into the entry's file,
   `go:` with `slot: auto`, and then the daily launchd job sends it at the UTC reset, rule 7 and ADR 0012),
@@ -98,14 +108,19 @@ download.** `route:` and the stream gate: the `configs/datasets.yaml` header and
   a pdex/CPU bundle scores on the Mac, gpudge and full-corpus builds need the box (`/sidechain-brev`).
   `sidechain.eval.local_mirror` is the frozen 2025 backtest and scores nothing for 2026.
 - **Sparse only** (`edge_index`/COO); never a dense gene × gene matrix (18,533² is ~1.4 GB).
-- **A script's docstring says what, never why** (Saber, 2026-10-15): one line of purpose, how to run it, what it reads
-  and writes, and a pointer to the idea or task file. No hypotheses, kill criteria, review rounds or findings: they go
-  stale in code. A task's probe scripts live in private `scripts/`, not here (T88's and T102's were moved).
+- **Public text is the least that says what the code does** (Saber, 2026-10-15, tightened 2026-10-26: detailed
+  docstrings go stale and expose the work). A module or script docstring: one line of what, a usage line, what it
+  reads and writes, and one pointer, `Notes: private/code-notes/<this file's path>.md` (the why, the history,
+  the owning tasks). A function: one line, or none. A comment: only where the code cannot say it. A help
+  string: what the flag does, and its unit. No why, finding, measured number, score, entry name or setting,
+  context identity, competitor method, review round, idea slug or plan in a docstring, comment, help string,
+  error message, test fixture or public doc: they live in the private file the pointer names. `(final-phase: …)`
+  tags go in private files only.
 - **A new corpus** is a `configs/datasets.yaml` block behind the ADR 0003 gate
-  (`sidechain.ingest.fetch`). **A new prior** is a `data_sources.yaml` block plus a `PriorSource`
+  (`sidechain.ingest.fetch`). **A new prior** a build reads is a `data_sources.yaml` block plus a `PriorSource`
   subclass (`src/sidechain/priors/base.py`) registered in `src/sidechain/data/registry.py`; blocks
   declare `kind: edge | node_feature`; build edges with `PriorSource.to_edge_index`, never two
-  `to_positions` calls (why: `private/ARCHITECTURE.md`).
+  `to_positions` calls (why: `private/ARCHITECTURE.md`). A prior still under research lives in private.
 - **Two gene-ID spaces**, declared per year in `challenges/<year>/config.yaml`: 2025 carries
   Ensembl in `var['gene_id']` (18,080 genes); 2026 is symbols only, `var` empty, 18,533 genes.
   `loaders.gene_index` is strict and raises rather than falling back to `var_names` — that fallback
@@ -275,13 +290,14 @@ resolve alike. PyPI: `arc-state`, `cell-eval2` (the 2026 scorer), `cell-eval` (2
 | QC on our h5ads, the controls bundle | `challenges/<year>/CLAUDE.md` · `sidechain.data.profile` · `sidechain.ingest.checks` | `reports/06` |
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | their `SKILL.md` under `private/research/protocol/plugins/bio-research/skills/` when the skill is not listed |
 | a research question, "what have we tried" | `private/CLAUDE.md` | `private/research/master.md` · `private/research/INDEX.md` · `private/RESULTS.md` |
-| **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` beside a code comment — and regenerate (final-phase: none) |
+| **the final phase** — Oct 22, D/E/F, the final bundle, a "revisit on Oct 22" clause, a submission slot | `private/FINAL-PHASE.md` (T93; its generated half is `final_phase.py --write`, never hand-edited) | write the clause where it belongs — the idea's Revisit-if, or `(final-phase: <step>)` in a private file, never in public code — and regenerate (final-phase: none) |
 | "what should I work on" | `private/TODO.md` `## p1` (generated) | `private/CLAUDE.md` → The mother session |
 | proceed or ask: a fork, a GO | this file § When to proceed · § Replying | — |
 | `pick up T<n>` | `private/tasks/T<n>.md`: the lede, `## Next step`, the last five Log lines (the prompt hook names them) | the newest hand-off the hook names; other sections on demand |
 | spawn a Researcher, a Verifier, a workflow | `private/CLAUDE.md` → The mother session | every spawn names a task — there is no standing brief · write contracts in `private/research/README.md` |
 | a paper, a literature review | `/paper-intake` (one paper) · the Researcher (a sweep) | `private/research/reading/` · `private/literature.md` |
 | commit, push | this file § Committing · `/sidechain-commit` | — |
+| the public repo on GitHub: an issue, a pull request, a question, whether a file may be public | `private/tasks/T138.md` | ADR 0014 · `reports/20` |
 | a hand-off to the next session (a context window ending, or Saber's ask) | `private/handoffs/README.md` — the shape, the rules, the index | — |
 | the GPU box, more RAM, a full-corpus stream | `/sidechain-brev` | `box_plan.py` prices a queue before the GO; `scripts/boxkit/` |
 | a data download, disk, a new corpus, a licence | this file § Data · `configs/datasets.yaml` | ADR 0003 |
