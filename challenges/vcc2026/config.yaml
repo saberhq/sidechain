@@ -2,6 +2,7 @@
 #
 # Filled 2026-08-20 from the official kickoff materials. Values only -- what will
 # bite you lives in CLAUDE.md beside this file. Read by `loaders.load_challenge_config`.
+# Notes: private/code-notes/challenges/vcc2026/config.yaml.md
 #
 # Arc ships NO training data this year. The training corpus is the full 2025 H1
 # release (Training + Validation + Test files, 300 perturbations; see
@@ -71,9 +72,9 @@ submission:
   daily_limit: 2                         # per team, resets 00:00 UTC; one in flight
 
 # Scoring: cell-eval2, preset `vcc2026`. Each member scaled (u - b) / (r - b):
-# 0 = context-mean baseline (our Rung 0b), 1 = split-half replicate. Overall is
-# the unweighted mean over 6 metrics x 3 contexts. Anchors b and r are Arc's,
-# measured on the held-out data; the local mirror computes its own.
+# 0 = context-mean baseline, 1 = split-half replicate. Overall is the unweighted
+# mean over 6 metrics x 3 contexts. Anchors b and r are Arc's, computed on the
+# held-out data; the local mirror computes its own.
 scorer: cell-eval2
 scorer_preset: vcc2026
 metrics: [pds, mse, nmae, fid, reach, jac]
@@ -90,8 +91,5 @@ extra_state_metrics: false               # no Generalist track is announced for 
 splits:
   scheme: leave_one_context_out
   contexts_available: [H1, K562, RPE1, Jurkat, HepG2]   # H1 2025 + the scPerturb shortlist
-  # The rotation measures transfer on genes perturbed in all lines -- a set DISJOINT
-  # from the 300 targets (essential panels cover 0 of them; K562 genome-wide 272, H1 25).
-  # Use it for method selection, never as a forecast. private/reports/06 section 5.
 
 baseline_agg_results: null

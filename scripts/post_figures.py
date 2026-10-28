@@ -1,27 +1,12 @@
 #!/usr/bin/env python3
 """Draw the write-up figures as inline SVG, from the site's generated data.
 
-Every number a figure draws comes from `site/data/submissions.json` (scored entries,
-written by `scripts/standings.py`) or `site/data/coverage.json` (per-source coverage,
-written by `python -m sidechain.data.coverage`) — never typed here. The one table that
-lives in this file, `SCREENS`, holds paper numbers (cells per published screen), each
-row with the paper it came from; those are not pipeline numbers, so they do not belong
-in a generated data file.
+    python scripts/post_figures.py --out <dir> --post knobs|corpus|board
 
-Style: the site's own tokens, as CSS variables with light-theme fallbacks, so a figure
-takes the dark theme on the page and still reads when the file is opened on its own.
-One series per panel; carmine (`--mark`) for Sidechain's latest or own point, grey
-(`--viz-8`) for the rest, blue (`--viz-2`) only where a second hue is unavoidable; thin
-marks, direct labels, no legend for one series, no connecting line through board
-entries. Calibration runs stay off any figure that reads as a standings plot (Saber,
-2026-10-07) and appear only in the figure that is about them.
-
-    python scripts/post_figures.py --out private/site/drafts/2026-10-the-knobs/ --post knobs
-    python scripts/post_figures.py --out <dir> --post corpus
-    python scripts/post_figures.py --out <dir> --post board
-
-A post drops a figure in with `{{< svg src="fig-overall.svg" caption="…" >}}`
-(`site/layouts/shortcodes/svg.html` inlines the file from the post's bundle).
+Reads site/data/submissions.json and site/data/coverage.json (and `SCREENS`, published cell counts, each with
+its paper); writes one SVG per figure into --out, styled with the site's CSS variables. A post includes one
+with `{{< svg src="fig-overall.svg" caption="…" >}}`.
+Notes: private/code-notes/scripts/post_figures.py.md
 """
 from __future__ import annotations
 
@@ -74,8 +59,7 @@ SCREENS = [
 HELD = {"Replogle · K562 genome-wide", "Nadig · Jurkat", "Nadig · HepG2", "Arc · H1 (VCC 2025)",
         "X-Atlas/Orion · HCT116 + HEK293T", "GWCD4i · primary CD4 T", "Feng · iPSC pool (genome-wide arm)", "Pan · H1"}
 
-# The board's tabs, when each was born and when it died (reports/12 addenda; the dates are
-# the rounds that added or removed a tab).
+# The board's tabs: (name, added, removed or None).
 TABS = [
     ("Board", "2026-09-02", None),
     ("Ledger", "2026-09-02", "2026-09-18"),

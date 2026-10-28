@@ -3,71 +3,10 @@
     uv run python scripts/standings.py            # rewrite README.md + the two site data files
     uv run python scripts/standings.py --check    # exit 1 if any of them is out of date
 
-Inputs, all read-only:
-
-- ``private/submissions/*.status.json`` — Arc's verbatim record per entry, written by
-  ``private/research/protocol/log_submission.py`` (which runs this script afterwards).
-- ``~/data/sidechain/vcc2026/leaderboards/lb_*.json`` — board snapshots, taken with
-  ``python -m sidechain.eval.leaderboard``.
-- ``~/data/sidechain/runs/leaderboard_watch/ticks.json`` — one row per leaderboard snapshot we
-  hold, with the field size and the score at rank 20 and rank 100. Finished numbers only: the
-  rows of other teams never pass through this script. Absent on a machine without the data
-  directory, in which case the field file is left as it is.
-
-The one rule (Saber, 2026-08-23; board size clarified 2026-08-24): **rank-when-scored
-is the rank in the first board snapshot that contains the entry, and the board size is
-that snapshot's full team count** — ``live.total``, never the embedded row count. The
-page embeds only its top ~50 teams and the two diverged on 2026-08-21 (95 teams, 50
-embedded), which had this script quietly printing "of 50" against a 216-team board.
-The board shows one row per team and re-ranks continuously, so a later look is not the
-rank when scored. An entry ranked below the embed appears in no snapshot: it falls back
-to its own status record's ``rank`` -- Arc's number when the record was fetched, which
-``log_submission.py`` fetches right after scoring -- with the board size from the first
-snapshot taken after the submission, **and only if that snapshot is within
-``TEAMS_MAX_LAG_DAYS``**. A later one measures a field the entry never competed in, and no
-denominator beats a flattering one (Saber, 2026-09-11). ``log_submission.py`` takes the
-snapshot itself at record time, so the window is only ever missed when nobody was there.
-
-``sidechain_class`` is present on a **calibration run** and absent on everything else: an
-entry sent purely to test a new method and its performance on the official board
-(``log_submission.py --calibration``; which entries are calibration runs is Saber's choice).
-There is no opposite label, because every submission asks a question — Saber, 2026-09-11:
-"there is nothing like climb the ranking ladder, I never submit a model to climb it". No
-entry is left out of the outputs on it; it decides only that such an entry is drawn
-apart in the site's bars, because one off-scale bar on a shared axis destroys the resolution
-of everything else — PHE-2 scored -0.9807 against a field running 0.0730 to 0.1078 — and is
-left out of its rank plot (Saber, 2026-10-07). It is metadata, never part of a model's name
-(ADR 0005 is untouched).
-
-Every row also carries the six cell-eval2 members (``members``: the scaled score the
-leaderboard ranks on and the raw value under it, in the leaderboard's own column order), and the
-file carries ``board``: the same entries as a leaderboard of Sidechain alone (Saber, 2026-10-08,
-T79) -- by overall, ``n`` the entry's place among ours on it, every calibration run in,
-each member cell with two tints in [-1, 1] that say how deep its green (positive) or red (zero
-or negative) wash is. ``tint`` is the leaderboard page's own scale: green from 0 up to the
-ceiling 1 (a replicate of the experiment), red from 0 down to the member's floor where the scorer
-has one -- 0 for mse, which it clamps there, -6 for nmae, which it floors there -- and, for the
-four members the scorer leaves unclamped (the spec's "Clamps" paragraph), deepening below 0 at
-the rate green deepens above it, which is the same as a floor of -1 (``OFFICIAL_FLOORS`` holds
-exactly the scorer's two; Saber, 2026-10-08). ``tint_own`` is
-PER COLUMN and set by our own entries: the column's best non-calibration score is the full
-green, its worst negative non-calibration score the full red. Both clamp beyond their scale; a
-scaled 0 is the floor and reads full red on both, as it does on the leaderboard page.
-Calibration runs are painted on either scale but never set the per-column one, the rule the
-site's bars already follow. The renderers default to ``tint`` and offer ``tint_own`` as a
-switch (Saber, 2026-10-08).
-
-Outputs, all fully generated — never edit them by hand:
-
-- ``README.md``: the table between ``<!-- standings:begin -->`` and ``<!-- standings:end -->``.
-- ``site/data/submissions.json``: the same rows for saberhq.com/sidechain (a pushed
-  change under site/ redeploys the page), plus ``board``.
-- ``site/assets/data/field.json``: the size of the field over time, the score at rank 20 and
-  rank 100 where a snapshot holds it, and where Sidechain stands in the latest whole-field
-  snapshot. The page reads its two gaps from the head of it; the series is kept in the repo and
-  drawn nowhere yet. It is a snapshot by nature — the leaderboard moves twice a day and the
-  page only on a push — so ``--check`` compares it against the series cut at the file's own
-  ``as_of`` and reports newer snapshots as a note.
+Reads the entries' status records (the private repo's `submissions/`), the board snapshots under
+~/data/sidechain/vcc2026/leaderboards/ and runs/leaderboard_watch/ticks.json; writes the README table,
+site/data/submissions.json and site/assets/data/field.json, which are generated: never edit them by hand.
+Notes: private/code-notes/scripts/standings.py.md
 """
 from __future__ import annotations
 
@@ -104,13 +43,7 @@ NAME_WARNINGS: list[str] = []
 CLASS_WARNINGS: list[str] = []
 CALIBRATION = "calibration"
 
-# The fallback's board size must be a CONTEMPORARY witness, not merely a later one. The
-# field grows fast — 533 teams on 2026-09-01, 903 on 2026-09-12, about 34 a day — so a
-# snapshot taken days after an entry scored ranks it against a field it never competed in
-# and flatters it. It happened: the snapshot taken for SER-6aefn on 2026-09-12 silently gave
-# PHE-2 (2026-09-07, rank 746) a denominator of 903. Saber's call is that no denominator
-# beats a flattering one. Two days is generous now that log_submission.py takes a snapshot
-# at record time (`ensure_snapshot`) — anything slower means nobody was there.
+# The most days a snapshot may be taken after an entry scored and still give its board size.
 TEAMS_MAX_LAG_DAYS = 1
 
 # The six cell-eval2 members in the leaderboard page's column order: (key, scaled, raw). The scaled
@@ -183,10 +116,6 @@ def load_field(ticks_json: Path, as_of: str | None = None) -> dict | None:
     if not ticks_json.exists():
         return None
 
-    # The series is the validation leaderboard's. The final leaderboard that opens after Oct 22
-    # is a different field on different cell lines, and this file does not follow it: what the
-    # page's standing card shows for the final round is still to be decided (final-phase: public).
-
     series = []
     head = None
     for t in sorted(json.loads(ticks_json.read_text()), key=lambda t: t["stamp"]):
@@ -252,10 +181,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
     snapshots = []
     for f in sorted(snaps_dir.glob("lb_*.json")):
         d = json.loads(f.read_text())
-        # One rank index and one field size PER BOARD. A record is looked up on the board of
-        # its own round (`partition`: val -> live, final -> final): the two rounds are scored
-        # on different lines and panels and are not comparable, so a final entry must never
-        # take the validation field's rank or size (T93, Step 0) (final-phase: none).
+        # One rank index and one field size per board; a record is ranked on its own round's (`partition`).
         boards = {}
         for board in ("live", "final", "generalist"):
             sec = d.get(board) or {}
@@ -274,13 +200,8 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
     for f in sorted(subs_dir.glob("*.status.json")):
         s = json.loads(f.read_text())
         if s.get("score_avg") is None and isinstance(s.get("scores"), dict):
-            # A superseded probe's record is the `vcc submit --wait --json` output --
-            # the live status endpoint serves only a team's LATEST validation entry,
-            # so log_submission.py saves that shape via --status-file (2026-08-30,
-            # SER-3afgn). It nests the members under "scores" and omits
-            # submission_date; flatten, and let the record's own filing date stand
-            # in for the missing stamp (midnight, so the first same-day snapshot
-            # supplies the board size).
+            # A `vcc submit --wait --json` record nests the members under "scores" and has no
+            # submission_date: flatten it, dated by its filename at midnight.
             s = {**s, **s["scores"]}
             s.setdefault("submission_date", f.name.split("_", 1)[0] + "T00:00")
         if s.get("score_avg") is None:
@@ -294,9 +215,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
             if b and s["entry_id"] in b["ranks"]:
                 rank, teams = b["ranks"][s["entry_id"]], b["teams"]
                 break
-        # The frozen scoring-time rank wins over the record's live `rank`: a re-record
-        # (a live `vcc status` fetch, to recover a missing submission_date) sees a board
-        # that has re-ranked since. SER-6aefn drifted 245 -> 244 that way on 2026-09-12.
+        # The frozen scoring-time rank wins over the record's live `rank`, which a later re-record may hold.
         scored_rank = s.get("sidechain_rank_when_scored")
         if scored_rank is None:
             scored_rank = s.get("rank")
@@ -316,9 +235,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
                 f"{f.name}: board name {(s.get('model_name') or '(none)')!r} carries no "
                 "series name and the stem has no ALIASES entry -- falling back to the raw "
                 "stem; add the alias or fix the record (ADR 0005)")
-        # Two entries reached the board before cards were required (ADR 0005) and the
-        # board cannot be backfilled -- a `<record>.card.txt` beside the status record
-        # supplies the card for OUR surfaces only, flagged so the site labels it.
+        # A record without a board card may have a `<record>.card.txt` beside it, flagged as retro on our pages.
         card = (s.get("description") or "").strip()
         card_retro = False
         if not card:
@@ -383,8 +300,7 @@ def board(rows: list[dict]) -> dict:
         floor = min([v for v in vals if v < 0], default=None) or min([v for v in every if v < 0], default=None)
         scale[key] = {"ceiling": ceiling, "floor": floor}
     out = []
-    # load_rows sorted the rows by submission time; the board is by overall, the newer first on a tie. The
-    # renderers start there (Saber, 2026-10-08) and sort by any column on a click.
+    # The board is by overall, the newer first on a tie; the renderers sort by any column on a click.
     for n, r in enumerate(sorted(reversed(rows), key=lambda r: -r["overall"]), 1):
         cells = []
         for key, _, _ in MEMBERS:

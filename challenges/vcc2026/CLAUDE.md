@@ -3,6 +3,7 @@
 The competition we are entering. The spec landed **2026-08-20**; `config.yaml` beside this file
 carries the values, this file carries what will bite you. Verbatim sources:
 `private/research/reading/vcc-2026-spec.md`; the argument: `private/reports/05_vcc2026_kickoff_audit.md`.
+Notes (the numbers and reasoning behind items 4, 8, 9 and 12): `private/code-notes/challenges/vcc2026/CLAUDE.md.md`.
 
 ## The shape
 
@@ -13,7 +14,7 @@ carries the values, this file carries what will bite you. Verbatim sources:
   carry. Its rules, from Arc's rules page: only the **last** final entry counts, no final
   leaderboard is shown before the winners and no final score returns to us either (vcc-cli 0.3.0), the final panel is a
   **different** 300, two a day
-  (`private/research/reading/vcc-2026-final-phase-rules.md`) (final-phase: none).
+  (`private/research/reading/vcc-2026-final-phase-rules.md`).
 - Per context you get **18,400 non-targeting control cells** (46 guides × 400, guide in
   `obs['ntc_id']`) and a list of **300 genes to knock down**. For each knockdown you return
   **400 predicted cells, each a full 18,533-gene transcriptome**, raw counts — 360,000 cells
@@ -71,26 +72,16 @@ agent can delete the item; only you can mint or paste the key.
    never a licence to rename the context after it — context A stays "context A" even on the day
    we are confident it is T-lymphoblast.
 2. **D/E/F ≠ A/B/C.** The final bundle carries its own labels and its own `pert_counts.csv`;
-   carrying validation labels into a final submission is rejected (final-phase: submit).
+   carrying validation labels into a final submission is rejected.
 3. **The gene axis is 18,533, not H1's 18,080.** Map the H1 corpus (and every ingested line)
    onto `gene_names.csv` by symbol: H1 shares 18,077, 456 genes have no H1 signal. **There is
-   no `var['gene_id']` — `var` is empty, symbols only** (measured 2026-08-20). The scPerturb
+   no `var['gene_id']` — `var` is empty, symbols only.** The scPerturb
    lines are pre-filtered to ~8–10k genes. `loaders.gene_index(adata, 'ensembl_gene_id')`
    will raise on these files, correctly; a symbol-keyed path is needed.
-4. **The 18,533 axis is CURATED, and ~30 % of a real cell never appears on it** (measured
-   2026-08-29). `gene_names.csv` is byte-identical, in order, to `context_A.h5ad`'s `var` index,
-   so this is the axis itself and not a file-reading mistake. Entire families are absent: **0 of
-   99 cytoplasmic ribosomal proteins (RPL/RPS), 0 of 81 mitochondrial ribosomal (MRPL/MRPS), 0
-   of 21 HLA**, plus `GAPDH`, `EEF1A1`, `MALAT1`, `NEAT1`, `XIST` — while `ACTB`, `TP53`, `MYC`
-   and 12 of 13 `MT-` genes stay. Summed over the 10x GRCh38-2020-A reference in five unrelated
-   experiments (K562, fibroblast, Kuramochi, NK, Caco2), the off-axis genes carry **29.5–32.5 %
-   of every cell's UMIs**, and they are the top-expressed genes in each one.
-   Two consequences. **Normalise to the library YOU measured, never to the on-axis subtotal** —
-   the off-axis share varies by cell type, so an on-axis CPM silently rescales each context by
-   how much of its transcriptome the axis happens to cover. And when reading any "fraction of
-   the transcriptome" claim about this challenge, remember the scored axis is a curated ~70 %
-   of it; the six metrics never see the most abundant third. What Arc's rule was is not stated
-   anywhere we have found — only the resulting list is, and that list is what the loaders use.
+4. **The 18,533 axis is curated, not the transcriptome.** `gene_names.csv` is the `var` index of
+   the context files, in order, and whole gene families are absent from it (the ribosomal
+   proteins, HLA, `GAPDH`, `MALAT1`). **Normalise to the library a cell carries, never to the
+   on-axis subtotal.**
 5. **Raw integer counts, not log1p.** Non-negative, whole, finite, ≤ 1,000,000 per cell;
    exactly 400 cells per perturbation; **no `non-targeting` rows**; `target_gene` holds gene
    symbols (`ADNP`, not `ADNP-1`); a `context` column; ≤ 4.75e9 stored entries (a dense matrix
@@ -105,37 +96,24 @@ agent can delete the item; only you can mint or paste the key.
    submission.** Write the h5ad out of core (h5py, per context) and run `vcc prep` /
    `vcc submit` on a 64 GB machine at minimum, 128 GB comfortably.
 8. **PDS is cosine** on pseudobulk-sum deltas with all 300 panel targets removed: a global
-   rescale of the *scored* delta cannot move it. The amplitude knobs (`--alpha`, `--alpha-bulk`)
-   are not that rescale: they scale log2 fold changes before the emitter's `2^lfc` and
-   renormalisation, and the scorer's log1p is linear for low counts and logarithmic for high
-   ones, so α changes the scored delta's direction and is the largest single mover of board
-   `pds` (`private/reports/09_vcc2026_model_and_scoring.md` §4b; `private/reports/16_pooled_anchor_reread.md`
-   rule 2). Size as such pays on `nmae`/`mse`; read any magnitude knob on `pds` and `nmae` together.
+   rescale of the *scored* delta cannot move it.
 9. **The four DE metrics are computed on the cells you emit** (Wilcoxon vs the real controls,
-   > 5 CPM in controls, BH per perturbation). The dispersion of emitted cells sets how many
-   genes you "call", and `fid`/`jac` charge under-calling. Emission is a modelling choice.
+   > 5 CPM in controls, BH per perturbation).
 10. **Two submissions per team per day** (UTC), one in flight (409 otherwise). Only submissions
    that reach scoring count. Validation and final scores are not comparable.
 11. **`gene_names.csv` HAS a header row this year (`gene_name`)** — the opposite of 2025. A
     `header=None` read yields 18,534 "genes" with the literal `gene_name` first. `vcc prep`
     strips known headers either way; our own readers must check the row count against the h5ad
     (`sidechain.data.profile` prints both reads and marks the right one).
-12. **Target coverage per corpus is thin — but the shipped pool is not.** Of the 300 targets, H1
-    covers 25, the genome-wide K562 file 272, and the four essential-gene panels (K562-essential,
-    RPE1, Jurkat, HepG2) **zero**. `private/reports/06_vcc2026_controls_qc.md` §5.
-    **The "28 targets are in nothing we hold" clause is pre-X-Atlas and stale (checked
-    2026-09-01):** `cache/vcc2026/foldsub/{hct116,hek293t}_full_panel300.npz` each carry
-    **300/300** of `pert_counts.csv`, and every build since SER-2 records `pool 300/300,
-    fallback 0`. So the generic-mean-shift fallback fires on **no** validation target. Do not build an
-    argument on the 28 without re-measuring; the per-corpus numbers above are still correct.
-    **On the final panel** (D/E/F, 2026-10-21) it fires on one target of 300, `ANG`, which no source we hold measured.
+12. **Panel coverage is per source.** Which corpora cover which of the 300 targets, and where the
+    builder's generic mean-shift fallback fires: the notes file above and `private/reports/06_vcc2026_controls_qc.md` §5.
 
 ## Packaging and submitting
 
 ```bash
 vcc prep pred.h5ad -g gene_names.csv --perts pert_counts.csv -o pred.vcc --dry-run   # validate
 vcc prep pred.h5ad -g gene_names.csv --perts pert_counts.csv -o pred.vcc
-vcc submit pred.vcc -m "rung 1' pooled delta transfer" --wait                         # prints the six
+vcc submit pred.vcc -m "<model name>" --wait                                         # prints the six
 vcc status <entry-id>
 ```
 
