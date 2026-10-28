@@ -1,23 +1,13 @@
-"""Stream an h5ad in row blocks and accumulate per-label pseudobulks.
+"""Stream h5ads in row blocks and accumulate per-label pseudobulk sums.
 
-Why streaming: the corpora we pool from do not fit in memory. Replogle's K562
-genome-wide file is 1.99M cells x 8,248 genes stored DENSE and gzip-chunked
-(65 GB logical); the H1 files are 6-14 GB CSR. One row block is resident at a
-time and only the per-label sums are kept, so memory is O(labels x genes).
-
-Both on-disk layouts anndata writes are read directly with h5py -- a
-`csr_matrix` group (data/indices/indptr) and a plain 2-D dataset -- because
-anndata's backed mode cannot slice a dense gzip dataset efficiently.
-
-What is accumulated per label, per gene:
-  count_sum   sum of raw counts                      -> pseudobulk-sum profiles (PDS space)
-  cpm_sum     sum over cells of counts / libsize * 1e6 -> arithmetic-mean CPM (the DE-test space)
-  cpm_sq_sum  sum of squares of the same              -> per-gene variance of that mean
-plus n_cells and libsize_sum per label.
-
-    uv run python -m sidechain.data.stream_pseudobulk FILE.h5ad [FILE2 ...] \
-        --label-col target_gene --keep targets.csv --control non-targeting \
+    uv run python -m sidechain.data.stream_pseudobulk FILE.h5ad [FILE2 ...] \\
+        --label-col target_gene --keep targets.csv --control non-targeting \\
         --out ~/data/sidechain/cache/<name>.npz [--control-once]
+
+Per label and gene: count_sum (raw counts), cpm_sum (counts / libsize * 1e6) and cpm_sq_sum; per label n_cells and
+libsize_sum. Reads each h5ad's X (a csr_matrix group or a dense 2-D dataset) with h5py, one block at a time;
+writes the `PseudobulkSums` .npz and prints a JSON summary.
+Notes: private/code-notes/src/sidechain/data/stream_pseudobulk.py.md
 """
 from __future__ import annotations
 
@@ -63,28 +53,8 @@ class PseudobulkSums:
         return np.maximum(self.cpm_sq_sum / n - m * m, 0.0)
 
     def n_eff(self, i: int) -> np.ndarray:
-        """How many cells' worth of evidence sits behind each gene of label row `i`.
-
-        `(sum of the per-cell CPMs)^2 / (sum of their squares)`. If k cells each
-        contributed the same amount this is exactly k; if one cell contributed
-        everything it is 1. Uneven contributions can only push it BELOW the number of
-        cells that actually detected the gene, never above -- so it is a floor on that
-        count, never an overstatement (measured at ~0.73-0.76 of the true count on
-        `hepg2_flowtest_real.h5ad`, where both are computable).
-
-        This is the number `count_sum` cannot give: a gene whose counts add up to 100
-        might be 100 cells at 1 each or one cell at 100, and the pooling weight has no
-        other way to tell those apart.
-
-        It is NOT a detection count -- a gene seen in many cells that disagree wildly
-        also scores low -- which is why it is called `n_eff` everywhere and why the
-        exact count stays worth a re-stream (private research/ideas/dataset-qc-intake.md).
-
-        ROW-WISE, like `submit.build._log2fc_with_var` and for the same reason: the
-        whole-matrix form of this would allocate ~5.6 GB on a full-corpus X-Atlas
-        artifact to answer a question about two rows. There is deliberately no
-        `n_eff_all()`.
-        """
+        """Per gene of label row `i`, `cpm_sum^2 / cpm_sq_sum` capped at the row's cell count: a floor on the cells
+        that detected the gene, not a detection count."""
         s1, s2 = self.cpm_sum[i], self.cpm_sq_sum[i]
         with np.errstate(divide="ignore", invalid="ignore"):
             e = np.where(s2 > 0, s1 * s1 / np.maximum(s2, np.finfo(np.float64).tiny), 0.0)
@@ -114,13 +84,7 @@ class PseudobulkSums:
 
     @staticmethod
     def peek(path: str | Path) -> tuple[list[str], list[str]]:
-        """Read only the labels and genes -- the two cheap members.
-
-        Needed before `load_subset`: deciding which genes and labels to keep is a
-        question about the axis, and on a full-corpus artifact you cannot answer it
-        by loading the thing first. These two members are a few hundred KB against
-        5.65 GB for one matrix.
-        """
+        """Read only the labels and genes, not the matrices."""
         with zipfile.ZipFile(Path(path).expanduser()) as z:
             def small(name):
                 with z.open(name) as fh:
@@ -130,24 +94,7 @@ class PseudobulkSums:
     @classmethod
     def load_subset(cls, path: str | Path, labels: Sequence[str],
                     genes: Sequence[str]) -> PseudobulkSums:
-        """Load only these labels and genes, without materialising the whole artifact.
-
-        ``load`` reads every array whole. On a full-corpus X-Atlas cache that is
-        18,294 labels x 38,584 genes x float64 = **5.65 GB per array**, and a tau^2
-        fit wants two of them (``cpm_sum``, ``cpm_sq_sum``) from each of two sources
-        -- 22.6 GB on a 16 GB Mac. This reads each member once, sequentially, and
-        keeps only the requested cells: peak memory is the output plus one row.
-
-        The npz members are DEFLATE'd, so rows cannot be seeked to; the whole member
-        is decompressed and discarded as it goes. That is I/O bound and takes a few
-        seconds per GB, which is still far cheaper than not fitting in memory.
-
-        ``count_sum`` is NOT read -- it is zero-filled. Nothing in the log2FC or
-        variance path touches it (``_log2fc_with_var`` reads ``cpm_sum``,
-        ``cpm_sq_sum``, ``n_cells`` and ``libsize_sum`` only), and reading it would
-        add a third full pass for nothing. A caller that needs count-space profiles
-        wants ``load``.
-        """
+        """Load only these labels and genes, reading each member once; `count_sum` is zero-filled, not read."""
         path = Path(path).expanduser()
         with zipfile.ZipFile(path) as z:
             def small(name):
@@ -200,11 +147,7 @@ def _npy_header(fh) -> tuple[np.dtype, tuple, bool]:
 
 def _read_npz_rows(npz_path: Path, member: str, rows: np.ndarray,
                    cols: np.ndarray) -> np.ndarray:
-    """Return ``rows x cols`` of one (L, G) npz member, in the order `rows` gives.
-
-    Reads the member start to finish exactly once and discards everything it was
-    not asked for; see `PseudobulkSums.load_subset` for why this exists.
-    """
+    """Return ``rows x cols`` of one (L, G) npz member, in the order `rows` gives, reading it once."""
     order = np.argsort(rows)
     want = np.asarray(rows)[order]
     out = np.empty((len(rows), len(cols)), dtype=np.float64)
@@ -231,17 +174,9 @@ def _read_npz_rows(npz_path: Path, member: str, rows: np.ndarray,
 
 
 def iter_npz_row_blocks(npz_path: str | Path, members: Sequence[str], *, block_rows: int = 128):
-    """Yield ``(row0, {member: block})`` over the rows of several (L, G) members in lockstep.
+    """Yield ``(row0, {member: block})`` over every row of several same-shape (L, G) members in lockstep.
 
-    The row-wise complement of `_read_npz_rows`: that one keeps a few rows of one member,
-    this one walks EVERY row of several members together, `block_rows` at a time, so a
-    per-gene statistic that is a sum over labels (`dispersion.moment_dispersion_file`) can be
-    accumulated without ever holding a whole member. Peak memory is `len(members) x
-    block_rows x G` floats -- 40 MB a member at 128 rows on the 38,584-gene X-Atlas axis,
-    against 5.65 GB for one member loaded whole.
-
-    Each member is opened on its own handle and read start to finish exactly once (the npz
-    members are DEFLATE'd, so there is no seeking). The members must agree on shape.
+    `block_rows` rows at a time; each member is read once, start to finish, on its own handle.
     """
     npz_path = Path(npz_path).expanduser()
     if block_rows < 1:
@@ -336,14 +271,9 @@ def stream_pseudobulk_file(
     source: str = "",
     x_path: str = "X",
 ) -> PseudobulkSums:
-    """The accumulator on an OPEN h5 handle -- local file or remote object store.
+    """The accumulator on an open h5 handle, a local file or a lamindb `Artifact.open()`.
 
-    Split out of `stream_pseudobulk` so a lamindb `Artifact.open()` handle (an
-    h5py.File over S3) streams through the identical code path as a local h5ad.
-    `labels_all` / `genes` override the file's own obs column / var index for
-    corpora whose labels live in a SIDECAR (pertdata ships the harmonized
-    `pert_target` in obs.parquet, not in X.h5ad) -- the caller owns proving the
-    sidecar is row-aligned before handing it in.
+    `labels_all` / `genes` override the file's obs column / var index; the caller proves them row-aligned.
     """
     t0 = time.time()
     name = source or str(getattr(f, "filename", "<remote>"))
@@ -441,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep", help="CSV of labels to keep (column target_gene or first column); default all")
     ap.add_argument("--control", help="control label, always kept")
     ap.add_argument("--control-once", action="store_true",
-                    help="take the control label from the FIRST file only (the 2025 val/test files repeat training's controls)")
+                    help="take the control label from the first file only")
     ap.add_argument("--block-rows", type=int)
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
@@ -460,13 +390,7 @@ def main(argv: list[str] | None = None) -> int:
     total.save(args.out)
     meta = {"labels": len(total.labels), "genes": len(total.genes),
             "cells": int(total.n_cells.sum()), "sources": total.sources}
-    # The one POSITIVE check we have (T18 check 4). Every other guard on this path is
-    # negative space -- it catches a wrong control label or an untransformed matrix. None of
-    # them can say the aggregate just written is arithmetically wrong, and a transposed
-    # matrix, a misaligned gene axis or a shuffled label column all pass them while
-    # destroying the on-target signal. Reported, not raised: this CLI has already done the
-    # expensive part and the artifact is on disk, so the reading belongs in the record where
-    # a later session can see it rather than in an exit code that throws the stream away.
+    # the on-target knockdown check, recorded in the summary rather than raised
     if args.control:
         from sidechain.ingest.checks import require_on_target_knockdown
         try:

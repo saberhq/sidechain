@@ -1,60 +1,11 @@
-"""A source that ships log fold changes directly, with no cells behind them.
+"""A delta source of published log fold changes with no cells behind them, pooled by `pooled_delta` like a pseudobulk.
 
-Every source `pooled_delta` consumed until now was a `PseudobulkSums`: per-cell
-CPM sums we accumulated ourselves, from which both the fold change and its
-sampling variance fall out. Feng et al. 2026 is the first corpus that publishes
-the *contrast already taken* -- `Target, Expressed_Gene_Symbol,
-Expressed_Gene_Ens_ID, lfc, pval_adj` -- and ships no counts at all.
+    uv run python -m sidechain.data.lfc_table TABLE.tsv.gz --keep pert_counts.csv --out CACHE.npz
 
-The obvious shortcut is to fabricate a `PseudobulkSums` whose CPM sums happen to
-back-compute to Feng's numbers. That is rejected deliberately: it would put
-invented per-cell statistics into the one object the rest of Sidechain trusts as
-measured, where `qc_report` and anything else downstream would later read them as
-real. A source that has no cells should not claim to have cells. So this module
-is a second source *type*, and `pooled_delta` takes either.
-
-WHERE THE VARIANCE COMES FROM, and why this is the delicate part
-----------------------------------------------------------------
-`pooled_delta` weights each source per gene by `1 / var`, and Feng publishes no
-variance. It publishes an adjusted p-value, which is a statement about the same
-underlying standard error, so the variance is recoverable:
-
-    p_adj  --(invert BH)-->  p_nominal  --(two-sided normal)-->  z
-    se = |lfc| / z          var = se^2
-
-That is an approximation and it is worth being precise about which parts:
-
-  * **Inverting BH is exact only where the step-up's cumulative minimum did not
-    bind.** Benjamini-Hochberg sets p_adj_(i) = min over j >= i of (m/j)*p_(j)
-    for p sorted ascending over a family of m tests. Where that minimum is not
-    binding it reduces to p_adj_(i) = (m/i)*p_(i), which inverts to
-    p_(i) = p_adj_(i) * i / m -- what `_nominal_from_bh` computes. The minimum
-    binds mostly in the saturated tail, which we discard anyway (below).
-  * **The family is assumed to be one target's genes.** Feng does not document
-    what it adjusted over. Per-target across the expressed axis is the usual
-    choice and the only one that makes the rank meaningful here. If it was in
-    fact adjusted globally, every nominal p shifts by a constant factor -- which
-    rescales all of Feng's variances together and therefore barely moves an
-    inverse-variance pool relative to the *other* sources' weights. Stated so
-    the assumption is visible rather than buried.
-
-WHY SATURATED ROWS ABSTAIN RATHER THAN VOTE TOWARD ZERO
--------------------------------------------------------
-98.9 % of the genome-wide table's rows have `pval_adj` > 0.99 (measured
-2026-08-23 over all 43,187,656 rows). Read naively, `se = |lfc|/z` turns those
-into *tiny* standard errors whenever `lfc` is near zero, hence enormous weights
--- Feng would then dominate the pool on exactly the genes where it measured
-nothing. That is the failure mode this module exists to avoid, and it is not
-hypothetical arithmetic: it is what a floor-the-variance implementation does.
-
-So a saturated row gets **infinite variance, i.e. zero weight**: Feng abstains.
-The justification is the corpus itself. At a median of 25 cells per target the
-screen has almost no power, so "no detectable change" is close to uninformative,
-and letting it vote toward zero would shrink other sources' real effects using
-evidence that does not exist. Feng votes where it has signal -- a median of 58
-genes per panel target -- and stays silent elsewhere. `pooled_delta` already
-divides only where the accumulated weight is positive, so abstention composes
-correctly with the other sources rather than leaving a hole.
+The variance comes from the adjusted p: invert Benjamini-Hochberg within one target's genes, take the two-sided
+normal z, `var = (|lfc| / z)^2`; a row at `pval_adj >= SATURATED_P` abstains (`var = inf`, zero weight). Reads a
+Feng et al. 2026-style TSV (`Target, Expressed_Gene_Symbol, lfc, pval_adj`); writes an `LfcTable` .npz.
+Notes: private/code-notes/src/sidechain/data/lfc_table.py.md
 """
 from __future__ import annotations
 
@@ -67,14 +18,10 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import norm
 
-# A row at or above this adjusted p carries no usable information about its
-# standard error, and is given zero weight. Not a tuning knob so much as the
-# point where the published number stops varying: Feng's saturated rows sit at
-# 0.999999927233465.
+# adjusted p at or above which a row abstains (infinite variance)
 SATURATED_P = 0.99
 
-# Clamps p_nominal away from 0. With the stable upper-tail quantile this is a
-# floor on how much certainty a single row may claim, not a numerical guard.
+# floor on a recovered nominal p
 MIN_NOMINAL_P = 1e-300
 
 
@@ -100,11 +47,7 @@ class LfcTable:
         return np.isfinite(self.var).sum(axis=1)
 
     def effect(self, target: str) -> tuple[np.ndarray, np.ndarray] | None:
-        """(log2 fold change, variance) for `target`, or None if absent.
-
-        The same shape `_log2fc_with_var` returns for a PseudobulkSums, which is
-        the whole point -- `pooled_delta` cannot tell the two apart.
-        """
+        """(log2 fold change, variance) for `target`, or None if absent: `_log2fc_with_var`'s shape."""
         try:
             i = self.labels.index(target)
         except ValueError:
@@ -112,14 +55,7 @@ class LfcTable:
         return self.lfc[i], self.var[i]
 
     def subset(self, labels: list[str], genes) -> LfcTable:
-        """A copy restricted to these labels and genes, IN THE ORDER GIVEN.
-
-        Order is the point: anything that compares this table's rows to another
-        source's elementwise (a tau^2 fit, a calibration) needs both on one gene
-        order. A label or gene this table does not carry is an error, not a silent
-        abstention -- a caller asking for it believes it is there, and the shared-axis
-        helpers guarantee it is.
-        """
+        """A copy restricted to these labels and genes, in the order given; one it does not carry raises."""
         if len(set(map(str, self.genes))) != len(self.genes):
             raise ValueError(f"{self.source or 'LfcTable'}: duplicate gene names; a name "
                              "must identify one column")
@@ -138,19 +74,9 @@ class LfcTable:
                         source=self.source, context=self.context, notes=dict(self.notes))
 
     def scrambled(self, seed: int) -> LfcTable:
-        """The same table with its targets' profiles shuffled among the targets that vote.
+        """The same table with its voting targets' profiles permuted among themselves (seeded).
 
-        The control every weight-bearing change to the pool now ships with: `c`, `t` and
-        `beta` each moved the score and each lost to its own scramble, because anything
-        that redistributes weight buys `reach` whatever it encodes. A new source has to
-        beat this copy of itself, not just the pool without it.
-
-        The shuffle is among targets with at least one finite variance, so every target
-        that voted still votes and every one that abstained still abstains, with the
-        same weights and coverage -- only which gene's response goes with which target is
-        broken. A permutation over ALL labels would move abstention onto different
-        targets and change coverage, which is a second variable. A derangement is not
-        forced: with hundreds of voters a fixed point is rare and harmless.
+        A target with a finite variance still votes and one that abstained still abstains.
         """
         voting = np.flatnonzero(np.isfinite(self.var).any(axis=1))
         if voting.size < 2:
@@ -171,8 +97,7 @@ class LfcTable:
             lfc=self.lfc, var=self.var,
             source=np.asarray([self.source], dtype=object),
             context=np.asarray([self.context], dtype=object),
-            # How the table was built (a view's conditions, rho and gate; a scramble's
-            # seed). Dropped until 2026-09-26, so a saved view could not say what it was.
+            # how the table was built (a view's conditions, rho and gate; a scramble's seed)
             notes=np.asarray([json.dumps(self.notes, default=str)], dtype=object),
         )
 
@@ -189,14 +114,9 @@ class LfcTable:
 
 
 def _nominal_from_bh(p_adj: np.ndarray) -> np.ndarray:
-    """Undo a Benjamini-Hochberg adjustment within one family of tests.
+    """Undo a Benjamini-Hochberg adjustment within one family: `p_(i) = p_adj_(i) * i / m`.
 
-    BH sorts p ascending over m tests and reports
-    `p_adj_(i) = min_{j>=i} (m/j) * p_(j)`. Where that running minimum is not
-    binding this is just `(m/i) * p_(i)`, so the nominal p is
-    `p_adj_(i) * i / m`. Ties -- and the saturated tail is one enormous tie --
-    are where it stops being exact, which is a reason to discard that tail
-    rather than to trust a number recovered from it.
+    Exact where BH's running minimum `min_{j>=i} (m/j) * p_(j)` does not bind; ties are where it stops being exact.
     """
     m = p_adj.size
     order = np.argsort(p_adj, kind="stable")
@@ -207,39 +127,20 @@ def _nominal_from_bh(p_adj: np.ndarray) -> np.ndarray:
 
 def variance_from_pvalue(lfc: np.ndarray, p_adj: np.ndarray,
                          *, saturated_p: float = SATURATED_P) -> np.ndarray:
-    """Standard-error-squared implied by an effect size and its adjusted p.
-
-    Returns `inf` for rows the source cannot speak to, so `1/var` is 0 there.
-    See this module's docstring for why abstaining beats voting toward zero.
-    """
+    """Standard-error-squared implied by an effect size and its adjusted p; `inf` where the row abstains."""
     var = np.full(lfc.shape, np.inf, dtype=np.float64)
     usable = np.isfinite(p_adj) & (p_adj < saturated_p) & np.isfinite(lfc) & (lfc != 0.0)
     if not usable.any():
         return var
 
     p_nom = _nominal_from_bh(p_adj)[usable]
-    # Two-sided: z is the upper-tail quantile at p/2, computed with `isf` and
-    # NOT as `ndtri(1 - p/2)`.
-    #
-    # That difference is not stylistic. `1 - p/2` rounds to exactly 1.0 in
-    # float64 once p drops below ~1e-16, so `ndtri` returns `inf`, `se` becomes
-    # `|lfc| / inf` = 0, the variance is 0, and the weight `1/var` is INFINITE.
-    # The source's MOST significant genes -- the ones it is most right about --
-    # would each single-handedly override every other source on that gene.
-    # Measured on the real Feng cache before this was fixed: 35 genes across 34
-    # of 182 targets, and it cost ~0.01 of `reach` on the K562 mirror.
-    #
-    # It is the same failure this module's docstring is built around, arriving
-    # through a numerical door instead of a statistical one: a near-zero
-    # variance is a near-infinite weight, and a thin source must never be able
-    # to claim one. `isf` evaluates the tail directly and stays finite.
+    # two-sided z by `isf`, not `ndtri(1 - p/2)`: `1 - p/2` rounds to 1.0 below p ~ 1e-16, so z = inf, var = 0
     z = norm.isf(p_nom / 2.0)
     good = np.isfinite(z) & (z > 0)
     idx = np.flatnonzero(usable)[good]
     se = np.abs(lfc[idx]) / z[good]
     v = se**2
-    # Belt and braces: a variance that underflows to 0 is still an infinite
-    # weight, so anything non-positive abstains rather than dominating.
+    # a variance that underflows to 0 abstains
     v[v <= 0] = np.inf
     var[idx] = v
     return var
@@ -262,16 +163,9 @@ def read_feng_lfc(
     source: str = "",
     saturated_p: float = SATURATED_P,
 ) -> LfcTable:
-    """Read a Feng-style per-gene LFC table into an `LfcTable`.
+    """Read a Feng-style per-gene LFC table (.tsv or .tsv.gz) into an `LfcTable`, keeping `keep`'s targets.
 
-    `keep` restricts to a set of targets while streaming, which is what makes
-    this affordable: the genome-wide table is 43,187,656 rows and holding all
-    6,673 targets as two float64 matrices is ~691 MB, while the 182 that touch
-    the 2026 panel are ~19 MB. Filtering after the fact would defeat that.
-
-    `context_col` is for the per-line table, where the context varies per ROW
-    (`Cell_Line`, 19 lines) rather than per file. Pass it together with
-    `context` to select one line; the config block declares which applies.
+    `context_col` with `context` selects one line of a per-line table.
     """
     path = Path(path).expanduser()
     per_target: dict[str, dict[str, tuple[float, float]]] = {}
@@ -317,9 +211,7 @@ def read_feng_lfc(
         fcs = np.fromiter((v[0] for v in cols.values()), dtype=np.float64, count=len(cols))
         ps = np.fromiter((v[1] for v in cols.values()), dtype=np.float64, count=len(cols))
         lfc[r, j] = fcs
-        # The BH family is this target's own tests -- inverted over the rows the
-        # file actually carries for it, not over the padded matrix, so a target
-        # measured on fewer genes is not given a family it never had.
+        # the BH family is this target's own rows in the file, not the padded matrix
         var[r, j] = variance_from_pvalue(fcs, ps, saturated_p=saturated_p)
 
     return LfcTable(
@@ -332,13 +224,9 @@ def read_feng_lfc(
 def main(argv: list[str] | None = None) -> int:
     """Build a cached LfcTable from a published per-gene LFC table.
 
-        uv run python -m sidechain.data.lfc_table \
-            ~/data/sidechain/external/figshare-26819743/GenomeWideScreen_LFC_byGene.tsv.gz \
-            --keep ~/data/sidechain/vcc2026/pert_counts.csv \
-            --out ~/data/sidechain/cache/vcc2026/feng_genomewide_lfc.npz
-
-    Mirrors `sidechain.data.stream_pseudobulk`'s shape on purpose: read the big
-    thing once, cache the small thing, and let every later run load the cache.
+        uv run python -m sidechain.data.lfc_table \\
+            ~/data/sidechain/external/figshare-26819743/GenomeWideScreen_LFC_byGene.tsv.gz \\
+            --keep ~/data/sidechain/vcc2026/pert_counts.csv --out ~/data/sidechain/cache/vcc2026/feng_genomewide_lfc.npz
     """
     import argparse
     import json
@@ -381,8 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         "targets": len(table.labels),
         "genes": int(table.genes.size),
         "context": table.context or None,
-        # The number that says whether the variance derivation produced anything
-        # usable. Report 07 §3.3 asks for exactly this before Feng is trusted.
+        # per target, how many genes carry a finite weight
         "genes_with_finite_weight": {
             "min": int(usable.min()) if usable.size else 0,
             "median": int(np.median(usable)) if usable.size else 0,
