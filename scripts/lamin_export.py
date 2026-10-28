@@ -1,26 +1,11 @@
-"""Dump the hosted instance's registries to local CSV — the exit plan, kept warm.
+"""Dump the hosted lamindb instance's registries to local CSV, with the uid -> key manifest.
 
     uv run python scripts/lamin_export.py                 # -> ~/data/sidechain/lamin_export/
     uv run python scripts/lamin_export.py --out /somewhere/else
 
-ADR 0007 §7. `scripts/lamin_register.py` already calls this after every upload, so the
-catalogue is never behind the bucket; run it by hand when you want it refreshed without
-registering anything — before the Pro-trial decision, say.
-
-Why it exists at all: lamindb stores objects under **virtual keys**, so the S3 object for
-`derived/xatlas-orion/hct116_full.npz` is `.lamindb/xgKU70jAkvF6LUi60000.npz`, and the
-mapping lives only in the instance's Postgres. A bytes-only extraction returns correct
-bytes with meaningless names. `manifest.csv` is what turns them back into the tree.
-
-lamindb ships `lamin io exportdb` for this and it **does not work on our instance**: its
-Postgres path uses `COPY … TO STDOUT`, which bypasses the wrapper that injects the
-row-level-security JWT, so it dies with `JWT is not set` (confirmed with the CLI on 2026-09-25).
-`lamin io snapshot --no-upload --no-track` does work: it reconnects as the root DB user and copies
-every record into a local SQLite clone (tested 2026-09-25). This export stays because it refreshes
-itself after every registration. The ORM path used here works fine. When upstream fixes that, this can
-shrink to a call.
-
-CSV on purpose. This is the format that outlives the tools that wrote it.
+`manifest.csv` maps each uid-named storage object back to its key, the path under the data root.
+Reads the connected instance; writes the CSVs, RESTORE.md and export_meta.json (`utils.lamin.export_registries`).
+Notes: private/code-notes/scripts/lamin_export.py.md
 """
 from __future__ import annotations
 

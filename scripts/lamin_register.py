@@ -1,45 +1,12 @@
-"""Register local artifacts into the hosted lamindb instance, keyed by their
-path under ~/data/sidechain so the instance mirrors the local tree.
+"""Register local artifacts into the hosted lamindb instance, keyed by their path under ~/data/sidechain.
 
-    uv run python scripts/lamin_register.py \
-        ~/data/sidechain/derived/lamin-pertdata/sunshine23_all_pseudobulk.npz \
-        ~/data/sidechain/derived/lamin-pertdata/sunshine23_all_pseudobulk.lineage.json \
-        --description "..."
-    uv run python scripts/lamin_register.py --from-file paths.txt   # many paths: see CLI_ARGS_MAX
+    uv run python scripts/lamin_register.py ~/data/sidechain/derived/<source>/<file>.npz --description "..."
+    uv run python scripts/lamin_register.py --from-file paths.txt    # many paths: argv stays under CLI_ARGS_MAX
 
-Uploads go to the instance's default storage (the Lamin-managed us-west-2
-bucket), which is the whole point: a Brev box later runs
-`scripts/lamin_pull.py` and pulls from S3 over its datacenter link instead of
-the Mac uplink shipping the same file for the third time that week (not
-in-region: Brev cannot pick a region, and egress is billed the same anywhere). That script is the exact
-reciprocal of this one -- key -> path where this is path -> key -- and both take
-the mapping from `sidechain.utils.lamin`, so the two directions cannot drift.
-
-The instance comes from SIDECHAIN_LAMIN_INSTANCE (default saberhq/sidechain;
-empty means "don't connect", the same rule `log_run` and `lamin_pull` follow).
-`ln.connect()` is process-local (verified 2026-08-27: a fresh process still
-sees none/none), so running this never changes machine state for the other
-sessions in this checkout.
-
-Registration is tracked (`ln.track()`), so the instance records which script
-version produced the upload. Unlike `utils/logging.log_run` this is NOT
-non-fatal -- registering an artifact is the task here, not a side effect, so
-a failure should fail loudly.
-
-**Directories are folder artifacts, and folder artifacts overwrite their own history.**
-Every version of one shares a single storage key (`uid[:16]`), so re-registering a
-changed directory under the same key replaces the previous version's bytes in S3 and
-makes that version permanently unreadable. Files do not behave this way -- they version
-side by side. This script refuses the destructive case unless you ask for it; there is
-a preflight below, not a warning after the fact.
-
-`--from-file` exists because of a lamindb limit found the hard way on 2026-08-28:
-`ln.track()` stores the whole argv in `Run.cli_args`, a `varchar(1024)`, with no
-truncation (`lamindb/core/_context.py:814`, `lamindb/models/run.py:339`). Thirteen
-absolute paths on one command line overflow it and the registration dies inside
-Django with `DataError: value too long for type character varying(1024)` -- a message
-that names no field and no file. The preflight below turns that into a sentence, and
-`--from-file` is the way to register a backlog without tripping it.
+A directory registers as one folder artifact; a changed directory over a key that holds one is refused without
+`--allow-folder-overwrite` (folder versions share one storage key). `SIDECHAIN_LAMIN_INSTANCE` picks the instance.
+Reads the paths given; writes the artifacts and a tracked run to the instance, then refreshes the registry export.
+Notes: private/code-notes/scripts/lamin_register.py.md
 """
 from __future__ import annotations
 
@@ -70,8 +37,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="skip refreshing the local exit-plan catalogue afterwards")
     ap.add_argument("--allow-folder-overwrite", action="store_true",
                     help="re-register a DIRECTORY under a key that already holds one "
-                         "with different contents. This DESTROYS the stored copy of the "
-                         "existing version -- read the note in the module docstring first")
+                         "with different contents; this destroys the stored copy of the "
+                         "existing version")
     args = ap.parse_args(argv)
 
     paths = list(args.paths)
@@ -81,8 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     if not paths:
         ap.error("give at least one path, or --from-file")
 
-    # Preflight, not a post-mortem: ln.track() would otherwise fail inside Django
-    # AFTER connecting, with an error naming neither the field nor the fix.
+    # Preflight: an over-long argv would fail later inside ln.track().
     cli_args = " ".join(argv if argv is not None else sys.argv[1:])
     if len(cli_args) > CLI_ARGS_MAX:
         raise SystemExit(
@@ -94,9 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     plan: list[tuple[Path, str]] = []
     for path in paths:
         p = path.expanduser().resolve()
-        # A directory registers as ONE folder artifact (lamindb handles the
-        # tree) -- the mirror bundles are the case: seven small files that are
-        # only meaningful together.
+        # A directory registers as one folder artifact.
         if not p.exists():
             raise SystemExit(f"{p} does not exist")
         if args.key_prefix:
@@ -119,13 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     if inst := instance():
         ln.connect(inst)
 
-    # Folder artifacts overwrite their own history: every version shares one storage
-    # key (`uid[:16]`, lamindb/core/storage/paths.py:39-43), so re-registering a
-    # directory whose contents changed REPLACES the stored bytes of the previous
-    # version, and that version's `.cache()` raises from then on. For the mirror
-    # bundles -- the 32 KB this whole ADR exists to protect -- that would silently
-    # destroy the backup while printing "registered". Files are safe: they version
-    # side by side.
+    # A folder artifact's versions share one storage key (`uid[:16]`): saving a changed
+    # directory over one replaces the previous version's bytes. Files version side by side.
     for p, key in plan:
         if not p.is_dir():
             continue
@@ -150,15 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"registered {key}  uid={art.uid}  size={art.size}  hash={art.hash}")
     ln.finish()
 
-    # Refresh the exit-plan catalogue here, not on a calendar. The bucket stores objects
-    # under virtual keys, so `manifest.csv` is the only thing that maps a uid-named blob
-    # back to `derived/…`; a catalogue that is one registration behind is a catalogue
-    # that cannot restore what you just uploaded. Doing it on every write makes staleness
-    # structurally impossible, which a schedule a human keeps does not.
-    #
-    # Non-fatal, unlike everything else here: the upload already succeeded, and a failed
-    # catalogue refresh is fixed by re-running `scripts/lamin_export.py`. Failing the
-    # command now would say the registration failed, which would be a lie.
+    # Refresh the registry export after every registration; a failure here only warns.
     if not args.no_export:
         try:
             result = export_registries()

@@ -1,20 +1,11 @@
-"""Regenerate the wordmark assets: the README's SVGs and the site's favicon + social card.
+"""Regenerate the wordmark assets: the README's SVGs and the site's favicon and social card.
 
     uv run python scripts/wordmark.py
 
-Sets "Sidechain" in Geist Pixel over a Geist Mono kicker, in the saberhq.com type and
-colour tokens, and outlines every glyph to a path -- so the SVG carries no font and renders
-the same everywhere GitHub shows it. The README picks the variant with ``<picture>`` and
-``prefers-color-scheme``. The site (``site/``) sets the same wordmark live, from the web
-fonts; what it needs from here is the pixel grid in forms a browser can't set from CSS:
-``site/static/favicon.svg`` + ``.png`` and ``apple-touch-icon.png`` ("S." in the accent),
-and ``site/static/og.png``, the 1200x630 card social networks show when the page is shared.
-
-Geist (SIL OFL) is fetched from Google Fonts into a temp dir on first run. Geist Pixel draws
-each pixel as its own rounded contour on a 38-unit grid, so instead of tracing those curves
-the wordmark is rebuilt from the grid: one cell -> one PX_PER_CELL-pixel square, adjacent
-cells merged into runs. Same picture at this size, a fiftieth of the bytes, and crisp at 1x
-and 2x. Needs fontTools, which the project env already carries.
+Sets "Sidechain" in Geist Pixel over a Geist Mono kicker in the saberhq.com tokens, every glyph rebuilt as squares
+from Geist Pixel's 38-unit grid, so the SVG carries no font. Fetches Geist (SIL OFL) from Google Fonts into a temp
+dir; writes ``assets/wordmark-<variant>.svg``, ``site/static/favicon.svg`` + ``.png``, ``apple-touch-icon.png`` and
+``site/static/og.png`` (1200x630). Notes: private/code-notes/scripts/wordmark.py.md
 """
 from __future__ import annotations
 

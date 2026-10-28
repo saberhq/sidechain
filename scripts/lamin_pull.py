@@ -1,33 +1,12 @@
-"""Pull registered artifacts out of the hosted lamindb instance into the local tree.
+"""Pull registered artifacts out of the hosted lamindb instance into the local tree, each verified by its hash.
 
-    uv run python scripts/lamin_pull.py derived/lamin-pertdata/sunshine23_all_pseudobulk.npz
-    uv run python scripts/lamin_pull.py --prefix runs/mirror/loco_k562gwps/
-    uv run python scripts/lamin_pull.py --prefix derived/xatlas-orion/ --dry-run
+    uv run python scripts/lamin_pull.py derived/<source>/<file>.npz
+    uv run python scripts/lamin_pull.py --prefix runs/mirror/<fold>/
+    uv run python scripts/lamin_pull.py --prefix derived/<source>/ --dry-run
 
-The exact reciprocal of `scripts/lamin_register.py`: that maps a local path to a key,
-this maps a key back to the same local path (ADR 0007 §1 — the instance is a mirror of
-the tree, so `derived/x.npz` on the hub is `~/data/sidechain/derived/x.npz` here).
-
-This is what replaces `brev copy` for a GPU box: the box pulls from S3 on a datacenter
-downlink instead of the Mac shipping the same 12.2 GB up a residential uplink for the
-third time in a week (the measurement behind ADR 0007). Not "in-region" — Brev boxes
-run on Hyperstack/MassedCompute, not in AWS us-west-2, so a pull is ordinary Lamin
-egress ($0.09/GB above 10 GB/month). It is the *uplink* that was the bottleneck, not
-the bill.
-
-It downloads straight to the destination via `artifact.path.download_to(...)` rather
-than `.cache()`. `.cache()` puts the bytes in lamindb's OS cache, where nothing of ours
-looks for them, and placing them afterwards means either a second full copy on disk
-(13.8 GB for a 6.9 GB npz) or a hardlink that quietly couples the data tree to lamindb's
-cache. `download_to` writes once, where we want it.
-
-**Verified, loudly.** Every pulled file is re-hashed with lamindb's own hasher and
-compared to the registry's `hash`; a mismatch raises. A backup that restores the wrong
-bytes quietly is the one outcome worse than no backup.
-
-Auth: on a box, `scripts/brev_lamin_key.sh` ships the key once at bootstrap. With no
-credentials this fails loudly — pulling *is* the task here, unlike `log_run`, which is
-non-fatal by contract.
+The inverse of `scripts/lamin_register.py`: key `derived/x.npz` lands at `~/data/sidechain/derived/x.npz`, written
+with `download_to`, re-hashed with lamindb's hasher and compared to the registry's `hash`; a mismatch exits non-zero.
+Reads the connected instance; writes the pulled files under the data root. Notes: private/code-notes/scripts/lamin_pull.py.md
 """
 from __future__ import annotations
 

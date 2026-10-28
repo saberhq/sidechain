@@ -3,24 +3,9 @@
     uv run python scripts/subset_pseudobulk_labels.py IN.npz OUT.npz --keep panel.csv \
         --control Non-Targeting
 
-Why this exists. A full-corpus X-Atlas artifact is 18,294 labels x 38,584 genes, and
-`PseudobulkSums` holds three float64 matrices of that shape -- 16.9 GB. Two of them will not
-sit in a 16 GB Mac, which is why full-corpus submission builds have been box-only.
-
-But **`pooled_delta` reads sources strictly row-wise**: `_log2fc_with_var` touches exactly two
-rows (the target and the control), `control_cpm` one, `n_eff` two. Nothing in the pooling path
-ever needs a row for a label it is not asked about. So a subset restricted to the labels a run
-will actually request is **bit-identical for pooling** and three orders of magnitude smaller.
-That is what the existing `foldsub/*_fold272.npz` artifacts are, and this script is the
-missing shipped version of how they were made.
-
-It never materialises the whole artifact: `np.load` on an `.npz` is lazy, so each array is
-decompressed, sliced and released in turn. Peak is one array (5.6 GB) rather than three.
-
-**This subsets LABELS (rows: which perturbation), never GENES (columns: which expression).**
-Narrowing the gene axis changes the CPM denominator, because library size is summed over the
-emitted axis -- the trap that made the panel-scope artifacts unpoolable with the full ones
-(`derived/xatlas-orion/archive_panel_20260823/README.md`). The gene axis is copied verbatim.
+Keeps the control and the listed labels (rows); the gene axis is copied verbatim, never subset. Each array is
+decompressed, sliced and released in turn, so the whole artifact is never held.
+Reads IN.npz and the label CSV; writes OUT.npz. Notes: private/code-notes/scripts/subset_pseudobulk_labels.py.md
 """
 from __future__ import annotations
 

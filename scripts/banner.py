@@ -1,24 +1,12 @@
-"""Cut one of Saber's photographs into a post banner.
+"""Cut a photograph into a post's banner and its link-preview card.
 
     uv run python scripts/banner.py                          # list the pool, pick one
     uv run python scripts/banner.py photo.jpg --slug corpus  # banner for posts/corpus/
     uv run python scripts/banner.py photo.jpg --out DIR      # banner anywhere else
 
-Every banner gets the same frame — that repetition, not a filter, is the visual
-signature. The photo's pixels are untouched apart from the crop and resize:
-
-- ``cover.jpg``  2000x800, 5:2 — the banner the post opens with (``image: cover.jpg``)
-- ``social.jpg`` 1200x627, 1.91:1 — the link-preview card (``images: [social.jpg]``),
-  so LinkedIn shows the same photo instead of the site-wide og.png
-
-``--offset 0..100`` slides the crop window along whichever axis gets cut (50 = centre;
-0 = left/top, 100 = right/bottom). EXIF is stripped on write — originals carry GPS —
-but the capture date is read first and printed as the suggested ``caption:`` line
-(the caption convention is the date the photo was taken, nothing more).
-
-Photos come from the pool ``~/art/still/sidechain-banner/`` (run with no arguments to
-list it) or from any path. JPEG/PNG/TIFF; HEIC needs an export first. Needs Pillow,
-which the project env already carries for scripts/wordmark.py.
+Writes ``cover.jpg`` (2000x800) and ``social.jpg`` (1200x627), only cropped and resized, EXIF stripped, and prints the
+capture date as the suggested ``caption:`` line. Reads a JPEG/PNG/TIFF from the pool ``~/art/still/sidechain-banner/``
+or any path. Notes: private/code-notes/scripts/banner.py.md
 """
 from __future__ import annotations
 
