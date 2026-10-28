@@ -2,11 +2,12 @@
 
     python -m sidechain.eval.loco ... --cell-lfc-map MAP.json      # also sidechain.submit.build, two-channel only
     MAP.json = {"lower": [0, ...], "size": [...], "scale": {"gene": {symbol: x}, "target": {knockdown: x} or x,
-                "clip": [lo, hi], "gene_default": x, "pair": "PAIRS.parquet"}}    # or "contexts": {"D": scale, ...}
-
+                "clip": [lo, hi], "gene_default": x, "pair": "PAIRS.parquet", "signed": false}}
+                                                                              # or "contexts": {"D": scale, ...}
 `lower` holds the bins' increasing lower edges from 0 (the last bin is open), `size` each bin's emitted |log2FC|; 0
-stays 0 and the target gene is pinned after the map. The pair parquet has `target`, `feature`, `factor`. Reads the map
-and its tables; the run's record (`cell_lfc_map`) carries the file's sha256 and bins.
+stays 0 and the target gene is pinned after the map. The pair parquet has `target`, `feature`, `factor`; with `signed`
+true a factor may be negative and flips the change's sign, and `clip` is refused. Reads the map and its tables; the
+run's record (`cell_lfc_map`) carries the file's sha256 and bins.
 Notes: private/code-notes/src/sidechain/submit/cell_map.py.md
 """
 from __future__ import annotations
@@ -19,16 +20,20 @@ import numpy as np
 import pandas as pd
 
 
-def _load_pair(path: Path, where: str) -> dict:
-    """A pair table: {knockdown: (gene names, factors)}, refused unless every factor is finite and >= 0."""
+def _pair_key(spec: dict) -> tuple:
+    return spec["pair"], bool(spec.get("signed", False))
+
+
+def _load_pair(path: Path, where: str, signed: bool = False) -> dict:
+    """A pair table: {knockdown: (gene names, factors)}, refused unless every factor is finite and, unless signed, >= 0."""
     if not path.exists():
         raise SystemExit(f"--cell-lfc-map: {where}'s pair table {path} does not exist")
     df = pd.read_parquet(path)
     if not {"target", "feature", "factor"} <= set(df.columns):
         raise SystemExit(f"--cell-lfc-map: {where}'s pair table needs columns target, feature, factor")
     f = df["factor"].to_numpy(dtype=np.float64)
-    if not np.isfinite(f).all() or (f < 0).any():
-        raise SystemExit(f"--cell-lfc-map: every factor in {where}'s pair table must be finite and >= 0")
+    if not np.isfinite(f).all() or (not signed and (f < 0).any()):
+        raise SystemExit(f"--cell-lfc-map: every factor in {where}'s pair table must be finite{'' if signed else ' and >= 0'}")
     if df.duplicated(["target", "feature"]).any():
         raise SystemExit(f"--cell-lfc-map: {where}'s pair table repeats a (target, feature) pair")
     out = {}
@@ -40,9 +45,11 @@ def _load_pair(path: Path, where: str) -> dict:
 def _check_scale(spec, where: str) -> dict:
     if not isinstance(spec, dict) or not ({"gene", "target", "pair"} & set(spec)):
         raise SystemExit(f"--cell-lfc-map: {where} needs `gene`, `target` and/or `pair`")
-    unknown = set(spec) - {"gene", "target", "clip", "gene_default", "pair"}
+    unknown = set(spec) - {"gene", "target", "clip", "gene_default", "pair", "signed"}
     if unknown:
         raise SystemExit(f"--cell-lfc-map: {where} has unknown keys {sorted(unknown)}")
+    if "signed" in spec and (spec["signed"] not in (True, False) or (spec["signed"] and ("pair" not in spec or "clip" in spec))):
+        raise SystemExit(f"--cell-lfc-map: {where}'s `signed` is true or false, needs a `pair` table and takes no `clip`")
     vals = list(spec.get("gene", {}).values()) + [spec.get("gene_default", 1.0)]
     t = spec.get("target", 1.0)
     vals += list(t.values()) if isinstance(t, dict) else [t]
@@ -77,11 +84,11 @@ class CellMap:
         self._pairs, self._pair_sha = {}, {}           # pair path -> table, sha256; read once, before any work
         for where, spec in ([("`scale`", self.scale)] if self.scale is not None else []) + \
                 [(f"context {c}'s scale", s) for c, s in (self.contexts or {}).items()]:
-            if "pair" in spec and spec["pair"] not in self._pairs:
+            if "pair" in spec and _pair_key(spec) not in self._pairs:
                 pp = Path(spec["pair"]).expanduser()
                 pp = pp if pp.is_absolute() else self.base / pp
-                self._pairs[spec["pair"]] = _load_pair(pp, where)
-                self._pair_sha[spec["pair"]] = hashlib.sha256(pp.read_bytes()).hexdigest()
+                self._pairs[_pair_key(spec)] = _load_pair(pp, where, bool(spec.get("signed", False)))
+                self._pair_sha[_pair_key(spec)] = hashlib.sha256(pp.read_bytes()).hexdigest()
         self._g = self._t = self._clip = self._p = None          # set by bind
 
     @classmethod
@@ -143,12 +150,12 @@ class CellMap:
             out._p = {}
             for k in map(str, targets):
                 v = np.ones(len(genes))
-                if k in self._pairs[spec["pair"]]:
-                    names, fac = self._pairs[spec["pair"]][k]
+                if k in self._pairs[_pair_key(spec)]:
+                    names, fac = self._pairs[_pair_key(spec)][k]
                     hit = np.array([x in gpos for x in names], dtype=bool)
                     v[[gpos[x] for x in names[hit]]] = fac[hit]
                 out._p[k] = v
-            tab = self._pairs[spec["pair"]]
+            tab = self._pairs[_pair_key(spec)]
             n_all = sum(len(tab[k][0]) for k in map(str, targets) if k in tab)
             n_hit = sum(sum(x in gpos for x in tab[k][0]) for k in map(str, targets) if k in tab)
             if n_all and n_hit < 0.5 * n_all:
@@ -188,9 +195,10 @@ class CellMap:
                 out = {"genes": len(spec.get("gene", {})), "gene_default": spec.get("gene_default", 1.0),
                        "targets": len(t) if isinstance(t, dict) else float(t), "clip": spec.get("clip")}
                 if "pair" in spec:
-                    tab = self._pairs[spec["pair"]]
-                    out["pair"] = {"path": spec["pair"], "sha256": self._pair_sha[spec["pair"]],
-                                   "targets": len(tab), "pairs": int(sum(len(v[0]) for v in tab.values()))}
+                    tab = self._pairs[_pair_key(spec)]
+                    out["pair"] = {"path": spec["pair"], "sha256": self._pair_sha[_pair_key(spec)],
+                                   "targets": len(tab), "pairs": int(sum(len(v[0]) for v in tab.values())),
+                                   **({"signed": True} if spec.get("signed") else {})}
                 return out
             rec["scale"] = (summ(self.scale) if self.scale is not None else
                             {c: summ(s) for c, s in self.contexts.items()})

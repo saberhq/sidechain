@@ -255,6 +255,29 @@ def test_a_bad_pair_table_is_refused(tmp_path, rows, msg):
         CellMap.load(_scaled(tmp_path, {"pair": "missing.parquet"}, name="m.json"))
 
 
+def test_a_signed_pair_table_may_flip_the_sign(tmp_path):
+    rel = _pairs(tmp_path, [("K1", "a", -0.5), ("K1", "c", 2.0), ("K2", "b", -1.0)])
+    m = CellMap.load(_scaled(tmp_path, {"pair": rel, "signed": True}))
+    assert m.record()["scale"]["pair"]["signed"] is True and m.record()["scale"]["pair"]["pairs"] == 3
+    b = m.bind(["a", "b", "c", "d"], ["K1", "K2", "K3"])
+    d = np.array([0.1, -0.1, 0.6, 0.0])
+    assert np.allclose(b.apply(d, target="K1"), [-0.15, -0.3, 1.6, 0.0])         # 0.3 x -0.5 flips; 0.8 x 2
+    assert np.allclose(b.apply(d, target="K2"), [0.3, 0.3, 0.8, 0.0])            # -0.3 x -1 flips
+    assert np.allclose(b.apply(d, target="K3"), [0.3, -0.3, 0.8, 0.0])           # no pair rows
+    assert np.isnan(b.apply(np.array([np.nan, -0.1, 0.6, 0.0]), target="K1")[0])
+    with pytest.raises(SystemExit, match=">= 0"):
+        CellMap.load(_scaled(tmp_path, {"pair": rel}, name="unsigned.json"))
+    with pytest.raises(SystemExit, match="`signed`"):
+        CellMap.load(_scaled(tmp_path, {"pair": rel, "signed": True, "clip": [0.5, 2.0]}, name="c.json"))
+    with pytest.raises(SystemExit, match="`signed`"):
+        CellMap.load(_scaled(tmp_path, {"gene": {"a": 1.0}, "signed": True}, name="g.json"))
+    with pytest.raises(SystemExit, match="`signed`"):
+        CellMap.load(_scaled(tmp_path, {"pair": rel, "signed": "yes"}, name="y.json"))
+    ok = CellMap.load(_scaled(tmp_path, {"pair": _pairs(tmp_path, [("K1", "a", 0.5)], name="pos.parquet"), "signed": False},
+                              name="f.json")).bind(["a", "b"], ["K1"])
+    assert np.allclose(ok.apply(np.array([0.1, 0.1]), target="K1"), [0.15, 0.3])
+
+
 @pytest.mark.parametrize("extra, msg", [
     ({"scale": {"gene": {"a": -1.0}}}, ">= 0"),
     ({"scale": {"gene": {"a": 1.0}, "clip": [2.0, 1.0]}}, "clip"),
