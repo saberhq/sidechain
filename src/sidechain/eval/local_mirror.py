@@ -1,23 +1,11 @@
-"""Local mirror of Arc's cell-eval -- the highest-leverage piece. Nothing is
-trusted until it clears this. Emits the 3 challenge metrics (DES/PDS/MAE) plus
-STATE's extras (7 total, the Generalist-prize set) and runs the anti-hacking
-guardrails.
+"""The 2025 local mirror: score a prediction with cell-eval's DES/PDS/MAE, optional extras and a variance guardrail.
 
-The three challenge metrics map onto cell-eval's registry as (verified against
-cell_eval._pipeline._runner.VCC_METRICS):
+    uv run python -m sidechain.eval.local_mirror PRED.h5ad REAL.h5ad --challenge-config challenges/vcc2025/config.yaml
 
-    DES  ->  overlap_at_N               higher is better
-    PDS  ->  discrimination_score_l1    higher is better
-    MAE  ->  mae                        lower is better
-
-cell-eval's own `vcc` profile is exactly those three; its `minimal` profile is
-those three plus pearson_delta, mse, precision_at_N and de_nsig_counts -- seven,
-the set the 2025 Generalist prize averaged ranks over.
-
-Config merge order:
-    challenge config (year-specific: metrics, control label, pert column)
-        overrides
-    eval config (year-agnostic: holdout policy, guardrails, output)
+Metrics: des -> overlap_at_N, pds -> discrimination_score_l1, mae -> mae (cell-eval's `vcc` profile); the extras
+use its `minimal` profile. Challenge config values override eval config values.
+Reads the prediction, the truth and both configs; writes cell-eval's CSVs and summary.json under --outdir.
+Notes: private/code-notes/src/sidechain/eval/local_mirror.py.md
 """
 from __future__ import annotations
 
@@ -96,13 +84,7 @@ def resolve_metrics(cfg: dict) -> tuple[list[str], str]:
 def variance_inflation_check(
     pred: ad.AnnData, real: ad.AnnData, pert_col: str, control_pert: str, tol: float = 1.5
 ) -> dict[str, Any]:
-    """Flag predictions whose spread is inflated relative to the truth.
-
-    PDS rewards making a perturbation distinguishable from the others. Scaling
-    predicted deltas up is a cheap way to buy separation without predicting
-    biology better, and it shows up as predicted per-gene variance well above the
-    real variance. `tol` is the ratio above which we call it.
-    """
+    """Flag a prediction whose mean per-gene variance over the truth's exceeds `tol` (a ratio)."""
     import scipy.sparse as sp
 
     def _gene_var(a: ad.AnnData) -> np.ndarray:
@@ -110,8 +92,7 @@ def variance_inflation_check(
         X = a.X[mask]
         if not sp.issparse(X):
             return np.asarray(X).var(axis=0)
-        # var = E[X^2] - E[X]^2, computed without densifying: a holdout of 40k
-        # cells x 18k genes would be ~3 GB as a dense array.
+        # var = E[X^2] - E[X]^2, computed without densifying.
         n = X.shape[0]
         mean = np.asarray(X.mean(axis=0)).ravel()
         mean_sq = np.asarray(X.multiply(X).sum(axis=0)).ravel() / n
@@ -149,20 +130,9 @@ def score(
     de_real: str | Path | None = None,
     log_run: bool = True,
 ) -> dict[str, Any]:
-    """Run cell-eval on a prediction. Returns metrics, guardrails and raw frames.
+    """Run cell-eval on `pred` vs `real` (same genes and labels, control included); returns metrics and frames.
 
-    `pred` and `real` are AnnData (or paths). They must share gene order and the
-    same set of perturbation labels, including the control.
-
-    `de_real` is a path to a previously computed `real_de.csv`. Differential
-    expression on the truth depends only on `real`, so when scoring several models
-    against the same holdout it is the same computation every time -- and on the
-    full 2025 file it dominates the run. Pass it to skip the recompute. The result
-    dict always carries `de_real_path` so the next call can reuse it.
-
-    `log_run=True` records the scored run in lamindb via `utils.logging.log_run`
-    (ADR 0001) -- non-fatal by that function's contract, and skipped entirely
-    (no lamindb import) when False.
+    `de_real` reuses a prior `real_de.csv` (the result carries `de_real_path`); `log_run` records the run in lamindb.
     """
     from cell_eval import MetricsEvaluator
 
@@ -218,8 +188,6 @@ def score(
         "outdir": str(outdir),
         "results": results,
         "agg_results": agg,
-        # Present whether we computed it or reused it, so a caller scoring several
-        # models against one holdout can thread it through without special-casing.
         "de_real_path": str(de_real) if de_real is not None else str(outdir / "real_de.csv"),
     }
 
@@ -245,11 +213,7 @@ def score(
     if log_run:
         from sidechain.utils.logging import log_run as _log_run
 
-        # The registered artifact is this one small file, NOT `outdir`. A mirror outdir
-        # is ~21 GB per line (predictions plus cell-eval's own CSVs), all of it
-        # reproducible; uploading it as a side effect of scoring would put tens of GB
-        # in the managed bucket per run. Same shape as `eval.loco`, which has written a
-        # summary.json and logged that since it was built. ADR 0007 §1.
+        # Registers summary.json only, never `outdir`.
         summary = outdir / "summary.json"
         summary.write_text(json.dumps(
             {"entry": "local_mirror.score", "profile": profile, "pert_col": pert_col,

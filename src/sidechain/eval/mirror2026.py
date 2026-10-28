@@ -1,32 +1,13 @@
-"""The 2026 local mirror: score a prediction for a held-out line exactly as Arc does.
+"""The 2026 local mirror: score a prediction for one held-out line with cell-eval2's `vcc2026` preset.
 
-Arc's score is cell-eval2's `vcc2026` rule: six metrics, each placed on a scale whose
-0 is the held-out line's *generic response* (its mean perturbation effect, emitted
-for every perturbation) and whose 1 is a five-split replicate of the line with
-itself. cell-eval2 ships that whole construction as a "real bundle", so the mirror
-is four of its own commands, run in order, on one machine and one config:
+    uv run python -m sidechain.eval.mirror2026 bundle --real REAL.h5ad --out OUT --pert-col perturbation --control non-targeting
+    uv run python -m sidechain.eval.mirror2026 score --real REAL.h5ad --pred PRED.h5ad --bundle OUT/bundle --out RUN
 
-    baseline          -> the 0-end arm (a prediction file), from the real data alone
-    prep-real-bundle  -> the bundle: baseline leg + replicate anchor + manifest
-    run               -> the six raw metrics for OUR prediction vs the real data
-    score             -> (u - b) / (r - b) per member, averaged; refused if the run's
-                         identity (version, config, device, DE backend, ...) differs
-                         from the bundle's
-
-The bundle depends only on the real side, so it is built once per held-out line
-and reused for every model (`bundle_dir`). Anything that changes the config --
-DE backend (pdex on CPU, gpudge on the box), cell-eval2 version -- needs a new
-bundle; the `score` step refuses a mismatch rather than mis-scoring.
-
-    uv run python -m sidechain.eval.mirror2026 bundle --real real.h5ad --out ~/data/sidechain/runs/mirror/hepg2 \
-        --pert-col perturbation --control control
-    uv run python -m sidechain.eval.mirror2026 score --real real.h5ad --pred pred.h5ad \
-        --bundle ~/data/sidechain/runs/mirror/hepg2/bundle --out ~/data/sidechain/runs/mirror/hepg2/<model>
-
-The prediction must carry the real file's perturbation labels, the control label
-included (the scorer needs the control cells on both sides; Arc's platform
-concatenates the held-out controls onto a submission, and `attach_controls`
-does the same here).
+`bundle` runs cell-eval2's `baseline` and `prep-real-bundle` once per line; `score` runs `run` and `score` against it,
+and is refused on a bundle from another config (DE backend: pdex on CPU, the Mac; gpudge on a GPU box; version;
+device). The prediction carries the truth's labels, control included (`--attach-controls` appends the controls).
+Reads the truth, the prediction and the bundle; writes baseline/, bundle/, run/, scored.csv, summary.json, logs/.
+Notes: private/code-notes/src/sidechain/eval/mirror2026.py.md
 """
 from __future__ import annotations
 
@@ -103,14 +84,9 @@ def build_bundle(real: Path, out: Path, *, pert_col: str, control: str, de_backe
 
 def attach_controls(pred: Path, real: Path, out: Path, *, pert_col: str, control: str,
                     block_rows: int = 2000) -> Path:
-    """Append the real control cells to a controls-free prediction, as the platform does.
+    """Append the real control cells to a controls-free prediction, as the platform does, one row block at a time.
 
-    Streamed row block by row block rather than through `anndata.concat`. On the X-Atlas
-    folds the two sides are ~800 M and ~726 M nonzeros, and a concat peaks at the sum of
-    both plus its own result -- ~12 GB, which is what kept these arms on the box. Here the
-    peak is one block. The written file is byte-for-byte equivalent to what the concat
-    produced: prediction rows first with index `pred_<i>`, then the control rows verbatim
-    with index `ctrl_<i>`, one obs column, and the real file's gene axis.
+    Writes the prediction rows (`pred_<i>`), then the control rows (`ctrl_<i>`), one obs column, the real gene axis.
     """
     with open_anndata_h5(pred, "r") as p, open_anndata_h5(real, "r") as r:
         p_var = read_elem(p["var"]).index.astype(str).to_numpy()
@@ -188,9 +164,7 @@ def main(argv: list[str] | None = None) -> int:
                               de_backend=args.de_backend, n_splits=args.splits, force=args.force)
         print(json.dumps({"bundle": str(bundle), "manifest": json.loads((bundle / "manifest.json").read_text())}, indent=1, default=str))
     else:
-        # A run named like a model must spell the name right: the run directory is the
-        # model's identity in RESULTS.md, and a mirror-scored name is as permanent as a
-        # board one. Freeform arm labels (h1_xatlas, baseline) pass untouched.
+        # An --out leaf named like a model must spell the name right; other labels pass.
         check_out_leaf(args.out.expanduser().name, context="mirror2026.score")
         pred = args.pred
         if args.attach_controls:

@@ -3,18 +3,10 @@
     uv run python -m sidechain.eval.leaderboard                 # print top 20, save JSON
     uv run python -m sidechain.eval.leaderboard --top 50 --out ~/data/sidechain/vcc2026/leaderboards
 
-The leaderboard page is a Next.js app that renders "Loading..." to any fetcher
-that does not run JavaScript -- but the server still embeds the board in the
-page as React Server Component (RSC) data, a series of
-``self.__next_f.push([1, "..."])`` script calls. This module decodes those and
-pulls out the three entry arrays (live / final / generalist). It is the same
-trick that recovered the 2025 boards from the Wayback Machine
-(``~/data/sidechain/vcc2025/leaderboards/README.txt``).
-
-Only the top ~50 entries are embedded; ``*NumEntries`` carries the full count.
-Scores are Arc's, untouched: ``scoreAvg`` is the overall (unweighted mean of
-the six scaled members), ``scorePds`` ... ``scoreJac`` the scaled members, and
-``pdsCosine`` ... ``deWilcoxonSigJaccard`` the raw cell-eval2 values.
+The page embeds its boards as React Server Component data (``self.__next_f.push([1, "..."])`` calls); this decodes
+them into the live, final and generalist entry arrays (the top ~50; ``*NumEntries`` is the full count). Scores are
+Arc's: ``scoreAvg`` the overall, ``scorePds`` ... ``scoreJac`` the scaled members, ``pdsCosine`` ... the raw values.
+Reads the leaderboard page; writes one JSON snapshot under --out. Notes: private/code-notes/src/sidechain/eval/leaderboard.py.md
 """
 from __future__ import annotations
 

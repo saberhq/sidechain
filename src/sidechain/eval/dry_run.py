@@ -1,16 +1,10 @@
-"""End-to-end rehearsal of the whole loop on 2025 data.
-
-    load split -> normalize -> fit rung -> predict held-out perturbations
-    -> score on the local cell-eval mirror
-
-This is a PIPELINE CHECK, not a leaderboard estimate. The holdout here is carved out
-of the training set by `loaders.carve_holdout`, mirroring challenge-time conditions
-(entrants only had names and cell counts for held-out perturbations). Numbers from
-this script must never be described as "what we would have placed in 2025". Arc
-published the real validation/test AnnData post-challenge (2025-12-16); scoring
-against those is a separate external holdout, not this script.
+"""Rehearse the 2025 loop end to end: load, normalize, fit each rung, predict a carved holdout, score it.
 
     uv run python -m sidechain.eval.dry_run --rungs 0,0b,1 --n-holdout 25
+
+A pipeline check on a holdout carved from the 2025 training file (`loaders.carve_holdout`), not a leaderboard
+estimate. Reads the 2025 challenge files; writes each rung's cell-eval output and report.json under --outdir.
+Notes: private/code-notes/src/sidechain/eval/dry_run.py.md
 """
 from __future__ import annotations
 
@@ -41,9 +35,7 @@ RUNGS = {
 
 
 def _log_mem(stage: str) -> None:
-    """Report resident memory. The full 2025 file is 221k x 18k, so knowing where
-    the peak lands is the difference between planning for 2026 and discovering a
-    limit mid-run."""
+    """Log the peak resident memory at `stage`."""
     try:
         import resource
 
@@ -76,10 +68,7 @@ def run(
     outdir_p.mkdir(parents=True, exist_ok=True)
 
     # -- load --
-    # Full training file by default. Iterating on the subset hides exactly the
-    # resource limits we need to hit before the 2026 kickoff, and its 4x-lower
-    # cells-per-perturbation inflates holdout noise. `dev=True` opts into the
-    # small file for a fast smoke test.
+    # The full training file by default; `dev=True` loads the small dev file.
     adata = loaders.load_challenge_split(cfg, split="all", dev=dev)
     logger.info(
         "Loaded %d cells x %d genes (%s file)",
@@ -100,8 +89,7 @@ def run(
     logger.info("gene_index: %d Ensembl IDs resolved", len(gi))
 
     # -- normalize into the space cell-eval expects --
-    # inplace: the un-normalized matrix is dead the moment this returns, and on
-    # the full file the defensive copy costs ~3 GB and dominates the runtime.
+    # inplace: the un-normalized matrix is not used again.
     if loaders.is_discrete(adata):
         logger.info("X looks like raw counts -> normalize_total(1e4) + log1p")
         adata = loaders.normalize_counts(adata, inplace=True)
@@ -125,18 +113,12 @@ def run(
         real.n_obs,
         len(holdout_perts),
     )
-    # `adata` still pins the whole matrix; train/real are independent copies, so
-    # releasing it here is worth several GB on the full file.
+    # train and real are copies; release the full matrix.
     del adata, labels
     gc.collect()
     _log_mem("after split")
 
-    # Controls are over half the evaluation cells (38,176 of 71,525 on the full
-    # 2025 holdout) and their only role is to establish the baseline each
-    # perturbation is measured against -- a job a few thousand cells do just as
-    # well. Subsampling them is the single biggest lever on eval cost, and it is
-    # applied to the TRUTH only; the prediction then mirrors the reduced count,
-    # so both sides see the same control set size and nothing is biased.
+    # Subsample the truth's controls; the prediction then mirrors the reduced count.
     if max_control_cells:
         ctrl_idx = np.flatnonzero(real.obs[pert_col].astype(str).to_numpy() == control)
         if len(ctrl_idx) > max_control_cells:
@@ -192,9 +174,7 @@ def run(
         pred = model.predict(counts, seed=seed, include_control=n_control)
         _log_mem(f"rung {key} predicted")
 
-        # Every rung is scored against the SAME holdout, so the truth's DE is
-        # identical each time -- and on the full file it is the single most
-        # expensive step. Compute it on the first rung, reuse it thereafter.
+        # The truth's DE is the same for every rung: computed on the first, reused after.
         res = score(
             pred,
             real,
@@ -217,8 +197,7 @@ def run(
             "guardrails": res.get("guardrails", {}),
             "elapsed_sec": round(time.time() - t_rung, 1),
         }
-        # cell-eval holds dense pseudobulk plus two DE frames per run; without
-        # this the previous rung's are still resident when the next one starts.
+        # Free this rung's frames before the next one starts.
         del model, pred, res
         gc.collect()
 
@@ -246,8 +225,7 @@ def main() -> None:
         "--max-control-cells",
         type=int,
         default=8000,
-        help="cap holdout control cells used for scoring (0 = keep all). "
-        "Controls only set the baseline; capping them is the biggest eval-cost lever.",
+        help="cap on holdout control cells scored, in cells (0 = keep all)",
     )
     args = ap.parse_args()
 

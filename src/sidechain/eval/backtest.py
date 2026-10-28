@@ -1,19 +1,10 @@
-"""True 2025 backtest: train on ALL training perturbations, score against Arc's
-released held-out AnnData.
-
-Unlike `dry_run` (which carves a holdout out of the training set to mirror
-challenge-time conditions), this scores against the real answers Arc published
-on 2025-12-16 -- the 50-perturbation validation set that drove the live
-leaderboard, or the 100-perturbation test set that decided the final ranking.
-Numbers from this script ARE comparable to the 2025 leaderboard, up to local-
-mirror caveats (control subsampling, cell-eval version).
+"""The 2025 backtest: fit each rung on all training perturbations, score it on Arc's released held-out AnnData.
 
     uv run python -m sidechain.eval.backtest --holdout validation --rungs 0,0b,1
 
-Memory notes (17 GB Mac): the training file is freed after fitting, before the
-holdout is materialized; the fitted rungs share one control pool instead of
-holding a ~2.5 GB copy each; and the holdout stays `backed` until its counts
-have been read and its controls subsampled.
+`--holdout` names a key under the challenge config's `external_holdouts` (the validation or the test set).
+Reads the 2025 training file and the holdout; writes each rung's cell-eval output and report.json under --outdir.
+Notes: private/code-notes/src/sidechain/eval/backtest.py.md
 """
 from __future__ import annotations
 
@@ -77,8 +68,7 @@ def run(
         label, cls = RUNGS[key]
         logger.info("fit %s", label)
         model = cls(pert_col=pert_col, control_label=control).fit(train)
-        # Every rung's fit slices an identical control pool out of the training
-        # file. Keep one and share it -- three private copies would be ~7 GB.
+        # The rungs share one control pool.
         if shared_pool is None:
             shared_pool = model.control_cells_
         else:
@@ -110,10 +100,7 @@ def run(
     del backed
     gc.collect()
 
-    # The released holdout files carry QC-style var columns instead of the
-    # training var (no gene_id). var_names are identical and in identical order
-    # -- asserted here -- so adopt the training var wholesale to keep pred and
-    # real structurally interchangeable downstream.
+    # The holdout's var lacks gene_id; its var_names match the training file's (asserted), so take that var.
     if not (real.var_names == train_var.index).all():
         raise ValueError(f"{holdout_path.name}: var_names differ from the training file")
     real.var = train_var.copy()

@@ -1,37 +1,12 @@
-"""A per-fold cache of pooled deltas for `sidechain.eval.loco` (T103 round three).
+"""A per-fold cache of pooled deltas for `sidechain.eval.loco`: a pre-pass pools each label once, arms read it.
 
-Every arm of one fold pools the same labels from the same sources with the same knobs: the
-fold's targets, and the neighbour pool's members. Under the adaptive shrinkage rule each of those
-is a fit of a few seconds, repeated in every arm (and twice inside one arm for a target that is
-also a pool member), which made an arm three times as long as a garrote arm. The cache holds
-each label's pooled delta once per fold.
+    python -m sidechain.eval.loco ... --delta-cache DIR --delta-cache-build    # pool every label, write DIR/<key>/
+    python -m sidechain.eval.loco ... --delta-cache DIR                        # an arm reads DIR/<key>/
 
-- **One pre-pass writes it, arms only read it.** `loco --delta-cache DIR --delta-cache-build`
-  pools every label (optionally over several processes), writes into a temporary directory and
-  renames it into place. A second writer finds the directory there and stops.
-- **The key is everything the delta depends on**: each source file's sha256 and control label,
-  in order; the gene axis; every pooling knob; the adaptive rule's constants; the source files
-  that hold the arithmetic (`CODE_MODULES`); numpy's version, the BLAS it links, the thread
-  settings and the machine. A read under any other key finds no cache and is refused -- there
-  is no fallback to pooling, because an arm that silently pooled would look like a cached arm
-  and cost three times as much. The machine is in the key because the adaptive fit agrees
-  across machines only to about 1e-4: a cache is read where it was built and nowhere else.
-- **The fold's labels are not in the key**, so two fold files that share sources and axis (a
-  fold and the panel fold cut from it) share one cache: build the larger first, and the
-  smaller's build finds every label there. A build that finds a cache lacking some of its
-  labels is refused rather than extended.
-- **The Python argument trusts its caller**: `delta_cache["sources"]` is what the key reads,
-  and `main` derives it from the same `--source` specs the sources are loaded from.
-- **The counters are replayed.** `pooled_delta` counts into `stats`; each label's counts are
-  stored and added back on a read, so a cached arm's record equals an uncached one's.
-- **Only the plain pool is cached**: gamma 1, no similarity weight, no coverage tiers, no
-  per-source override. Anything else is refused. A published-contrast source (`--lfc-source`, an
-  `LfcTable`) is part of the plain pool: its id is `[stem, sha256, LFC_TABLE]` after the `--source`
-  ids, and the module that reads it joins the code digests only when one is in the pool, so a
-  cache with none keeps the key it always had (T93, 2026-10-22).
-
-Off (no `--delta-cache`) this module is never imported into the path. `submit.build` has no
-such flag: a submission is one build and gains nothing from it.
+The key hashes each source's sha256 and control label (then each `--lfc-source`), the gene axis, the pooling knobs,
+the adaptive rule's constants, the files in `CODE_MODULES`, numpy, BLAS, thread settings and the machine; the fold's
+labels are not in it. A read under another key, or of a label the cache lacks, is refused; only the plain pool is
+cached. Writes deltas.npy and meta.json under DIR/<key>/. Notes: private/code-notes/src/sidechain/eval/delta_cache.py.md
 """
 from __future__ import annotations
 
@@ -53,7 +28,7 @@ THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
 # adaptive fit, the per-source log2FC and the axis remap, and the reader of the source files
 CODE_MODULES = ("sidechain.submit.build", "sidechain.models.adaptive_shrink",
                 "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk",
-                # T98: the variance behind the pooling weight, and the dispersion math its fits carry
+                # the variance behind the pooling weight, and the dispersion math its fits carry
                 "sidechain.submit.variance_model", "sidechain.data.dispersion")
 
 
@@ -92,7 +67,7 @@ def code_digests(lfc: bool = False) -> dict:
 
 
 def machine() -> dict:
-    """Where the fits ran: the adaptive rule is bit-reproducible on one machine only."""
+    """Where the fits ran: platform, CPU, BLAS and thread pools."""
     cpu = platform.processor()
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
