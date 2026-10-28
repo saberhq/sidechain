@@ -175,6 +175,26 @@ def test_the_key_moves_with_the_threads_and_the_axis(fold, monkeypatch):
     assert base == dc.key_of(dc.key_fields(IDS, axis, pooling))
 
 
+def test_the_code_digest_moves_with_the_code_and_never_with_its_text(tmp_path):
+    mod = tmp_path / "m.py"
+    mod.write_text('"""A module."""\nimport argparse\n\n\ndef f(x):\n    """What f does."""\n'
+                   '    return x + 1  # a comment\n\n\nap = argparse.ArgumentParser(description=__doc__)\n'
+                   'ap.add_argument("--n", type=int, help="how many")\n')
+    base = dc.code_sha256(mod)
+    mod.write_text('"""Another docstring,\n\nlonger, with a usage line."""\nimport argparse\n\n# a new comment\n'
+                   'def f(x):\n    return x + 1\n\n\nap = argparse.ArgumentParser(description=__doc__)\n'
+                   'ap.add_argument("--n", type=int, help="the count")\n')
+    assert dc.code_sha256(mod) == base                      # docstrings, comments, help text, line numbers
+    mod.write_text('"""A module."""\nimport argparse\n\n\ndef f(x):\n    """What f does."""\n'
+                   '    return x + 2  # a comment\n\n\nap = argparse.ArgumentParser(description=__doc__)\n'
+                   'ap.add_argument("--n", type=int, help="how many")\n')
+    assert dc.code_sha256(mod) != base                      # the arithmetic
+    mod.write_text('"""A module."""\nimport argparse\n\n\ndef f(x):\n    """What f does."""\n'
+                   '    return x + 1  # a comment\n\n\nap = argparse.ArgumentParser(description=__doc__)\n'
+                   'ap.add_argument("--n", type=int, default=3, help="how many")\n')
+    assert dc.code_sha256(mod) != base                      # a default is code
+
+
 def test_source_ids_read_the_file_the_label_and_the_order(tmp_path):
     (tmp_path / "a.npz").write_bytes(b"one")
     (tmp_path / "b.npz").write_bytes(b"two")

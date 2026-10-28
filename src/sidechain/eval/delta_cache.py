@@ -4,12 +4,14 @@
     python -m sidechain.eval.loco ... --delta-cache DIR                        # an arm reads DIR/<key>/
 
 The key hashes each source's sha256 and control label (then each `--lfc-source`), the gene axis, the pooling knobs,
-the adaptive rule's constants, the files in `CODE_MODULES`, numpy, BLAS, thread settings and the machine; the fold's
+the adaptive rule's constants, the code of each `CODE_MODULES` module (its syntax tree: text edits leave the key),
+Python, numpy, BLAS, thread settings and the machine; the fold's
 labels are not in it. A read under another key, or of a label the cache lacks, is refused; only the plain pool is
 cached. Writes deltas.npy and meta.json under DIR/<key>/. Notes: private/code-notes/src/sidechain/eval/delta_cache.py.md
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import multiprocessing
@@ -58,12 +60,40 @@ def source_ids(source_specs: Sequence[str], lfc_paths: Sequence[str] = ()) -> li
     return out
 
 
+TEXT_KEYWORDS = ("help", "description", "epilog")
+
+
+class _CodeOnly(ast.NodeTransformer):
+    """Drop docstrings and blank help-like keyword text, leaving what the code computes."""
+
+    def _drop_doc(self, node):
+        body = node.body
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            node.body = body[1:] or [ast.Pass()]
+        return self.generic_visit(node)
+
+    visit_Module = visit_ClassDef = visit_FunctionDef = visit_AsyncFunctionDef = _drop_doc
+
+    def visit_keyword(self, node):
+        if node.arg in TEXT_KEYWORDS:
+            node.value = ast.Constant(value="")
+            return node
+        return self.generic_visit(node)
+
+
+def code_sha256(path: str | Path) -> str:
+    """sha256 of a module's syntax tree without docstrings, comments, help text or line numbers."""
+    tree = _CodeOnly().visit(ast.parse(Path(path).expanduser().read_text(encoding="utf-8")))
+    return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+
+
 def code_digests(lfc: bool = False) -> dict:
-    """sha256 of each `CODE_MODULES` file as it is on disk (and the LfcTable reader's, with `lfc`)."""
+    """`code_sha256` of each `CODE_MODULES` module (and the LfcTable reader's, with `lfc`)."""
     import importlib
 
     mods = CODE_MODULES + ((LFC_MODULE,) if lfc else ())
-    return {m: file_sha256(importlib.import_module(m).__file__) for m in mods}
+    return {m: code_sha256(importlib.import_module(m).__file__) for m in mods}
 
 
 def machine() -> dict:
@@ -103,6 +133,7 @@ def key_fields(sources: Sequence[Sequence[str]], axis: np.ndarray, pooling: dict
                      "min_genes": adaptive_shrink.MIN_GENES},
         "code": (code_digests(lfc=True) if any(len(s) > 2 and s[2] == LFC_TABLE for s in sources)
                  else code_digests()),
+        "python": ".".join(platform.python_version_tuple()[:2]),
         "numpy": np.__version__,
         "threads": {v: os.environ.get(v) for v in THREAD_VARS},
         "machine": machine(),
