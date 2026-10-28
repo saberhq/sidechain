@@ -1,11 +1,10 @@
-"""Thin wrappers around the challenge file format so the rest of Sidechain speaks
-AnnData. Keep this module the ONLY place that touches the on-disk layout, so a
-format change at the 2026 kickoff is a one-file edit.
+"""Read the challenge files as AnnData: gene ID spaces, the config's rounds and control files, splits, normalisation.
 
-The 2025 data (verified 2026-08-04 against adata_Training_subset.h5ad):
-  obs: target_gene (control label 'non-targeting'), guide_id, batch
-  var: index = HGNC symbols, var['gene_id'] = Ensembl gene IDs
-  X:   raw integer counts, CSR sparse
+    idx = gene_index(load_h5ad(path), "ensembl_gene_id")    # {gene id -> var position}; raises GeneIDSpaceError
+
+The 2025 layout: obs `target_gene` (control 'non-targeting'), `guide_id`, `batch`; var index HGNC symbols,
+`var['gene_id']` Ensembl IDs; X raw integer counts, CSR. Reads h5ads and challenges/<year>/config.yaml; writes
+nothing. Notes: private/code-notes/src/sidechain/data/loaders.py.md
 """
 from __future__ import annotations
 
@@ -36,12 +35,7 @@ _ID_PATTERNS: dict[str, re.Pattern | None] = {
 
 
 class GeneIDSpaceError(ValueError):
-    """Raised when the requested gene ID space is absent or unrecognizable.
-
-    Deliberately loud. The failure it replaces was silent: falling back to
-    var_names yields an index that matches no prior, so every source returns zero
-    edges and the run reports success on an empty graph.
-    """
+    """Raised when the requested gene ID space is absent or unrecognizable."""
 
 
 def _valid_fraction(values: Iterable, id_type: str) -> float:
@@ -151,12 +145,7 @@ def assert_coverage(
     min_frac: float = 0.5,
     raise_below: float = 0.0,
 ) -> float:
-    """Warn (or raise) when a prior source maps poorly onto the master gene space.
-
-    A source that maps ~0% is the signature of an ID-space mismatch, not of
-    genuinely disjoint biology -- catch it here rather than downstream where it
-    looks like "this prior just has no edges".
-    """
+    """The fraction of a source's IDs in the master gene space; warns below `min_frac`, raises at `raise_below`."""
     frac = coverage(gene_index, gene_ids)
     if frac <= raise_below:
         raise GeneIDSpaceError(
@@ -204,20 +193,15 @@ def challenge_contexts(cfg: dict) -> list[str]:
 
 
 def challenge_data_dir(cfg: dict) -> Path:
-    """Where the active round's bundle sits: the phase block's `dir:` when it has one, else the
-    top-level `data_dir`. Two rounds, two directories -- the final bundle is unzipped beside the
-    validation one, never over it, because every panel-keyed cache was built from the validation
-    `pert_counts.csv` and nothing else records which panel a cache was built against."""
+    """Where the active round's bundle sits: the phase block's `dir:` when it has one, else the top-level `data_dir`."""
     phase = challenge_phase(cfg)
     block = (cfg.get("phases") or {}).get(phase) or {}
     return Path(block.get("dir") or cfg["data_dir"]).expanduser()
 
 
 def challenge_control_files(cfg: dict) -> dict[str, str]:
-    """context -> control file for the active round. `control_files:` is either one flat map
-    (2025-era configs and the tests) or one map per phase; a round with no entry for one of its
-    contexts is refused here, by name, instead of surfacing as a bare KeyError after the pooling
-    has already run (2026-09-21, T93: `phase: final` alone died with KeyError 'D')."""
+    """context -> control file for the active round. `control_files:` is one flat map or one map per phase;
+    a round missing one of its contexts raises KeyError naming them."""
     files = cfg.get("control_files") or {}
     phase = challenge_phase(cfg)
     if phase and isinstance(files.get(phase), dict):
@@ -239,13 +223,8 @@ def load_challenge_split(
 ) -> ad.AnnData:
     """Load a challenge split: 'all' | 'train' | 'holdout'.
 
-    For 2025 the scheme is `carve_from_training`: 'train'/'holdout' are carved
-    locally and deterministically from the training file (see `carve_holdout`),
-    mirroring challenge-time conditions when only names/counts existed for
-    held-out perturbations. (Scoring against the real validation/test AnnData
-    Arc released on 2025-12-16 lives in `sidechain.eval.backtest`.)
-
-    `dev=True` uses the smaller `dev_file` for iteration.
+    Scheme `carve_from_training` (2025) carves 'train'/'holdout' deterministically from the training file
+    (`carve_holdout`). `dev=True` reads the smaller `dev_file`.
     """
     cfg = (
         challenge_config
@@ -290,12 +269,7 @@ def carve_holdout(
     seed: int = 0,
     min_cells: int = 30,
 ) -> tuple[list[str], list[str]]:
-    """Deterministically split perturbations into (train, holdout).
-
-    Only perturbations with >= `min_cells` cells are eligible for holdout: a
-    9-cell perturbation gives a pseudobulk too noisy to score meaningfully, so
-    holding it out measures sampling noise rather than model skill.
-    """
+    """Deterministically split perturbations into (train, holdout); only those with >= `min_cells` cells held out."""
     counts = adata.obs[pert_col].astype(str).value_counts()
     perts = [p for p in counts.index if p != control_label]
     eligible = sorted(p for p in perts if counts[p] >= min_cells)
@@ -325,15 +299,7 @@ def carve_holdout(
 def normalize_counts(
     adata: ad.AnnData, target_sum: float = 1e4, *, inplace: bool = False
 ) -> ad.AnnData:
-    """Counts -> library-size-normalized log1p, the space cell-eval expects.
-
-    cell-eval refuses discrete (raw count) input unless allow_discrete=True,
-    because MAE on raw counts is dominated by library-size differences.
-
-    `inplace=True` skips the defensive copy. On the full 2025 file that copy is
-    ~3 GB and was the slowest single step in the pipeline; pass it whenever the
-    caller discards the original immediately (as the dry run does).
-    """
+    """Counts -> library-size-normalized log1p, the space cell-eval expects; `inplace=True` skips the copy."""
     import scanpy as sc
 
     out = adata if inplace else adata.copy()

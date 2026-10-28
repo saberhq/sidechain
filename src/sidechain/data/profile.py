@@ -1,9 +1,9 @@
 """Profile a challenge dataset: shape, labels, ID spaces, count statistics.
 
-Reads in backed mode, so it touches metadata without pulling a 15 GB matrix into memory.
-
-    uv run python -m sidechain.data.profile
     uv run python -m sidechain.data.profile --challenge-config challenges/vcc2026/config.yaml
+
+Reads the config's h5ads in backed mode and its gene_names.csv; prints the profile, writes nothing.
+Notes: private/code-notes/src/sidechain/data/profile.py.md
 """
 from __future__ import annotations
 
@@ -97,8 +97,6 @@ def main() -> None:
     print(f"# Dataset profile — {cfg.get('year')} · {data_dir}\n")
 
     # 2026-style config: one control file per anonymized context, no training file.
-    # Profile each as its own dataset; the cross-context comparison is analysis,
-    # not profiling, and lives elsewhere.
     control_files = challenge_control_files(cfg) if cfg.get("control_files") else {}
     files = list(control_files.values()) or [
         f for f in (cfg.get("source_file"), cfg.get("dev_file")) if f
@@ -129,7 +127,6 @@ def main() -> None:
             print(f"  {k:34s} {v}")
         print()
 
-    # The training/validation overlap is the fact that defines the task.
     val_csv = data_dir / "pert_counts_Validation.csv"
     if val_csv.exists() and main_file and main_file.exists():
         a = ad.read_h5ad(main_file, backed="r")

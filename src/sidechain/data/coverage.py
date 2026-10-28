@@ -1,18 +1,10 @@
-"""Emit site/data/coverage.json — what each held corpus covers of the 2026 target panel.
+"""Write site/data/coverage.json: what each held corpus covers of the 2026 target panel.
 
     uv run python -m sidechain.data.coverage [--check]
 
-Reads the pseudobulk caches under ~/data/sidechain/cache/vcc2026/ (built by
-``sidechain.data.stream_pseudobulk``) and the challenge's 300-target panel
-(``pert_counts.csv``), and writes the JSON the site's "What the models draw on"
-section renders at build time. Run it offline after an ingest changes a cache;
-commit the JSON — CI renders, it never computes (ADR 0006). Numbers are measured
-from the caches, never typed in: a dashboard that drifts from the pipeline is
-worse than no dashboard.
-
-Only facts that are public anyway belong here: which public corpora are held, the
-cell line, whether a corpus feeds the model or the local evaluation, and per-target
-cell depth — all properties of published datasets or of code that is itself public.
+Reads the pseudobulk caches under ~/data/sidechain/ and the active round's `pert_counts.csv`; writes
+site/data/coverage.json, or with --check compares against it.
+Notes: private/code-notes/src/sidechain/data/coverage.py.md
 """
 from __future__ import annotations
 
@@ -33,17 +25,12 @@ from sidechain.data.loaders import (
 DATA = Path.home() / "data" / "sidechain"
 CACHE = DATA / "cache" / "vcc2026"
 ROOT = Path(__file__).resolve().parents[3]
-# The panel is the active round's (`phase:` in the challenge config): the validation and the
-# final rounds use different 300-gene panels, and the JSON says which one it counted against.
+# The panel is the active round's (`phase:` in the challenge config).
 CONFIG = ROOT / "challenges" / "vcc2026" / "config.yaml"
 OUT = ROOT / "site" / "data" / "coverage.json"
 
-# What each cache is, in public terms: the cell line and the screen scale, no more.
-# `role`: "prior" feeds the model's per-gene effects; "eval" is a local mirror panel
-# used to score methods before submitting (sidechain.eval.mirror2026, public); "bench"
-# is held and measured but not in the pool (all three declared in configs/datasets.yaml).
-# `cache:` is relative to cache/vcc2026/, `path:` to ~/data/sidechain/ — same tree,
-# two entry points, because streamed corpora land their aggregates under derived/.
+# `role`: "prior" feeds the model's per-gene effects; "eval" is a local mirror panel; "bench" is held but not
+# pooled. `cache:` is relative to cache/vcc2026/, `path:` to ~/data/sidechain/.
 # `loader: lfc` reads a published per-gene contrast table (labels × lfc, no cells).
 SOURCES = [
     {"cache": "h1_pseudobulk.npz", "name": "VCC 2025 training data", "line": "H1 hESC", "role": "prior",

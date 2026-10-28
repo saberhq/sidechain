@@ -1,15 +1,10 @@
-"""Extract the cells of chosen labels from a large h5ad into a small CSR h5ad.
-
-The corpora we hold are stored dense + gzip (65 GB logical for K562 genome-wide;
-5-10 GB for the others), so "give me the cells of these 100 perturbations plus
-10,000 controls" cannot go through anndata's backed indexing. One streaming pass
-over row blocks (the same reader as `stream_pseudobulk`) keeps the wanted rows
-as sparse blocks and writes an ordinary h5ad at the end -- raw counts, obs and
-var carried over, so the result is a valid `real` side for cell-eval2.
+"""Extract the cells of chosen labels from a large dense h5ad into a small CSR h5ad, one pass over row blocks.
 
     uv run python -m sidechain.data.stream_subset FILE.h5ad --label-col perturbation \
-        --keep perts.csv --control control --max-per-label 400 --max-control 10000 \
-        --seed 0 --out ~/data/sidechain/cache/vcc2026/hepg2_real_subset.h5ad
+        --keep perts.csv --control control --max-per-label 400 --max-control 10000 --seed 0 --out OUT.h5ad
+
+Reads FILE.h5ad (the `stream_pseudobulk` block reader) and the --keep CSV; writes OUT.h5ad with raw counts, obs and
+var carried over. Notes: private/code-notes/src/sidechain/data/stream_subset.py.md
 """
 from __future__ import annotations
 
@@ -63,15 +58,12 @@ def extract_cells(
             blocks.append(sp.csr_matrix(sub, dtype=np.float32))
     X = sp.vstack(blocks, format="csr")
     sub_obs = obs.iloc[np.where(chosen)[0]].copy()
-    # A categorical column keeps every level of the SOURCE file; downstream groupers
-    # (pdex, cell-eval2) then see thousands of empty groups and divide by zero.
+    # Drop the source file's unused categories: pdex and cell-eval2 group on every level.
     for col in sub_obs.columns:
         if isinstance(sub_obs[col].dtype, pd.CategoricalDtype):
             sub_obs[col] = sub_obs[col].cat.remove_unused_categories()
     if control and relabel_control and relabel_control != control:
-        # cell-eval2's competition rule hashes the control LABEL ('non-targeting');
-        # a line whose controls are called 'control' would otherwise only ever
-        # yield a "diagnostic" bundle. Relabel at extraction, once.
+        # cell-eval2's competition rule keys on the control label ('non-targeting').
         col = sub_obs[label_col].astype(str)
         sub_obs[label_col] = col.where(col != control, relabel_control)
     out = ad.AnnData(X=X, obs=sub_obs, var=var.copy())

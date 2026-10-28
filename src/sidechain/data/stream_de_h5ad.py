@@ -1,64 +1,13 @@
-"""Stream a published per-(target, condition) DE table out of a remote AnnData.
+"""Range-read a published per-(target, condition) DE table out of a remote AnnData, then build LfcTable views.
 
-The second table-type source after Feng, and the first that ships a real standard
-error. GWCD4i (Zhu, Dann ... Marson, Cell 2026; genome-scale CRISPRi in primary
-human CD4+ T cells) publishes `GWCD4i.DE_stats.h5ad`: one row per (knocked-down
-gene, culture condition) -- Rest, Stim8hr, Stim48hr -- one column per measured
-gene, and layers `log_fc`, `lfcSE`, `adj_p_value`, `baseMean`, ... It is 16.79 GB
-and it never lands. Its layers are contiguous and uncompressed, so the rows we want
-are plain HTTP range reads: all 291 challenge targets' `log_fc` is 88.6 MB of it
-(measured 2026-09-21, `runs/gwcd4i_range_read_2026-09-21/`).
+    uv run python -m sidechain.data.stream_de_h5ad pull --dataset gwcd4i_de --keep targets.json --out DE.npz
+    uv run python -m sidechain.data.stream_de_h5ad table --de DE.npz --conditions Rest --gate knockdown --out VIEW.npz
 
-TWO ARTIFACTS, ON PURPOSE
--------------------------
-1. `DEConditions` -- the rows we read, per condition, (C, T, G): effect, SE, adjusted
-   p, plus every per-row quality flag the publisher ships. This is the network
-   cost, paid once. It keeps the conditions SEPARATE because how to combine them
-   is a modelling choice with a measurable answer, and baking one choice into the
-   only copy would make the others cost another pull.
-2. `LfcTable` views -- one per (conditions, correlation, quality gate), rebuilt from
-   (1) in seconds. This is what `--lfc-source` consumes.
-
-THE VARIANCE IS THE WHOLE GAME
-------------------------------
-A table-type source's variance BYPASSES the pool's Poisson floor, so an
-over-confident one wins every gene it touches. Feng's variance, derived by
-inverting p-values, measured 9-17x over-confident against held-out pseudobulk
-(2026-08-31). GWCD4i ships `lfcSE`, so `var = lfcSE^2`
-with no inversion; its median is 0.018, between our HEK293T (0.014) and HCT116
-(0.027) sources, so it is not claiming absurd certainty on scale. Two things can
-still make it wrong, and both are parameters here rather than decisions:
-
-* **Combining conditions.** The three conditions are the same four donors and the
-  same guide library in different cultures, so their errors are positively
-  correlated. An inverse-variance mean that assumes independence reports
-  var = 1 / sum(1/v_c), up to 3x too small -- the Feng failure by another door.
-  `rho` states the assumed error correlation; the combined variance is exact for it.
-  It is MEASURED for GWCD4i, not guessed: donor-split deviations correlate across
-  conditions at median r = 0.10 (40 targets, 360 comparisons, 2026-09-25, from the
-  publisher's by_donors fits); it was not measured separately at responding genes.
-
-      w_c = (1/v_c) / sum_d (1/v_d)
-      var = (1 - rho) * sum_c w_c^2 v_c  +  rho * (sum_c w_c sqrt(v_c))^2
-
-  rho = 0 is independent IVW; rho = 1 gives no reduction for equal variances (and
-  slightly MORE than the best single arm for unequal ones -- conservative). A single-condition
-  view (`conditions=["Rest"]`) sidesteps the question.
-* **Rows whose knockdown did not take.** 37.6 % of all 33,983 published rows have
-  `ontarget_significant = False` (21.8 % of the rows kept for our 615 fold and
-  challenge targets, which lean toward expressed genes). Such a row is evidence about a guide, not about the
-  gene: it votes "little change" on a gene whose knockdown elsewhere does change
-  things. `gate` names the flags that make a row ABSTAIN (variance inf, weight 0),
-  never vote toward zero -- the same reasoning Feng's saturated rows abstain on.
-
-Which setting is honest is measured, not argued: fit each view against held-out
-pseudobulk truth with `sidechain.eval.transfer_tau2` and read its calibration.
-
-    uv run python -m sidechain.data.stream_de_h5ad pull --keep targets.json \\
-        --out ~/data/sidechain/derived/gwcd4i/gwcd4i_de_conditions.npz
-    uv run python -m sidechain.data.stream_de_h5ad table \\
-        --de ~/data/sidechain/derived/gwcd4i/gwcd4i_de_conditions.npz \\
-        --conditions Rest --gate knockdown --out .../gwcd4i_rest_kd.npz
+Built for GWCD4i (Zhu, Dann ... Marson, Cell 2026): `GWCD4i.DE_stats.h5ad`, one row per (target, culture condition),
+layers `log_fc`, `lfcSE`, `adj_p_value`. `pull` reads the kept rows into a `DEConditions` cache (C, T, G); `table`
+combines conditions by inverse variance (`var = lfcSE^2`) under an error correlation `rho`, and a row failing the
+`gate` abstains. Reads the dataset's PROVENANCE.json; writes each output with a `.lineage.json` beside it.
+Notes: private/code-notes/src/sidechain/data/stream_de_h5ad.py.md
 """
 from __future__ import annotations
 
@@ -85,10 +34,7 @@ GATES: dict[str, tuple[tuple[str, bool], ...]] = {
     "knockdown": (("ontarget_significant", False),
                   ("distal_offtarget_flag", True),
                   ("low_target_gex", True)),
-    # ...and the row must rest on two guides. A single-guide row has no guide
-    # replication at all, and guide heterogeneity is a large error lfcSE
-    # omits: the publisher's guide-split fits put it at 2.46x in variance at
-    # responding genes (measured 2026-09-25 from GWCD4i.DE_stats.by_guide.h5mu).
+    # ...and the row must rest on two guides
     "knockdown_2guide": (("ontarget_significant", False),
                          ("distal_offtarget_flag", True),
                          ("low_target_gex", True),
@@ -272,11 +218,7 @@ def read_de_h5ad(h, *, keep: set[str], target_col: str = "target_contrast_gene_n
 
 
 def _obs_col_var(h, col: str) -> np.ndarray:
-    """A categorical column under var/ (same encoding as obs).
-
-    A code of -1 is a missing value. Indexing categories with it silently returns the LAST
-    category, which would give an unnamed gene someone else's symbol -- so it is refused.
-    """
+    """A categorical column under var/ (same encoding as obs); a missing value (code -1) raises."""
     node = h[f"var/{col}"]
     cats = node["categories"]
     cats = np.asarray(cats.asstr()[:] if cats.dtype.kind in "OS" else cats[:])
@@ -288,12 +230,7 @@ def _obs_col_var(h, col: str) -> np.ndarray:
 
 
 def _as_bool(values, col: str) -> np.ndarray:
-    """A flag column as booleans, refusing anything that only LOOKS boolean.
-
-    `astype(bool)` on the strings "True"/"False" makes every one True -- a gate built on it
-    would pass or fail every row alike and say nothing. Real bools pass through; a
-    categorical of exactly those spellings is mapped; anything else is an error.
-    """
+    """A flag column as booleans: real bools, or strings spelled True/False; anything else raises."""
     arr = np.asarray(values)
     if arr.dtype == bool:
         return arr
@@ -308,20 +245,16 @@ def _as_bool(values, col: str) -> np.ndarray:
 
 def combine(de: DEConditions, *, conditions: list[str] | None = None,
             rho: float | None = None, gate: str = "knockdown") -> LfcTable:
-    """One LfcTable view: pick conditions, combine them, apply a quality gate.
+    """One LfcTable view: pick conditions, combine them under error correlation `rho`, apply a quality gate.
 
-    `conditions=None` means all of them. `rho` is the assumed correlation of the
-    conditions' errors (see the module docstring). It has NO DEFAULT when more than one
-    condition is combined: rho = 0 is the textbook independence assumption and also the
-    over-confident one here, so a caller must say which they mean rather than inherit it.
-    A single-condition view needs none. A (target, gene) with no usable condition
-    abstains (variance inf) -- it does not vote zero.
+    `conditions=None` means all of them. `rho` has no default when more than one condition is combined. A
+    (target, gene) with no usable condition abstains (variance inf).
     """
     names = de.conditions if conditions is None else list(conditions)
     if rho is None:
         if len(names) > 1:
             raise ValueError(f"combining {len(names)} conditions needs an explicit rho: "
-                             "0 assumes independent errors, which these are not")
+                             "0 assumes independent errors")
         rho = 0.0
     if not 0.0 <= rho <= 1.0:
         raise ValueError(f"rho is a correlation in [0, 1], got {rho}")
@@ -379,13 +312,7 @@ def _read_keep(path: Path) -> set[str]:
 
 
 def _git_sha(*modules) -> str:
-    """HEAD's short SHA, suffixed `-dirty` when any of these modules differs from it.
-
-    The suffix is the point. A lineage record that names a commit the running code is
-    not in -- a module run before it was committed -- claims a reproducibility it does
-    not have. The first GWCD4i pull (2026-09-25) did exactly that. Pass every module whose
-    code shaped the artifact; this file is always included.
-    """
+    """HEAD's short SHA, suffixed `-dirty` when this file or any of `modules` differs from it or is untracked."""
     import subprocess
     files = [Path(__file__).resolve()] + [Path(m).resolve() for m in modules]
     try:
@@ -410,12 +337,7 @@ SPEC_TO_READER = {"target_col": "target_col", "condition_col": "condition_col",
 
 
 def reader_kwargs(spec: dict) -> dict:
-    """The block's spec as `read_de_h5ad` keyword arguments -- one source of truth.
-
-    Until 2026-09-26 the reader used its own defaults and never looked at the block, so the
-    two could drift apart with nothing failing. Every key is required: a missing one is a
-    block that does not describe this file, and guessing it is how a column gets misread.
-    """
+    """The block's spec as `read_de_h5ad` keyword arguments; every key of SPEC_TO_READER is required."""
     missing = [k for k in SPEC_TO_READER if not spec.get(k)]
     if missing:
         raise KeyError(f"the registry spec lacks {missing}; this reader needs every one of "
@@ -455,10 +377,8 @@ def _versions() -> dict:
 def resolve_pull(dataset: str, config: str, root: Path, head=_head) -> dict:
     """Everything a pull needs from the registry and the gate, or a refusal.
 
-    The gate is ENFORCED here, not trusted: no PROVENANCE.json means the gate never ran,
-    and a remote object whose size or ETag differs from the recorded one means the file
-    changed upstream since it did -- both stop the pull. The URL comes from PROVENANCE,
-    never from a default, so what is read is exactly what was admitted.
+    Refuses without PROVENANCE.json, or when the remote object's size or ETag differs from the recorded one; the
+    URL comes from PROVENANCE.
     """
     from sidechain.data.stream_parquet_pseudobulk import _dataset_block
     from sidechain.ingest.provenance import read_provenance
@@ -499,10 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--keep", type=Path, required=True,
                    help="targets to keep: a JSON list/dict or a CSV whose first column lists them")
     p.add_argument("--out", type=Path, required=True)
-    # 64 KiB, not megabytes. fsspec's readahead fetches `block_size` PAST every request,
-    # and the rows we want are ~600 scattered runs of ~3 rows (246 KB) each -- an 8 MiB
-    # block would pull ~30x the bytes asked for. 64 KiB measured 1.26x overhead on the
-    # real file (runs/gwcd4i_range_read_2026-09-21/, 2026-09-21).
+    # bytes per read; fsspec's readahead fetches `block_size` past every request
     p.add_argument("--block-size", type=int, default=64 << 10)
 
     t = sub.add_parser("table", help="build an LfcTable view from a DEConditions cache")
@@ -514,9 +431,7 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--gate", default="knockdown", choices=sorted(GATES))
     t.add_argument("--out", type=Path, required=True)
     args = ap.parse_args(argv)
-    # The code is loaded NOW. Asking git at the END of a pull names whatever HEAD has become
-    # by then -- a commit made during the run -- not the code that ran (2026-09-26: a pull
-    # launched at 4712738 recorded 522caed, committed while it was reading).
+    # Read the sha now, from the code that is loaded, not after the pull.
     from sidechain.data import lfc_table as _lfc
     code_sha = _git_sha(_lfc.__file__)
 

@@ -1,12 +1,10 @@
-"""Pseudobulk strategies (Rung 1 backbone + replicate generation for DES).
+"""Collapse cells to pseudobulk profiles (optionally bootstrap pseudo-replicates) and take deltas vs control.
 
-Knobs mirror configs/model.yaml -> rung1_statistical.pseudobulk:
-  aggregate : 'sum' (count-native, DESeq2/edgeR-friendly) | 'mean' | 'median'
-  group_by  : e.g. [target_gene] (coarse) or [target_gene, batch] (gives variance)
-  min_cells : drop groups below this many cells
+    pb = pseudobulk(adata, group_by=["target_gene"], aggregate="sum", min_cells=25, n_bootstrap=0)
+    delta = delta_vs_control(pb)          # (perturbations x genes) DataFrame
 
-Bootstrapping cells within a group manufactures pseudo-replicates, which gives
-DES a dispersion to score without needing a full generative model.
+`aggregate` is 'sum' | 'mean' | 'median'; the knobs mirror configs/model.yaml -> rung1_statistical.pseudobulk.
+Reads and writes nothing. Notes: private/code-notes/src/sidechain/data/pseudobulk.py.md
 """
 from __future__ import annotations
 
@@ -47,13 +45,10 @@ def pseudobulk(
     n_bootstrap: int = 0,
     seed: int = 0,
 ) -> ad.AnnData:
-    """Collapse cells to pseudobulk profiles.
+    """One profile per group, or `n_bootstrap` with-replacement pseudo-replicates per group.
 
-    If `n_bootstrap` > 0, resample cells with replacement within each group to
-    emit that many pseudo-replicates per group instead of one profile.
-
-    Returns an AnnData with one row per (group [, replicate]); the grouping keys
-    are preserved as obs columns, plus `n_cells` and `replicate`.
+    Returns an AnnData with one row per (group [, replicate]); obs keeps the grouping keys plus `n_cells` and
+    `replicate`.
     """
     if aggregate not in _AGGREGATORS:
         raise ValueError(f"Unknown aggregate {aggregate!r}; expected one of {_AGGREGATORS}")

@@ -1,37 +1,12 @@
-"""Stream a LaminDB-hosted h5ad into a per-label pseudobulk, without landing it.
+"""Stream a LaminDB-hosted h5ad into a per-label pseudobulk (`PseudobulkSums`) without landing it.
 
-The third streaming reader, after local h5ad (`stream_pseudobulk`) and HF
-parquet (`stream_parquet_pseudobulk`), and it emits the same `PseudobulkSums`
-object -- so a lamin-hosted corpus becomes a new `--source` on the existing
-`sidechain.eval.loco` / `sidechain.submit.build` command lines with no change
-to the model, the emitter, or the scorer.
+    uv run python -m sidechain.data.stream_lamindb_pseudobulk --instance laminlabs/pertdata \
+        --key scperturb/frangieh21 --label-col pert_target --gene-col symbol --out OUT.npz
 
-Built for `laminlabs/pertdata`'s curated scperturb tree, whose uniform layout is
-`scperturb/<dataset>/{X.h5ad, obs.parquet, var.parquet}`:
-
-  * `Artifact.open()` on the X.h5ad returns a lazy accessor whose `.storage` is
-    an open h5py.File over S3 -- the SAME handle type the local streamer uses,
-    so the accumulator (`stream_pseudobulk_file`) is shared, not re-implemented.
-  * the harmonized perturbation label (`pert_target`) lives in the obs.parquet
-    SIDECAR, not in X.h5ad's own obs. Sidecar-to-matrix row alignment is
-    ASSERTED over every row before any label is trusted (`--skip-align-check`
-    exists for a dataset whose X.h5ad carries no cell index at all, and prints
-    loudly). A misjoin here would relabel cells silently, which is the same
-    failure `configs/datasets.yaml` documents for Feng's three barcode spellings.
-  * `--gene-col symbol` re-keys the gene axis from the var INDEX (ensembl ids in
-    pertdata) to a var column, because the pooling remaps sources onto the
-    challenge axis by SYMBOL. Empty entries become "" and never match; the meta
-    line counts them and the duplicates rather than hiding the loss.
-
-    uv run python -m sidechain.data.stream_lamindb_pseudobulk \
-        --instance laminlabs/pertdata --key scperturb/frangieh21 \
-        --label-col pert_target --gene-col symbol \
-        --out ~/data/sidechain/derived/lamin-pertdata/frangieh21_all_pseudobulk.npz
-
-Writes `<out>` plus `<out stem>.lineage.json` beside it: which instance and
-artifact versions (uid, hash, size) produced the aggregate, at what resolution,
-by which code. That file is what answers "what is this npz?" without re-reading
-gigabytes over the network (ADR 0003's LINEAGE shape).
+`--key` is a directory (`<key>/{X.h5ad, obs.parquet}`: labels from the obs.parquet sidecar, whose row order is
+checked against X.h5ad's obs index) or one `.h5ad` (labels from its own obs). Reads the instance's artifacts over
+the object store; writes OUT.npz and OUT.lineage.json (instance, artifact uid, hash and size, code sha).
+Notes: private/code-notes/src/sidechain/data/stream_lamindb_pseudobulk.py.md
 """
 from __future__ import annotations
 
@@ -55,9 +30,7 @@ except ImportError:  # pragma: no cover - older anndata
 
 
 def _artifact(db, key: str):
-    # `.defer("extra_data")` because an instance whose SQLite snapshot predates
-    # that column (altoslabs/perturbench) crashes ANY full-model fetch with
-    # `no such column`; deferring it keeps `.open()` working everywhere.
+    # `.defer("extra_data")`: an instance whose snapshot lacks that column fails any full-model fetch.
     art = db.Artifact.filter(key=key, is_latest=True).defer("extra_data").first()
     if art is None:
         raise SystemExit(f"no latest artifact with key {key!r} in this instance")
@@ -84,27 +57,11 @@ def _derive_labels(
     control_rule: tuple[str, tuple[str, ...], str] | None = None,
     row_filters: dict[str, str] | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Per-cell pseudobulk labels from the sidecar obs, with the three shapes
-    the curated pertdata corpora actually come in.
+    """Per-cell pseudobulk labels from the sidecar obs; dropped rows carry `DROP`. Returns `(labels, stats)`.
 
-    * `multi_label` -- `pert_target_multi` holds a STRINGIFIED list
-      (`"['VAC14']"`, `"['CEBPE' 'RUNX1T1']"`, `"None"`). A row with exactly one
-      token becomes that token; combinatorial and empty rows are dropped, not
-      guessed at.
-    * `control_rule` = (col, prefixes, out_label) -- control cells are found by
-      their GUIDE NAME (`pert_name` startswith `non-targeting`/`NO_SITE`/...),
-      because the harmonized `pert_target` for a control cell is NaN, which is
-      also what an unassigned cell reads. The rule is applied AFTER the base
-      label so it overrides NaN with the declared control label; NaN rows the
-      rule does not claim are dropped rather than pooled into the control arm --
-      that distinction is the Feng lesson in the other direction (there the
-      paper POOLS no-guide into controls; here nothing says these curations do).
-    * `row_filters` = {col: value} -- keep only rows where obs[col] == value.
-      Frangieh's three condition arms (Control / Co-culture / IFN-γ) are the
-      case: pooling them would blend a stimulation into every knockout delta.
-
-    Returns `(labels, stats)`; dropped rows carry the DROP sentinel, which the
-    caller hands to the accumulator as a skip label.
+    `multi_label`: the column holds a stringified list; a single-token row keeps its token, others drop.
+    `control_rule` = (col, prefixes, out_label): rows whose `col` starts with a prefix become `out_label`.
+    `row_filters` = {col: value}: keep only rows where obs[col] == value.
     """
     n = len(obs)
     if multi_label:
@@ -156,22 +113,9 @@ def stream_lamindb_pseudobulk(
     drop_labels: set[str] | None = None,
     x_path: str = "X",
 ):
-    """One remote pass over the corpus at `key_prefix`.
+    """One remote pass over the corpus at `key_prefix`: a directory with an obs.parquet sidecar, or one `.h5ad`.
 
-    Two layouts, told apart by whether `key_prefix` ends in `.h5ad`:
-
-      * a pertdata-style DIRECTORY (`scperturb/frangieh21`) -- labels come from
-        the `obs.parquet` sidecar, the matrix from `<prefix>/X.h5ad`, and the
-        sidecar's row alignment is asserted against the h5ad's own obs index.
-      * a single H5AD (`mcfaline23_gxe_processed.h5ad`, perturbench) -- labels
-        come from the file's EMBEDDED obs; there is no sidecar to misalign.
-
-    `x_path` picks the matrix within the file: perturbench's processed h5ads
-    hold a NORMALISED X and keep raw counts in `layers/counts` -- streaming
-    their X would put log-normalised values through arithmetic that assumes
-    raw counts, silently.
-
-    Returns `(PseudobulkSums, lineage_dict)`.
+    `x_path` picks the matrix within the file (e.g. `layers/counts`). Returns `(PseudobulkSums, lineage_dict)`.
     """
     import lamindb as ln
 
@@ -266,8 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep", help="CSV of labels to keep (column target_gene or first column); default all")
     ap.add_argument("--control", help="control label, always kept when --keep is given")
     ap.add_argument("--gene-col", default="symbol",
-                    help="var column to use as the gene axis ('' keeps the var index; "
-                         "pertdata indexes var by ensembl_id and the pooling matches by symbol)")
+                    help="var column to use as the gene axis ('' keeps the var index)")
     ap.add_argument("--block-rows", type=int)
     ap.add_argument("--skip-align-check", action="store_true",
                     help="do NOT verify obs.parquet row order against X.h5ad's obs index")
@@ -282,11 +225,9 @@ def main(argv: list[str] | None = None) -> int:
                          "perturbation_2=Control to take one condition arm of a "
                          "multi-arm design")
     ap.add_argument("--drop-label", action="append", default=[], metavar="LABEL",
-                    help="exclude this perturbation label entirely (repeatable); e.g. "
-                         "RcontrolSEL, mcfaline23's unflagged random-control pseudo-target")
+                    help="exclude this perturbation label entirely (repeatable)")
     ap.add_argument("--x-path", default="X",
-                    help="matrix to stream within the h5ad (default X; layers/counts for "
-                         "perturbench's processed files, whose X is log-normalised)")
+                    help="matrix to stream within the h5ad, e.g. layers/counts (default X)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 

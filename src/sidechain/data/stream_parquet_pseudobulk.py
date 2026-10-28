@@ -1,65 +1,13 @@
 """Stream long-format parquet (X-Atlas/Orion) into the same `PseudobulkSums` the h5ad streamer emits.
 
-    uv run python -m sidechain.data.stream_parquet_pseudobulk --dataset xatlas_orion \
-        --context hct116 --keep ~/data/sidechain/vcc2026/pert_counts.csv \
-        --out ~/data/sidechain/derived/xatlas-orion/hct116_panel
+    uv run python -m sidechain.data.stream_parquet_pseudobulk --dataset xatlas_orion --context hct116 \
+        [--keep PANEL.csv | --all-genes] [--guide-agreement] --out ~/data/sidechain/derived/xatlas-orion/hct116_full
 
-    uv run python -m sidechain.data.stream_parquet_pseudobulk --dataset xatlas_orion \
-        --context hct116 --all-genes --guide-agreement \
-        --out ~/data/sidechain/derived/xatlas-orion/hct116_full
-
-Why this module exists as a separate reader: X-Atlas/Orion is 126.26 GB of parquet on
-Hugging Face that we read ONCE and never store (`configs/datasets.yaml` → `route: stream`).
-Its on-disk shape is nothing like an h5ad -- one row per cell, with the non-zero genes held
-as two parallel *list* columns -- so `stream_pseudobulk` cannot read it.
-
-**Why it emits `PseudobulkSums` and not something better suited.** That object is the entire
-integration contract. `submit.build.pooled_delta` and `eval.loco` consume it and nothing else,
-so emitting it makes X-Atlas a new `--source` on the existing command lines with no change to
-the model, the emitter or the scorer. If this module ever needed something downstream to
-change, the shape would be wrong.
-
-RESOLUTION: PER PERTURBATION, NOT PER (PERTURBATION, BATCH).
-ADR 0003 instructed the opposite -- budget the aggregate at per-(perturbation, batch)
-resolution because re-streaming is expensive. The arithmetic refutes it and this is a one-way
-door at 126 GB per re-run, so it is stated here rather than left in a report: HCT116 has 109
-GEM batches over 18,330 targets, which is ~1.7 cells per (perturbation, batch) bucket. A
-1.7-cell pseudobulk is not a measurement, and the dense tensor would be ~290 GB. X-Atlas
-reaches its median 141 cells per perturbation precisely BY pooling across batches.
-What is kept instead is a per-(perturbation, batch) *cell-count* table -- ~8 MB, preserving
-every batch-structure question we might want to ask, for nothing.
-
-CAPTURED HERE OR LOST: `pct_counts_mt` and those per-batch cell counts. Free while the cells
-stream past, another 126 GB afterwards. Mitochondrial read fraction rises in stressed and
-dying cells, and knocking down an essential gene kills cells -- so a perturbation whose
-"effect" is largely a dying-cell signature would transfer to the challenge contexts as if it
-were biology. Nothing consumes these yet. They are taken anyway, into a sidecar file, because
-the alternative is re-reading the corpus to get them.
-
-Same argument, second instance: `--guide-agreement` accumulates a SECOND pseudobulk in the
-same pass, keyed by `guide_target` (the dual-guide construct) instead of `gene_target` (the
-gene it silences). It answers one question nothing else in the corpus can: do two
-independently delivered constructs against the same gene produce the same profile? That is
-the empirical size of the construct-level noise we are currently ignoring when a target is
-measured through one construct only -- which is 16,832 of 18,330 targets. See
-`Keying` and `multi_construct_labels` for what it is restricted to and why.
-
-The four facts about this corpus that are hardcoded, each verified against the data rather
-than the README (2026-08-23, `data/HCT116_Batch106.parquet`):
-
-  * control label is exactly `Non-Targeting` -- matched with `checks.control_mask`, which is
-    an equality test by design. Never a substring: `"NT" in value` once reported INTS1 and
-    DOT1L_INTS1 as controls;
-  * `pass_guide_filter` is stored as **int64, not bool** -- 1/0, so it is compared to 1;
-  * counts are raw integers stored as float64 (min 1, max 1631, all integral) -- confirmed
-    with `checks.counts_state` on the first block of every file, not assumed;
-  * each file is ONE row group, so "read one row group at a time" would not bound memory
-    at all. `iter_batches` streams the DECODE within that row group, which is what keeps the
-    dense temporaries small -- but pyarrow still buffers the requested column chunks for the
-    whole row group before yielding the first batch. Measured on an 82.8 MB single-row-group
-    file: 82.9 MB had been read before batch one. So peak is **the accumulator plus roughly
-    one file's compressed column chunks**, not "plus one batch". Real files run 0.23-0.72 GB
-    (mean 0.43 GB), so budget ~1 GB of headroom on top of the accumulator.
+Input: one row per cell, its non-zero genes as two parallel list columns (`gene_token_id`, `gene_expression`: raw
+counts as float64), control `Non-Targeting`, `pass_guide_filter` int64 1/0. Reads the corpus over HF at its
+PROVENANCE.json revision; writes OUT.npz, the OUT.qc.npz sidecar (per-(label, batch) cell counts, mt fraction),
+OUT.guide.npz with --guide-agreement, and an entry in the directory's LINEAGE.json.
+Notes: private/code-notes/src/sidechain/data/stream_parquet_pseudobulk.py.md
 """
 from __future__ import annotations
 
@@ -82,42 +30,25 @@ from sidechain.utils.paths import resolve_config
 
 CONTROL_LABEL = "Non-Targeting"
 
-# The columns this reader touches. Named explicitly because parquet is columnar: asking for
-# seven of thirteen columns means the other six are never fetched over the network, which on
-# a 126 GB corpus is most of the saving.
-#
-# `guide_target` is deliberately NOT here: it is appended by `_columns_for` only when a
-# construct-keyed accumulator asks for it, so a run that does not want guide agreement pays
-# nothing for the column.
+# The columns this reader fetches; `_columns_for` adds `guide_target` only when a keying or the coverage tally
+# needs it.
 COLUMNS = [
     "gene_token_id",      # list<int64>  -- the non-zero genes for this cell
     "gene_expression",    # list<double> -- their raw counts, parallel to the above
     "gene_target",        # the perturbation label; `Non-Targeting` is the control
     "sample",             # the GEM batch
     "pass_guide_filter",  # int64 1/0, NOT bool
-    "pct_counts_mt",      # captured now or re-read later at 126 GB
-    "total_counts",       # the cell's TRUE library size, over all 38,606 genes
+    "pct_counts_mt",      # mitochondrial read fraction
+    "total_counts",       # the cell's library size over the corpus's whole gene axis
 ]
 
 
 @dataclass
 class Keying:
-    """One way of grouping cells into labels, and the labels to allocate for it.
+    """One way of grouping cells into labels: `gene_target` (the silenced gene) or `guide_target` (the construct).
 
-    Two exist, and both are accumulated in the SAME pass because the pass costs 126 GB of
-    network and the second accumulator costs 2.8 GB of RAM.
-
-      * `gene_target` -- the gene that was silenced. This is what every downstream consumer
-        means by a perturbation, and the emitted `PseudobulkSums` under this keying is the
-        one `pooled_delta` and `eval.loco` read.
-      * `guide_target` -- the dual-guide CONSTRUCT that did the silencing, e.g.
-        `USP22_P1P2-1|USP22_P1P2-2`. Nothing consumes this yet; it exists so that
-        "how much is a single-construct estimate worth relative to a two-construct one?"
-        can be answered without re-streaming the corpus.
-
-    `name` is the suffix the artifacts and the `LINEAGE.json` entry take -- empty for the
-    primary keying, so `hct116_full.npz` keeps its name and the construct-keyed pair lands
-    beside it as `hct116_full.guide.npz`.
+    `name` suffixes the artifacts and the LINEAGE.json entry: empty for the primary keying, `guide` for
+    `<out>.guide.npz`.
     """
 
     name: str
@@ -128,16 +59,7 @@ class Keying:
 
 
 def label_column(frame: pd.DataFrame, column: str) -> np.ndarray:
-    """The per-cell label under one keying.
-
-    Under `guide_target` the CONTROL is deliberately still keyed by gene. X-Atlas pairs its
-    1,026 non-targeting sgRNAs at random, so `Non-Targeting` cells carry tens of thousands
-    of distinct construct strings, most of them seen once or twice. Keying those by
-    construct would replace the single control arm every delta is measured against with a
-    cloud of one-cell labels -- and `stream_keyings` would then stop the run, correctly, for
-    having accumulated no control. Control cells therefore keep the label `Non-Targeting`
-    under both keyings, and only the targeting cells split by construct.
-    """
+    """The per-cell label under one keying; under `guide_target` the control cells keep `Non-Targeting`."""
     if column == "gene_target":
         return frame["gene_target"].to_numpy()
     gene = frame["gene_target"].to_numpy()
@@ -161,43 +83,24 @@ def _columns_for(keyings: list[Keying], *, guide_coverage: bool = False) -> list
 
 @dataclass
 class StreamQC:
-    """What the stream saw, beside the sums. Saved as a sidecar, never inside `PseudobulkSums`.
-
-    A sidecar rather than extra fields because `PseudobulkSums` is the integration contract:
-    widening it would mean every producer and consumer of it moves together, to carry
-    something only this corpus has. These are recorded so the question "was that big delta a
-    dying-cell signature?" can be asked without re-streaming 126 GB.
-    """
+    """What the stream saw, beside the sums; saved as the `.qc.npz` sidecar, never inside `PseudobulkSums`."""
 
     labels: list[str]
     batches: list[str]
     batch_cells: np.ndarray        # (L, B) int32 -- per-(perturbation, batch) cell counts
     pct_mt_sum: np.ndarray         # (L,) float64
     pct_mt_sq_sum: np.ndarray      # (L,) float64
-    total_counts_sum: np.ndarray   # (L,) float64 -- the corpus's own `total_counts`, over ALL
-    #                                38,606 genes. NOT the same as PseudobulkSums.libsize_sum,
-    #                                which sums the emitted axis only; keeping both is what
-    #                                makes the alternative CPM normalization recoverable
-    #                                without re-streaming 126 GB.
+    total_counts_sum: np.ndarray   # (L,) float64 -- the corpus's own `total_counts`, not libsize_sum
     n_cells: np.ndarray            # (L,) int64
     cells_seen: int = 0
     cells_dropped_filter: int = 0
     cells_dropped_zero: int = 0
     labels_in_corpus: int = 0   # distinct gene_target values seen, kept or not
 
-    # ---- screen-coverage QC. Both are cheap here and UNRECOVERABLE afterwards. ----------
-    # `count_sum` says how many counts a gene got; neither it nor anything else we keep says
-    # how many CELLS it was seen in, or how many cells carried a given construct. Those are
-    # the two coverage views a screen is judged on before it is worth pooling, and getting
-    # them later means re-reading the corpus.
-    #
-    # `gene_cells[g]` -- cells with a NON-ZERO count for emitted gene g, over every cell this
-    # accumulator kept. Answers "expressed in fewer than N cells", which `count_sum` cannot:
-    # a gene at count_sum 100 might be 100 cells at 1 or 1 cell at 100.
+    # ---- screen-coverage QC ----------------------------------------------------------------
+    # `gene_cells[g]`: cells with a non-zero count for emitted gene g, over every cell kept.
     gene_cells: np.ndarray | None = None        # (G,) int64
-    # Cells per CONSTRUCT, over every construct the corpus carries -- not just the
-    # multi-construct ones the guide keying accumulates. No gene axis, so ~20k int64s.
-    # Controls are pooled under one label, as everywhere else (`label_column`).
+    # Cells per construct, over every construct the corpus carries; controls pooled under one label.
     guide_labels: list[str] = field(default_factory=list)
     guide_cells: np.ndarray | None = None       # (len(guide_labels),) int64
 
@@ -239,10 +142,7 @@ class GeneAxis:
     col_of_token: np.ndarray       # (max_token+1,) int32, -1 = not on the emitted axis
     unmapped_challenge: list[str]  # challenge genes X-Atlas does not carry -- recorded, not dropped silently
     collided_symbols: list[str]    # emitted symbols fed by more than one token
-    # Whether the axis was RESTRICTED to the challenge genes. Carried rather than inferred
-    # from `unmapped_challenge` being empty: a source covering every challenge gene would
-    # otherwise be recorded as an unrestricted all-symbols axis, which is a different and
-    # much larger axis.
+    # Whether the axis was restricted to the challenge genes; carried, not inferred from `unmapped_challenge`.
     restricted: bool = True
 
     @property
@@ -251,13 +151,7 @@ class GeneAxis:
 
 
 def read_gene_names(path: str | Path, *, expect: int | None = None) -> list[str]:
-    """The 2026 `gene_names.csv`, read the way that file actually needs.
-
-    It HAS a header row (`gene_name`) -- the opposite of the 2025 file. A `header=None` read
-    returns 18,534 rows whose first "gene" is the literal string `gene_name`, and every gene
-    after it is off by one. Nothing downstream would raise; the axis would simply be wrong.
-    So the count is checked against what the config declares rather than trusted.
-    """
+    """The 2026 `gene_names.csv`, which has a header row (`gene_name`); `expect` checks the gene count."""
     genes = pd.read_csv(Path(path).expanduser()).iloc[:, 0].astype(str).tolist()
     if expect is not None and len(genes) != expect:
         raise ValueError(
@@ -269,23 +163,11 @@ def read_gene_names(path: str | Path, *, expect: int | None = None) -> list[str]
 
 
 def build_gene_axis(gene_map: pd.DataFrame, challenge_genes: list[str] | None) -> GeneAxis:
-    """Map X-Atlas gene tokens onto the axis we emit.
+    """Map X-Atlas gene tokens onto the emitted axis: the challenge symbols it carries, in challenge order, or with
+    `challenge_genes=None` every symbol it carries, sorted.
 
-    `gene_map` is `metadata/gene_metadata.parquet`: 38,606 rows of
-    (`ensembl_id`, `gene_name`, `gene_token_id`). The long-format data files carry only
-    `gene_token_id`, so without this table the counts sit on an unnamed axis.
-
-    When `challenge_genes` is given the emitted axis is restricted to the challenge symbols
-    X-Atlas actually carries, in challenge order. That is not a shortcut: `pooled_delta`
-    remaps every source onto the challenge axis by symbol anyway, so genes outside it are
-    dropped downstream regardless -- carrying all 38,606 would only double the accumulator.
-    The challenge genes X-Atlas lacks are RECORDED rather than silently dropped, because
-    "this source is blind to these 427 genes" is a fact about our coverage, not a bug.
-
-    Duplicate symbols (38,606 ids over 38,584 names) are summed into one column. Resolving
-    by Ensembl id would be more principled, but the emitted axis has to be symbols -- that is
-    what the challenge axis is keyed on, and the 2026 bundle ships no Ensembl ids at all.
-    Which symbols collided is recorded so the cost is visible rather than assumed to be zero.
+    `gene_map` is `metadata/gene_metadata.parquet` (`ensembl_id`, `gene_name`, `gene_token_id`). Tokens sharing a
+    symbol are summed into one column; absent challenge genes and collided symbols are recorded on the axis.
     """
     symbols = gene_map["gene_name"].astype(str).to_numpy()
     tokens = gene_map["gene_token_id"].astype(np.int64).to_numpy()
@@ -321,9 +203,7 @@ class _Accumulator:
                  *, track_coverage: bool = False):
         self.labels = labels
         self.genes = genes
-        # Which column this accumulator keys on -- see `Keying`. Held here rather than
-        # passed in per batch so that one `_fold_batch` serves both keyings and the primary
-        # arithmetic stays literally the code that produced the panel artifacts.
+        # The column this accumulator keys on (see `Keying`).
         self.column = column
         self.code_of = {lab: i for i, lab in enumerate(labels)}
         L, G = len(labels), len(genes)
@@ -341,16 +221,10 @@ class _Accumulator:
         self.dropped_filter = 0
         self.dropped_zero = 0
         self.sources: list[str] = []
-        # Every distinct label the corpus actually contains UNDER THIS KEYING, whether or
-        # not we accumulate it. Bounded by the guide library (~18.3k targets or ~20.9k
-        # constructs, short strings, well under a megabyte) and it answers two questions
-        # nothing else can: "did you mean this label?" when a declared one matches nothing,
-        # and "what else is in here?" without re-reading 126 GB.
+        # Every distinct label the corpus contains under this keying, accumulated or not.
         self.seen_labels: set[str] = set()
 
-        # Screen-coverage tallies. Off by default: `gene_cells` is another (G,) array and
-        # `guide_cells` needs a column the stream would not otherwise fetch, and neither is
-        # wanted by a panel-scope run. See `StreamQC` for why they cannot be added later.
+        # Screen-coverage tallies, off by default (see `StreamQC`).
         self.track_coverage = track_coverage
         self.gene_cells = np.zeros(len(genes), dtype=np.int64) if track_coverage else None
         self.guide_cells: dict[str, int] = {}
@@ -361,24 +235,7 @@ class _Accumulator:
         return self.batch_cells[batch]
 
     def to_pseudobulk(self) -> PseudobulkSums:
-        """The sums, with never-observed labels PRUNED.
-
-        The accumulator is allocated for every requested label up front, because growing a
-        (301 x 18,106) array mid-stream is not an option. But a label the corpus never
-        actually perturbed must not survive into the emitted object, and this is not
-        tidiness -- it is a correctness fix with a specific failure behind it:
-
-        `pooled_delta` decides whether a source votes on a target with `target not in
-        pb.labels`. A label that is present with zero cells passes that test, and
-        `_log2fc_with_var` then reads mean_cpm = 0 / max(0, 1) = 0 for every gene and
-        returns log2(1 / (ctrl + 1)) -- i.e. "this perturbation silenced the entire
-        transcriptome", around -7 to -10 log2 per gene, carrying real (if modest) weight
-        into the inverse-variance pool. A source that never saw the target would be voting
-        confidently and wrongly on it.
-
-        `stream_pseudobulk` never had this problem because it intersects the keep list with
-        the labels actually present in the file. This restores that parity.
-        """
+        """The sums, with labels that never got a cell pruned (as `stream_pseudobulk` does)."""
         seen = np.flatnonzero(self.n_cells > 0)
         return PseudobulkSums(
             labels=[self.labels[i] for i in seen], genes=self.genes,
@@ -388,12 +245,7 @@ class _Accumulator:
         )
 
     def to_qc(self) -> StreamQC:
-        """The sidecar keeps EVERY requested label, including the never-observed ones.
-
-        Deliberately the opposite choice to `to_pseudobulk`: "the panel asked for 300 targets
-        and this line yielded cells for 287" is the coverage number, and it is only
-        answerable if the zeros are still here.
-        """
+        """The sidecar, keeping every requested label, including those that never got a cell."""
         batches = sorted(self.batch_cells)
         table = (np.stack([self.batch_cells[b] for b in batches], axis=1)
                  if batches else np.zeros((len(self.labels), 0), dtype=np.int32))
@@ -412,20 +264,9 @@ class _Accumulator:
 
 
 def _scatter_add(target: np.ndarray, rows: np.ndarray, product) -> None:
-    """`target[rows] += product`, without ever materialising a dense (rows x genes) block.
+    """`target[rows] += product` over the sparse product's coordinates, never a dense (rows x genes) block.
 
-    The indicator-times-batch product is sparse: a 2,048-cell batch touches ~5M
-    (label, gene) entries out of the ~69M a dense block allocates on the 38,584-gene axis --
-    a 13x blowup that then gets memset, gathered, added and scattered, three times per
-    batch. Measured on the box mid-run: 100% of ONE core with eleven idle, ~3 ms per cell,
-    putting the full corpus at ~7 hours. Network was never the constraint.
-
-    Correctness rests on one property of the sparse product: scipy sums duplicate
-    coordinates, so every (row, col) in the result is unique. With unique coordinates
-    `target[r, c] += data` is a plain gather-add-scatter, and the entries it skips are
-    exactly the ones that would have added 0.0 -- so the result is bit-identical to the
-    dense form, not merely close to it. `test_the_sparse_scatter_is_bit_identical_to_the_
-    dense_form` holds that.
+    Bit-identical to the dense form: scipy sums duplicate coordinates, so each (row, col) is unique.
     """
     coo = product.tocoo()
     if coo.nnz == 0:
@@ -435,13 +276,7 @@ def _scatter_add(target: np.ndarray, rows: np.ndarray, product) -> None:
 
 def _consume_batch(accs: list[_Accumulator], axis: GeneAxis, frame: pd.DataFrame, *,
                    check_counts: bool) -> bool:
-    """Apply the guide filter once, then fold the surviving cells into every accumulator.
-
-    The filter is shared because it is a property of the cell, not of the keying: a cell
-    whose guide call did not pass is not a cell under either keying. Everything after it is
-    per accumulator, because the two disagree about which label a cell belongs to and about
-    which labels are wanted at all.
-    """
+    """Apply the guide filter once, then fold the surviving cells into every accumulator."""
     # pass_guide_filter is int64, not bool: `== 1`, not `is True`.
     keep = frame["pass_guide_filter"].to_numpy() == 1
     dropped = int((~keep).sum())
@@ -461,14 +296,7 @@ def _consume_batch(accs: list[_Accumulator], axis: GeneAxis, frame: pd.DataFrame
 
 
 def decode_lists(frame: pd.DataFrame):
-    """The two parallel list columns -> flat COO ingredients.
-
-    X-Atlas stores each cell's non-zero genes as two same-length lists (`gene_token_id`,
-    `gene_expression`). Flattening them and repeating a row index per cell is the whole of
-    the long -> sparse step. Shared with the cell writer (`stream_cells`) rather than
-    duplicated, because a second decoder that drifted from this one would misalign genes
-    silently, which is this project's most expensive recurring bug.
-    """
+    """The two parallel list columns -> flat COO `(lengths, tokens, values, rows)`; shared with `stream_cells`."""
     tok_lists = frame["gene_token_id"].to_numpy()
     val_lists = frame["gene_expression"].to_numpy()
     lengths = np.fromiter((len(t) for t in tok_lists), count=len(tok_lists), dtype=np.int64)
@@ -481,11 +309,7 @@ def decode_lists(frame: pd.DataFrame):
 def tokens_to_csr(axis: GeneAxis, tokens, values, rows, *, n_cells: int) -> sp.csr_matrix:
     """Map gene tokens onto the emitted axis and build the (cells x genes) CSR.
 
-    Tokens outside the emitted axis (and any id beyond the map) are dropped here.
-    `tokens >= 0` is not paranoia: a negative id would index from the END of
-    col_of_token and land silently in some unrelated gene's column. Gene
-    misalignment is this project's most expensive recurring bug and it never
-    announces itself.
+    Tokens off the axis or out of range drop; a negative id would otherwise index `col_of_token` from the end.
     """
     in_range = (tokens >= 0) & (tokens < len(axis.col_of_token))
     cols = np.full(tokens.shape, -1, dtype=np.int64)
@@ -499,17 +323,8 @@ def tokens_to_csr(axis: GeneAxis, tokens, values, rows, *, n_cells: int) -> sp.c
 
 def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
                 check_counts: bool) -> bool:
-    """Fold one guide-filtered frame into one accumulator.
-
-    The long -> sparse step is the whole of it: each cell carries two parallel lists, so the
-    batch becomes one COO of (row=cell within batch, col=emitted gene) and the per-label sums
-    fall out of an indicator matrix product -- the same shape `stream_pseudobulk` uses, for
-    the same reason (it is a sparse matmul rather than a Python loop over cells).
-
-    Everything expensive happens AFTER the label filter, which is what keeps a second
-    accumulator cheap: the construct-keyed one wants ~8% of the cells, so it pays ~8% of the
-    sparse work rather than doing the whole batch again.
-    """
+    """Fold one guide-filtered frame into one accumulator: decode only the wanted labels' cells, then sum them per
+    label through an indicator-matrix product."""
     targets = label_column(frame, acc.column)
     acc.seen_labels.update(targets.tolist())
     codes = np.array([acc.code_of.get(t, -1) for t in targets], dtype=np.int64)
@@ -524,14 +339,7 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
     ran_check = False
     if check_counts and values.size:
         ran_check = True
-        # Answer the normalization question from the data, not from the card.
-        #
-        # Give `counts_state` REAL ROWS, not one flattened vector. Two of its three signals
-        # need row structure: constant row totals is how it catches a cp10k matrix whose
-        # values happen to land back on integers, and that signal is dead on a single row.
-        # Long format has no row structure, so it is rebuilt here from the `lengths` already
-        # computed above -- a ragged set of cells padded into a rectangle, which is enough
-        # for "are these integers" and for "is every library size identical".
+        # Raw counts, checked on real rows: `counts_state` needs row structure, rebuilt here as a padded probe.
         probe_cells = min(64, len(lengths))
         width = int(lengths[:probe_cells].max()) if probe_cells else 0
         if probe_cells and width:
@@ -577,9 +385,7 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
 
     cpm = sp.diags(1e6 / lib) @ sub
 
-    # Only the labels this batch actually touched get densified, so the transient is
-    # (labels in batch x genes) rather than (all labels x genes) -- which is what lets the
-    # 18,331-label run stay inside the box's memory.
+    # Only the labels this batch touched are densified: (labels in batch x genes).
     uniq, local = np.unique(codes, return_inverse=True)
     ind = sp.csr_matrix(
         (np.ones(len(local)), (local, np.arange(len(local)))), shape=(len(uniq), len(local))
@@ -593,10 +399,7 @@ def _fold_batch(acc: _Accumulator, axis: GeneAxis, frame: pd.DataFrame, *,
     pct = frame["pct_counts_mt"].to_numpy(dtype=np.float64)
     np.add.at(acc.pct_mt_sum, codes, pct)
     np.add.at(acc.pct_mt_sq_sum, codes, pct * pct)
-    # The corpus's OWN total_counts, not `lib`. `lib` sums the emitted axis (18,106 genes);
-    # this is the cell's whole transcriptome (38,606). Recording `lib` here would have made
-    # this field a duplicate of libsize_sum under a name promising something else, and the
-    # alternative normalization would then need another 126 GB to recover.
+    # The corpus's own total_counts (its whole gene axis), not `lib` (the emitted axis).
     np.add.at(acc.total_counts_sum, codes,
               frame["total_counts"].to_numpy(dtype=np.float64))
     acc.cells_seen += len(codes)
@@ -615,12 +418,7 @@ def stream_files(
     batch_rows: int = 2048,
     progress: bool = True,
 ) -> tuple[PseudobulkSums, StreamQC]:
-    """One pass over `paths`, accumulating per perturbation. The ordinary case.
-
-    A thin call into `stream_keyings` with the single `gene_target` keying, kept because
-    that is what every caller but the guide-agreement run wants and the two-value return
-    reads better than indexing a list of one.
-    """
+    """One pass over `paths` under the single `gene_target` keying (see `stream_keyings`)."""
     (pb, qc), = stream_keyings(
         paths, opener=opener, axis=axis, batch_rows=batch_rows, progress=progress,
         keyings=[Keying(name="", column="gene_target", labels=labels,
@@ -639,22 +437,12 @@ def stream_keyings(
     progress: bool = True,
     guide_coverage: bool = False,
 ) -> list[tuple[PseudobulkSums, StreamQC]]:
-    """One pass over `paths`, accumulating every keying at once. Results are in order.
+    """One pass over `paths`, accumulating every keying at once; results in keying order.
 
-    Several keyings share a pass because the pass is the expensive thing: 126 GB of network
-    against a few GB of RAM per extra accumulator. They are NOT separate runs of this
-    function, because two runs would read the corpus twice and could disagree -- the second
-    read is not guaranteed to see the same revision, and even where it does, an aggregate
-    pair that came from two passes cannot be compared cell for cell.
-
-    Peak RAM is the accumulators plus about one file's column chunks (see the module
-    docstring -- pyarrow buffers the whole row group before the first batch, and each
-    X-Atlas file is a single row group of 0.23-0.72 GB), plus the per-batch dense
-    temporaries, which are (labels touched by the batch x genes) per accumulator.
+    Peak RAM is the accumulators, about one file's compressed column chunks (pyarrow buffers a whole row group
+    before the first batch), and per-batch (labels touched x genes) temporaries.
     """
-    # Coverage is tallied on the PRIMARY accumulator only. It describes the cells that went
-    # into the aggregate everything downstream reads; tallying it again on a construct-keyed
-    # accumulator would count a subset of the same cells under a second name.
+    # Coverage is tallied on the primary accumulator only.
     accs = [_Accumulator(k.labels, axis.genes, column=k.column,
                          track_coverage=guide_coverage and i == 0)
             for i, k in enumerate(keyings)]
@@ -691,18 +479,7 @@ def stream_keyings(
 
 def _require_control(pb: PseudobulkSums, acc: _Accumulator, keying: Keying, *,
                      n_paths: int) -> None:
-    """Stop the run if the control arm was asked for and yielded nothing.
-
-    The control is the arm every delta is measured against. If it was asked for and yielded
-    nothing, the prune removes it, `.npz` and `LINEAGE.json` still get written, and the
-    failure surfaces much later inside `pooled_delta` as
-    `ValueError: 'Non-Targeting' is not in list` -- a message that names neither this corpus
-    nor this run. Stop here instead, with the labels we did see.
-
-    This is what `checks.control_mask` does for an in-memory matrix (it refuses to return an
-    all-False mask, and offers near-miss labels). It cannot be called on a stream that never
-    holds the labels at once, so the guarantee is reproduced.
-    """
+    """Raise if the control arm was asked for and yielded no cells, naming near-miss labels the data carried."""
     if CONTROL_LABEL not in keying.labels or CONTROL_LABEL in pb.labels:
         return
     # Near-misses come from the labels the DATA carried, not the ones we asked for --
@@ -725,28 +502,13 @@ def _require_control(pb: PseudobulkSums, acc: _Accumulator, keying: Keying, *,
 
 # ------------------------------------------------------------------ lineage --
 
-# code_sha moved to utils.logging (imported above) so run logging and stream
-# lineage stamp the same value.
-
 
 def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str,
                   axis: GeneAxis, pb: PseudobulkSums, qc: StreamQC,
                   scope: str, artifacts: dict[str, str], entry: str | None = None,
                   resolution: str = "per-perturbation",
                   keyed_by: str = "gene_target") -> Path:
-    """Record this aggregate in the directory's LINEAGE.json.
-
-    ADR 0003 section 1 sketched this file and nothing wrote it until now. It answers the
-    question that otherwise costs 126 GB to re-answer: which PROVENANCE.json this derives
-    from, which code built it, and -- the one that matters most -- what the accumulator's
-    resolution was. An aggregate whose resolution is unknown cannot be trusted or extended.
-
-    One file per derived DIRECTORY, holding one entry per artifact, because a directory
-    holds several: X-Atlas alone puts HCT116 and HEK293T side by side, and a panel-scope run
-    beside a full-corpus one. An earlier version wrote the whole file per run, so streaming
-    the second line silently erased the first line's lineage -- leaving two aggregates and a
-    record for one of them, which is worse than no record because it looks complete.
-    """
+    """Add this aggregate's entry, keyed `dataset/entry`, to the directory's LINEAGE.json."""
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "LINEAGE.json"
     payload = {"schema_version": 2, "entries": {}}
@@ -755,9 +517,7 @@ def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str
         if existing.get("schema_version") == 2 and isinstance(existing.get("entries"), dict):
             payload = existing
         else:
-            # An unrecognised file is someone else's record, not ours to discard. Move it
-            # aside rather than overwriting: losing lineage is worse than an extra file,
-            # because the aggregate it described stays on disk looking trustworthy.
+            # An unrecognised file is moved aside, never overwritten.
             path.replace(path.with_suffix(".json.bak"))
     payload.setdefault("entries", {})
 
@@ -994,26 +754,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _discover_labels(names: list[str], opener, *, with_constructs: bool = False,
                      progress: bool = True) -> tuple[set[str], set[tuple[str, str]]]:
-    """A cheap first pass over the label column(s) only.
-
-    Parquet is columnar, so reading `gene_target` alone touches a small fraction of each
-    file. Worth it because the accumulator has to be allocated once, up front, at its final
-    size -- growing an (18,331 x 38,584) array mid-stream is not an option.
-
-    With `with_constructs`, `guide_target` is read alongside and the distinct
-    (target, construct) pairs come back too. **`Non-Targeting` is excluded from the pairs**:
-    X-Atlas combines its 1,026 non-targeting sgRNAs at random, so the control's distinct
-    construct strings run into the tens of thousands and grow with the corpus, while every
-    targeting construct is a designed pair from the library and the whole set is bounded by
-    ~20,890. Keeping the control's pairs would make this set unbounded for no use -- nothing
-    keys the control by construct (`label_column`).
-    """
+    """A first pass over the label column(s) only; with `with_constructs`, also the distinct (target, construct)
+    pairs, the control excluded."""
     found: set[str] = set()
     pairs: set[tuple[str, str]] = set()
     columns = ["gene_target", "guide_target"] if with_constructs else ["gene_target"]
-    # Reported every few files. Without it this phase is a long silent wait over 223 files
-    # before the first stream line appears, which is indistinguishable from a hung job --
-    # and on a box that bills by the hour, "is it stuck?" is an expensive question.
     t0 = time.time()
     for n, name in enumerate(names, 1):
         with opener(name) as handle:
@@ -1033,26 +778,10 @@ def _discover_labels(names: list[str], opener, *, with_constructs: bool = False,
 def multi_construct_labels(
     pairs: set[tuple[str, str]], *, keep: set[str] | None = None,
 ) -> tuple[list[str], int]:
-    """The constructs of every target measured through MORE THAN ONE, plus the control.
+    """The constructs of every target with more than one in the corpus, plus the control.
 
-    Guide agreement asks whether two independently delivered constructs against the same
-    gene produce the same profile. That is only answerable where a target has more than one,
-    so a single-construct target contributes nothing: its construct profile IS its gene
-    profile, already accumulated under the primary keying. Restricting is therefore not
-    thrift -- carrying all ~20,890 constructs on the 38,584-gene axis would cost ~19 GB of
-    RAM to store a copy of numbers we already have.
-
-    The set is derived from the CORPUS, not from the published guide library, because the
-    question is which constructs this context actually yielded cells for. A target the
-    library gives two constructs but HCT116 only ever delivered one of belongs in neither
-    accumulator's numerator, and reading the library would have put it there.
-
-    `keep` restricts to targets the primary accumulator is also keeping, so the construct
-    aggregate is always a refinement of the aggregate beside it rather than a different
-    population that happens to share a directory.
-
-    Returns the labels (constructs, sorted, plus `Non-Targeting`) and the number of
-    multi-construct targets behind them.
+    `keep` restricts to targets the primary accumulator keeps. Returns (sorted labels, number of multi-construct
+    targets).
     """
     by_target: dict[str, set[str]] = {}
     for target, construct in pairs:

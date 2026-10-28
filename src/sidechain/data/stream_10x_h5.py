@@ -1,42 +1,12 @@
 """Read Cell Ranger feature-barcode h5 lanes into the same `PseudobulkSums` every streamer emits.
 
-    D=~/data/sidechain/derived/pan2026-h1
-    uv run python -m sidechain.data.stream_10x_h5 --dataset pan2026_h1_crispri \
-        --guide-level --groups $D/lane_groups.tsv --axis-aliases $D/axis_aliases.tsv \
-        --target-aliases $D/target_aliases.tsv --out $D/h1_pan2026
+    uv run python -m sidechain.data.stream_10x_h5 --dataset pan2026_h1_crispri --guide-level \
+        --groups GROUPS.tsv --axis-aliases AXIS.tsv --target-aliases TARGETS.tsv --out OUT
 
-Why a separate reader: a Cell Ranger `filtered_feature_bc_matrix.h5` is not an h5ad. It has no
-obs table and no perturbation column. The matrix is stored features x barcodes, and when the
-library was captured directly the guide counts are ROWS OF THAT SAME MATRIX (feature type
-`CRISPR Guide Capture`) beside the genes (`Gene Expression`). So which cell got which guide is
-not read from the file, it is DERIVED from it, and the rule that derives it is a fact about
-the experiment. Every such rule is declared in the dataset's block in `configs/datasets.yaml`
-(`min_genes`, `guide_min_umi`, `guide_rule`, the two regexes, `n_control_guides`) and read
-here from the block; none is a default in this module. Pan 2026's H1 screen (GEO GSE295214,
-T114) is the corpus this was written for.
-
-What a run writes, beside `<out>`:
-
-  <out>.npz              per-target sums over every lane -- the `--source` a pool reads
-  <out>.<group>.npz      the same per lane group, when `--groups` names groups. Lanes are the
-                         replicate unit of a screen like this one, so a split-half is a merge
-                         of groups; one gene-level accumulator is resident at a time (the
-                         per-guide one, when asked for, stays for the whole run and is the
-                         larger of the two)
-  <out>.guide.npz        per-guide sums over every lane (`--guide-level`), controls pooled
-  <out>.qc.npz           the `StreamQC` sidecar X-Atlas writes, lanes as its batches
-  <out>.cells.parquet    one row per barcode in the filtered matrices, KEPT OR NOT: lane,
-                         barcode, the guide call with its top two guide UMI counts, and why a
-                         cell was dropped. The only place the cell <-> guide link is written
-  <out>.control_targets.npz
-                         control cells x target genes, raw counts: what a per-target test
-                         against the control arm needs (the paper's own knockdown filter is
-                         a Mann-Whitney U against these cells)
-  <out>.lanes.tsv        one row per lane: size, sha256, cells kept and dropped by reason
-  LINEAGE.json           one entry per artifact, in the directory
-
-`libsize` is the sum over the EMITTED gene axis, as in the other two streamers; the cell's
-total over all gene features is kept in the per-cell table and in the sidecar.
+Input: `filtered_feature_bc_matrix.h5` lanes, guide counts as rows beside the genes; the cell filter and guide call
+are read from the dataset's block in configs/datasets.yaml (`RULE_KEYS`). Writes OUT.npz, OUT.<group>.npz,
+OUT.guide.npz, OUT.qc.npz, OUT.cells.parquet (every barcode and its call), OUT.control_targets.npz, OUT.lanes.tsv
+and the directory's LINEAGE.json. Notes: private/code-notes/src/sidechain/data/stream_10x_h5.py.md
 """
 from __future__ import annotations
 
@@ -66,16 +36,12 @@ from sidechain.data.stream_pseudobulk import PseudobulkSums, merge
 from sidechain.ingest import checks
 from sidechain.utils.logging import code_sha
 
-# The keys an expression file's spec must carry for this reader, beyond the registry's own
-# required set. Missing ones are a refusal: a filter threshold that defaulted silently is a
-# cell arm nobody declared.
+# The keys an expression file's spec must carry for this reader, beyond the registry's own required set.
 RULE_KEYS = ("control_label", "expression_feature_type", "guide_feature_type", "min_genes",
              "guide_min_umi", "guide_rule", "guide_target_regex", "control_guide_regex",
              "n_control_guides")
 
-# Guides per cell are also counted at these UMI thresholds, whatever the calling rule is:
-# many guides per cell at low thresholds is what a corpus that cannot be read by label
-# looks like (GSE249595, 2026-10-09), and it is cheap here and a re-read afterwards.
+# Guides per cell are also counted at these UMI thresholds, whatever the calling rule is.
 GUIDE_SHAPE_UMIS = (2, 5, 10)
 
 # A group's sums are saved as <out>.<group>.npz, beside these three.
@@ -146,13 +112,8 @@ def _decode(values) -> np.ndarray:
 def read_lane(path: str | Path, name: str | None = None) -> Lane:
     """One `filtered_feature_bc_matrix.h5` -> cells x features CSR.
 
-    Cell Ranger stores the matrix compressed by BARCODE with the feature index in
-    `indices` and `shape = (features, barcodes)`: a CSC of features x barcodes. The same
-    three arrays read as a CSR are barcodes x features, which is the orientation every
-    other reader here uses, so nothing is transposed (the index array is narrowed to
-    int32, which is the one copy). The lengths
-    are checked because the opposite reading also builds without error whenever the two
-    counts happen to allow it, and yields a matrix of the right size with genes for cells.
+    Cell Ranger stores features x barcodes compressed by barcode, which read as a CSR is barcodes x features; the
+    array lengths are checked against `shape`.
     """
     path = Path(path).expanduser()
     with h5py.File(path, "r") as f:
@@ -185,12 +146,7 @@ def read_lane(path: str | Path, name: str | None = None) -> Lane:
 
 @dataclass
 class GuideLibrary:
-    """The guide features of the library and what each one means.
-
-    Built from the first lane and required identical on every later one: a lane whose
-    feature table differs was quantified against another reference, and its rows would be
-    added into the wrong columns without a word.
-    """
+    """The guide features of the library and what each one means; every lane must carry the first lane's table."""
 
     guide_ids: np.ndarray        # (n_guides,) str, in feature order
     guide_label: np.ndarray      # (n_guides,) str -- the target gene, or the control label
@@ -207,13 +163,8 @@ class GuideLibrary:
 
 
 def build_guide_library(guide_ids: np.ndarray, rules: LaneRules) -> GuideLibrary:
-    """Guide name -> label, by the two declared patterns and nothing looser.
-
-    Each pattern must match the WHOLE name. A guide that matches neither is a refusal, not
-    a dropped row: an unparsed guide would leave its cells looking unassigned, and they
-    would be counted as carrying no guide. The number of control guides is checked against
-    the number the methods state, which is what ties the pattern to the experiment.
-    """
+    """Guide name -> label by the two declared patterns, each matching the whole name. An unparsed guide raises,
+    and the number of control guides must equal `n_control_guides`."""
     target_re = re.compile(rules.guide_target_regex)
     control_re = re.compile(rules.control_guide_regex)
     labels, is_control, unparsed = [], [], []
@@ -271,26 +222,11 @@ class SymbolAxis:
 
 def build_symbol_axis(names: np.ndarray, ids: np.ndarray, challenge_genes: list[str] | None,
                       *, aliases: dict[str, str] | None = None) -> SymbolAxis:
-    """Map a lane's gene features onto the axis we emit.
+    """Map a lane's gene features onto the emitted axis: the challenge symbols this reference carries, in their order.
 
-    With `challenge_genes` the axis is the challenge symbols this reference carries, in
-    challenge order, as the X-Atlas streamer's is and for the same reason (`pooled_delta`
-    remaps every source onto the challenge axis by symbol anyway).
-
-    THE ALIAS TABLE IS READ IN REVERSE HERE. `gene_aliases.RETIRED_SYMBOLS` maps an old
-    spelling onto the current one, and its docstring warns against applying it onto the 2026
-    axis, because that axis speaks the OLD dialect. A Cell Ranger 2024 reference speaks the
-    current one. So for a challenge symbol the reference lacks, the feature carrying its
-    CURRENT symbol feeds its column: `AARS` on the axis is fed by the feature named `AARS1`.
-    It is never applied when the current symbol is itself a challenge gene (one feature
-    would feed two columns), and every pair used is recorded with the feature's Ensembl id
-    so it can be checked against the alias table's own evidence. The 48-pair table was
-    built for another purpose and finds 38 of the 427 challenge symbols a 2024 reference
-    lacks by name; `aliases` takes a wider map in the same direction (`--axis-aliases`, a
-    table built from a symbol authority before the read).
-
-    Duplicate symbols (38,606 ids over 38,584 names on the 2024 reference) are summed into
-    one column and recorded, as in `stream_parquet_pseudobulk.build_gene_axis`.
+    The alias table is read in reverse here: a challenge symbol the reference lacks is fed by the feature carrying
+    its current symbol, unless that symbol is itself on the axis; each pair used is recorded with its Ensembl ids.
+    `aliases` replaces `RETIRED_SYMBOLS` (`--axis-aliases`). Duplicate symbols are summed into one column, recorded.
     """
     aliases = RETIRED_SYMBOLS if aliases is None else aliases
     present: dict[str, list[int]] = {}
@@ -332,15 +268,9 @@ def build_symbol_axis(names: np.ndarray, ids: np.ndarray, challenge_genes: list[
 def own_gene_projector(names: np.ndarray, targets: list[str], *,
                        aliases: dict[str, str] | None = None,
                        ) -> tuple[sp.csr_matrix, np.ndarray]:
-    """(n_gene_features x targets) of ones selecting each target's OWN gene, and which have one.
+    """(n_gene_features x targets) of ones selecting each target's own gene, and which targets have one.
 
-    The library names its targets in whatever symbols it was designed with; the reference
-    names genes in current ones (181 of Pan 2026's 2,978 targets are not a reference
-    symbol: `ATP5A1`, `C10orf2`). Exact symbol first, then `aliases`, target -> reference symbol:
-    the alias table read FORWARD (old onto current), which is its documented direction,
-    under whatever the caller adds from a symbol authority (`--target-aliases`). A target
-    with no gene feature keeps an empty column and is reported as not self-measurable.
-    Labels are never renamed by this: it only finds a target's own column.
+    Exact symbol first, then `aliases` read forward (old -> current symbol); labels are never renamed.
     """
     aliases = RETIRED_SYMBOLS if aliases is None else aliases
     present: dict[str, list[int]] = {}
@@ -377,13 +307,8 @@ class CellCalls:
 
 
 def call_cells(ge: sp.csr_matrix, guides: sp.csr_matrix, rules: LaneRules) -> CellCalls:
-    """The cell filter and the guide call, per barcode.
-
-    A cell is kept when it has at least `min_genes` genes with a non-zero count AND exactly
-    one guide with at least `guide_min_umi` UMIs; it takes that guide. Both thresholds are
-    inclusive, as the methods word them ("at least"). The gene filter is read first, so a
-    cell failing both is counted under the gene filter.
-    """
+    """The cell filter and the guide call, per barcode: kept with >= `min_genes` genes and exactly one guide at
+    >= `guide_min_umi` UMIs, taking that guide. A cell failing both is counted under the gene filter."""
     n = ge.shape[0]
     n_genes = ge.getnnz(axis=1).astype(np.int64)
     total_umi = np.asarray(ge.sum(axis=1)).ravel().astype(np.int64)
@@ -583,8 +508,7 @@ class Sums:
         np.add.at(self.libsize_sum, codes, lib)
 
     def to_pseudobulk(self) -> PseudobulkSums:
-        """Never-observed labels are pruned, for the reason `_Accumulator.to_pseudobulk`
-        in the parquet streamer gives: a label present with zero cells votes."""
+        """The sums, with labels that never got a cell pruned (as the parquet streamer does)."""
         seen = np.flatnonzero(self.n_cells > 0)
         return PseudobulkSums(
             labels=[self.labels[i] for i in seen], genes=self.genes,
@@ -616,11 +540,7 @@ def collapse_to_genes(guide_pb: PseudobulkSums, library: GuideLibrary,
 
 
 def read_groups(path: str | Path, lane_names: list[str]) -> dict[str, str]:
-    """A two-column TSV, lane <tab> group, `#` lines ignored. Every lane must be named once.
-
-    The file is written BEFORE the read and kept beside the artifacts: which lanes sit in
-    which half is a choice, and it is made without sight of the data.
-    """
+    """A two-column TSV, lane <tab> group, `#` lines ignored; every lane must be named once."""
     out: dict[str, str] = {}
     for n, line in enumerate(Path(path).expanduser().read_text().splitlines(), start=1):
         if not line.strip() or line.strip().startswith("#"):
@@ -825,9 +745,7 @@ def stream_lanes(lanes: list[tuple[str, Path]], rules: LaneRules, *,
 
 
 def _build_qc(cells: pd.DataFrame, ctx: LaneContext, gene_cells: np.ndarray) -> StreamQC:
-    """The sidecar X-Atlas writes, from the per-cell table: lanes are its batches, and it
-    keeps every label of the library, the never-observed ones included (the coverage
-    number is only answerable if the zeros are still there)."""
+    """The `StreamQC` sidecar from the per-cell table: lanes as batches, every library label kept, zeros included."""
     rules, library = ctx.rules, ctx.library
     labels = library.gene_labels
     kept = cells[cells["kept"]]
@@ -935,8 +853,7 @@ def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str
 
 
 def _input_record(path: str | Path) -> dict:
-    """A table this run read beside the lanes, with its digest: what makes "written before
-    the read" checkable afterwards."""
+    """A table this run read beside the lanes, with its sha256."""
     path = Path(path).expanduser()
     return {"path": str(path), "sha256": sha256_file(path)}
 
@@ -962,8 +879,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="emit every symbol of the reference rather than only the challenge axis")
     ap.add_argument("--guide-level", action="store_true",
                     help="also accumulate per guide (<out>.guide.npz), controls pooled")
-    ap.add_argument("--groups", help="TSV, lane<TAB>group: one <out>.<group>.npz per group, "
-                                     "written before the read (the split is fixed blind)")
+    ap.add_argument("--groups", help="TSV, lane<TAB>group: one <out>.<group>.npz per group")
     ap.add_argument("--axis-aliases",
                     help="TSV (axis_symbol, reference_symbol): a challenge symbol the "
                          "reference spells differently, and the symbol it has there. Widens "

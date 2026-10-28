@@ -1,46 +1,12 @@
-"""Stream X-Atlas/Orion parquet into an h5ad of CELLS -- a LOCO fold receiver.
+"""Stream X-Atlas/Orion parquet into an h5ad of cells for a fold's held-out line, drawn by quota across batches.
 
-    uv run python -m sidechain.data.stream_cells --context hct116 \
-        --keep ~/data/sidechain/vcc2026/panels_union.csv \
-        --qc ~/data/sidechain/derived/xatlas-orion/hct116_full.qc.npz \
-        --cap 300 --control-cells 20000 \
-        --out ~/data/sidechain/cache/vcc2026/loco_hct116_real.h5ad
+    uv run python -m sidechain.data.stream_cells --context hct116 --keep PANEL.csv \
+        --qc ~/data/sidechain/derived/xatlas-orion/hct116_full.qc.npz --cap 300 --control-cells 20000 --out OUT.h5ad
 
-WHY THIS EXISTS, given the corpus has already been streamed twice. Both previous passes
-emitted `PseudobulkSums` -- per-perturbation sums, which is all a *source* needs. A fold
-RECEIVER needs something a sum cannot provide: the emitter builds its `ContextProfile` from
-the receiver's own control CELLS, and cell-eval2 runs its differential-expression call on
-cells. So HCT116 can be a source forever and a receiver never, until this pass exists.
-
-What it buys: a SECOND challenge-shaped fold. `loco_k562gwps` is currently the only fold
-whose panel is the challenge panel (the four local folds share **0** of the challenge 300),
-so every knob priced this season rests on one fold.
-
-THREE DECISIONS, each of which has a wrong version that has already cost us something.
-
-1. **The gene axis is never narrowed.** Library size is summed over the EMITTED axis
-   (`count_emitters.ContextProfile.from_controls`), so dropping genes silently rescales every
-   cell's CPM -- on the challenge axis, to 0.71x, and not by a constant, so it does not even
-   cancel in a ratio. That is why the 2026-08-23 panel artifacts were archived. This writer
-   emits the full native axis and refuses `--keep`-style gene restriction outright.
-
-2. **The LABEL scope is the union of every panel we might ever score, not just the challenge
-   300.** This is a one-way door: the corpus is `route: stream`, so a label we drop costs
-   another 46 GB to recover. HCT116 covers 300/300 of the challenge panel, 290/300 of Jurkat's,
-   290/300 of K562-essential's and 272/272 of the gwps fold's -- 830 of a union of 849. Taking
-   the union costs ~1 GB more and makes this line a receiver for the essential-gene panels
-   too, which is the only way to test whether a calibration fitted on one corpus transfers.
-
-3. **Cells are drawn ACROSS batches by quota, never "the first N".** Files arrive
-   lexicographically (`Batch1, Batch10, Batch100`), so a naive cap would draw a systematic
-   subset of GEM batches and confound the fold with batch structure. The per-(label, batch)
-   cell counts already sit in the full run's QC sidecar, so the quota is computed exactly,
-   offline, by largest-remainder allocation before a byte moves.
-
-LICENCE. X-Atlas/Orion is CC-BY-NC-SA-4.0 and `redistribution_encumbered: true`. Unlike every
-other artifact we derive from it, this one is a row subset of verbatim Xaira cells rather than
-a transformative aggregate. It belongs on the Mac and in the private lamin bucket ONLY -- never
-the public repo, the site, or a published bundle. (Saber's explicit sign-off, 2026-08-31.)
+Keeps the corpus's full native gene axis. Reads the corpus (its PROVENANCE.json) and the full run's QC sidecar
+(per-(label, batch) cell counts); writes OUT.h5ad, or numbered shards with --shard-nnz, and OUT.cells_per_label.csv.
+X-Atlas/Orion is CC-BY-NC-SA-4.0 and the output is a row subset of its cells.
+Notes: private/code-notes/src/sidechain/data/stream_cells.py.md
 """
 from __future__ import annotations
 
@@ -72,14 +38,9 @@ CONTROL_HARMONISED = "non-targeting"   # what every fold receiver spells it (loc
 
 def plan_quota(batch_cells: np.ndarray, labels: list[str], batches: list[str],
                want: dict[str, int]) -> dict[tuple[str, str], int]:
-    """Allocate each label's cell budget across the batches that actually hold its cells.
+    """Allocate each label's cell budget across its batches by largest-remainder (Hamilton) apportionment.
 
-    Largest-remainder (Hamilton) apportionment on the per-(label, batch) counts, so the
-    sample mirrors the corpus's own batch composition instead of whichever files happen to
-    be read first. A label with fewer cells than its budget contributes all of them.
-
-    `batch_cells` is (labels x batches) from the full run's QC sidecar -- counts we already
-    paid 126 GB for, reused here so the plan costs nothing.
+    `batch_cells` is (labels x batches) from the QC sidecar; a label with fewer cells than its budget gives all.
     """
     pos = {lab: i for i, lab in enumerate(labels)}
     quota: dict[tuple[str, str], int] = {}
@@ -139,14 +100,7 @@ class CellSink:
         present = set(targets.tolist())
         if not any(self.left.get((lab, batch), 0) for lab in present):
             return
-        # Choose rows first, decode second: the sparse work is the expensive part and this
-        # pass wants a few hundred of a batch's ~18,500 cells.
-        #
-        # WITHIN a batch the pick is randomised, not "the first N rows". Across batches the
-        # quota is already exact (`plan_quota`), so the only ordering left to worry about is
-        # the corpus's own row order inside a file -- unknown, and free to correlate with
-        # something. A seeded shuffle costs nothing and removes the question; the seed makes
-        # the selection reproducible from the sidecar plus this constant.
+        # Choose rows first, decode second; within a batch the pick is a seeded draw, not the first N rows.
         take = np.zeros(len(targets), dtype=bool)
         for lab in present:
             budget = self.left.get((lab, batch), 0)
@@ -218,18 +172,7 @@ class CellSink:
         return info
 
     def maybe_flush(self, out: Path, gene_ids: np.ndarray | None, max_nnz: int) -> dict | None:
-        """Spill to a numbered shard once the held matrix reaches `max_nnz` nonzeros.
-
-        Why this exists: the sink used to hold every block and `sp.vstack` them once at the end,
-        so peak memory was TWICE the finished matrix. That is fine for a panel-scope capture
-        (the 142k-cell fold files) and fatal for a genome-wide one -- X-Atlas HCT116 is 3,409,169
-        cells at ~2,700 nonzeros each, about 73 GB as CSR and ~146 GB at the vstack, on a box with
-        70 GB. The run died to the OOM killer with no traceback (2026-09-04).
-
-        Sharding the LABEL LIST instead would also bound memory, but it costs one full pass over
-        the corpus per shard -- 117.59 GB read six times over. Flushing bounds memory at one pass.
-        Shards are a fine end state: `cell_load` takes a directory and globs it.
-        """
+        """Spill to a numbered shard once the held matrix reaches `max_nnz` nonzeros; returns its info, else None."""
         if max_nnz <= 0 or self.pending_nnz() < max_nnz:
             return None
         self._shard_no = getattr(self, "_shard_no", 0) + 1
@@ -264,18 +207,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="the full run's .qc.npz -- supplies the per-(label, batch) counts "
                          "the quota is computed from")
     ap.add_argument("--cap", type=int, default=400,
-                    help="max cells per perturbation. 400 mirrors the challenge, which asks "
-                         "for 400 predicted cells per perturbation per context, and costs "
-                         "only ~3%% more than 300 because the corpus's median target has 149")
+                    help="max cells per perturbation")
     ap.add_argument("--control-cells", type=int, default=20000)
     ap.add_argument("--limit-files", type=int, help="stream only the first N files (smoke run)")
     ap.add_argument("--batch-rows", type=int, default=2048)
     ap.add_argument("--shard-nnz", type=int, default=0,
-                    help="spill a numbered h5ad shard once this many nonzeros are held "
-                         "(0 = off, one file, the old behaviour). Peak memory is TWICE "
-                         "what is held, because the final vstack copies it, so budget "
-                         "about 16 bytes per nonzero. 1.5e9 is ~24 GB peak and is what a "
-                         "70 GB box wants for a genome-wide capture.")
+                    help="spill a numbered h5ad shard once this many nonzeros are held (0 = off, one file); "
+                         "peak memory is about 16 bytes per held nonzero")
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args(argv)
 
@@ -301,8 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         names = names[: args.limit_files]
 
     opener = hf_opener(repo, revision)
-    # The gene axis: ALL native symbols. `build_gene_axis(gene_map, None)` is the --all-genes
-    # branch -- see decision 1 in the module docstring; there is deliberately no flag here.
+    # The gene axis: all native symbols (`build_gene_axis(gene_map, None)`); no flag narrows it.
     with opener("metadata/gene_metadata.parquet") as handle:
         gene_map = pq.read_table(handle).to_pandas()
     axis = build_gene_axis(gene_map, None)
