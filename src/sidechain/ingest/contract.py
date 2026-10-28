@@ -1,13 +1,7 @@
-"""Ingestion of external perturbation datasets — the contract, ahead of any fetcher.
+"""The shape every external perturbation dataset is adapted to: `HarmonizedDataset` and its `Provenance`.
 
-The 2026 task scores unseen cell lines and Arc ships no net-new training data, so
-external corpora are the only way this model ever sees a second context. Every
-dataset enters through ONE shape: upstream formats stay in their per-source
-adapters, and the rest of Sidechain only ever consumes a HarmonizedDataset.
-
-Deliberately a stub, like the unbuilt rungs: the interface is the part worth
-committing early. Fetchers and QC thresholds land dataset by dataset behind it,
-and nothing downstream changes when they do.
+`harmonize(path, spec=...)` and `qc_report(ds)` are stubs that raise NotImplementedError; nothing is read or written.
+Notes: private/code-notes/src/sidechain/ingest/contract.py.md
 """
 from __future__ import annotations
 
@@ -19,12 +13,7 @@ import anndata as ad
 
 @dataclass(frozen=True)
 class Provenance:
-    """Where a dataset came from, and what its terms allow.
-
-    `license` is a first-class field, not metadata trivia: a source whose terms
-    we cannot meet is unusable regardless of its biology, and that is cheapest
-    to discover at ingest time. "unknown" is a legal value, and a loud one.
-    """
+    """Where a dataset came from, and what its terms allow; `license` may be "unknown"."""
 
     source: str      # e.g. "GEO", "ArrayExpress", "author-hosted"
     accession: str   # e.g. "GSE90546"; "" when none exists
@@ -36,28 +25,9 @@ class Provenance:
 class HarmonizedDataset:
     """The one shape in which external perturbation data enters Sidechain.
 
-    Contract on `adata`:
-      var  -- resolvable to Ensembl gene IDs via `loaders.gene_index` (strict,
-              so an ID-space mismatch raises instead of matching no prior);
-      obs  -- `pert_col` names the silenced gene, `control_label` occurs in it,
-              and `context_col` names the cell line / context;
-      X    -- raw integer counts unless `counts_are_raw` is False, in which
-              case `notes` must say what transformation the source applied.
-
-    `granularity` says whether a row is a cell or a pseudobulk, and it is
-    DECLARED rather than inferred for the same reason `kind:` is declared on a
-    prior source: inferring it means inspecting the matrix to answer a question
-    about the dataset's shape. It exists because a streamed corpus is one we
-    never hold the cells of -- X-Atlas/Orion is 126 GB we read once and keep
-    only sums from -- so every per-cell check (dropout rate, UMIs per cell,
-    guide call rate) is not merely missing but *meaningless*. With this field
-    `qc_report` can mark those `not_applicable` mechanically and still emit a
-    valid report; without it, it cannot tell "this is an aggregate" from "the
-    column was absent" and would have to crash or guess.
-
-    Orthogonal to `counts_are_raw`: a sum of raw integer UMI counts is still
-    raw integer counts, so a pseudobulk can and usually does carry
-    `counts_are_raw=True`. Both fields are needed.
+    `adata`: var resolves via `loaders.gene_index`; obs[`pert_col`] names the silenced gene and holds
+    `control_label`; obs[`context_col`] names the line; X is raw integer counts unless `counts_are_raw` is
+    False, when `notes` names the transform. `granularity` is "cell" or "pseudobulk" (a sum of raw counts).
     """
 
     adata: ad.AnnData
@@ -71,21 +41,12 @@ class HarmonizedDataset:
 
 
 def harmonize(path: str | Path, *, spec: dict) -> HarmonizedDataset:
-    """Adapt one raw download into the contract above.
-
-    `spec` is a per-dataset block (column renames, control label, context name),
-    so adapters stay declarative — the same pattern as prior sources.
-    """
-    # TODO(dev): per-source adapters. Which sources come first is decided by the
-    # dataset shortlist, not here.
+    """Adapt one raw download into the contract; `spec` is a per-dataset block (renames, control label, context)."""
+    # TODO(dev): per-source adapters.
     raise NotImplementedError
 
 
 def qc_report(ds: HarmonizedDataset) -> dict:
-    """Admission QC for a candidate corpus.
-
-    Thresholds are deliberately not set here yet; once settled they belong in
-    this function, applied identically to every candidate.
-    """
+    """Admission QC for a candidate corpus; thresholds are not set yet."""
     # TODO(dev): gates + report schema.
     raise NotImplementedError

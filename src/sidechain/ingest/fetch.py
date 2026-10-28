@@ -3,19 +3,9 @@
     uv run python -m sidechain.ingest.fetch --dataset scperturb_multicontext
     uv run python -m sidechain.ingest.fetch --dataset ... --check   # verify only
 
-Order of operations is the whole design (`research/decisions/0003`, private):
-
-    probe host API  ->  gate  ->  write PROVENANCE.json  ->  fetch  ->  verify
-
-The gate runs before any byte moves, and PROVENANCE.json is written before the
-first file lands, so it is the thing the download is checked against rather than
-a description of whatever happened to arrive.
-
-This module deliberately does not implement a downloader. `curl` already
-resumes, honours ranged requests and handles flaky links better than anything
-worth writing here, so --plan emits the fetch commands and --check verifies the
-result. What cannot be delegated -- deciding whether the fetch is allowed at all,
-and proving the bytes are the right ones -- is what lives here.
+Probes the host, runs the gate, and writes `<root>/<dest>/PROVENANCE.json` before any file lands; then prints
+the `curl` commands for missing files, or with --check verifies sizes and checksums. Downloads nothing itself.
+Notes: private/code-notes/src/sidechain/ingest/fetch.py.md
 """
 from __future__ import annotations
 
@@ -80,15 +70,7 @@ def md5sum(path: Path, chunk: int = 1 << 20) -> str:
 
 
 def digest(path: Path, algo: str, *, chunk: int = 1 << 20) -> str:
-    """Hash `path` with the algorithm the HOST published, not a fixed one.
-
-    Zenodo states `md5:...`; Hugging Face stores LFS objects under their sha256
-    and states `sha256:...`. Hardcoding md5 -- which this did while zenodo was
-    the only host -- would hash an HF file with the wrong algorithm, compare the
-    result to a digest it could never equal, and report MISMATCH on bytes that
-    are perfectly fine. A verifier that cries wolf gets ignored, which costs
-    more than having no verifier.
-    """
+    """Hash `path` with `algo`, the algorithm the host published."""
     try:
         h = hashlib.new(algo)
     except ValueError as exc:
@@ -103,25 +85,12 @@ def digest(path: Path, algo: str, *, chunk: int = 1 << 20) -> str:
 
 
 def block_route(block: dict) -> str:
-    """The declared route for `block`, defaulting to download.
-
-    Absent means download: every block written before streaming existed is a
-    download, and that is the reading that keeps the old blocks true.
-    """
+    """The block's declared `route`; absent means download."""
     return str(block.get("route", DOWNLOAD))
 
 
 def block_files(block: dict) -> list[dict]:
-    """The block's file list: ``files:`` inline, or ``files_manifest:`` -- a checked-in JSON
-    list (one dict per file: ``name``, and whatever the host's probe reads, ``url`` / ``md5`` /
-    ``sha256`` / ``spec``) resolved like a config path.
-
-    A manifest exists for a block whose listing is hundreds of per-file urls (ENCODE's
-    knockdown and eCLIP files, T102): generated from the publisher's API by a script, checked
-    in beside the registry, and read here exactly as an inline list would be. It is still the
-    block's own listing -- nothing is asked of the host that the file does not name -- so the
-    gate's order (probe -> gate -> PROVENANCE.json) is unchanged. A block names one or the other.
-    """
+    """The block's file list: `files:` inline, or `files_manifest:`, a checked-in JSON list of file dicts."""
     manifest = block.get("files_manifest")
     inline = block.get("files")
     if manifest and inline:
@@ -141,21 +110,8 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
              config: str | Path = DEFAULT_CONFIG) -> tuple:
     """probe -> gate -> record provenance. Returns (record, selected, dest).
 
-    `config` names the registry the block came from, for PROVENANCE.json's notes. It
-    defaults to the corpus registry because that is where every block lived until a
-    PRIOR first came through this gate (TargetScan, T102, from `data_sources.yaml`):
-    a prior source's `fetch()` hands its own block here rather than re-implementing
-    the probe -> gate -> record order, and the note should say which file to open.
-
-    PROVENANCE.json is written ONCE, on the first fetch, and thereafter only
-    compared against. That is the point of it: it is evidence of what we
-    actually took, and the thing later downloads are checked against. An earlier
-    version rewrote it on every invocation, which quietly turned it into a record
-    of the last time the command ran -- so an upstream change to the license or
-    the file list would have been absorbed silently instead of raising.
-
-    `refresh=True` accepts the upstream state and rewrites, for when a change is
-    real and intended. It has to be asked for.
+    PROVENANCE.json is written on the first run and compared against after; `refresh=True` rewrites it.
+    `config` names the registry the block came from, for the notes.
     """
     host = block["host"]
     if host not in PROBES:
@@ -165,22 +121,14 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
     files = block_files(block)
     wanted = [f["name"] for f in files]
     dest = root / block["dest"]
-    # A plain web server cannot list itself, so the block's file list is the
-    # listing and the probe HEADs each name (probe_https), reading a per-file url
-    # or stated digest off the entry where the block carries one. Every other host
-    # is asked what it has and the selection is checked against that answer.
-    # `entries` is passed only when an entry uses it (a url, a stated digest or a form
-    # request), so a block listing plain names keeps the probe's original call shape.
+    # https cannot list itself: it is handed the names, and `entries` only when an entry carries a url,
+    # a digest or a request
     extra = ({"entries": files}
              if any(f.get("url") or f.get("md5") or f.get("sha256") or f.get("request") for f in files)
              else {})
     record = (PROBES[host](block["record"], names=wanted, **extra) if host == "https"
               else PROBES[host](block["record"]))
 
-    # A stream MUST say where its aggregate goes. Without `derived:` the free-
-    # space check would silently measure the wrong tree and the output would
-    # have nowhere declared to live -- and the checked-in config passing a
-    # contract test says nothing about the next block someone adds.
     space_dest = dest
     if route == STREAM:
         if not block.get("derived"):
@@ -192,19 +140,9 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
             )
         space_dest = root / block["derived"]
 
-    # `license_override_source` authorises the block's `license:` to stand in
-    # for a host that CANNOT state one (lamin has no license field on Artifact).
-    # The value names where the terms were actually verified; gate() refuses an
-    # override that contradicts a host that DID state a license, and refuses
-    # one with no source. Recorded into PROVENANCE.json below either way.
+    # `license_override_source` lets the block's `license:` stand in for a host that states none
     override_source = block.get("license_override_source")
     if block.get("license") == UNSTATED and not override_source:
-        # Caught here rather than in gate() so the message names the real
-        # mistake. Without a source no override is built at all, so gate() sees
-        # only the host's "unknown" and refuses with "resolve with the
-        # depositor" -- advice that is actively wrong for this value, whose
-        # whole meaning is that the depositor states nothing and the search for
-        # it is the record. gate() keeps its own backstop for direct callers.
         raise GateError(
             f"dataset {block['name']!r} declares license: {UNSTATED} but no "
             "`license_override_source`. That value is a record of a search -- which sources "
@@ -213,10 +151,6 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
         )
     license_override = (block["license"], str(override_source)) if override_source else None
 
-    # A host that publishes no checksum at all (https) is admitted only when the
-    # block says so in writing; the gate records the exception in PROVENANCE.json
-    # so it stays visible, and the fetch that follows records the sha256 of what
-    # landed in the derived artifact's LINEAGE.json instead.
     allow_missing = bool(block.get("allow_missing_checksum", False))
     selected = gate(record, budget_gb=float(block["budget_gb"]), select=wanted,
                     dest=dest, route=route, space_dest=space_dest,
@@ -226,9 +160,7 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
 
     declared = block.get("license")
     if license_override:
-        # PROVENANCE.json must carry the EFFECTIVE terms (so license_flags are
-        # computed from something real), while the notes keep the host's own
-        # silence visible beside where the terms actually came from.
+        # PROVENANCE.json carries the effective terms; its notes keep what the host stated
         record = replace(record, license=declared)
     elif declared and declared != record.license:
         raise GateError(
@@ -243,8 +175,7 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
         notes["files_manifest"] = str(block["files_manifest"])
     generated = {f["name"]: f["request"] for f in files if isinstance(f.get("request"), dict)}
     if generated:
-        # how a host-built archive was asked for (probe_https: a form POST that names a
-        # fresh file), so the same request can be repeated and PROVENANCE says what it was
+        # how a host-built archive was requested, so the request can be repeated
         notes["generated"] = generated
     if allow_missing:
         notes["allow_missing_checksum"] = True
@@ -257,9 +188,6 @@ def run_gate(block: dict, root: Path, *, refresh: bool = False,
             "source": str(override_source),
         }
     if route == STREAM:
-        # Where the aggregate goes, and under what terms. Recorded here because
-        # the stream itself writes LINEAGE.json beside the aggregate and needs
-        # to point back at exactly this file.
         notes["derived"] = block.get("derived")
         notes["output_budget_gb"] = float(block["budget_gb"])
     recorded = read_provenance(dest)
@@ -299,15 +227,10 @@ def verify(selected, dest: Path) -> int:
         if not f.checksum:
             print(f"  no-sum   {f.name} (host published none)")
             continue
-        # The FIRST colon: a Last-Modified stamp carries colons of its own, and
-        # rpartition would read "http-last-modified:Sat, 22 Mar 2025 22:56" as the algo.
+        # the first colon: a Last-Modified stamp carries colons of its own
         algo, _, want = f.checksum.partition(":")
         if algo in EVIDENCE_PREFIXES:
-            # Evidence of identity the host offered -- a multipart ETag, a Last-Modified
-            # stamp -- recorded so a later probe can diff it; not a digest of the bytes,
-            # so there is nothing to recompute. Size was already compared above. Only
-            # these two named prefixes pass: an algorithm hashlib cannot compute is still
-            # a refusal below, because "verify it by hand" beats silently skipping it.
+            # identity evidence (an ETag, a Last-Modified stamp), not a digest: nothing to recompute
             print(f"  no-sum   {f.name} (host offers {algo} evidence, not a digest)")
             continue
         got = digest(path, algo or "md5")
@@ -347,8 +270,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  -> {dest}/PROVENANCE.json matches the recorded fetch\n")
 
     if route == STREAM:
-        # No curl plan and no checksum pass: both would describe files that are
-        # never going to exist, and `verify` would report all of them MISSING.
+        # a stream lands no files: nothing to plan or verify
         print("route: stream -- the gate is satisfied and nothing is downloaded here.")
         print(f"  derived aggregates -> {args.root / block['derived']}")
         print("  the streaming reader consumes this PROVENANCE.json and writes LINEAGE.json")
@@ -366,10 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(missing)} file(s) to fetch. Run:\n")
     print(f"  cd {dest}")
     for f in missing:
-        # --create-dirs: a name may carry directories (`GSM8943713/suppl/x.h5` on GEO),
-        # and curl will not make them for -o. -C - lets a re-run of the same line carry
-        # on from the bytes already there, which a host that closes long transfers
-        # mid-file (GEO) needs.
+        # --create-dirs: a name may carry directories; -C -: a re-run resumes from the bytes already there
         print(f"  curl -sSL -C - --create-dirs -o {f.name} '{f.url}'")
     print(f"\nthen: uv run python -m sidechain.ingest.fetch --dataset {args.dataset} --check")
     return 0

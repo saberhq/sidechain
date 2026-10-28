@@ -1,22 +1,11 @@
-"""The metadata-first gate: ask the host what it has, before fetching any of it.
+"""The metadata-first gate: probe a host's API for sizes, checksums and licence, and decide whether a fetch may proceed.
 
-Every external corpus enters through here first. The probe calls the host's own
-API, records sizes, checksums and license into a `HostRecord`, and the gate
-decides whether a fetch may proceed at all. Nothing here downloads data.
+    record = probe_zenodo("1234567")
+    files = gate(record, budget_gb=5.0, select=["data.h5ad"], dest=dest)
+    write_provenance(dest, record, files)
 
-The rule this enforces: a dataset we cannot use is discovered by an API call,
-not by a 200 GB download. That is not hypothetical caution -- three real
-findings during the 2026-08-15 recon, all from metadata alone:
-
-  * X-Atlas/Orion's Figshare record is 559.7 GB, so the download route was never
-    viable and we would have found out the hard way;
-  * that record's `computed_md5` is empty for one file, an integrity gap the
-    bytes themselves cannot reveal;
-  * Arc's own `State-Replogle-Filtered` declares no license at all -- the
-    `unknown` branch, hit on the third dataset we inspected.
-
-Stdlib only (urllib, not requests): the gate must run before any environment is
-set up, including on a fresh box whose only job is to fetch data.
+Reads host APIs (stdlib only); writes PROVENANCE.json. Downloads nothing.
+Notes: private/code-notes/src/sidechain/ingest/provenance.py.md
 """
 from __future__ import annotations
 
@@ -38,13 +27,7 @@ if TYPE_CHECKING:  # contract imports anndata; the gate must run without it
 
 USER_AGENT = "sidechain-ingest/0.1 (+https://github.com/saberhq/sidechain)"
 
-# What we are willing to proceed on without a human in the loop. The values are
-# what a `Provenance.license` will carry downstream, so they are SPDX where SPDX
-# has an identifier.
-#
-# NonCommercial is fine for a non-commercial competition entry. ShareAlike is
-# also fine to *ingest* -- it constrains redistribution of derived artifacts,
-# which is a later and separate decision.
+# Stated licence (lowercased) -> the value a `Provenance.license` carries; SPDX where SPDX has an id.
 LICENSE_POLICY: dict[str, str] = {
     "cc-by-4.0": "CC-BY-4.0",
     "cc-by-sa-4.0": "CC-BY-SA-4.0",
@@ -53,143 +36,38 @@ LICENSE_POLICY: dict[str, str] = {
     "cc0-1.0": "CC0-1.0",
     "mit": "MIT",
     "apache-2.0": "Apache-2.0",
-    # Not SPDX: a publisher's own stated terms, read on the publisher's page and
-    # accepted deliberately (the gate's message for a stated-but-unlisted licence
-    # says to do exactly this). TargetScan is the case: no LICENSE file, no SPDX
-    # tag, and its Release 8 FAQ answers "Are there copyright concerns?" with
-    # "You're free to use TargetScan data or code for your research and display
-    # TargetScan output in your presentations or papers, as long as you cite at
-    # least one TargetScan reference" (targetscan.org/faqs.Release_8.html, read
-    # 2026-09-25). A plain https host cannot state terms in a header, so a block
-    # reaches this value only through `license_override_source`, which is where
-    # that quote and date are recorded. It is a citation obligation, not a
-    # commercial or redistribution restriction, so neither flag below applies.
+    # Not SPDX from here on: stated terms, reached only through `license_override_source`.
+    # A publisher's terms: free for research use, with a citation.
     "free-for-research-with-citation": "Free-for-research-with-citation",
-    # Not SPDX either: the HOST's stated policy for a deposit whose record states no
-    # terms of its own. GEO is the case (Pan 2026, GSE295214): the series and sample
-    # records carry no licence, and the depositing preprint's CC-BY footer governs the
-    # manuscript, not the deposit (the scBaseCount note below is the same trap). What
-    # does cover the data is NCBI's policy for its molecular databases, gene expression
-    # named among them: "NCBI itself places no restrictions on the use or distribution
-    # of the data contained therein. Nor do we accept data when the submitter has
-    # requested restrictions on reuse or redistribution" (ncbi.nlm.nih.gov/home/about/
-    # policies/, read 2026-10-09). The same paragraph says a submitter may still claim
-    # rights that NCBI cannot assess or transfer, so this is the host's word and not a
-    # grant from the depositor; a block reaches it only through
-    # `license_override_source`, which records that and what the depositor says.
-    # Neither flag below applies.
+    # NCBI's policy for its databases (GEO): no restrictions on use or distribution.
     "ncbi-no-restrictions": "NCBI-no-restrictions",
-    # Not SPDX: the GENCODE project's own stated terms for its annotation, read on
-    # the project's page and on its host's. gencodegenes.org/pages/data_access.html
-    # (read 2026-10-15): "All the GENCODE project data is open access and can be
-    # accessed by any of the following methods." The files are served from EMBL-EBI's
-    # FTP, whose terms (ebi.ac.uk/about/terms-of-use, read 2026-10-15) say: "Where
-    # EMBL-EBI presents scientific data generated by others, EMBL-EBI imposes no
-    # additional restriction on the use of the contributed data than those provided
-    # by the data owner". An open-access statement with no restriction named, so
-    # neither flag below applies; a block reaches it only through
-    # `license_override_source` (a plain FTP host states nothing in a header).
+    # The GENCODE project's terms: open access, no restriction named.
     "gencode-open-access": "GENCODE-open-access",
-    # Not SPDX: the ENCODE Consortium's own data-use policy, read on its pages. The
-    # release policy (encodeproject.org/about/data-use-policy/, "Updated as of
-    # January 9, 2019", read 2026-10-16): "all data produced will be available for
-    # unrestricted use immediately upon release to public databases". The citing
-    # page (encodeproject.org/help/citing-encode/, read 2026-10-16): "External data
-    # users may freely download, analyze and publish results based on any ENCODE
-    # data without restrictions", with a request to cite the Consortium, the
-    # producing labs and the accessions used. A citation request, no commercial or
-    # redistribution restriction, so neither flag below applies; a block reaches it
-    # only through `license_override_source` (the portal states no licence in a
-    # header, and its API's file records carry none).
+    # The ENCODE Consortium's data-use policy: unrestricted use, citation requested.
     "encode-unrestricted": "ENCODE-unrestricted",
-    # Not SPDX: a publisher's or data provider's own stated terms that restrict use to
-    # non-commercial purposes, for a file that carries no licence of its own. Two cases so
-    # far (T120 phase 3). A journal supplement: Schofield 2018's K562 half-life table
-    # (Nature Methods Supplementary Table 2) sits behind no open-access statement, and
-    # the article is not open access, the file states nothing, and nature.com's terms
-    # (nature.com/info/terms-and-conditions, read 2026-10-16) say "You may view ... the
-    # content and applications available on the Site for your own private non-commercial
-    # use" and allow printing only where "not substantial or systematic". The NIH author
-    # manuscript of the paper (NIHMS931206) adds "Users may view, print, copy, and download
-    # text and data-mine the content in such documents, for the purposes of academic
-    # research". A data portal: the CCLE 2019 miRNA panel is served by DepMap, whose current
-    # terms of use (quoted by DepMap staff on the project forum, 2026-07-28, read 2026-10-16:
-    # "Commercial Use of the Data is not permitted under these terms") replaced the CC BY 4.0
-    # of its figshare releases; the portal's own terms page sits behind a browser challenge,
-    # so the staff quote and the search are the record (private research/reading/
-    # posttx-verify-30). Stated terms, so not UNSTATED; non-commercial and no right to
-    # redistribute, so BOTH flags below apply, exactly as for CC-BY-NC-SA. A block reaches
-    # this value only through `license_override_source`, which quotes the terms and the date.
+    # A publisher's or data portal's terms: non-commercial use only, no right to redistribute.
     "publisher-terms-noncommercial": "Publisher-terms-noncommercial",
 }
 
-# The accepted set, derived from the policy above so the two cannot drift.
-# A license that is STATED but not on this list is refused: ADR 0003 says the
-# gate stops on "terms we have not accepted for that use", and only the
-# literal "unknown" was ever being caught. HF makes that gap live -- its
-# namespace includes `other`, `unknown` and bespoke slugs, and an unrecognised
-# NonCommercial or NoDerivatives license would otherwise sail through AND be
-# recorded with both license_flags false, i.e. as less encumbered than it is.
+# The accepted set; a stated licence not on it is refused.
 ACCEPTED_LICENSES = frozenset(LICENSE_POLICY.values())
 
-# The one non-SPDX value the gate will accept, and it is deliberately shouty.
-#
-# It exists for a corpus whose terms are STATED NOWHERE -- not "we did not look",
-# but "we looked at every source the publisher controls and there is no
-# statement". scBaseCount is the case: no LICENSE at the repo root (404), nothing
-# in either README, nothing on the tool page, nothing in the bucket's object
-# metadata, nothing in the preprint's data-availability section (checked
-# 2026-08-28). The CC0 that surfaces in web search is bioRxiv's *preprint*
-# footer, which governs the manuscript, and recording it as the data terms would
-# be a real string attached to the wrong object.
-#
-# Writing a plausible SPDX id instead would be the lie this whole module exists
-# to prevent, and refusing the corpus outright would throw away a source the
-# competition organisers themselves recommend. So the third answer is to name the
-# absence, and then make naming it EXPENSIVE rather than convenient:
-#
-#   * it is reachable only through `license_override`, so it always carries a
-#     `license_override_source` saying who sanctioned the use and where that was
-#     verified -- an unstated license is the one case where the provenance is the
-#     permission;
-#   * on `route: download` it needs a `citation`: the block names the paper we
-#     cite wherever the source is used. Saber's amendment to ADR 0003
-#     (2026-10-15): a free resource everybody reuses may be held locally while we
-#     name and cite it, and publishing anything that touches it is the point to
-#     re-evaluate the terms or ask the depositor. A stream needs no citation
-#     here, because nothing but our own aggregate lands;
-#   * it is recorded as MAXIMALLY encumbered -- both flags below -- because
-#     "unknown" resolves conservatively or it is not conservative at all. That
-#     is what stops a derived artifact being republished without a fresh
-#     decision, which is the one thing an unstated licence really does block.
+# Terms stated nowhere: reachable only through `license_override`, needs a `citation` on `route: download`,
+# and records as encumbered on both flags below.
 UNSTATED = "UNSTATED"
 
-# Licenses whose terms reach past ingest. Recorded on the artifact so the
-# implication survives the session that discovered it. UNSTATED is in both:
-# we do not know that commercial use is allowed, and we do not know that
-# redistribution is allowed, so both record as encumbered.
+# Licences whose terms reach past ingest, recorded as PROVENANCE.json's `license_flags`.
 REDISTRIBUTION_ENCUMBERED = {"CC-BY-SA-4.0", "CC-BY-NC-SA-4.0", "Publisher-terms-noncommercial", UNSTATED}
 NONCOMMERCIAL = {"CC-BY-NC-4.0", "CC-BY-NC-SA-4.0", "Publisher-terms-noncommercial", UNSTATED}
 
-# How a dataset is consumed. `download` puts every selected byte on disk;
-# `stream` reads it over the network once and keeps only an aggregate.
-#
-# The distinction reaches the gate because it changes what `budget_gb` MEANS.
-# Downloaded, the budget bounds the selection: refuse if the files exceed it.
-# Streamed, the corpus never lands, so bounding the selection would be
-# meaningless -- X-Atlas/Orion is 126 GB of parquet that yields ~10 GB of
-# pseudobulk -- and the budget bounds the OUTPUT instead. Neither reading is
-# wrong; leaving it implicit is, which is why it is a declared field.
+# `download` puts every selected byte on disk, and `budget_gb` bounds the selection; `stream` reads it
+# once, keeps only an aggregate, and `budget_gb` bounds that aggregate.
 DOWNLOAD = "download"
 STREAM = "stream"
 ROUTES = (DOWNLOAD, STREAM)
 
-# Checksum-slot prefixes that are identity EVIDENCE, not digests: `probe_s3` records a
-# multipart ETag under the first, `probe_https` a Last-Modified stamp under the second.
-# The gate counts a file carrying one as UNCHECKSUMMED (it is), so such a block passes only
-# with `allow_missing_checksum`; `fetch.verify` reports them and moves on. The first
-# version of the https probe filled the slot and the gate read that as a checksum, so a
-# block without the written exception was admitted (critic pass, 2026-09-26).
+# Checksum-slot prefixes that are identity evidence, not digests: `probe_s3`'s multipart ETag and
+# `probe_https`'s Last-Modified stamp. The gate counts such a file as unchecksummed.
 EVIDENCE_PREFIXES = ("s3-etag", "http-last-modified")
 
 
@@ -234,26 +112,7 @@ class HostRecord:
         return sum(f.size_bytes for f in self.files)
 
     def select(self, names: list[str]) -> tuple[RemoteFile, ...]:
-        """Pick files by exact name or glob, raising on anything that matches nothing.
-
-        Strict for the same reason `loaders.gene_index` is strict: silently
-        skipping a name we asked for yields a partial corpus that looks whole.
-
-        A pattern containing `*`, `?` or `[` is expanded against the record and
-        must match at least one file; anything else is an exact name and must be
-        present. Globs exist because X-Atlas/Orion is 332 per-batch parquet
-        files -- listing them individually would be a config block that goes
-        stale the moment Xaira adds a batch, and the failure mode of a stale
-        list is the silent partial corpus this method exists to prevent.
-
-        A zero-match glob is an error, NOT an empty selection. `data/HCT116_*`
-        against a repo that renamed its folder should stop the run, not
-        quietly stream nothing and report success.
-
-        Note `fnmatch` semantics: `*` spans `/`, so `data/*.parquet` also
-        matches `data/sub/x.parquet`. Fine for the flat layouts we ingest, and
-        stated here rather than discovered.
-        """
+        """Pick files by exact name or glob (`fnmatch`: `*` spans `/`); a name or glob that matches nothing raises."""
         by_name = {f.name: f for f in self.files}
         picked: list[str] = []
         empty: list[str] = []
@@ -301,12 +160,7 @@ def _post_json(url: str, payload: dict) -> list | dict:
 
 
 def probe_zenodo(record_id: str | int) -> HostRecord:
-    """Zenodo record -> HostRecord.
-
-    Note the version/concept distinction: the record id pins one version, while
-    `conceptdoi` resolves to "latest" and would change under us. We record both
-    and fetch by the pinned id.
-    """
+    """Zenodo record -> HostRecord; the record id pins one version, and `conceptdoi` (latest) is recorded beside it."""
     api = f"https://zenodo.org/api/records/{record_id}"
     raw = _get_json(api)
     meta = raw.get("metadata", {})
@@ -336,18 +190,12 @@ def probe_zenodo(record_id: str | int) -> HostRecord:
 HF_API = "https://huggingface.co/api/datasets"
 HF_RESOLVE = "https://huggingface.co/datasets"
 
-# paths-info accepts a list of paths per POST. 100 keeps the request small
-# enough to be reliable and still sizes a 337-file repo in four calls.
+# paths per paths-info POST
 HF_PATHS_INFO_BATCH = 100
 
 
 def _hf_paths_info(repo: str, revision: str, paths: list[str]) -> dict[str, dict]:
-    """Sizes and checksums for `paths`, batched. Keyed by path.
-
-    Split out because it is the half of the HF probe that can fail partially:
-    the repo endpoint answers in one call, this one in several, and a batch
-    that silently returned nothing would leave files at size 0.
-    """
+    """Sizes and checksums for `paths` from HF's paths-info, batched; keyed by path."""
     url = f"{HF_API}/{repo}/paths-info/{revision}"
     out: dict[str, dict] = {}
     for i in range(0, len(paths), HF_PATHS_INFO_BATCH):
@@ -359,29 +207,10 @@ def _hf_paths_info(repo: str, revision: str, paths: list[str]) -> dict[str, dict
 
 
 def probe_huggingface(record_id: str) -> HostRecord:
-    """Hugging Face dataset repo -> HostRecord.
+    """Hugging Face dataset repo -> HostRecord, pinned to the repo's commit sha (`version`).
 
-    Two calls, because HF splits the answer in two and the second half is the
-    half the gate needs:
-
-      * `/api/datasets/<owner>/<name>` lists filenames, the license and the
-        current commit sha -- but NO sizes. Its `siblings` entries carry
-        `rfilename` and nothing else.
-      * `/api/datasets/<owner>/<name>/paths-info/<sha>` carries `size` and, for
-        anything stored in LFS, a sha256 in `lfs.oid`.
-
-    A probe that stopped after the first call would build a HostRecord whose
-    every size was 0, and `gate` would then wave through any budget at all --
-    the exact failure the gate exists to prevent, wearing the gate's authority.
-    So sizes are required here: a file the second call does not resolve raises
-    rather than defaulting to zero.
-
-    **The commit sha is the pin.** HF has no immutable per-version record id the
-    way Zenodo does; `main` moves when the depositor pushes. So the sha is read
-    once, recorded as `version`, and used for both `paths-info` and every file
-    URL -- which makes the record re-checkable, makes a download or a stream
-    read exactly the bytes that were probed, and makes `diff_against_recorded`
-    fire if the repo is republished under us.
+    The repo endpoint gives names, licence and sha; `paths-info` at that sha gives sizes and LFS sha256s.
+    A listed file that paths-info does not resolve raises.
     """
     repo = str(record_id).strip("/")
     api = f"{HF_API}/{repo}"
@@ -394,9 +223,7 @@ def probe_huggingface(record_id: str) -> HostRecord:
             "pinned: `main` moves under us and the record stops being re-checkable."
         )
 
-    # cardData.license is the declaration; the `license:` tag is the same fact
-    # restated and is the fallback. A repo with NEITHER is the Arc case, and
-    # falls through to "unknown", which `gate` treats as a stop.
+    # cardData.license first, then a `license:` tag; neither gives "unknown"
     stated = (raw.get("cardData") or {}).get("license") or ""
     if isinstance(stated, list):
         stated = stated[0] if stated else ""
@@ -425,9 +252,7 @@ def probe_huggingface(record_id: str) -> HostRecord:
             RemoteFile(
                 name=name,
                 size_bytes=int(entry.get("size", 0)),
-                # sha256, not md5: LFS stores the object under its sha256. Small
-                # non-LFS files (README, .gitattributes) have no lfs block and so
-                # no published checksum -- `gate` stops on those unless overridden.
+                # LFS objects carry a sha256; a non-LFS file has no published checksum
                 checksum=f"sha256:{oid}" if oid else None,
                 url=f"{HF_RESOLVE}/{repo}/resolve/{sha}/{urllib.parse.quote(name)}",
             )
@@ -449,12 +274,7 @@ def probe_huggingface(record_id: str) -> HostRecord:
 
 FIGSHARE_API = "https://api.figshare.com/v2/articles"
 
-# Figshare states a license by human NAME ("MIT", "CC BY 4.0"), never as an
-# SPDX id the way Zenodo does. Lowercasing and swapping spaces for dashes turns
-# most of its spellings into a LICENSE_POLICY key ("CC BY 4.0" -> "cc-by-4.0");
-# these are the ones that rule does not reach. Kept local to this probe rather
-# than added to LICENSE_POLICY, because they are one host's spelling of a
-# license the policy already knows -- not a new license we have accepted.
+# Figshare licence names that lowercasing and dashing do not turn into a LICENSE_POLICY key
 FIGSHARE_LICENSE_ALIASES = {
     "cc0": "cc0-1.0",
     "cc-0": "cc0-1.0",
@@ -465,13 +285,7 @@ FIGSHARE_LICENSE_ALIASES = {
 
 
 def _figshare_license(raw: dict) -> str:
-    """The record's license, normalised to the SPDX string the gate compares.
-
-    Passing Figshare's `name` through raw would hand `gate` the string
-    "CC BY 4.0", which is not "CC-BY-4.0" and is therefore not on
-    ACCEPTED_LICENSES -- refusing a perfectly usable CC-BY dataset. Normalising
-    here rather than loosening the gate keeps the refusal meaningful.
-    """
+    """The record's licence name, normalised to the SPDX string the gate compares."""
     stated = ((raw.get("license") or {}).get("name") or "").strip()
     if not stated:
         return "unknown"
@@ -481,29 +295,9 @@ def _figshare_license(raw: dict) -> str:
 
 
 def probe_figshare(record_id: str | int) -> HostRecord:
-    """Figshare article -> HostRecord. `record_id` is `<id>.v<n>`, or a bare id.
+    """Figshare article -> HostRecord. `record_id` is `<id>.v<n>` (pinned) or a bare id (latest).
 
-    **The `.v<n>` suffix is the pin, and it matters more here than on Zenodo.**
-    A Zenodo record id already names one immutable version; a bare Figshare
-    article id resolves to *latest* and moves when the depositor publishes
-    again -- the same trap as Zenodo's concept DOI, wearing an article id's
-    clothes. So `26819743.v1` reads the versioned endpoint, and a bare id is
-    accepted but resolves latest; `version` is recorded either way, so
-    `diff_against_recorded` still catches a bump on the next run. Prefer the
-    pin: catching a change afterwards is worse than not having one.
-
-    **Empty `computed_md5` is an ABSENT checksum, not a checksum.** Figshare
-    returns `""` rather than omitting the field when it never verified the
-    uploader's hash -- exactly the X-Atlas/Orion HCT116 finding of ADR 0003 §1,
-    still unresolved upstream. Passing `""` through would make `verify` compare
-    a real digest against the empty string and report MISMATCH on good bytes,
-    forever. Returning None instead routes it to the gate's missing-checksum
-    refusal, where the exception has to be asked for and gets recorded.
-
-    Deliberately NOT falling back to `supplied_md5`: that is the uploader's own
-    claim about their own bytes, which is the thing `computed_md5` exists to
-    corroborate. Substituting one for the other would erase the distinction the
-    ADR was written around.
+    An empty `computed_md5` is recorded as no checksum; `supplied_md5` is not read.
     """
     ref = str(record_id).strip().strip("/")
     article, _, ver = ref.partition(".v")
@@ -511,9 +305,7 @@ def probe_figshare(record_id: str | int) -> HostRecord:
     raw = _get_json(api)
 
     doi = raw.get("doi") or None
-    # Figshare publishes no concept DOI field; the versionless form of the
-    # article DOI is that identifier, and it is the one that follows "latest".
-    # Recorded so a reader can see which DOI is pinned and which drifts.
+    # the versionless article DOI, which follows latest
     concept = doi.rsplit(".v", 1)[0] if doi and ".v" in doi else None
 
     files = []
@@ -543,28 +335,10 @@ def probe_figshare(record_id: str | int) -> HostRecord:
 
 
 def probe_lamin(record_id: str) -> HostRecord:
-    """LaminDB instance -> HostRecord. `record_id` is `<owner>/<name>`.
+    """LaminDB instance -> HostRecord. `record_id` is `<owner>/<name>`; lists keyed latest artifacts, moves no bytes.
 
-    Reads the instance's Artifact REGISTRY (keys, sizes, hashes) through
-    `ln.DB`, which touches no default-instance state and moves no data bytes.
-    Only artifacts that carry a key are listed -- a keyless artifact has no
-    name a config block could select.
-
-    **License is always "unknown" here, by construction, and that is a finding,
-    not a shortcut**: no field on the lamin Artifact model carries terms of use
-    (measured across five public instances, 2026-08-27 -- private
-    `research/inbox/2026-08-27_lamin-instance-enumeration.md`). One instance
-    attaches a license as a typed ULabel by local convention, which is a
-    convention, not metadata the gate can trust generically. So a lamin-hosted
-    dataset can only pass the gate with `license_override` -- the terms
-    verified at the ORIGINAL source and recorded as an override -- which is
-    exactly the visibility ADR 0003 wants for a host that cannot state terms.
-
-    The hash lamin records is whatever the ingesting party computed (md5-shaped
-    for uploads, internal for multipart); it is recorded verbatim under a
-    `lamin:` prefix as evidence of identity, not as something our download
-    `verify` could recompute -- a lamin block is `route: stream` by nature, and
-    the stream path never runs the checksum pass on files that never land.
+    Licence is always "unknown" (an Artifact carries no terms), so a block passes only with `license_override`.
+    Hashes are recorded under `lamin:` as identity evidence.
     """
     import lamindb as ln
 
@@ -598,20 +372,7 @@ S3_NS = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
 
 
 def _s3_etag_checksum(etag: str | None) -> str | None:
-    """Turn an S3 ETag into a checksum string, or refuse to call it one.
-
-    **A multipart ETag is not an MD5.** S3 computes it as the MD5 of the
-    concatenated part MD5s, then appends `-<n_parts>`; there is no way to
-    recompute it without knowing the exact part size the uploader used. Every
-    large object in the buckets we care about is multipart -- GWCD4i's 16.79 GB
-    DE file carries `...-2002`. Recording that under an `md5:` prefix would put a
-    number in PROVENANCE.json that `fetch --check` can never reproduce, and the
-    failure would look like corruption rather than like a bad label.
-
-    So: a single-part ETag (32 hex, no suffix) is a real MD5 and is recorded as
-    one. A multipart ETag is recorded under `s3-etag:` -- evidence of identity,
-    explicitly not something to verify against. None stays None.
-    """
+    """An S3 ETag as a checksum: single-part is `md5:`, multipart (`-<n>`) is `s3-etag:` evidence; None stays None."""
     if not etag:
         return None
     tag = etag.strip().strip('"')
@@ -625,25 +386,10 @@ def _s3_etag_checksum(etag: str | None) -> str | None:
 
 
 def probe_s3(record_id: str) -> HostRecord:
-    """A public S3 bucket -> HostRecord. `record_id` is `<bucket>` or `<bucket>/<prefix>`.
+    """A public S3 bucket -> HostRecord. `record_id` is `<bucket>` or `<bucket>/<prefix>`; an anonymous ListObjectsV2.
 
-    The fourth host, added for GWCD4i (the Marson/Zhu CD4 screen), which the CZI
-    Virtual Cells Platform publishes as plain objects rather than through a
-    record API. `ListObjectsV2` is an anonymous GET and moves no data bytes.
-
-    **License is always "unknown" here, by construction, and that is a finding
-    rather than a shortcut** -- the same shape as `probe_lamin`. An S3 listing
-    carries Key, Size, LastModified, ETag, StorageClass and (sometimes) a
-    checksum ALGORITHM name, and nothing anywhere in it states terms of use. A
-    bucket-hosted dataset therefore reaches the gate only through
-    `license_override_source`, with the terms verified at the publisher's own
-    page and recorded -- which is exactly the visibility ADR 0003 wants from a
-    host that cannot state terms.
-
-    Note there is no version to pin. A bucket has no record version and no DOI,
-    so `version` is None and the guard against upstream drift is the per-file
-    size and ETag recorded in PROVENANCE.json, which `diff_against_recorded`
-    compares on a later run.
+    Licence is always "unknown" and `version` None: a block needs `license_override_source`, and upstream drift
+    shows in each file's size and ETag.
     """
     bucket, _, prefix = record_id.partition("/")
     if not bucket:
@@ -705,10 +451,8 @@ GENERATED_PAGE_MAX_BYTES = 1 << 20     # a form's answer is a page, never the ar
 def generated_archive_url(base: str, name: str, request: dict) -> str:
     """POST a block entry's ``request`` form and return the generated archive's https URL.
 
-    ``request`` is ``{post: <https endpoint>, form: {field: value | [values]}, link: <regex>}``;
-    the first match of ``link`` in the response page, resolved against the endpoint, is the
-    URL. A missing field, a non-https endpoint, a non-page answer or a page without the link
-    is a refusal that names it.
+    ``request`` is ``{post: <https endpoint>, form: {field: value | [values]}, link: <regex>}``; the first match
+    of ``link`` in the answer page, resolved against ``post``, is the URL.
     """
     post = str(request.get("post", ""))
     form = request.get("form")
@@ -741,58 +485,10 @@ def generated_archive_url(base: str, name: str, request: dict) -> str:
 
 def probe_https(base_url: str, names: list[str] | None = None, *,
                 entries: list[dict] | None = None) -> HostRecord:
-    """A plain HTTPS directory -> HostRecord. `base_url` is the directory, `names` the files.
+    """A plain HTTPS directory -> HostRecord: each of `names` is HEADed under `base_url`; licence is "unknown".
 
-    The sixth host, added for TargetScan (T102): a lab web server with no record
-    API, no listing and no checksums -- just files under one URL. Two things
-    follow from that, and both are recorded rather than papered over:
-
-    **The block's file list IS the listing.** Every other probe asks the host what
-    it has; this one cannot, so `run_gate` hands it the names the block declares
-    and each is probed with a HEAD request (no data bytes move). A name the
-    server does not have is a refusal here, not a 404 mid-download. The HEAD
-    answers with `Content-Length`, which drives the budget exactly as a record
-    API's size field does, and `Last-Modified`, which is the only identity the
-    host offers.
-
-    **No checksum exists, and the Last-Modified date is NOT one.** It is recorded
-    in the checksum slot under `http-last-modified:` -- the same shape `probe_s3`
-    uses for a multipart ETag: evidence that the bytes are the ones we saw, never
-    something `fetch --check` could hash a file into. `diff_against_recorded`
-    compares it on a later run, so a file the publisher replaces in place is
-    caught as a change, which is the drift guard a versionless host needs. A
-    block on this host passes the gate only with `allow_missing_checksum: true`,
-    and the fetch records the sha256 of what actually landed in the LINEAGE.json
-    of whatever is derived from it.
-
-    **Licence is always "unknown", by construction.** A header cannot state
-    terms, so a block reaches the gate only through `license_override_source`,
-    with the terms verified on the publisher's own page and quoted there.
-
-    **A file entry may carry its own `url`, and a digest the publisher states out
-    of band** (`entries`, the block's file dicts; added for ENCODE, T102). ENCODE's
-    files do not sit under one directory -- each lives at
-    `/files/<accession>/@@download/<name>` -- and its API states an md5 per file
-    that no header carries. An entry's `url` replaces `base/<name>` for the HEAD
-    and the download (it must be https); its `md5:` or `sha256:` goes in the
-    checksum slot as a digest `fetch.verify` recomputes, so such a block passes
-    the gate without `allow_missing_checksum`. The HEAD still runs: the size
-    and the 404 refusal come from the host, never from the entry.
-
-    **A file entry may carry a `request`: the host builds the archive on a form POST**
-    (added for CisBP-RNA, T120). Its bulk page is a PHP form whose answer is a page
-    naming a freshly generated ``tmp/<species>_<timestamp>.zip``, so no stable URL
-    exists to HEAD. The entry says how to ask: ``post`` (the https endpoint), ``form``
-    (the fields; a list value repeats the field) and ``link`` (a regex for the generated
-    file's link in the response page). The probe POSTs once, resolves the link against
-    the endpoint and HEADs THAT -- the size and the 404 still come from the host, and
-    the download that follows GETs the same link. A generated archive's Last-Modified
-    is the moment it was built, so it is NOT recorded as evidence: the checksum slot is
-    empty, the block passes only with ``allow_missing_checksum: true``, and the drift
-    guard is the size (constant for the same request: 248,765 bytes on 2026-09-28 and
-    twice on 2026-10-16) plus the sha256 of what landed in LINEAGE.json. ``run_gate``
-    writes the request into PROVENANCE.json's notes so the archive can be asked for
-    again the same way.
+    The checksum slot holds an entry's stated `md5`/`sha256`, else `http-last-modified:` evidence. An entry in
+    `entries` may carry its own https `url`, or a `request` (`generated_archive_url`), whose date is not kept.
     """
     base = base_url.rstrip("/")
     if not base.startswith("https://"):
@@ -862,37 +558,10 @@ def gate(
     license_override: tuple[str, str] | None = None,
     citation: str | None = None,
 ) -> tuple[RemoteFile, ...]:
-    """Decide whether this fetch may proceed. Raises `GateError` if not.
+    """Decide whether this fetch may proceed; returns the selected files or raises `GateError`.
 
-    Every refusal here is cheap; every one it prevents is not.
-
-    `budget_gb` is the ceiling declared for THIS dataset -- it stops a record
-    that grew (a new version, extra files) from quietly pulling more than was
-    agreed. `dest` additionally checks real free space, because a per-dataset
-    ceiling says nothing about whether the disk can take it: several datasets
-    each inside their own budget can still fill a volume between them.
-
-    `route` changes what the budget is measured AGAINST, and nothing else:
-
-      * `download` -- the budget bounds the selection. Refuse if the files
-        exceed it, and check the disk against their combined size.
-      * `stream` -- the corpus never lands, so the selection's size is not a
-        disk claim and is not checked against the budget. The budget bounds the
-        AGGREGATE we write instead, so that is what the disk is checked
-        against. The selection's real size is still recorded, so a 126 GB
-        stream never looks like a 12 GB one.
-
-    An unrecognised route is a refusal rather than a fallback: `route: streamed`
-    silently treated as `download` would try to put 126 GB of X-Atlas parquet
-    on a laptop, which is precisely the accident this module was built after.
-
-    `space_dest` is where the bytes ACTUALLY land, when that is not `dest`. On a
-    stream they are two different trees -- `dest` takes PROVENANCE.json under
-    external/, the aggregate goes to derived/ -- and free space has to be
-    measured where the writing happens. They sit on one volume today, so this
-    is latent rather than broken; it is fixed here because "same volume" is an
-    assumption nothing was checking, and an external disk under derived/ is an
-    entirely ordinary thing to do.
+    Checks the licence (`license_override` fills a host's "unknown", never contradicts it), the budget (the
+    selection on `download`, the aggregate on `stream`), checksums, and free space at `space_dest`, else `dest`.
     """
     if route not in ROUTES:
         raise GateError(
@@ -905,11 +574,6 @@ def gate(
     if not files:
         raise GateError(f"{record.host}:{record.record_id} lists no files")
 
-    # An override may FILL AN ABSENCE, never contradict a statement. It exists
-    # for hosts that cannot state terms at all (lamin has no license field on
-    # Artifact), where the terms were verified at the ORIGINAL source and the
-    # override records where. A host that states a DIFFERENT license is a
-    # conflict to resolve upstream, not to paper over here.
     effective_license = record.license
     if license_override:
         override, source = license_override
@@ -935,8 +599,6 @@ def gate(
         )
 
     if effective_license == UNSTATED:
-        # Naming the absence is allowed; naming it casually is not. Both
-        # conditions below are what make it honest rather than a loophole.
         if not license_override:
             raise GateError(
                 f"{record.host}:{record.record_id} arrived at {UNSTATED!r} without a "
@@ -948,8 +610,7 @@ def gate(
             raise GateError(
                 f"{record.host}:{record.record_id} declares {UNSTATED!r} on route={route!r} "
                 "with no citation. Unstated terms may be downloaded only by a block that names "
-                "the citation we give the source wherever it is used (ADR 0003, amendment of "
-                f"2026-10-15); otherwise read it on {STREAM!r}."
+                f"the citation we give the source wherever it is used; otherwise read it on {STREAM!r}."
             )
     elif effective_license not in ACCEPTED_LICENSES:
         raise GateError(
@@ -980,11 +641,7 @@ def gate(
     if check_at is not None:
         dest = check_at
         if route == STREAM:
-            # Nothing from the corpus lands, so the claim on the disk is the
-            # aggregate we are about to write -- which is what budget_gb bounds
-            # on this route. Checking the 126 GB selection here would refuse
-            # every stream on a laptop; checking nothing would let an unbounded
-            # aggregate fill the volume.
+            # a stream lands only its aggregate, which `budget_gb` bounds
             needed = int(budget_gb * 1e9)
         else:
             needed = sum(f.size_bytes for f in files if not (dest / f.name).exists())
@@ -1000,16 +657,7 @@ def gate(
 
 
 def to_provenance(record: HostRecord) -> Provenance:
-    """HostRecord (what the host said) -> Provenance (what the dataset carries).
-
-    The bridge exists so the license reaching a HarmonizedDataset is the one the
-    API actually returned, rather than a value retyped from memory or a README
-    weeks later. Without it the two representations drift, and `Provenance.license`
-    stops being evidence.
-
-    Imported lazily: contract imports anndata, and the gate is meant to run on a
-    fetch-only box with no scientific stack installed.
-    """
+    """HostRecord -> Provenance, carrying the licence the host returned; imports `contract` lazily."""
     from sidechain.ingest import contract
 
     return contract.Provenance(
@@ -1028,31 +676,12 @@ def write_provenance(
     notes: dict | None = None,
     route: str = DOWNLOAD,
 ) -> Path:
-    """Write PROVENANCE.json into `dest` BEFORE any data file lands there.
-
-    The ordering is the point. A provenance file written afterwards documents
-    what we happened to get; written first, it is the thing the fetch is checked
-    against. On a streamed dataset "before any data file lands" means before the
-    first range request: `dest` ends up holding this file and nothing else, which
-    is the intended shape (ADR 0003 section 1), not a failed download.
-
-    `route` is recorded because `selected_bytes` means two different things
-    without it -- bytes on disk when downloaded, bytes read over the network
-    when streamed. A reader who finds 126 GB selected and a 0.9 GB directory
-    should be able to tell "streamed" from "the download died".
-    """
+    """Write PROVENANCE.json into `dest` before any data file lands; `route` says what `selected_bytes` counts."""
     dest.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema_version": 3,
         "route": route,
-        # The SELECTION, not the host's whole catalogue. `selected` below is the
-        # evidence -- it is what we took and the only thing `diff_against_recorded`
-        # reads. Recording every file the host holds made sense when a "record"
-        # was a seven-file Zenodo deposit; a lamin INSTANCE is 311,231 artifacts
-        # spanning releases and organisms this dataset will never touch, and
-        # writing them produced a 71.8 MB file whose 50.8 MB majority no code path
-        # ever read. The count keeps the one fact that list carried -- how much
-        # was on offer -- without the file that nobody can open.
+        # the selection only; the host's catalogue is kept as a count
         "record": {**{k: v for k, v in asdict(record).items() if k != "files"},
                    "host_file_count": len(record.files)},
         "selected": [asdict(f) for f in selected],
@@ -1080,21 +709,11 @@ def read_provenance(dest: Path) -> dict | None:
 def diff_against_recorded(recorded: dict, record: HostRecord,
                           selected: tuple[RemoteFile, ...],
                           *, route: str | None = None) -> list[str]:
-    """What changed upstream since the recorded fetch. Empty list means nothing.
-
-    Compares only the fields that would make the bytes different or the terms
-    different. `retrieved` is deliberately excluded -- it changes on every probe
-    by definition, and treating it as a difference would make every run look
-    like a change.
-    """
+    """What changed upstream since the recorded fetch: route, licence, version, files, sizes, checksums."""
     was = recorded.get("record", {})
     diffs: list[str] = []
 
-    # A route flip changes what budget_gb bounds AND whether the bytes are ever
-    # verified, so absorbing one silently would let a config edit turn off the
-    # checksum pass on an already-recorded dataset. Only compared when the
-    # caller states a route, so a schema-1 record (written before routes
-    # existed) does not read as a change on every run.
+    # compared only when the caller states a route and the record carries one
     if route is not None and "route" in recorded and recorded["route"] != route:
         diffs.append(f"route: recorded {recorded['route']!r}, config now says {route!r}")
 

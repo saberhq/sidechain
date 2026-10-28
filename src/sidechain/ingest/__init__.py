@@ -1,9 +1,6 @@
-"""External dataset ingestion.
+"""External dataset ingestion: the metadata gate (`provenance`), the ingest checks (`checks`) and the contract.
 
-One shape enters Sidechain (`HarmonizedDataset`), and everything upstream of it
-lives here: the metadata gate that decides whether a corpus may be fetched at
-all, the checks that refuse two specific ways of being confidently wrong, and
-the adapters that map a source onto the contract.
+Notes: private/code-notes/src/sidechain/ingest/__init__.py.md
 """
 from sidechain.ingest.checks import (
     RAW_COUNTS,
