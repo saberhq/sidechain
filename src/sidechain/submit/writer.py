@@ -1,18 +1,13 @@
-"""Out-of-core writer for a prediction h5ad, plus the `.vcc` packer.
+"""Out-of-core writer for a prediction h5ad, plus the `.vcc` packer, in the layout `vcc prep` (vcc-cli 0.1.0) emits.
 
-Mirrors what `vcc prep` emits (read from its source, vcc-cli 0.1.0):
-  X    csr_matrix group, float32 data, int32 indices, raw integer counts
-  obs  index "0".."N-1" (strings); columns `target_gene` (symbols), `context`
-  var  index = the 18,533 symbols in gene_names.csv order, no columns
-and the contract it enforces: every listed perturbation in every context with
-exactly `cells_per_pert` cells, no control rows, non-negative finite integral
-values, <= max_counts_per_cell per row, <= max_stored_entries overall, no
-explicitly stored zeros.
+    with SubmissionWriter(h5ad, contract) as w:
+        for ctx, pert, X in blocks: w.add_block(X, ctx, pert)    # integer counts, cells x genes
+    verify_h5ad(h5ad, contract); pack_vcc(h5ad, out_vcc)
 
-`vcc submit x.vcc` validates the CONTAINER only and the server reads the file
-on a 128 GB machine, so a file written here never needs to fit in local RAM.
-`verify_h5ad` re-reads only metadata (obs, var, indptr) and re-derives every
-check that does not need the values -- run it before packing, every time.
+X csr (float32 data, int32 indices, raw integer counts); obs index "0".."N-1" with `target_gene` and `context`; var the
+gene_names.csv symbols. The contract: every perturbation in every context with `cells_per_pert` cells, no control
+rows, finite non-negative integers, per-cell and total stored-entry caps, no stored zeros.
+Writes the h5ad and the .vcc. Notes: private/code-notes/src/sidechain/submit/writer.py.md
 """
 from __future__ import annotations
 
@@ -198,12 +193,7 @@ class SubmissionWriter:
 # -- verification from metadata only -------------------------------------------
 
 def verify_h5ad(path: str | Path, contract: Contract) -> dict:
-    """Re-derive every contract check that needs no values: obs, var, indptr, nnz.
-
-    Values (non-negative, integral) are asserted at write time by add_block;
-    this is the independent read-back that the file on disk says what the
-    writer thinks it said.
-    """
+    """Re-derive every contract check that needs no values (obs, var, indptr, nnz) from the file on disk."""
     path = Path(path).expanduser()
     with h5py.File(path, "r") as f:
         obs = read_elem(f["obs"])

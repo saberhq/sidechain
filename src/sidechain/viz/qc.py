@@ -5,11 +5,9 @@
     g = gene_stats(X)              # per gene: mean count, detection, mean and variance of log CP10K
     json.dumps(compact(obj))       # numpy arrays rounded to a few significant figures, lists out
 
-The metrics are the scverse/Cell Ranger set a single-cell QC reads first: UMIs per cell, genes detected per cell,
-the share of counts on mitochondrial (MT-) and ribosomal-protein (RPL/RPS) genes, the share held by the cell's 50
-most-counted genes (a library dominated by few genes is a low-complexity or damaged cell) and the complexity ratio
-log10(genes) / log10(UMIs). Read counts and sequencing saturation need the reads, which no count matrix carries.
-Used by the board's Viz tab builders (private/scripts/figures/, T129).
+The per-cell metrics are the scverse set (`QC_LABELS`): UMIs, genes detected, the mitochondrial and ribosomal-protein
+shares, the top-50-gene share and log10(genes) / log10(UMIs). Reads the matrix given; writes nothing.
+Notes: private/code-notes/src/sidechain/viz/qc.py.md
 """
 from __future__ import annotations
 
@@ -83,9 +81,8 @@ def gene_stats(X, target_sum: float = 1e4) -> dict[str, np.ndarray]:
 
 
 def program_score(L, genes, program, ctrl_size: int = 50, seed: int = 0) -> np.ndarray:
-    """A gene-programme score per cell on log-normalised data `L` (Tirosh-style: the programme's mean minus the
-    mean of a random control set of genes; scanpy's `score_genes` without the expression-bin matching, which is
-    within noise for programmes of a dozen genes). NaN when none of the programme's genes is present."""
+    """A gene-programme score per cell on log-normalised data `L`: the programme's mean minus a random control set's
+    (Tirosh-style, scanpy's `score_genes` without expression-bin matching). NaN when no programme gene is present."""
     L = _csr(L)
     idx = {g: i for i, g in enumerate(map(str, genes))}
     hit = [idx[g] for g in program if g in idx]

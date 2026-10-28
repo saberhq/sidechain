@@ -2,29 +2,23 @@
 
     from sidechain.viz.palette import color, marker, PALETTE
     color("A")                    # '#2a78d6' (light theme); color("A", theme="dark")
-    color("replogle22_rpe1")      # the study's colour: Replogle 2022 is teal in every chart
-    .venv/bin/python -m sidechain.viz.palette --json    # the whole plan as JSON (what the board's Viz tab reads)
+    color("replogle22_rpe1")      # the study's colour, shared by its lines
+    .venv/bin/python -m sidechain.viz.palette --json    # the whole plan as JSON
 
-Two tiers. The six challenge contexts own six saturated hues (A blue, B orange, C aqua; D violet, E magenta,
-F yellow): validation contexts draw as circles, test contexts as diamonds. A corpus line takes its STUDY's colour,
-a darker, muted hue, and a marker shape of its own, and is always labelled. Sequential, diverging and within-line
-category scales sit beside them. Every categorical set was run through the dataviz skill's validator
-(`validate_palette.js`) on the board's own surfaces; the results are in `VALIDATION`. Plan and rules:
-private/tasks/T129.md.
+The six contexts take saturated hues (validation circles, test diamonds); a corpus line takes its study's muted hue
+and a marker of its own, and is always labelled. `VALIDATION` holds the palette validator's results.
+Reads and writes nothing. Notes: private/code-notes/src/sidechain/viz/palette.py.md
 """
 from __future__ import annotations
 
 import argparse
 import json
 
-# The board's chart surfaces (dashboard.py `--surface`), which the validator measured against.
+# The chart surfaces the palette is validated against.
 SURFACES = {"light": "#FDFBF7", "dark": "#272421"}
 
 # ── tier 1: the challenge's six contexts ───────────────────────────────────────────────────────────────────────
-# A/B/C are the dataviz reference slots 1-3 (they pass all-pairs, so any scatter of the three is safe); D/E/F are
-# slots 7, 5 and 4 (all-pairs among themselves too). All six in one scatter fail all-pairs only on A blue vs
-# D violet, so a six-context scatter draws the test contexts as diamonds, or facets validation from test
-# (final-phase: none).
+# A six-context scatter draws the test contexts as diamonds, or facets validation from test.
 CONTEXTS = {
     "A": {"light": "#2a78d6", "dark": "#3987e5", "marker": "circle", "round": "validation"},
     "B": {"light": "#eb6834", "dark": "#d95926", "marker": "circle", "round": "validation"},
@@ -35,10 +29,8 @@ CONTEXTS = {
 }
 
 # ── tier 2: the corpus, one colour per study ───────────────────────────────────────────────────────────────────
-# A study shares its lab, chemistry and depth, which is most of what a QC plot shows, so a study is the unit of
-# colour; the lines inside a study are told apart by marker and label. The eight hues pass the adjacent checks in this
-# order in both themes; they do NOT pass all-pairs (no five muted hues do), so a corpus line is never drawn without
-# its label. Arc's 2025 H1 is an archive reference and stays neutral; the named-line panel is background.
+# A study is the unit of colour; the lines inside it are told apart by marker and label, and are always labelled.
+# The hues are ordered for the adjacent check. Arc's 2025 H1 and the named-line panel stay neutral.
 STUDIES = {
     "replogle22": {"label": "Replogle 2022", "light": "#00826b", "dark": "#269e8b"},
     "nadig24": {"label": "Nadig 2024", "light": "#b44d34", "dark": "#d3694f"},
@@ -74,7 +66,7 @@ LINES = {
     "sunshine23_calu3": {"study": "sunshine23", "line": "Calu-3", "screen": "host factors", "marker": "triangle-up-open"},
 }
 
-# compact names for a table's narrow first column (the board's Viz tab, T129): the line, then its study
+# compact names for a table's narrow first column: the line, then its study
 SHORT_LINES = {"replogle22_k562_ess": "K562 ess", "replogle22_k562_gwps": "K562 gw", "replogle22_rpe1": "RPE1",
                "nadig24_jurkat": "Jurkat", "nadig24_hepg2": "HepG2", "xatlas25_hct116": "HCT116",
                "xatlas25_hek293t": "HEK293T", "pan26_h1": "H1", "feng26_ipsc": "iPSC", "vcc25_h1": "H1",
@@ -85,8 +77,7 @@ SHORT_STUDIES = {"replogle22": "Replogle 22", "nadig24": "Nadig 24", "xatlas25":
                  "vcc25": "Arc 25", "scbasecount": "scBaseCount"}
 
 # ── scales that are not identity ───────────────────────────────────────────────────────────────────────────────
-# magnitude: the dataviz blue ramp from step 200 (step 100 vanishes into the surface under a point cloud); a dark
-# theme reverses the anchor so "more" is still "more ink against the surface".
+# magnitude: the dataviz blue ramp from step 200; a dark theme reverses the anchor.
 SEQUENTIAL = ["#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 # polarity: cosine similarity blue <-> red, a fold change violet <-> orange (two pairs, so the two heatmaps of a
 # complex never read as one quantity); the midpoint is the neutral gray of each theme.
@@ -102,7 +93,7 @@ PHASE_DARK = {"G1": "#4a4641", "S": "#8f897f", "G2M": "#e9e4da"}
 CLUSTERS = ["#4e79a7", "#f28e2b", "#59a14f", "#b07aa1", "#9c755f", "#76b7b2", "#edc948", "#ff9da7", "#bab0ac",
             "#e15759", "#8cd17d", "#d4a6c8"]
 
-# What the validator said (dataviz skill, scripts/validate_palette.js, 2026-10-21, session `5bb2ca10`).
+# The palette validator's results (the dataviz skill's validate_palette.js).
 VALIDATION = {
     "A-C all-pairs": "pass both themes; worst CVD dE 9.2 light / 9.4 dark; aqua is 2.7:1 on light, so labels",
     "D-F all-pairs": "pass both themes; worst CVD dE 16.3 light / 13.2 dark; magenta and yellow under 3:1 on light",

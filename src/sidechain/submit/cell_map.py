@@ -1,21 +1,13 @@
-"""A step map on the per-cell channel's |log2FC|: each gene's per-cell change, after the strength, is replaced by
-the map's size for the bin its size falls in, its sign kept, optionally times a per-gene and per-target scale.
+"""A step map on the per-cell channel's |log2FC|: each change takes its bin's size, sign kept, times an optional scale.
 
-`--cell-lfc-map PATH` on `sidechain.submit.build` and `sidechain.eval.loco`: a JSON file with `lower` (the bins'
-lower edges on |log2FC|, strictly increasing from 0) and `size` (the |log2FC| emitted for a change in that bin,
-finite, >= 0), one entry per bin; the last bin is open above. A change of exactly 0 stays 0, and the knockdown's
-own gene is pinned after the map as before. It acts on the per-cell channel only, so a build needs the two-channel
-emission (`--alpha-bulk`, or eval.loco's pooled anchor); the summed-profile channel is untouched. The record
-(`cell_lfc_map` in loco's summary and in build's `<stem>.dual.json`) carries the file's sha256 and its bins.
+    python -m sidechain.eval.loco ... --cell-lfc-map MAP.json      # also sidechain.submit.build, two-channel only
+    MAP.json = {"lower": [0, ...], "size": [...], "scale": {"gene": {symbol: x}, "target": {knockdown: x} or x,
+                "clip": [lo, hi], "gene_default": x, "pair": "PAIRS.parquet"}}    # or "contexts": {"D": scale, ...}
 
-An optional `scale` multiplies each mapped size: `{"gene": {symbol: factor}, "target": {knockdown: factor} or one
-number, "clip": [lo, hi], "gene_default": factor}` -- the product of the gene's and the knockdown's factors, clipped
-to [lo, hi] when `clip` is given (a gene the table lacks takes `gene_default`, 1.0 unless set; every knockdown of the
-panel must have a target factor when `target` is a table). `"pair": PATH` adds one factor per (knockdown, gene) to the
-product, before the clip: a parquet with columns `target`, `feature`, `factor` (finite, >= 0; a relative path is read
-from the map file's folder; a pair the table lacks takes 1.0). Or `contexts`, one such scale per challenge context
-(`{"D": {...}, "E": {...}}`) for a build over several, the bins shared. A scaled map is bound to the gene axis and
-the panel before use (`bind`). Task: private/tasks/T134.md.
+`lower` holds the bins' increasing lower edges from 0 (the last bin is open), `size` each bin's emitted |log2FC|; 0
+stays 0 and the target gene is pinned after the map. The pair parquet has `target`, `feature`, `factor`. Reads the map
+and its tables; the run's record (`cell_lfc_map`) carries the file's sha256 and bins.
+Notes: private/code-notes/src/sidechain/submit/cell_map.py.md
 """
 from __future__ import annotations
 
