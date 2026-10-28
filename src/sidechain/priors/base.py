@@ -1,6 +1,13 @@
-"""The extensibility contract. Every biological prior implements PriorSource and
-returns a PriorArtifact aligned to the master gene space. New biology plugs in
-here WITHOUT touching the model or the graph builder.
+"""The prior contract: a `PriorSource` subclass implements `fetch()` and `build()`, returning a `PriorArtifact`.
+
+    class MySource(PriorSource):
+        def fetch(self): ...                       # download or load the raw source, idempotently
+        def build(self):
+            ei, attr = self.to_edge_index(srcs, dsts, weights)
+            return PriorArtifact(kind="edge", relation=self.relation, layer=self.layer, edge_index=ei, edge_attr=attr)
+    art = MySource(spec, gene_index).build_checked()
+
+Reads the source's registry block (`spec`) and the gene index; writes nothing. Notes: private/code-notes/src/sidechain/priors/base.py.md
 """
 from __future__ import annotations
 
@@ -18,16 +25,9 @@ Kind = Literal["node_feature", "edge"]
 class PriorArtifact:
     """Normalized output every source returns, aligned to gene_index.
 
-    node_feature:  features (n_genes, dim). Genes without data -> zero rows.
-    edge:          edge_index (2, n_edges) COO + optional edge_attr (n_edges, n_attr).
-                   NEVER a dense n_genes x n_genes matrix.
-
-    **Bipartite edges** (`src_names` set): the edge's SOURCE nodes are not genes on the
-    master axis -- a miRNA family (TargetScan, T102), an RBP that is also a gene but is
-    scored as a regulator -- so row 0 of `edge_index` indexes `src_names` and only row 1
-    indexes `gene_index`. `build_checked` checks each row against its own vocabulary. A
-    consumer that wants gene-gene edges ("share a regulator") derives them from this form
-    rather than the source emitting a dense family x gene block.
+    node_feature: features (n_genes, dim), zero rows for genes without data. edge: edge_index (2, n_edges) COO and
+    an optional edge_attr (n_edges, n_attr), never a dense gene x gene matrix. With `src_names` set the edges are
+    bipartite: row 0 indexes `src_names` (source nodes off the gene axis), row 1 `gene_index`.
     """
     kind: Kind
     relation: str
@@ -45,14 +45,12 @@ class PriorSource(ABC):
 
     def __init__(self, spec: dict, gene_index: dict[str, int]):
         self.spec = spec
-        self.gene_index = gene_index          # ensembl_gene_id -> position
+        self.gene_index = gene_index          # gene ID -> position
         self.name = spec.get("name", self.__class__.__name__)
         self.layer: Layer = spec.get("layer")
         self.relation = spec.get("relation", "")
 
-        # `kind` is declared in YAML, not inferred from build(): the registry has
-        # to know the graph shape before building anything, and building
-        # nt_utr_embed means a GPU pass over every 3'UTR.
+        # `kind` is declared in YAML, not inferred from build(): the registry needs the shape before any build.
         kind = spec.get("kind")
         if kind not in ("node_feature", "edge"):
             raise ValueError(
@@ -63,9 +61,7 @@ class PriorSource(ABC):
 
     @property
     def edge_type_key(self) -> str:
-        """Unique edge-type key. `relation` alone collides -- mirbind2/targetscan
-        both declare `mirna_target`, postar3/encode_eclip both `rbp_binding` --
-        and the registry explicitly invites enabling those pairs together."""
+        """Unique edge-type key, `layer:relation:name` (two sources may declare one relation)."""
         return f"{self.layer}:{self.relation}:{self.name}"
 
     @abstractmethod
@@ -134,13 +130,7 @@ class PriorSource(ABC):
         return bool(self.spec.get("enabled", True))
 
     def to_positions(self, gene_ids) -> np.ndarray:
-        """Map gene IDs -> integer positions, dropping any not in the master space.
-
-        Use this ONLY for a standalone list of genes (e.g. which nodes a
-        node_feature source covers). For edges, use `to_edge_index`: calling this
-        separately on sources and destinations drops unknown IDs independently
-        per call, which silently mis-pairs the survivors.
-        """
+        """Map a standalone gene-ID list to positions, dropping unknown IDs; edges use `to_edge_index`."""
         idx = self.gene_index
         return np.array([idx[g] for g in gene_ids if g in idx], dtype=np.int64)
 
@@ -152,15 +142,9 @@ class PriorSource(ABC):
         *,
         drop_self_loops: bool = False,
     ) -> tuple[np.ndarray, np.ndarray | None]:
-        """Build a (2, n_edges) COO edge_index from paired gene-ID sequences.
+        """(2, n_edges) COO from paired gene IDs; returns (edge_index, edge_attr). Every edge source uses it.
 
-        An edge survives only if BOTH endpoints are in the master gene space, and
-        the same mask is applied to `edge_attr` -- so rows stay aligned to the
-        edges they describe. This is the pair-aware counterpart to
-        `to_positions`, and every edge source must use it.
-
-        Returns (edge_index, edge_attr). Never allocates a dense gene x gene
-        matrix.
+        One mask keeps an edge when both ends are in the gene index, and filters `edge_attr` alike.
         """
         srcs = list(srcs)
         dsts = list(dsts)
@@ -206,12 +190,10 @@ class PriorSource(ABC):
         src_index: dict[str, int],
         edge_attr: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray | None]:
-        """(2, n_edges) COO whose row 0 indexes `src_index` and row 1 the master gene space.
+        """(2, n_edges) COO whose row 0 indexes `src_index` and row 1 the gene index.
 
-        The pair-aware rule of `to_edge_index` for a source vocabulary that is NOT the
-        gene axis (a miRNA family has no position in `gene_index`): ONE mask keeps an
-        edge only when its source is in `src_index` and its destination in `gene_index`,
-        and the same mask is applied to `edge_attr`. Never two `to_positions` calls.
+        One mask keeps an edge when its source is in `src_index` and its destination in `gene_index`, and filters
+        `edge_attr` alike.
         """
         srcs = list(srcs)
         dsts = list(dsts)

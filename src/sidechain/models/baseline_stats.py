@@ -1,25 +1,11 @@
-"""Rung 0 and Rung 1 of the ladder.
+"""Rungs 0, 0b and 1 of the 2025 ladder: predictors that shift drawn control cells and emit them as predicted cells.
 
-Rung 0 -- naive controls. Predict the control profile for every perturbation.
-Establishes the floor: a model that cannot beat this is not modelling anything.
+    model = StatisticalBackbone(pert_col="target_gene", control_label="non-targeting").fit(train)
+    pred = model.predict({"GENE": 100}, include_control=500)     # an AnnData of predicted cells
 
-Rung 1 -- the statistical backbone. Pseudobulk delta plus explicit statistical
-features (DEG frequency, mean expression, per-gene variance, effect-size prior).
-This is the bar every fancier rung must clear on the local mirror.
-
-The prediction task is response to *unseen* perturbations, so the backbone cannot
-look up a per-perturbation delta at predict time. What it can exploit, and what
-carried the 2025 winners, is that responses share a large common component:
-
-  1. a generic transcriptional response shared across perturbations, weighted
-     per-gene by how often that gene responds at all (DEG frequency), and
-  2. the target gene's own knockdown -- CRISPRi drives the targeted transcript
-     down, the single most reliable per-perturbation signal available without
-     having seen that perturbation.
-
-Both models emit *cells*, not one mean vector: DES needs dispersion to score.
-Cells are drawn from the control pool and shifted, so predicted cell-to-cell
-variation matches the real assay's rather than being invented.
+Rung 0 emits controls; 0b adds the mean training shift; 1 adds the mean pseudobulk delta gated per gene by DEG
+frequency and sets the target gene to the mean self-knockdown. Reads the AnnData given; writes nothing.
+Notes: private/code-notes/src/sidechain/models/baseline_stats.py.md
 """
 from __future__ import annotations
 
@@ -39,19 +25,7 @@ def _dense(x) -> np.ndarray:
 
 
 def _col_moments(x, chunk: int = 5000) -> tuple[np.ndarray, np.ndarray]:
-    """Per-gene (mean, variance) without densifying the whole matrix.
-
-    Two precision traps, both of which showed up as real disagreement against a
-    dense float64 recompute:
-
-      * scipy's sparse reductions accumulate in the matrix dtype, so summing 38k
-        float32 values drifts by ~1e-6 relative.
-      * variance via E[X^2] - E[X]^2 loses further precision to catastrophic
-        cancellation, which in float32 reached ~1e-3 relative.
-
-    Accumulating both moments in float64 over row chunks fixes both while never
-    holding more than `chunk` rows densely.
-    """
+    """Per-gene (mean, variance), accumulated in float64 over `chunk`-row blocks without densifying."""
     if not sp.issparse(x):
         arr = np.asarray(x, dtype=np.float64)
         return arr.mean(axis=0), arr.var(axis=0)
@@ -73,8 +47,7 @@ def _col_mean(x) -> np.ndarray:
 
 
 def _min_nonzero(x) -> float:
-    """Smallest stored nonzero value. For CSR this reads .data directly, so it
-    never materializes the matrix."""
+    """Smallest stored nonzero value, read from `.data` for a sparse matrix."""
     data = x.data if sp.issparse(x) else np.asarray(x)
     positive = data[data > 0]
     return float(positive.min()) if positive.size else 0.0
@@ -101,15 +74,10 @@ class PerturbationPredictor(ABC):
                 f"training data; the whole ladder is defined relative to controls."
             )
         self.var = adata.var.copy()
-        # The control pool is kept in whatever layout the data arrived in. On the
-        # full 2025 file there are 38,176 control cells, so densifying it here
-        # would cost 2.8 GB held for the entire run; predict() densifies only the
-        # rows it draws instead.
+        # The control pool keeps its layout; predict() densifies only the rows it draws.
         self.control_cells_ = adata.X[ctrl_mask]
         self.control_mean_, self.control_var_ = _col_moments(self.control_cells_)
-        # The smallest expression value the assay can actually represent. Adding a
-        # delta to a dropped-out (zero) gene produces values far below this, which
-        # are numerical artifacts rather than predictions -- see predict().
+        # The smallest value the assay represents; predict() snaps values below it to zero.
         self.min_nonzero_ = _min_nonzero(self.control_cells_)
         logger.info("%s: fit on %d control cells", type(self).__name__, int(ctrl_mask.sum()))
         self._fit(adata, labels, ctrl_mask)
@@ -132,20 +100,9 @@ class PerturbationPredictor(ABC):
         include_control: int | None = None,
         sparse_output: bool = True,
     ) -> ad.AnnData:
-        """Emit predicted cells. `perturbations` maps label -> number of cells.
+        """Emit predicted cells: `perturbations` maps label -> cell count; `include_control` adds that many controls.
 
-        `include_control` adds that many control cells under the control label;
-        cell-eval requires the control to be present in both pred and real.
-
-        `sparse_output` matters more than it looks. Real single-cell data is ~54%
-        zeros from dropout, and because the deltas are small our predictions are
-        ~50% zeros too -- but built naively they are stored DENSE. At the full
-        2025 scale that is 5.2 GB against 2.4 GB for the equivalent sparse
-        matrix, which was enough to drive a 17 GB machine into swap thrashing.
-        Values below the assay's smallest representable level are snapped to zero
-        first: adding a delta to a dropped-out gene yields ~1e-3 where the real
-        data's floor is ~6e-2, so those entries are artifacts of the arithmetic,
-        not predictions.
+        With `sparse_output`, values below the controls' smallest nonzero are snapped to zero and X is CSR.
         """
         if self.control_cells_ is None:
             raise RuntimeError("predict() called before fit()")
@@ -155,11 +112,7 @@ class PerturbationPredictor(ABC):
         floor = getattr(self, "min_nonzero_", 0.0) if sparse_output else 0.0
 
         def _emit(rows: np.ndarray, delta: np.ndarray | None):
-            """Densify ONE perturbation's draw, shift it, and re-sparsify.
-
-            The pool itself stays in its original (sparse) layout -- densifying it
-            whole would cost 2.8 GB on the full 2025 file, held for the entire run.
-            """
+            """Densify one perturbation's draw, shift it, and re-sparsify."""
             block = _dense(pool[rows]).astype(np.float32, copy=True)
             if delta is not None:
                 block += delta
@@ -200,16 +153,10 @@ class PredictControl(PerturbationPredictor):
 
 
 class PredictMeanPerturbation(PerturbationPredictor):
-    """Rung 0b. Every perturbation gets the average training perturbation shift.
-
-    A more honest floor than PredictControl: it already captures the "cells
-    respond to being perturbed at all" effect, so beating it requires genuinely
-    perturbation-specific signal.
-    """
+    """Rung 0b. Every perturbation gets the average training perturbation shift."""
 
     def _fit(self, adata: ad.AnnData, labels: np.ndarray, ctrl_mask: np.ndarray) -> None:
-        # Sparse .mean(0) avoids materializing every perturbed cell at once --
-        # 40k x 18k float32 is ~3 GB, and we only need the column means.
+        # Sparse .mean(0): the column means without densifying.
         block = adata.X[~ctrl_mask]
         pert_mean = (
             np.asarray(block.mean(axis=0)).ravel() if sp.issparse(block) else block.mean(axis=0)
@@ -223,12 +170,8 @@ class PredictMeanPerturbation(PerturbationPredictor):
 class StatisticalBackbone(PerturbationPredictor):
     """Rung 1. Generic response gated by DEG frequency, plus target knockdown.
 
-    Fitted quantities (per-gene unless noted):
-      mean_delta_      mean pseudobulk delta across training perturbations
-      deg_frequency_   fraction of training perturbations where |z| > deg_z
-      gene_variance_   variance across control cells
-      effect_size_     mean |delta| across training perturbations
-      knockdown_       scalar: mean self-delta of a targeted gene (negative)
+    Fits per gene `mean_delta_`, `deg_frequency_` (share of perturbations with |z| > deg_z), `gene_variance_`
+    (controls) and `effect_size_` (mean |delta|); `knockdown_` is the scalar mean self-delta of a targeted gene.
     """
 
     def __init__(
@@ -266,9 +209,7 @@ class StatisticalBackbone(PerturbationPredictor):
             delta = block.mean(axis=0) - self.control_mean_
             deltas.append(delta)
 
-            # The quantity being tested is a DIFFERENCE OF MEANS, so its noise is
-            # the standard error of that difference -- not the per-cell SD, which
-            # overstates it by ~sqrt(n) and gates away nearly every gene.
+            # z is the delta over the standard error of a difference of means.
             se = np.sqrt(self.gene_variance_ / n_ctrl + block.var(axis=0) / n_pert)
             zscores.append(delta / np.maximum(se, 1e-9))
 
@@ -289,9 +230,7 @@ class StatisticalBackbone(PerturbationPredictor):
         self.knockdown_ = float(np.mean(self_knockdowns)) if self_knockdowns else 0.0
         self._gene_pos = gene_pos
 
-        # DEG frequency is the gate: genes that respond to many perturbations get
-        # the generic response, genes that respond to none stay put. Without it
-        # the mean delta smears a weak shift across all 18k genes and MAE suffers.
+        # DEG frequency gates the generic response per gene.
         self._weighted_delta = self.response_scale * self.deg_frequency_ * self.mean_delta_
 
         logger.info(
