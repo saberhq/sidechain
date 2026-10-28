@@ -1,26 +1,11 @@
-"""The Mac↔box data plane: keys, local paths, and the one rule that ties them.
+"""Keys and local paths for the lamindb mirror of `~/data/sidechain/`: an artifact's key is its path under the data root.
 
-ADR 0007. The hosted instance is a **cloud mirror of the local tree**, not a second
-naming scheme: an artifact's key *is* its path under `~/data/sidechain/`. Everything
-here exists to keep that identity exact in both directions —
-`scripts/lamin_register.py` maps path → key, `scripts/lamin_pull.py` maps key → path,
-and `utils.logging.log_run` uses the same rule so a run's own outputs land where the
-tree says they live.
+    key = artifact_key(path); path = local_path(key)     # inverse maps; anything outside the root raises
+    hash_local(path) == artifact.hash                    # lamindb's own hasher: md5, sha1-fl over 50 MB, md5-d
 
-That single rule is also the exit plan, with one caveat worth stating here because it
-is invisible from the bucket: lamindb stores objects under *virtual* keys, so the S3
-side is `.lamindb/<uid>.npz`, not our path. The key→uid mapping lives only in the hub's
-Postgres, which is why `scripts/lamin_export.py` dumps it on a schedule. With that dump
-in hand the bucket is a literal copy of the tree and leaving costs a sync and a rename;
-without it, an extraction is a pile of opaque blobs. Nothing downstream reads a lamin
-key — the code reads local paths — so the data plane can be swapped for plain S3, GCS,
-or `brev copy` without touching a model.
-
-`hash_local` deliberately reuses lamindb's own hasher rather than plain md5, because a
-pull that "verified" against a different digest than the registry stores would be a
-check that always passes. Be honest about what it proves: over 50 MB lamindb switches
-to `sha1-fl` (first and last chunk only), so the middle of a 6.9 GB npz is never
-hashed. It catches a truncated or wrong-artifact download, not silent bit rot.
+Used by `scripts/lamin_register.py` (path -> key), `scripts/lamin_pull.py` (key -> path) and `utils.logging.log_run`.
+`export_registries` writes the registries as CSV plus the uid -> key manifest under `<data root>/lamin_export`.
+Notes: private/code-notes/src/sidechain/utils/lamin.py.md
 """
 from __future__ import annotations
 
@@ -29,9 +14,8 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Every saved file already sits at its key under the data root: without this, lamindb's
-# save() copies it again into ~/Library/Caches/lamindb (16.8 GB of submissions by 2026-10-19,
-# T116). `1` trips only that check; lamindb's other two uses test for the string `true`.
+# Saved files already sit at their key: this skips lamindb's save() copy into its cache.
+# `1` trips only that check; lamindb's other two uses test for the string `true`.
 os.environ.setdefault("LAMINDB_MULTI_INSTANCE", "1")
 
 DEFAULT_INSTANCE = "saberhq/sidechain"
@@ -39,11 +23,7 @@ _DEFAULT_DATA_ROOT = Path.home() / "data" / "sidechain"
 
 
 def data_root() -> Path:
-    """`~/data/sidechain`, or `SIDECHAIN_DATA_ROOT`.
-
-    Read per call rather than bound at import: tests point it at a tmp_path, and a
-    box's home is not the Mac's.
-    """
+    """`~/data/sidechain`, or `SIDECHAIN_DATA_ROOT`, read per call."""
     return Path(os.environ.get("SIDECHAIN_DATA_ROOT") or _DEFAULT_DATA_ROOT).expanduser()
 
 
@@ -53,12 +33,7 @@ def instance() -> str:
 
 
 def artifact_key(path: str | Path) -> str:
-    """The instance key for a local path: its path relative to the data root.
-
-    Raises ValueError for anything outside the tree — a file with no place in the
-    mirror has no key, and inventing one (`runs/<basename>`, say) is how five
-    unrelated runs became five *versions* of one `runs/summary.json` on 2026-08-28.
-    """
+    """The instance key for a local path: its path relative to the data root; ValueError outside it."""
     p = Path(path).expanduser().resolve()
     root = data_root().resolve()
     try:
@@ -71,11 +46,7 @@ def artifact_key(path: str | Path) -> str:
 
 
 def local_path(key: str) -> Path:
-    """The local path a key maps back to — the inverse of `artifact_key`.
-
-    A key read back from the hub is remote data, so `../../.ssh/id_rsa` is treated as
-    hostile input rather than a typo: anything resolving outside the data root raises.
-    """
+    """The local path a key maps back to, the inverse of `artifact_key`; ValueError outside the data root."""
     if not key or key.startswith("/") or Path(key).is_absolute():
         raise ValueError(f"key {key!r} must be a relative path under the data root")
     root = data_root().resolve()
@@ -86,13 +57,7 @@ def local_path(key: str) -> Path:
 
 
 def hash_local(path: Path) -> str:
-    """lamindb's own hash of a local file or directory, for comparing to `Artifact.hash`.
-
-    Files under 50 MB hash as md5; larger ones as `sha1-fl` (first+last chunk), and a
-    directory as `md5-d` over its members — so a plain md5 would disagree with the
-    registry on every large artifact we have. Delegating to `lamindb_setup` keeps the
-    two definitions from drifting apart.
-    """
+    """lamindb's own hash of a local file or directory, for comparing to `Artifact.hash`."""
     from lamindb_setup.core.hashing import hash_dir, hash_file
 
     if path.is_dir():
@@ -101,14 +66,7 @@ def hash_local(path: Path) -> str:
 
 
 def prepare_dest(dest: Path) -> Path:
-    """Make `dest` ready to receive a downloaded artifact, and return it.
-
-    Clearing first matters for folder artifacts: `download_to` is a recursive *merge*,
-    so a re-pull into a directory that still holds a member the new version dropped
-    leaves a tree that is neither version — and `hash_dir` hashes every member it
-    finds, so the mismatch would surface as an unexplained failure rather than as the
-    stale file it is.
-    """
+    """Remove whatever is at `dest` and create its parent, so a download never merges into old files; returns it."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.is_dir():
         shutil.rmtree(dest)
@@ -164,22 +122,10 @@ on this instance (`JWT is not set`).
 
 
 def export_registries(out: Path | None = None) -> dict:
-    """Dump every registry to CSV plus a uid→key manifest. ADR 0007 §7.
+    """Dump every registry to CSV plus a uid -> key manifest, iterating each queryset in full; returns a summary.
 
-    Assumes a connected instance. Returns a summary dict; writes `artifacts.csv`,
-    `runs.csv`, `transforms.csv`, `storages.csv`, `manifest.csv`, `RESTORE.md` and
-    `export_meta.json` under `out` (default `<data root>/lamin_export`).
-
-    Lives here rather than in the script because `lamin_register.py` calls it after every
-    upload: the catalogue is only useful if it is never behind the bucket, and a schedule
-    a human keeps is exactly the thing that silently stops being kept.
-
-    Built by ITERATING each queryset, not via `to_dataframe()`. Two reasons, both measured
-    2026-08-28 against this instance: `to_dataframe()` truncates to 20 rows unless you pass
-    `limit=None`, and even then it returned 43 of 55 artifacts -- it excludes
-    `kind__startswith="__lamindb"` (lamindb's own run records; keyless on our instance, which is
-    why we first read it as a keyless filter). An export that silently omits rows is worse than
-    no export, because it looks complete.
+    Assumes a connected instance. Writes `artifacts.csv`, `runs.csv`, `transforms.csv`, `storages.csv`,
+    `manifest.csv`, `RESTORE.md` and `export_meta.json` under `out` (default `<data root>/lamin_export`).
     """
     import lamindb as ln
     import pandas as pd
@@ -198,7 +144,7 @@ def export_registries(out: Path | None = None) -> dict:
     manifest = pd.DataFrame([
         {"uid": a.uid, "key": a.key, "hash": a.hash, "size": a.size, "n_files": a.n_files,
          "is_latest": a.is_latest, "version": a.version_tag, "description": a.description,
-         # The whole point of the manifest: uid-named object -> our path.
+         # uid-named object -> our path.
          "storage_object": str(a.path)}
         for a in ln.Artifact.filter()
     ])

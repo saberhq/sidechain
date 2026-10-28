@@ -1,23 +1,12 @@
-"""The model-name grammar, syntax only: SER-2n / ser-2n_delta4_even_noshrink_v1.
+"""The model-name grammar, syntax only: the short name, the board name and the build stem.
 
-One grammar, three surfaces:
+    parse_short("SER-2n")                                   # ('SER', 2, 'n')
+    short_from_stem("ser-2n_example_v1")                    # 'SER-2n'
+    check_out_leaf(out.name, context="mirror2026.score")    # SystemExit on a malformed model-like name
 
-- **short name** ``SER-2n`` — series tag (three uppercase letters), dash, model number,
-  then zero or more lowercase *knob letters* in alphabetical order. A new number is a new
-  model; a letter marks one knob moved off the series baseline, and a model that inherits
-  a parent's knob carries the letter from birth.
-- **board name** ``Sidechain SER-2n`` — the short name with the team prefix, as typed at
-  submit time. The board never renames, so this string is permanent the moment it is sent.
-- **build stem** ``ser-2n_delta4_even_noshrink_v1`` — the lowercased short name, an
-  underscore, a description slug, and a ``_v<k>`` tail. File stems, submission records and
-  mirror run directories use this form (a bare lowercased short name is also fine for a
-  run directory).
-
-What the letters *mean* is registered in the naming decision record (ADR 0005, private
-repo), which is also where the series list below is mirrored; this module owns only the
-syntax so the build, the local mirror and the leaderboard tooling refuse a malformed name
-before anything is scored under it. Freeform labels that never mention a series tag
-(mirror ablation arms like ``h1_xatlas``) are not model names and pass untouched.
+Short name `TAG-<number><letters>` (a `SERIES` tag; letters unique and alphabetical); board name `Sidechain ` plus
+it; build stem the lowercased short name, `_<slug>`, `_v<k>`. A label with no series tag is not a model name.
+Reads and writes nothing. Notes: private/code-notes/src/sidechain/utils/naming.py.md
 """
 from __future__ import annotations
 
@@ -67,7 +56,7 @@ def problems_stem(stem: str) -> list[str]:
         if stem != stem.lower():
             return [f"'{stem}': stems are lowercase (the short name uppercases, the stem never does)"]
         return [(f"'{stem}' does not match <tag>-<number><letters>[_<slug>_v<k>], "
-                 "e.g. 'ser-2n_delta4_even_noshrink_v1'")]
+                 "e.g. 'ser-2n_example_v1'")]
     if not _letters_ok(m.group(3)):
         return [(f"'{stem}': knob letters must be unique and alphabetical "
                  f"('{''.join(sorted(set(m.group(3))))}')")]
@@ -75,7 +64,7 @@ def problems_stem(stem: str) -> list[str]:
 
 
 def short_from_stem(stem: str) -> str | None:
-    """``'ser-2n_delta4_even_noshrink_v1'`` -> ``'SER-2n'``, or None."""
+    """``'ser-2n_example_v1'`` -> ``'SER-2n'``, or None."""
     m = STEM_RE.match(stem)
     if not m or not _letters_ok(m.group(3)):
         return None
@@ -83,13 +72,9 @@ def short_from_stem(stem: str) -> str | None:
 
 
 def check_out_leaf(leaf: str, *, context: str, require_slug: bool = False) -> None:
-    """Refuse an output name that claims a series tag but breaks the grammar.
+    """Refuse an output name that claims a series tag but breaks the grammar; other names pass.
 
-    Called by the submission build and the local mirror on the ``--out`` leaf, so a typo
-    (``ser2``, ``SER-2N``, letters out of order) dies before hours of compute are scored
-    under it. A leaf that never mentions a series tag is a freeform label and passes.
-    ``require_slug`` additionally demands the full ``_<slug>_v<k>`` tail (build stems name
-    files that live for good; run directories may use the bare short name).
+    ``require_slug`` also demands the full ``_<slug>_v<k>`` tail.
     """
     if not CLAIMS_RE.match(leaf):
         return

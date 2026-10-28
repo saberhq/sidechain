@@ -1,8 +1,8 @@
 """Path resolution that does not depend on the process CWD.
 
-`score(config="configs/eval.yaml")` resolving against the CWD means an installed
-package invoked from anywhere but the repo root gets FileNotFoundError. Everything
-that reads a config goes through `resolve_config` instead.
+    resolve_config("configs/eval.yaml")     # as given, then against the CWD, then against the repo root
+
+Reads and writes nothing. Notes: private/code-notes/src/sidechain/utils/paths.py.md
 """
 from __future__ import annotations
 
@@ -23,8 +23,7 @@ def find_repo_root(start: Path | None = None) -> Path | None:
 def resolve_config(path: str | Path) -> Path:
     """Resolve a config path against, in order: as-given, the CWD, the repo root.
 
-    Raises FileNotFoundError naming every location tried, so a misconfigured
-    deployment says where it looked instead of just which file it wanted.
+    Raises FileNotFoundError naming every location tried.
     """
     p = Path(path).expanduser()
     tried: list[Path] = []

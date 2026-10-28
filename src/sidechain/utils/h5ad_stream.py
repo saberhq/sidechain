@@ -1,22 +1,12 @@
-"""Write and read an `.h5ad` CSR matrix without ever holding it.
+"""Write and read an `.h5ad` CSR matrix one row block at a time, without holding the matrix.
 
-The 2026 folds are the reason. `loco_hct116_real.h5ad` is 142,046 cells x 38,584
-genes with 726 M nonzeros; a prediction for its 830 perturbations is another
-803 M. Either one is ~6 GB of `data` + `indices` in memory, and `scipy.sparse.vstack`
-and `anndata.concat` both peak at twice their result -- so the obvious in-memory
-build of a prediction needs ~13 GB and the concat that appends the real controls
-needs ~12 GB more. On a 17 GB Mac that is not a slow run, it is a dead one, and it
-is why every X-Atlas-scale mirror arm to date was built on the box.
+    with open_anndata_h5(out, "w") as o:
+        w = CsrWriter(o, n_genes)
+        for rows in blocks: w.append(*load_rows_csr(src, rows))
+        w.close(); write_frame(o, "obs", index, {"perturbation": labels}); write_frame(o, "var", genes, {})
 
-Appending row blocks to HDF5 by hand costs one block of memory instead. These
-helpers were written for `scripts/emit_tx_prediction.py` (which walks a STATE
-checkpoint over windows of control cells) and moved here when
-`sidechain.eval.loco` needed exactly the same thing; that script imports them
-back, so there is still one implementation.
-
-`write_frame` writes AnnData's `dataframe` encoding by hand, categorical columns
-included. The metadata attributes are not decoration: without them anndata still
-reads the file, but through its legacy path and with an `OldFormatWarning`.
+`write_frame` writes AnnData's `dataframe` encoding by hand, its encoding metadata included.
+Reads and writes the h5ad files it is handed. Notes: private/code-notes/src/sidechain/utils/h5ad_stream.py.md
 """
 from __future__ import annotations
 
@@ -27,13 +17,7 @@ __all__ = ["CsrWriter", "load_rows_csr", "open_anndata_h5", "read_categorical", 
 
 
 def open_anndata_h5(path, mode: str = "w", *, rdcc_nbytes: int = 64 << 20) -> h5py.File:
-    """An h5ad-shaped HDF5 file with a chunk cache big enough for row-wise reads.
-
-    h5py's default cache is 1 MiB -- about five chunks of a gzip-compressed h5ad --
-    so reading scattered rows in ascending order re-decompresses the same chunk
-    dozens of times. 64 MiB makes a full pass over a 700 M-nonzero fold cost one
-    decompression per chunk.
-    """
+    """An h5ad-shaped HDF5 file with a chunk cache of `rdcc_nbytes` bytes, for row-wise reads."""
     f = h5py.File(path, mode, rdcc_nbytes=rdcc_nbytes)
     if mode == "w":
         f.attrs["encoding-type"] = "anndata"
@@ -49,12 +33,7 @@ def read_categorical(f: h5py.File, col: str) -> tuple[np.ndarray, np.ndarray]:
 def load_rows_csr(f: h5py.File, rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """CSR triple (data, indices, indptr) for `rows` of an h5ad CSR group, in the given order.
 
-    Rows that are already consecutive in the file are fetched as ONE hyperslab, and that is
-    not a micro-optimisation. An h5ad `X` written by `CsrWriter` uses gzip chunks of 2^20
-    elements -- 4 MB -- while h5py's default chunk cache is 1 MB, so it cannot hold even one.
-    Read row by row, every row of a 6,600-nonzero cell re-inflates the whole 4 MB chunk it
-    sits in: copying a 122,046-cell prediction that way decompressed ~480 GB and had not
-    finished a quarter of the file in six minutes. Whole-span reads take one pass.
+    Rows consecutive in the file are read as one hyperslab.
     """
     g = f["X"]
     indptr = g["indptr"][:]
@@ -105,7 +84,7 @@ class CsrWriter:
             self.indices[self.nnz:] = indices
         base = self.indptr[-1]
         # int64 before adding: under NumPy 2 a Python-int base plus an int32 indptr stays int32 and wraps
-        # silently once the running nnz passes 2^31 (a 400-cell prediction on an X-Atlas fold has 2.45e9)
+        # silently once the running nnz passes 2^31
         self.indptr.extend((base + np.asarray(indptr[1:], dtype=np.int64)).tolist())
         self.nnz += n
 
@@ -145,12 +124,7 @@ def write_frame(h5: h5py.File, name: str, index: np.ndarray, columns: dict[str, 
 
 
 def _string_array(g: h5py.Group, name: str, values: np.ndarray) -> None:
-    """A string dataset carrying AnnData's encoding metadata.
-
-    Without the two attributes anndata still reads it, but through its legacy path and with an
-    `OldFormatWarning` -- a route a later release is free to drop. The file is written by hand
-    here (holding the matrix would cost gigabytes), so the metadata has to be written by hand too.
-    """
+    """A string dataset carrying AnnData's encoding metadata."""
     d = g.create_dataset(name, data=np.asarray(values, dtype=object),
                          dtype=h5py.string_dtype(encoding="utf-8"),
                          compression="gzip", compression_opts=1)
