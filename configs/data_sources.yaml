@@ -1,25 +1,20 @@
 # ============================================================================
-# Sidechain prior-source registry.
+# Sidechain prior-source registry: one block per prior, each naming its loader
+# class in src/sidechain/priors/ (`loader`). Every source maps onto
+# `master_gene_space`. A block is retired with `enabled: false`, never deleted.
 #
-# This is the flexible core: add a source by appending a block; shelve one with
-# `enabled: false` (no deletion). Each block maps to a loader class in
-# src/sidechain/priors/ via `loader`. All sources align to `master_gene_space`.
+# Every block declares `kind:`, `edge` or `node_feature`. `relation:` need not
+# be unique: the graph builder keys edge types on `layer:relation:name`. A
+# block that fetches its bytes declares the ingest gate's keys, as in
+# datasets.yaml.
 #
-# Every block MUST declare `kind:` -- either `edge` or `node_feature`. It is
-# declared rather than inferred so the registry can validate and report the graph
-# shape without building anything: inferring it would mean running build(), which
-# for nt_utr_embed is a GPU pass over 18k 3'UTRs.
-#
-# `relation:` is the biological relation name and is NOT required to be unique --
-# mirbind2 and targetscan both declare `mirna_target` on purpose, so they can be
-# ensembled. The graph builder keys edge types on `layer:relation:name`, which is
-# unique, so enabling both keeps both.
+# Notes: private/code-notes/configs/data_sources.yaml.md
 # ============================================================================
 
 master_gene_space:
   reference: gencode
-  version: "v47"                 # <-- align to the challenge feature space at Aug-20 kickoff
-  id_type: ensembl_gene_id       # canonical key every PriorSource maps onto
+  version: "v47"
+  id_type: ensembl_gene_id       # the key every PriorSource maps onto
 
 sources:
 
@@ -67,100 +62,75 @@ sources:
     enabled: true
     notes: "Per-gene 3'UTR embedding as a frozen node feature. The modern ntEmbd."
 
-  # ------------ PERTURBATION FEATURIZER: the gene table a learned arm reads ------------
-  # Not a graph prior: these tables are what scripts/build_pert_features.py turns into the
-  # `perturbation_features_file` a STATE transition model reads instead of a one-hot code, so a
-  # model can represent a gene it never saw knocked down. Declared here so the registry knows
-  # which table is current; `enabled: false` because no PriorSource loader consumes a symbol-
-  # keyed table yet (the registry lets a shelved block name an unwritten loader). The choice
-  # between them: private/research/ideas/pretrained-scfm-arms.md § Outcome T89 (paired, 42 pairs).
+  # ------------ Gene tables: one vector per gene, keyed on symbol ------------
+  # Shelved: no PriorSource loader reads a symbol-keyed table yet.
   - name: esm2_3b_gene_table
     kind: node_feature
     layer: cis
     relation: gene_embedding
     entity: gene
-    loader: GeneTableSource        # not written; see T19
+    loader: GeneTableSource        # not written
     provider: "ESM-2 3B (Meta) as shipped inside TranscriptFormer tf_sapiens (CZI, MIT)"
     url: "https://czi-transcriptformer.s3.amazonaws.com/weights/tf_sapiens.tar.gz"
     path: "~/data/sidechain/derived/transcriptformer-esm2-3b/esm2_3b_raw_table.pt"
     sha256: "429d2cfbed0cd817d8eae78efb8cba590137d0dcc2dce84c844fea85b7056328"
-    key_type: hgnc_symbol          # 18,618 symbols; retired symbols via sidechain.data.gene_aliases
+    key_type: hgnc_symbol          # retired symbols via sidechain.data.gene_aliases
     embed_dim: 2560
     precompute: true
     enabled: false
-    notes: "The featurizer since 2026-09-16 (T90). Covers 300/300 challenge targets and 849/849 of the panel union. LINEAGE.json beside the file."
+    notes: "ESM-2 3B protein embeddings, one row per gene symbol; LINEAGE.json beside the file."
 
   - name: esm2_se600m_gene_table
     kind: node_feature
     layer: cis
     relation: gene_embedding
     entity: gene
-    loader: GeneTableSource        # not written; see T19
+    loader: GeneTableSource        # not written
     provider: "ESM-2 15B (Meta) as shipped by Arc Institute beside SE-600M"
     url: "https://huggingface.co/arcinstitute/SE-600M"
     path: "~/data/sidechain/derived/esm2-15b-se600m/esm2_15b_gene_table.pt"
     sha256: "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748"
-    key_type: hgnc_symbol          # 19,790 symbols; retired symbols via sidechain.data.gene_aliases
+    key_type: hgnc_symbol          # retired symbols via sidechain.data.gene_aliases
     embed_dim: 5120
     precompute: true
     enabled: false
-    notes: "The featurizer until 2026-09-16; superseded by esm2_3b_gene_table (T90). Still the geometry gate's default comparator (scripts/esm2_geometry_gate.py EMB, which reads the external/hf-arcinstitute-SE-600M/protein_embeddings.pt original). The derived path is a byte-identical copy (same sha256 as the HF LFS oid at commit 5a9a80f4) so it can live in lamin (ADR 0007 keeps external/ out); LINEAGE.json beside it. Covers 300/300 challenge targets and 842/842 of the neighbour pool (T103, 2026-09-29)."
+    notes: "ESM-2 15B protein embeddings, one row per gene symbol: a byte-identical copy of the Hugging Face file, LINEAGE.json beside it."
 
-  # ------------ PHENOTYPE layer: what losing the gene does to the cell ------------
-  # A gene table read from fitness screens rather than from sequence, binding or regulation:
-  # two genes whose knockout hurts the same cell lines sit close. `layer: phenotype` is new
-  # with this block (priors/base.py `Layer`); none of cis / posttx / trans describes it.
+  # ------------ PHENOTYPE layer: fitness-screen gene effects ------------
   - name: depmap_24q4_gene_effect
     kind: node_feature
     layer: phenotype
     relation: gene_effect_profile
     entity: gene
-    loader: GeneTableSource        # not written; see T19. The table is built by a script (T113)
+    loader: GeneTableSource        # not written
     provider: "DepMap Public 24Q4 (Broad Institute), Chronos gene effect"
     url: "https://doi.org/10.25452/figshare.plus.27993248.v1"
-    key_type: hgnc_symbol          # DepMap heads a column `SYMBOL (Entrez)`; retired symbols via sidechain.data.gene_aliases
+    key_type: hgnc_symbol          # columns headed `SYMBOL (Entrez)`; retired symbols via sidechain.data.gene_aliases
     precompute: true
-    enabled: false                 # nothing in the shipping path consumes it; gated as a neighbour table only (T113)
-    notes: "One fitness-effect score per gene per screened cell line (Chronos: about 0 for a gene the line does not need, about -1 for a common-essential one). Used two ways (T113): each gene's profile across lines, centred, as a co-essentiality neighbour table read against STRING node2vec on scripts/esm2_geometry_gate.py; and the common-essential flag as a gene class for the T98 dispersion thread. HEK293T and H1 are not among DepMap's models, so for them the table is a property of genes across cancer lines; a line-specific reading exists only for a context that is a screened model (private research/ideas/depmap-gene-effect-prior.md § Outcome 2026-10-14)."
-    # ---- the fetch, through the ADR 0003 gate (sidechain.ingest.fetch.run_gate),
-    # by sidechain.priors.posttx_mirna.fetch_gated_files, as the targetscan block
-    # is. Figshare lists the record (73 files, 30.8 GB) and publishes a computed
-    # md5 for every file selected here, so no checksum exception is asked for.
+    enabled: false
+    notes: "One Chronos fitness-effect score per gene per screened cell line (about 0 for a gene the line does not need, about -1 for a common-essential one), and the release's common-essential flags."
+    # Fetched through the ingest gate (sidechain.ingest.fetch.run_gate).
     host: figshare
-    record: "27993248.v1"                    # `.v1` PINS it. A bare Figshare id follows "latest".
+    record: "27993248.v1"
     dest: external/figshare-27993248
-    derived: derived/depmap-24q4             # gene_effect_table.pt, common_essential.tsv + LINEAGE.json (ours)
-    budget_gb: 1.1                           # 0.96 GB selected; the gate refuses a selection over this
+    derived: derived/depmap-24q4             # gene_effect_table.pt, common_essential.tsv + LINEAGE.json
+    budget_gb: 1.1
     license: CC-BY-4.0
     files:
-      # One row per screened model (`ACH-…`), one column per gene headed
-      # `SYMBOL (Entrez)`. 428.7 MB. The host delivers about 100 kB/s.
+      # Gene effect: one row per screened model (`ACH-…`), one column per gene.
       - name: CRISPRGeneEffect.csv
-      # Genes Chronos infers as common-essential from this release's own screens:
-      # the class flag. 20.8 kB.
+      # The genes the release infers as common-essential.
       - name: CRISPRInferredCommonEssentials.csv
-      # The curated positive controls (essential in every line by prior knowledge)
-      # and their negative counterpart, the non-essential controls. 17.0 + 11.5 kB.
+      # The curated essential and non-essential control genes.
       - name: AchillesCommonEssentialControls.csv
       - name: AchillesNonessentialControls.csv
-      # One row per model: name, lineage, disease. Names which lines the profile
-      # is taken across. 0.65 MB.
+      # One row per model: name, lineage, disease.
       - name: Model.csv
-      # HGNC's gene table as the release ships it (symbol, previous and alias
-      # symbols, Entrez id, Ensembl id): the check on the symbol bridge, and the
-      # previous-symbol bridge of the flag onto the 2026 axis. 16.6 MB.
+      # HGNC's gene table as the release ships it: symbols, aliases, Entrez and Ensembl ids.
       - name: Gene.csv
-      # The release's description of every file. 43 kB.
+      # The release's description of every file.
       - name: README.txt
-      # Bulk RNA-seq of every model, one row per `ACH-…`, one column per
-      # protein-coding gene headed `SYMBOL (Entrez)`, values log2(TPM + 1).
-      # 506.6 MB. Not a prior: the reference library for naming the line behind
-      # a context's control cells (the named-line match, private
-      # research/ideas/scbasecount-context-matching.md), where the scBaseCount
-      # panel holds 48 lines and this table holds nearly every line in culture,
-      # CAL-33 and HeLa among them. Read as a rank within the table against our
-      # own lines' controls as positive controls; the absolute cosine between a
-      # single-cell CPM profile and a bulk TPM profile means nothing on its own.
+      # Bulk RNA-seq per model, log2(TPM + 1), one column per protein-coding gene.
       - name: OmicsExpressionProteinCodingGenesTPMLogp1.csv
 
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
