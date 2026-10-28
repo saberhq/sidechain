@@ -2,53 +2,21 @@
 
     shrunk = adaptive_shrink(fc, var)
 
-`sidechain.submit.build.shrink` is a fixed rule: one threshold, in standard errors, for every
-gene. This is the adaptive alternative. It looks at all of a knockdown's genes at once, asks
-how large true effects appear to be among them, and shrinks each gene by how believable its
-own estimate is given that answer and its own standard error. A weak gene ends small rather
-than zero.
-
-The model, per vector of estimates `x_g` with standard errors `s_g`:
-
-    x_g | b_g ~ N(b_g, s_g^2)          the estimate around the true effect
-    b_g       ~ sum_k pi_k N(0, sd_k^2) the prior: a mixture of zero-mean normals
-
-The prior's standard deviations `sd_k` are a fixed grid (a tenth of the smallest standard
-error, growing by sqrt(2) up to twice the largest effect the data could support); only the
-mixture weights `pi_k` are fitted, by EM on the marginal likelihood, accelerated with SQUAREM.
-There is no point mass at zero, which is the setting DESeq2's `lfcShrink(type="ashr")` uses,
-so the posterior mean is never exactly zero for a nonzero estimate. The returned value is the
-posterior mean of `b_g`.
-
-Written from the paper's equations, not from the ashr package (R, GPL): Stephens, "False
+Per gene, x_g | b_g ~ N(b_g, s_g^2) and b_g ~ sum_k pi_k N(0, sd_k^2) over a fixed grid of sd_k, no point mass at
+zero; the weights pi_k are fitted by SQUAREM-accelerated EM, stopped on a plateau (`TOL_PER_GENE` per gene for
+`CALM_CYCLES` cycles) or at `MAX_CYCLES`, and the posterior mean of b_g is returned. Written from Stephens, "False
 discovery rates: a new deal", Biostatistics 18(2):275-294, 2017, doi 10.1093/biostatistics/kxw041.
-
-**The stopping rule is part of the estimator, and this is not ashr's fit.** ashr solves the
-weight problem to its optimum with a convex solver; this stops on a plateau: when the
-log-likelihood gains less than `TOL_PER_GENE` per gene per cycle for `CALM_CYCLES` cycles
-running, or at `MAX_CYCLES`. On our data the likelihood is flat in the weights, so where the
-fit stops moves the answer a little, and a fit that stopped calm can be short of the optimum
-too -- the at-cap count is a lower bound on unfinished fits, not their number. Measured on T84
-(`runs/knobs/t84_shrinkage_20261001/step0/`, part D): against 20,000 plain EM steps the
-posterior mean of a pooled vector differs by about 1 % in relative root mean square (more on
-single sources), and a fit stopped at 80 cycles instead reads about 0.003 raw pds higher.
-Changing one of the three constants changes the model a scored arm was built with.
-
-**Reproducible to about 1e-4, not bit for bit, across machines.** The accept-or-reject steps
-of the acceleration amplify last-bit differences between BLAS builds, so the same vector can
-stop a hundred cycles apart on two machines and its posterior mean move by about 1e-4 in
-relative terms. Score an arm from the prediction built where it was scored; build and pack a
-submission on one machine.
+Reads and writes nothing. Notes: private/code-notes/src/sidechain/models/adaptive_shrink.py.md
 """
 from __future__ import annotations
 
 import numpy as np
 
-MAX_CYCLES = 5000        # SQUAREM cycles; about a quarter of our real fits end here
+MAX_CYCLES = 5000        # SQUAREM cycles at most
 TOL_PER_GENE = 1e-9      # log-likelihood gain per gene per cycle that counts as no gain
 CALM_CYCLES = 3          # that many quiet cycles running end the fit
 MIN_GENES = 50           # fewer usable genes than this is no basis for a prior: left unshrunk
-MAX_COMPONENTS = 200     # a grid longer than this means a broken variance, not a wide prior
+MAX_COMPONENTS = 200     # a longer prior grid is refused as a broken variance
 
 
 def prior_grid(x: np.ndarray, s: np.ndarray) -> np.ndarray:
@@ -59,8 +27,7 @@ def prior_grid(x: np.ndarray, s: np.ndarray) -> np.ndarray:
     hi = 2.0 * np.sqrt(m2) if m2 > 0 else 8.0 * lo
     hi = max(hi, 2.0 * lo)
     if not (lo > 0 and np.isfinite(hi)) or hi / lo > 2.0 ** (MAX_COMPONENTS / 2):
-        # a standard error near zero or an estimate near overflow would ask for hundreds of
-        # components; through pooled_delta the weight clamp keeps the grid near 60
+        # a standard error near zero or an estimate near overflow would ask for hundreds of components
         raise ValueError(f"adaptive_shrink: the prior grid from {lo:g} to {hi:g} is not usable "
                          f"(more than {MAX_COMPONENTS} components): check the variances")
     n = int(np.ceil(np.log2(hi / lo) * 2.0)) + 1
@@ -132,11 +99,9 @@ def adaptive_shrink(fc: np.ndarray, var: np.ndarray, *, stats: dict | None = Non
                     max_cycles: int = MAX_CYCLES) -> np.ndarray:
     """Posterior-mean shrinkage of `fc` given its sampling variance `var`, per gene.
 
-    Genes whose variance is not finite and positive, or whose estimate is not finite, take
-    no part in the fit and are returned untouched. With fewer than `MIN_GENES` usable genes
-    nothing is shrunk. `stats`, if given, counts the fits, the cycles they ran, how many
-    stopped at the cap (a lower bound on unfinished fits) and how many vectors were too thin
-    to fit, for the calls it is passed to.
+    Genes with a non-finite or non-positive variance, or a non-finite estimate, are returned untouched; with
+    fewer than `MIN_GENES` usable genes nothing is shrunk. `stats`, if given, accumulates the fits, their cycles,
+    the fits that stopped at `max_cycles` and the vectors too thin to fit.
     """
     fc = np.asarray(fc, dtype=np.float64)
     var = np.asarray(var, dtype=np.float64)
