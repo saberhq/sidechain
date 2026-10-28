@@ -2,8 +2,8 @@
 
     python -m sidechain.eval.loco ... --cell-lfc-map MAP.json      # also sidechain.submit.build, two-channel only
     MAP.json = {"lower": [0, ...], "size": [...], "scale": {"gene": {symbol: x}, "target": {knockdown: x} or x,
-                "clip": [lo, hi], "gene_default": x, "pair": "PAIRS.parquet", "signed": false}}
-                                                                              # or "contexts": {"D": scale, ...}
+                "clip": [lo, hi], "gene_default": x, "pair": "PAIRS.parquet", "signed": false}}   # or "contexts": {"D": scale, ...}
+
 `lower` holds the bins' increasing lower edges from 0 (the last bin is open), `size` each bin's emitted |log2FC|; 0
 stays 0 and the target gene is pinned after the map. The pair parquet has `target`, `feature`, `factor`; with `signed`
 true a factor may be negative and flips the change's sign, and `clip` is refused. Reads the map and its tables; the
