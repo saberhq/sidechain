@@ -6,7 +6,8 @@
 #   scripts/shade.sh --check                    # stored, and answering?
 #   scripts/shade.sh types A100_80G 2           # on-demand types with stock now, cheapest first (gpu type, gpu count)
 #   scripts/shade.sh sshkey                     # make ~/.ssh/sidechain_shade_ed25519 if absent, register it, make it the default
-#   scripts/shade.sh create sidechain-gpu-t125 hyperstack A100_80Gx2 canada-1
+#   scripts/shade.sh create sidechain-gpu-t125 hyperstack A100_80Gx2 canada-1      # SHADE_OS=<image> to override the OS
+#   scripts/shade.sh typeinfo massedcompute L40Sx2  # one type's raw entry: its OS images, CPU and memory
 #   scripts/shade.sh wait sidechain-gpu-t125    # until active, then writes its host entry: `ssh sidechain-gpu-t125`
 #   scripts/shade.sh ls [--json] | info NAME | delete NAME     # --json: the board's Box panel reads it
 #
@@ -179,6 +180,14 @@ case "${1:-}" in
     callpy GET "/instances/types?$q" "" "$PY_TYPES"
     ;;
 
+  typeinfo)
+    need_key
+    callpy GET "/instances/types?cloud=${2:?usage: typeinfo CLOUD SHADE_TYPE}" "" '
+import json, sys
+for t in json.load(sys.stdin).get("instance_types", []):
+    if t.get("shade_instance_type") == sys.argv[1]: print(json.dumps(t, indent=1))' "${3:?shade type}"
+    ;;
+
   sshkey)
     need_key
     [ -f "$KEYFILE" ] || ssh-keygen -q -t ed25519 -N "" -C "sidechain-shadeform" -f "$KEYFILE"
@@ -207,9 +216,9 @@ print(next((k["id"] for k in json.load(sys.stdin).get("ssh_keys", []) if pub in 
     if printf '%s' "$live" | "$PY" -c "$PY_LIVE" "$name" exists; then die "an instance named $name is already live"; fi
     body="$("$PY" -c '
 import json, sys
-n, c, t, r = sys.argv[1:]
+n, c, t, r, o = sys.argv[1:]
 print(json.dumps({"cloud": c, "region": r, "shade_instance_type": t, "shade_cloud": True, "name": n,
-                  "os": "ubuntu22.04_cuda12.2_shade_os"}))' "$name" "$cloud" "$stype" "$region")"
+                  "os": o}))' "$name" "$cloud" "$stype" "$region" "${SHADE_OS:-ubuntu22.04_cuda12.2_shade_os}")"
     id="$(callpy POST /instances/create "$body" 'import json,sys; print(json.load(sys.stdin)["id"])')"
     echo "$name $id creating ($cloud $stype $region). Next: scripts/shade.sh wait $name"
     ;;
