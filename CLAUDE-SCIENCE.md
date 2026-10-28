@@ -1,7 +1,7 @@
 # CLAUDE-SCIENCE.md — Claude Science beside Claude Code
 
-Companion to `CLAUDE.md`. That file is the rules for every session working in this checkout, and
-since 2026-09-29 that includes Claude Science sessions (ADR 0011). This one says what a Science
+Companion to `CLAUDE.md` (the code rules) and `private/CLAUDE.md` (the session rules), which together are the rules
+for every session working in this checkout; since 2026-09-29 that includes Claude Science sessions (ADR 0011). This one says what a Science
 session is for, how it gets its hooks, what stays with Claude Code, and how the two hand work to
 each other. Written against the platform as measured 2026-09-29.
 
@@ -206,7 +206,7 @@ The rung ladder, metric-first, nothing-trusted-until-the-mirror-scores-it, spars
 naming, two submissions a day. Science is another place to do the measuring. It is not another place
 to decide what counts as a win.
 
-## Project Agent Context — last synced 2026-10-05
+## Project Agent Context — last synced 2026-10-28
 
 This block is canonical; the Claude Science project-settings box holds a copy of it. It is kept to
 pointers on purpose (Saber, 2026-10-05), so it only changes when a path does: everything else a
@@ -214,5 +214,5 @@ Science session needs is read from the git, starting with `CLAUDE.md`. Edit here
 into the box, and set this heading's date to the day of the paste.
 
 ```markdown
-Sidechain: Saber's entry to Arc's Virtual Cell Challenge 2026. The git is canonical; read it, never recall it. Repos: ~/code/sidechain (public) and ~/code/sidechain/private, both read-write. Data: ~/data/sidechain. Every session first reads ~/code/sidechain/CLAUDE.md, then CLAUDE-SCIENCE.md; for research or planning, also private/CLAUDE.md. "pick up T<n>": follow private/research/protocol/sidechain-pickup/SKILL.md. Any other project skill: read private/research/protocol/<name>/SKILL.md and follow it. Commit only through science_session.py commit; never push, never run vcc.
+Sidechain: Saber's entry to Arc's Virtual Cell Challenge 2026. The git is canonical; read it, never recall it. Repos: ~/code/sidechain (public) and ~/code/sidechain/private, both read-write. Data: ~/data/sidechain. Every session first reads ~/code/sidechain/CLAUDE.md and ~/code/sidechain/private/CLAUDE.md, then CLAUDE-SCIENCE.md.md. "pick up T<n>": follow private/research/protocol/sidechain-pickup/SKILL.md. Any other project skill: read private/research/protocol/<name>/SKILL.md and follow it. Commit only through science_session.py commit; never push, never run vcc.
 ```
