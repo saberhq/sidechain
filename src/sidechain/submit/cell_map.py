@@ -6,8 +6,7 @@
 
 `lower` holds the bins' increasing lower edges from 0 (the last bin is open), `size` each bin's emitted |log2FC|; 0
 stays 0 and the target gene is pinned after the map. The pair parquet has `target`, `feature`, `factor`; with `signed`
-true a factor may be negative and flips the change's sign, and `clip` is refused. Reads the map and its tables; the
-run's record (`cell_lfc_map`) carries the file's sha256 and bins.
+true a factor may be negative (the sign flips) and `clip` is refused. The run's record carries the file's sha256 and bins.
 Notes: private/code-notes/src/sidechain/submit/cell_map.py.md
 """
 from __future__ import annotations
