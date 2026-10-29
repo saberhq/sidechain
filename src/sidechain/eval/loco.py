@@ -711,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="--delta-cache-build: processes that pool side by side (default 1)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--de-backend", default="pdex")
+    ap.add_argument("--write-degenes", action="store_true", help="keep the scorer's per-gene DE tables under <out>/run/")
     args = ap.parse_args(argv)
     cov_tiers = parse_coverage_tiers(args.coverage_tiers)
     check_neighbour_args(ap, args)
@@ -859,7 +860,7 @@ def main(argv: list[str] | None = None) -> int:
     with_ctrl = attach_controls(out / "pred.h5ad", args.real, out / "pred_with_controls.h5ad",
                                 pert_col=args.pert_col, control=args.control)
     res = score(with_ctrl, args.real, args.bundle, out, pert_col=args.pert_col, control=args.control,
-                de_backend=args.de_backend)
+                de_backend=args.de_backend, write_degenes=args.write_degenes)
     res["build"] = info
     # the sources, and which of them were shrunk, are part of what produced the run
     res["sources"] = {"pseudobulk": args.source, "shrink_pseudobulk": args.shrink_source,

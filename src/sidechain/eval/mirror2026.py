@@ -114,11 +114,12 @@ def attach_controls(pred: Path, real: Path, out: Path, *, pert_col: str, control
 
 
 def score(pred: Path, real: Path, bundle: Path, out: Path, *, pert_col: str, control: str,
-          de_backend: str = "pdex") -> dict:
-    """Raw metrics + bundle-scaled score for one prediction. Returns the scaled members."""
+          de_backend: str = "pdex", write_degenes: bool = False) -> dict:
+    """Raw metrics + bundle-scaled score for one prediction (`write_degenes`: keep run/de_*.parquet)."""
     out = out.expanduser()
     run = out / "run"
-    _run(CE2 + ["run", "-ap", str(pred), "-ar", str(real), "-o", str(run), *_common(pert_col, control, de_backend)],
+    _run(CE2 + ["run", "-ap", str(pred), "-ar", str(real), "-o", str(run), *_common(pert_col, control, de_backend),
+                *(["--write-degenes"] if write_degenes else [])],
          out / "logs" / "run.log")
     scored = out / "scored.csv"
     _run(CE2 + ["score", "--user-agg", str(run / "agg_results.csv"), "--real-bundle", str(bundle), "-o", str(scored)],
@@ -158,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--control", default="non-targeting")
     s.add_argument("--de-backend", default="pdex")
     s.add_argument("--attach-controls", action="store_true", help="append the real controls to the prediction first")
+    s.add_argument("--write-degenes", action="store_true", help="keep the per-gene DE tables under run/")
     args = ap.parse_args(argv)
     if args.cmd == "bundle":
         bundle = build_bundle(args.real, args.out, pert_col=args.pert_col, control=args.control,
@@ -172,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             pred = attach_controls(args.pred, args.real, args.out.expanduser() / "pred_with_controls.h5ad",
                                    pert_col=args.pert_col, control=args.control)
         res = score(pred, args.real, args.bundle, args.out, pert_col=args.pert_col, control=args.control,
-                    de_backend=args.de_backend)
+                    de_backend=args.de_backend, write_degenes=args.write_degenes)
         print(json.dumps(res, indent=1))
     return 0
 
