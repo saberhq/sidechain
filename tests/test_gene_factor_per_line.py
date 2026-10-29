@@ -1,12 +1,8 @@
-"""`--gene-factor` with a `context` column (T120): a per-line multiplier on the pooled delta.
+"""`--gene-factor` with a `context` column: a per-context multiplier on the pooled delta.
 
-Pinned here: the loader reads a row with a context as that context's and a row with an empty one as every
-context's, and refuses a (gene, context) named twice, including a gene with both kinds of row; on
-`submit.build` a context's cells are those of a build whose table holds only the rows that apply to it, and a
-context the table does not name is the plain build's, cell for cell -- unrouted, routed (T126) and under
-gamma; a table with the column whose rows are all every-context is the table without it, bit for bit; on
-`eval.loco`, `--gene-factor-context` picks one context's rows, and a context the table cannot serve is
-refused rather than scored as the plain recipe.
+    .venv/bin/python -m pytest -q tests/test_gene_factor_per_line.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_gene_factor_per_line.py.md
 """
 from __future__ import annotations
 
@@ -140,7 +136,7 @@ def _run(ch, stem, *extra):
     assert build.main(["--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
                        "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
                        "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "10", "--no-shrink",
-                       "--alpha", "1.35", "--alpha-bulk", "1.6", "--emit-lambda", "0.5", *extra]) == 0
+                       "--alpha", "1.2", "--alpha-bulk", "1.6", "--emit-lambda", "0.4", *extra]) == 0
     return ad.read_h5ad(ch["out"] / f"{stem}.h5ad")
 
 
@@ -199,8 +195,7 @@ def test_routed_build_splits_each_pool_by_factor(ch):
 
 
 def test_one_pool_shared_by_contexts_with_different_factors(ch):
-    """Unrouted, X and Y share one pooled map, split by the factor: neither context's factor may reach the
-    other's cells (a mutant that skips the copy scales the shared map twice)."""
+    """Unrouted, X and Y share one pooled map: neither context's factor reaches the other's cells."""
     t = ch["tmp"]
     per = _table(t / "per.parquet", [("B", 0.0, "X"), ("B", 3.0, "Y")])
     ux = _table(t / "ux.parquet", [("B", 0.0)], context=False)
@@ -223,7 +218,7 @@ def test_build_refusals(ch, capsys):
     with pytest.raises(SystemExit, match="in any of its contexts"):
         _run(ch, "z", *_gf(_table(t / "z.parquet", [("B", 0.3, "Z")])))
     with pytest.raises(SystemExit):
-        _run(ch, "ser-99benw_t120_v1", "--bulk-anchor", "pooled",
+        _run(ch, "ser-99_fixture_v1", "--bulk-anchor", "pooled",
              *_gf(_table(t / "u.parquet", [("B", 0.3)], context=False)))
     assert "--gene-factor has no registered knob letter" in capsys.readouterr().err
 

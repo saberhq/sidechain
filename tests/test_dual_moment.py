@@ -1,9 +1,8 @@
-"""Contract tests for the two-amplitude emission (T84, `PoissonEmitter.emit_dual`).
+"""`PoissonEmitter.emit_dual`, the two-amplitude emission, and its `eval.loco` knobs.
 
-What is pinned: the per-cell mean follows one profile and the column sums another, both to
-the routine's own tolerance; every cell keeps its depth and every column its total; the
-identity call (same profile on both channels) is the pin's own control; lambda 0 is refused;
-`eval.loco` records the knob and stays bit-identical without it.
+    .venv/bin/python -m pytest -q tests/test_dual_moment.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_dual_moment.py.md
 """
 from __future__ import annotations
 
@@ -138,8 +137,7 @@ def test_loco_records_alpha_bulk_and_stays_identical_without_it(monkeypatch, tmp
     genes = np.array([f"g{i}" for i in range(G)], dtype=object)
     basal = rng.uniform(100, 2000, size=G)
     labels_src = ["ctrl", "g0", "g1"]
-    # effects the size of a real pooled delta (mean |log2FC| ~0.1-0.15), so alpha_bulk 1.6 sits
-    # inside the lambda 0.5 depth envelope on every gene
+    # small effects, so alpha_bulk 1.6 sits inside the depth envelope on every gene
     mean = np.stack([basal, basal * np.exp2(rng.normal(0, 0.15, G)), basal * np.exp2(rng.normal(0, 0.15, G))])
     n = np.full(3, 1000, dtype=np.int64)
     src = PseudobulkSums(labels=labels_src, genes=genes.copy(), count_sum=mean * n[:, None],
@@ -160,13 +158,13 @@ def test_loco_records_alpha_bulk_and_stays_identical_without_it(monkeypatch, tmp
                         lambda self, *a, **k: calls.append(1) or orig(self, *a, **k))
     one = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "one.h5ad",
                                          pert_col="perturbation", control="non-targeting",
-                                         shrinkage=False, var_floor="poisson", emit_lambda=0.5,
-                                         alpha=1.35, min_libsize=0.0)
+                                         shrinkage=False, var_floor="poisson", emit_lambda=0.6,
+                                         alpha=1.2, min_libsize=0.0)
     assert calls == [] and one["alpha_bulk"] is None and one["dual_fallbacks"] is None
     two = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "two.h5ad",
                                          pert_col="perturbation", control="non-targeting",
-                                         shrinkage=False, var_floor="poisson", emit_lambda=0.5,
-                                         alpha=1.35, alpha_bulk=1.6, min_libsize=0.0)
+                                         shrinkage=False, var_floor="poisson", emit_lambda=0.6,
+                                         alpha=1.2, alpha_bulk=1.6, min_libsize=0.0)
     assert calls == [1, 1] and two["alpha_bulk"] == 1.6 and two["dual_fallbacks"] == 0
     a = ad.read_h5ad(tmp_path / "one.h5ad"); b = ad.read_h5ad(tmp_path / "two.h5ad")
     assert a.shape == b.shape
@@ -182,12 +180,11 @@ def test_loco_records_alpha_bulk_and_stays_identical_without_it(monkeypatch, tmp
                                        dispersion="even", alpha_bulk=2.0, min_libsize=0.0)
 
 
-# ── T84 round 2: the pooled anchor (private research/ideas/board-methods-survey.md D9) ───────
+# ── the pooled anchor ─────────────────────────────────────────────────────────────────────────
 
 
 def _coupled_controls(tmp_path, rng, n=400, g=G):
-    """Control cells whose composition tracks depth, as cycling cells do: gene 0 is enriched in
-    deep cells, so the pooled profile holds more of it than the mean of per-cell CPM does."""
+    """Control cells whose composition tracks depth: gene 0 is enriched in deep cells."""
     import anndata as ad
     import pandas as pd
 
@@ -279,7 +276,7 @@ def test_loco_routes_every_target_through_the_dual_emitter_under_the_pooled_anch
     monkeypatch.setattr(loco.PoissonEmitter, "emit_dual",
                         lambda self, *a, **k: calls.append(a[1] is None) or orig(self, *a, **k))
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False,
-              var_floor="poisson", emit_lambda=0.5, alpha=1.35, min_libsize=0.0)
+              var_floor="poisson", emit_lambda=0.6, alpha=1.2, min_libsize=0.0)
     base = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "base.h5ad", **kw)
     assert calls == [] and base["bulk_anchor"] == "mean_cpm" and base["dual_fallbacks"] is None
     got = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "pooled.h5ad",
@@ -300,10 +297,7 @@ def _pooled_profile(rng):
 
 
 def test_the_anchor_fallback_keeps_the_pooled_profile_and_the_template_one_loses_it():
-    """T84 sweep, 2026-10-01: a target whose two amplitudes cannot both be met used to be emitted
-    from the one-amplitude template, which is built on the mean-per-cell-CPM profile -- so under
-    the pooled anchor it lost the anchor as well. `on_fail="anchor"` keeps the summed profile on
-    the anchor at the per-cell amplitude; `"fallback"` is unchanged, bit for bit."""
+    """`on_fail="anchor"` keeps the summed profile on the pooled anchor; `"fallback"` returns the template."""
     rng = np.random.default_rng(2)
     prof = _pooled_profile(rng)
     d = rng.normal(0, 0.4, size=G)
@@ -387,15 +381,13 @@ def test_loco_passes_the_fallback_rung_and_names_the_targets_that_fell_back(monk
         return orig(self, *a, **k)
 
     def refuse_the_pair(*a, **k):     # the requested pair fails by fiat, so the rung is exercised
-        # (max_projection=0.0 used to do this: it needed the projection error to sit above zero by
-        # rounding noise, and on some CI runners it is exactly zero)
         fits.append(1)
         if len(fits) == 1:
             raise ValueError("requested bulk profile lies 1.0000 (L1) outside the depth envelope, "
                              "above max_projection=0.03")
         return orig_fit(*a, **k)
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.6, bulk_anchor="pooled", min_libsize=0.0)
+              emit_lambda=0.6, alpha=1.2, alpha_bulk=1.6, bulk_anchor="pooled", min_libsize=0.0)
     monkeypatch.setattr(loco.PoissonEmitter, "emit_dual", spy)
     monkeypatch.setattr(ce, "dual_moment_counts", refuse_the_pair)
     old = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "old.h5ad", **kw)
@@ -412,15 +404,15 @@ def test_loco_passes_the_fallback_rung_and_names_the_targets_that_fell_back(monk
                                        dual_fallback="pooled", **kw)
     one = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "one.h5ad",
                                          pert_col="perturbation", control="non-targeting",
-                                         shrinkage=False, emit_lambda=0.5, alpha=1.35, min_libsize=0.0)
+                                         shrinkage=False, emit_lambda=0.6, alpha=1.2, min_libsize=0.0)
     assert one["dual_fallback"] is None and one["dual_fallback_targets"] is None
     with pytest.raises(SystemExit, match="two-channel"):           # one channel: nothing to fall back from
         loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "inert.h5ad",
                                        pert_col="perturbation", control="non-targeting", shrinkage=False,
-                                       emit_lambda=0.5, alpha=1.35, min_libsize=0.0, dual_fallback="anchor")
+                                       emit_lambda=0.6, alpha=1.2, min_libsize=0.0, dual_fallback="anchor")
 
 
-# ── T85: the per-gene scatter dial (private research/ideas/reach-call-set-emitter.md) ─────────
+# ── the per-gene scatter dial ─────────────────────────────────────────────────────────────────
 
 
 def _cpm(M):
@@ -469,7 +461,7 @@ def test_a_sharpened_gene_keeps_both_moments_and_every_depth_and_loses_its_scatt
     other = ~head
     assert np.median(sharp_comp.std(axis=0)[other] / base_comp.std(axis=0)[other]) > 0.9
     moved = np.abs(base[:, other] - sharp[:, other])
-    assert (moved == 0).mean() > 0.6 and moved.mean() < 0.5      # here the head is 39 % of the counts; on real folds it is a few %
+    assert (moved == 0).mean() > 0.6 and moved.mean() < 0.5
 
 
 def test_an_interior_scatter_sits_between_the_template_and_the_sharp_gene():
@@ -567,7 +559,7 @@ def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
                   "feature": top + ["g0", "nope", "g5", top[0] + "x"],
                   "scatter": [0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0]}).to_parquet(table)
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.35, min_libsize=0.0, cells_per_pert=300)
+              emit_lambda=0.6, alpha=1.2, alpha_bulk=1.2, min_libsize=0.0, cells_per_pert=300)
     plain = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "plain.h5ad", **kw)
     dialed = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "dialed.h5ad",
                                             scatter_table=table, **kw)
@@ -625,16 +617,14 @@ def test_loco_reads_a_scatter_table_and_touches_only_what_it_lists(tmp_path):
     assert np.array_equal(ad.read_h5ad(tmp_path / "noted.h5ad").X.toarray(), B_)
 
 
-# ── T85: the controls' own shape (private research/ideas/reach-call-set-emitter.md) ──────────────────
+# ── the controls' own shape ───────────────────────────────────────────────────────────────────
 
 GS = 300      # the shape tests need expression classes: sparse, depth-tracking, on/off and minority-carried genes
 KINDS = ("plain", "plain", "plain", "depth-tracking", "on/off", "minority")
 
 
 def _gene_laws(g=GS):
-    """One fixed set of genes: mean counts per cell from 0.02 to 40 at depth 8,000; half over-dispersed
-    gamma genes, a sixth tracking the cell's depth (so the pooled profile is not the mean-CPM one), a
-    sixth off in 60 % of cells, a sixth carried by a minority (5 % of cells at eight times the rest)."""
+    """Fixed gene laws: plain gamma, depth-tracking, on/off and minority-carried genes, sparse to high."""
     rng = np.random.default_rng(7)
     base = np.exp(rng.uniform(np.log(2.5e-6), np.log(5e-3), size=g))
     return base / base.sum(), rng.uniform(1.0, 4.0, size=g), np.array([KINDS[j % 6] for j in range(g)])
@@ -717,9 +707,7 @@ def test_from_controls_keeps_the_cells_only_when_asked_and_reads_each_genes_spre
     poisson = _kept_profile(tmp_path, rng.poisson(np.tile(np.linspace(0.5, 20, 30), (1500, 1))).astype(np.float32),
                             keep_cells=True)
     assert np.median(poisson.dispersion) < 0.02
-    # a gene the controls hold a few counts of has no spread to read (the moment estimate is zero
-    # for a third of such genes and several times too large for most others): it takes the
-    # well-measured genes' typical value
+    # a gene the controls hold a few counts of takes the typical value of the genes with many counts
     small = _kept_profile(tmp_path, X[:400], keep_cells=True)
     few = X[:400].sum(axis=0) < 100
     typical = np.median(small.dispersion[X[:400].sum(axis=0) >= 400])
@@ -824,12 +812,7 @@ def test_a_shaped_block_is_real_cells_at_real_depths_and_sits_on_both_moments(tm
 
 @pytest.mark.parametrize("anchor", ["mean_cpm", "pooled"])
 def test_with_nothing_predicted_a_shaped_block_reads_as_control_cells(tmp_path, anchor):
-    """The actuator's own control. A template gene is called for being narrower than a real cell's,
-    whatever is predicted; a shaped block with nothing predicted must be control cells to the rank
-    test, in every expression class, under either anchor. Two earlier constructions failed it: a
-    control cell's composition scaled to the template's depth (z near -0.8, about twenty calls a
-    knockdown), and a re-rating that took the drawn cells' sampling error out of every cell alike
-    (calls on genes a few cells carry)."""
+    """With nothing predicted, a shaped block reads as control cells to the rank test in every class."""
     rng = np.random.default_rng(35)
     X = _cells_like_real(rng, 5000)
     prof = _kept_profile(tmp_path, X, keep_cells=True)
@@ -888,9 +871,7 @@ def test_a_predicted_shift_moves_a_shaped_gene_as_it_moves_a_real_one(tmp_path):
 
 @pytest.mark.parametrize("gap", [1.0, 1.26])
 def test_the_fit_is_handed_cells_that_already_sit_on_both_moments(tmp_path, gap):
-    """Why the re-rating solves for two numbers a gene: the fit can only rescale a count, and a
-    rescaled count never fills a zero, so the fit must have next to nothing left to do, also when
-    the summed profile is asked at another amplitude than the per-cell mean."""
+    """The cells handed to the fit already sit on both moments, also with the bulk at another amplitude."""
     import sidechain.models.count_emitters as ce
 
     rng = np.random.default_rng(37)
@@ -935,9 +916,7 @@ def test_two_amplitudes_are_carried_as_a_lean_with_depth_and_no_cell_is_emptied(
 
 
 def _cells_with_a_long_tail(rng, n, g=GS):
-    """`_cells_like_real` with what broke two box arms on HEK293T: a few cells eight to ten times the
-    mean depth, depth-tracking genes that rise faster than depth, and a few cells holding fifteen times
-    their share of a sixth of the genes."""
+    """`_cells_like_real` plus a few very deep cells, steep depth-tracking genes and minority-heavy cells."""
     base, k, kind = _gene_laws(g)
     depth = rng.lognormal(np.log(8000), 0.45, size=n)
     deep = rng.choice(n, size=max(n // 100, 4), replace=False)
@@ -953,12 +932,7 @@ def _cells_with_a_long_tail(rng, n, g=GS):
 
 @pytest.mark.parametrize("shift", [False, True])
 def test_no_shaped_cell_runs_away_from_its_own_depth(tmp_path, shift):
-    """T85, 2026-10-06: two box arms died on the scorer's 1,000,000-count limit because a re-rated
-    HEK293T cell reached 1,684,750 counts. The solve that moves the drawn cells onto the two moments
-    diverged where a few very deep cells carry a gene, and threw those cells to its 64-fold limit.
-    On cells with that long tail, predicted shift or none: the re-rated cells end no further from
-    the two moments than the drawn cells began, to within 0.05 (a solve that takes every step ends
-    far further), and no cell needs holding to the depth cap."""
+    """On long-tailed cells the re-rated cells end no further from both moments than drawn, none held."""
     X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
     prof = _kept_profile(tmp_path, X, keep_cells=True)
     em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
@@ -981,7 +955,7 @@ def test_no_shaped_cell_runs_away_from_its_own_depth(tmp_path, shift):
                             np.abs(M.sum(axis=0) / (p_bulk * own.sum()) - 1.0)[prof.fraction > 2e-4].max())
         assert off(start) <= off(drawn) + 0.05, (off(start), off(drawn))
     assert deep_in >= 12                                   # the deep cells are in the draws
-    assert held == 0 and max(gain) < 2.0, (gain, held)      # the old solve wrote a cell of over two million counts here
+    assert held == 0 and max(gain) < 2.0, (gain, held)
 
 
 def test_a_shaped_block_holds_the_controls_own_spread_of_depths(tmp_path):
@@ -1010,11 +984,7 @@ def test_a_shaped_block_holds_the_controls_own_spread_of_depths(tmp_path):
 
 
 def test_a_cell_asked_for_more_than_twice_its_depth_is_held_to_that(tmp_path, monkeypatch):
-    """The guarantee under the solve: whatever is predicted, no re-rated cell leaves with more than
-    twice the depth it came with. A sixty-four-fold rise of the genes the deep cells hold most of
-    asks the deepest cells for two to three times their depth; every such cell is held to exactly
-    twice, counted, and loses only counts that were added to it; a cell under the cap is untouched;
-    and the emitted cells keep those depths."""
+    """A re-rated cell asked for over twice its depth is held to twice, counted, and loses only added counts."""
     import sidechain.models.count_emitters as ce
 
     X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
@@ -1047,12 +1017,7 @@ def test_a_cell_asked_for_more_than_twice_its_depth_is_held_to_that(tmp_path, mo
 
 
 def test_no_shaped_cell_passes_the_scorers_count_limit_whatever_its_own_depth(tmp_path, monkeypatch):
-    """Twice a cell's own depth is not the scorer's limit: a control cell over half of
-    max_counts_per_cell could still leave above it. The second cap is absolute, and it is the
-    number the scorer, the submission writer and `emit` use. With the limit set inside this
-    fixture's depths (30,000, where its deep cells hold 64,000 to 80,000), no cell leaves over it,
-    a control cell that is itself over it keeps that many of its own counts, and a cell under both
-    caps is untouched by either."""
+    """No re-rated cell leaves above the absolute count cap; a cell under both caps is untouched."""
     import sidechain.models.count_emitters as ce
     from sidechain.submit.writer import MAX_COUNTS_PER_CELL
 
@@ -1078,10 +1043,7 @@ def test_no_shaped_cell_passes_the_scorers_count_limit_whatever_its_own_depth(tm
 
 
 def test_a_gene_predicted_to_nothing_is_met_and_the_solve_runs_to_its_end(tmp_path):
-    """Two things the solve's record must not get wrong. A gene whose predicted fraction is exactly
-    zero is delivered by its ratio alone (every count thinned away) and is not a miss. And with two
-    amplitudes on ordinary cells the solve has the steps to finish: all but a gene or two a block
-    end within 1 % of both moments."""
+    """A gene predicted at zero is met by thinning, and the solve leaves at most a few genes unmet a block."""
     X = _cells_like_real(np.random.default_rng(4), 2500)
     prof = _kept_profile(tmp_path, X, keep_cells=True)
     em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
@@ -1102,9 +1064,7 @@ def test_a_gene_predicted_to_nothing_is_met_and_the_solve_runs_to_its_end(tmp_pa
 
 
 def test_on_long_tailed_depths_a_shaped_block_with_nothing_predicted_still_reads_as_control_cells(tmp_path):
-    """The fix must not buy safety with a worse null: on the long-tailed cells a shaped block with
-    nothing predicted is called no more than control cells are, and the emitted cells sit on both
-    moments."""
+    """On long-tailed cells a shaped block with nothing predicted is called no more than control cells."""
     X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
     prof = _kept_profile(tmp_path, X, keep_cells=True)
     em = PoissonEmitter(prof, seed=0, lam=0.5, bulk_anchor="pooled")
@@ -1118,7 +1078,7 @@ def test_on_long_tailed_depths_a_shaped_block_with_nothing_predicted_still_reads
         assert np.abs(block.sum(axis=0) / depth.sum() - em._fraction(None, bulk=True)).sum() < 2e-3   # summed profile
         assert depth.max() <= 2.0 * prof.libsizes.max()
     raw = [int(_rank_test(X[np.random.default_rng(50 + s).choice(len(X), 400, replace=False)], X)[1].sum()) for s in range(6)]
-    assert max(raw) == 0 and max(calls) <= 1, (calls, raw)  # one gene in one block of 48 over eight emitter seeds; the old solve: five a block
+    assert max(raw) == 0 and max(calls) <= 1, (calls, raw)
 
 
 @pytest.mark.parametrize("anchor", ["mean_cpm", "pooled"])
@@ -1132,8 +1092,7 @@ def test_on_ordinary_cells_the_solve_leaves_no_gene_unmet_and_holds_no_cell(tmp_
 
 
 def test_the_unmet_count_counts_what_the_solve_leaves(tmp_path, monkeypatch):
-    """`last_shape_unmet` is a count, not a ceiling: on the long-tailed cells the solve leaves about
-    one gene in thirteen more than 1 % off, and with no steps at all several times as many."""
+    """`last_shape_unmet` counts the genes the solve leaves off, and rises with no solve steps."""
     import sidechain.models.count_emitters as ce
 
     X = _cells_with_a_long_tail(np.random.default_rng(3), 2500)
@@ -1144,7 +1103,7 @@ def test_the_unmet_count_counts_what_the_solve_leaves(tmp_path, monkeypatch):
     for s in range(11, 23):
         em._shaped_start(400, p_cell, p_bulk, s)
         unmet.append(em.last_shape_unmet)
-    assert 250 <= sum(unmet) <= 380, unmet                  # 271 of 3,600 here; at SHAPE_SOLVE_STEPS = 2 839, at 1 1,830
+    assert 250 <= sum(unmet) <= 380, unmet
     solved = unmet[0]
     monkeypatch.setattr(ce, "SHAPE_SOLVE_STEPS", 0)
     em._shaped_start(400, p_cell, p_bulk, 11)
@@ -1213,7 +1172,7 @@ def _loco_shaped_record(tmp_path, name):
     real_path = tmp_path / f"real_{name}.h5ad"
     real.write_h5ad(real_path)
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.35, bulk_anchor="pooled", min_libsize=0.0, cells_per_pert=300)
+              emit_lambda=0.6, alpha=1.2, alpha_bulk=1.2, bulk_anchor="pooled", min_libsize=0.0, cells_per_pert=300)
     return loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / f"{name}.h5ad", emit_shape="controls", **kw)["emit_shape"]
 
 
@@ -1305,7 +1264,7 @@ def test_loco_emits_control_cells_on_request_and_keeps_the_runs_draws(monkeypatc
     orig = loco.PoissonEmitter.emit
     monkeypatch.setattr(loco.PoissonEmitter, "emit", lambda self, *a, **k: drawn.append(orig(self, *a, **k)) or drawn[-1])
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              emit_lambda=0.5, alpha=1.35, alpha_bulk=1.35, bulk_anchor="pooled", min_libsize=0.0, cells_per_pert=300)
+              emit_lambda=0.6, alpha=1.2, alpha_bulk=1.2, bulk_anchor="pooled", min_libsize=0.0, cells_per_pert=300)
     plain = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "plain.h5ad", **kw)
     templates, drawn[:] = [t.toarray() for t in drawn], []
     shaped = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "shaped.h5ad",

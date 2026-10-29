@@ -1,4 +1,9 @@
-"""The box kit's three small tools: the profile report, the scoring wrapper's caps, the machine record."""
+"""The box kit: profile report, scorer caps and gate, queue order, done check, CPU env.
+
+    .venv/bin/python -m pytest -q tests/test_boxkit.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_boxkit.py.md
+"""
 
 import importlib.util
 import os
@@ -122,8 +127,7 @@ def _meminfo(path, gib):
 
 
 def _gate(tmp_path, stub, args, **env):
-    # the gate reads the machine's own free memory unless told otherwise: GitHub's 16 GB runner
-    # never has the 16 GiB free a 10 GiB step needs (the step plus the 6 GiB margin), so every step waited
+    # a fake meminfo, so the gate never reads this machine's free memory
     mem = tmp_path / "meminfo"
     if not mem.exists():
         _meminfo(mem, 256)
@@ -223,9 +227,7 @@ def test_gate_does_not_end_a_waiting_step_on_stop(tmp_path):
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "STOP").write_text("")
     p = _gate(tmp_path, stub, ["run"], BOX_SCORER_GIB="10", BOX_CARDS="1")
-    assert (
-        p.wait(timeout=20) == 0
-    )  # T111's gate exited 75 here and discarded hours of emission
+    assert p.wait(timeout=20) == 0
     assert "STOP seen" in (tmp_path / "state" / "scorer_gate.log").read_text()
 
 

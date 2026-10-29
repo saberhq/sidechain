@@ -1,10 +1,8 @@
-"""`--cell-lfc-map` on `sidechain.eval.loco` and `sidechain.submit.build` (T134; `sidechain.submit.cell_map`).
+"""`--cell-lfc-map` (`sidechain.submit.cell_map`) on `eval.loco` and `submit.build`.
 
-Pinned here: the map replaces each per-cell change by its bin's size with the sign kept (0 and NaN stay); a bad file
-is refused before any work; in both entry points the per-cell channel the emitter receives is the map of what it
-received without the flag, the knockdown's own gene pinned after it, and the summed-profile channel is the same
-vector; off, nothing is recorded and nothing moves; the flag is refused on a one-channel emission and on a
-model-named stem.
+    .venv/bin/python -m pytest -q tests/test_cell_lfc_map.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_cell_lfc_map.py.md
 """
 from __future__ import annotations
 
@@ -74,7 +72,7 @@ def test_a_bad_map_is_refused(tmp_path, spec, msg):
 # -- eval.loco -------------------------------------------------------------------------------------------------
 
 G, N_LAB = 60, 6
-KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.5, alpha=1.35,
+KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.4, alpha=1.2,
           bulk_anchor="pooled", min_libsize=0.0, shrink_stage="pooled", shrink_rule="adaptive",
           dual_fallback="anchor", emit_shape="controls", alpha_bulk=2.0, seed=2)
 
@@ -170,7 +168,7 @@ def _argv(ch, stem, *extra, anchor="pooled"):
     return ["--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
             "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
             "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "10", "--no-shrink",
-            "--alpha", "1.35", "--emit-lambda", "0.5", "--bulk-anchor", anchor, *extra]
+            "--alpha", "1.2", "--emit-lambda", "0.4", "--bulk-anchor", anchor, *extra]
 
 
 def test_build_maps_the_per_cell_channel_only(ch, map_file, spy):
@@ -189,11 +187,11 @@ def test_build_refuses_the_map_where_it_cannot_act(ch, map_file, capsys):
         build.main(_argv(ch, "one", "--cell-lfc-map", str(map_file), anchor="mean_cpm"))
     assert "per-cell channel alone" in capsys.readouterr().err
     with pytest.raises(SystemExit):
-        build.main(_argv(ch, "ser-99benw_t84_v1", "--alpha-bulk", "2.0", "--cell-lfc-map", str(map_file)))
+        build.main(_argv(ch, "ser-99_fixture_v1", "--alpha-bulk", "2.0", "--cell-lfc-map", str(map_file)))
     assert "no registered knob letter" in capsys.readouterr().err
 
 
-# -- the scale: a per-gene and per-target factor on the mapped size (T134, the screen-depth map) ------------------
+# -- the scale: a per-gene and per-target factor on the mapped size -------------------------------------------
 
 def _scaled(tmp_path, scale=None, contexts=None, name="scaled.json"):
     p = tmp_path / name

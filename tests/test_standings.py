@@ -1,18 +1,8 @@
-"""Contract tests for scripts/standings.py — the rank-when-scored rule.
+"""`scripts/standings.py`: rank when scored, board size, class, the field file, the members board.
 
-The rule (scripts/standings.py docstring; private RESULTS.md header): rank is the rank
-in the FIRST board snapshot that contains the entry, and the board size is that
-snapshot's full team count (`live.total`) — never the embedded row count, because the
-board page embeds only its top ~50 teams and the two diverged on 2026-08-21. An entry
-ranked below the embed appears in no snapshot and falls back to its status record's
-scoring-time rank, with the board size from the first snapshot after the submission.
+    .venv/bin/python -m pytest -q tests/test_standings.py
 
-Also the `sidechain_class` rule (Saber, 2026-09-11, vocabulary settled 2026-09-12): the key is
-present and reads `calibration` on an entry sent purely to test a new method on the official
-board, and absent on every other one. There is no opposite label — every submission asks a
-question. No entry is left out of the outputs on it and it is not part of a model's name. It
-decides only how the site draws an entry: in the bars a calibration run sits in the strip
-below instead of sharing the main axis, and the rank plot leaves it out (Saber, 2026-10-07).
+Writes temporary files only. Notes: private/code-notes/tests/test_standings.py.md
 """
 import importlib.util
 import json
@@ -39,8 +29,7 @@ def snap(snaps_dir, stamp, ranks, total, final=None, final_total=None):
 
 def status(subs_dir, date, stem, entry_id, submission_date, score_avg=0.1,
            klass=None, **extra):
-    """klass defaults to None -- no `sidechain_class` key at all, which is the normal shape.
-    Only a calibration run carries one."""
+    """Write a status record; `klass` sets `sidechain_class`, absent by default."""
     body = {"entry_id": entry_id, "model_name": "Sidechain SER-9", "description": "",
             "submission_date": submission_date, "score_avg": score_avg}
     if klass is not None:
@@ -68,9 +57,7 @@ def test_first_containing_snapshot_wins(tmp_path):
 
 
 def test_below_the_embed_falls_back_to_status_rank(tmp_path):
-    """The witness is the first snapshot AFTER the submission, never an earlier one -- and
-    since 2026-09-11 it must also be within TEAMS_MAX_LAG_DAYS, so this fixture's second
-    snapshot sits inside the window (the out-of-window case has its own test below)."""
+    """An entry in no snapshot takes its record's rank and the first later snapshot's board size."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260821T2318Z", {"other": 1}, total=95)
@@ -91,13 +78,9 @@ def test_no_rank_anywhere_renders_an_em_dash(tmp_path):
 
 
 def test_a_submit_shaped_record_is_flattened_and_dated_from_its_filename(tmp_path):
-    """A superseded probe's only record is the `vcc submit --wait --json` output --
-    the status endpoint serves just a team's latest validation entry, so
-    log_submission.py --status-file saves that shape verbatim (2026-08-30,
-    SER-3afgn). Its members nest under "scores" and it has no submission_date;
-    the row must still land, with the scoring-time rank and the board size from
-    the first snapshot on the record's own filing date -- not the earliest
-    snapshot ever, which is what an empty stamp used to select."""
+    """A `vcc submit --wait --json` record is flattened, dated from its file name and sized by that
+    day's snapshot.
+    """
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260820T0900Z", {"other": 1}, 42)
@@ -156,9 +139,7 @@ def test_pre_divergence_snapshot_without_total_uses_the_embed_count(tmp_path):
 
 
 def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
-    """The board can't be backfilled (ADR 0005), so a `<record>.card.txt` beside the
-    status record supplies the card for our own surfaces -- flagged, so the site can
-    say the board entry itself is bare. A board card, when present, always wins."""
+    """A `.card.txt` beside the record supplies a missing card, flagged retro; a board card wins."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
@@ -173,9 +154,7 @@ def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
 
 
 def test_a_calibration_run_is_marked_and_stays_in_the_outputs(tmp_path):
-    """Both rows reach the generated outputs. The class travels with the row so the site can
-    draw them apart (a strip in the bars, no point on the rank plot); it never removes a row
-    from the JSON or the README."""
+    """A calibration run carries its class and stays in the outputs."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
@@ -188,8 +167,7 @@ def test_a_calibration_run_is_marked_and_stays_in_the_outputs(tmp_path):
 
 
 def test_an_absent_class_is_the_norm_and_never_warns(tmp_path):
-    """There is no opposite label to write down, so an absent key is not a missing one --
-    demanding it of every entry would be noise, not provenance (Saber, 2026-09-11)."""
+    """An absent class reads empty and does not warn."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260924T2051Z", {"e1": 25}, total=216)
@@ -224,7 +202,7 @@ def test_a_row_carries_the_class_and_nothing_else_about_it(tmp_path):
 
 
 def test_the_readme_marks_only_the_calibration_run(tmp_path):
-    """There is no opposite label, so every other row stays bare."""
+    """Only the calibration row is marked in the README."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 700}, total=800)
@@ -238,10 +216,7 @@ def test_the_readme_marks_only_the_calibration_run(tmp_path):
 
 
 def test_a_late_snapshot_is_not_a_witness_for_the_field_size(tmp_path):
-    """The real case: PHE-2 scored 2026-09-07 below the page's embed, and the snapshot taken
-    five days later for ANOTHER entry silently handed it a denominator of 903 — a field it
-    never competed in (533 teams eleven days earlier). No denominator beats a flattering one
-    (Saber, 2026-09-11), so the fallback only accepts a contemporary witness."""
+    """A snapshot days after scoring does not supply the board size."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260903T2329Z", {"other": 1}, total=600)
@@ -254,8 +229,7 @@ def test_a_late_snapshot_is_not_a_witness_for_the_field_size(tmp_path):
 
 
 def test_a_same_day_snapshot_still_supplies_the_field_size(tmp_path):
-    """The guard must not break the normal path — log_submission.py takes the snapshot at
-    record time, so the witness is minutes old, not days."""
+    """A same-day snapshot supplies the board size."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
@@ -265,9 +239,7 @@ def test_a_same_day_snapshot_still_supplies_the_field_size(tmp_path):
 
 
 def test_the_frozen_scoring_time_rank_beats_the_records_live_rank(tmp_path):
-    """SER-6aefn, 2026-09-12: re-fetched live hours after scoring to recover its
-    submission_date, and the board had re-ranked it from 245 to 244 in the meantime. "Rank
-    when scored" means when it scored, so the frozen first observation wins."""
+    """`sidechain_rank_when_scored` wins over the record's own rank."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
@@ -278,7 +250,7 @@ def test_the_frozen_scoring_time_rank_beats_the_records_live_rank(tmp_path):
 
 
 def test_without_a_frozen_rank_the_records_own_rank_still_stands(tmp_path):
-    """Nothing is written for the eleven records whose `rank` IS their first observation."""
+    """Without a frozen rank, the record's own rank stands."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260912T0216Z", {"other": 1}, total=903)
@@ -288,8 +260,7 @@ def test_without_a_frozen_rank_the_records_own_rank_still_stands(tmp_path):
 
 
 def test_a_final_entry_is_ranked_on_the_final_board_never_the_live_one(tmp_path):
-    """The rounds are not comparable (Arc's FAQ): a final record reads the final board's rank
-    and field size, and a validation record never sees the final board (T93, 2026-09-23)."""
+    """A final record reads the final board's rank and size; a validation record never does."""
     subs, snaps = tmp_path / "s", tmp_path / "l"
     subs.mkdir(); snaps.mkdir()
     status(subs, "2026-09-17", "ser-7_v1", "VAL1", "2026-09-17T19:43:00", partition="val",
@@ -323,7 +294,7 @@ def test_a_record_without_a_partition_is_a_validation_entry(tmp_path):
     assert (row["rank"], row["teams"], row["partition"]) == (2, 42, "val")
 
 
-# -- the field file (T107): the leaderboard over time, from board_teams.py's ticks.json --------
+# -- the field file: the leaderboard over time, from ticks.json ---------------------------------
 
 
 def tick(stamp, field, source="api", origin="ours", at_rank=None, our=None):
@@ -375,7 +346,7 @@ def test_no_series_on_this_machine_is_none_not_a_raise(tmp_path):
     assert standings.load_field(only_page) is None       # nothing to head the file with yet
 
 
-# --------------------------------------------------------------------------- the members and the Sidechain-only board (T79, 2026-10-08)
+# --------------------------------------------------------------------------- the members and the Sidechain-only board
 
 
 def members(**over):

@@ -1,12 +1,8 @@
-"""`--prediction-source pie` (T85): PIE's predicted log2FC where SER's pooled delta stands.
+"""`--prediction-source pie` in `sidechain.submit.pie_source`, `eval.loco` and `submit.build`.
 
-Pinned here: the reader maps PIE's genes onto the axis (unscored genes 0, off-axis genes dropped), sets values
-at or below the floor to 0 and clips to +-5, refuses a missing context or a doubled row; on `eval.loco` the
-default `ser` is the run without the flag, a PIE arm emits PIE's map at alpha with the knockdown's own gene
-pinned (whatever PIE says of it), a perturbation with no row is uncovered, and the record names the source; on
-`submit.build` the default's outputs and records are the build without the flag, a PIE build carries PIE's map
-per context with the generic shift for a missing perturbation, and a model-named stem or a pooled source is
-refused.
+    .venv/bin/python -m pytest -q tests/test_pie_source.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_pie_source.py.md
 """
 from __future__ import annotations
 
@@ -74,7 +70,7 @@ def test_reader_refuses_a_missing_context_and_a_doubled_row(tmp_path):
 def test_build_context_specs():
     assert ps.parse_pie_contexts([], ["A", "B"]) == {"A": "A", "B": "B"}
     assert ps.parse_pie_contexts(["unnamed"], ["A", "B"]) == {"A": "unnamed", "B": "unnamed"}
-    assert ps.parse_pie_contexts(["unnamed", "B=hela"], ["A", "B"]) == {"A": "unnamed", "B": "hela"}
+    assert ps.parse_pie_contexts(["unnamed", "B=lineb"], ["A", "B"]) == {"A": "unnamed", "B": "lineb"}
     with pytest.raises(SystemExit):
         ps.parse_pie_contexts(["Q=x"], ["A"])
 
@@ -111,7 +107,7 @@ def _fold(tmp_path):
 
 
 KW = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-          min_libsize=0.0, seed=0, alpha=1.35, alpha_bulk=1.0, emit_lambda=0.5, bulk_anchor="pooled")
+          min_libsize=0.0, seed=0, alpha=1.2, alpha_bulk=1.0, emit_lambda=0.4, bulk_anchor="pooled")
 
 
 def test_loco_default_is_the_run_without_the_flag(tmp_path):
@@ -157,7 +153,7 @@ def test_loco_pie_emits_pies_map_pinned_and_a_missing_row_uncovered(tmp_path, mo
             want[pos[g]] = vals[t][j]
         want, _ = ps.to_log2fc(want)
         mask = np.arange(len(GL)) != pos[t]
-        assert np.allclose(c[mask], want[mask] * 1.35) and np.allclose(b[mask], want[mask] * 1.0)
+        assert np.allclose(c[mask], want[mask] * 1.2) and np.allclose(b[mask], want[mask] * 1.0)
         assert c[pos[t]] == b[pos[t]] == build.TARGET_SELF_LOG2FC
     assert c2 is None and b2 is None                      # g2 has no row: uncovered, as no source covering it
     # the knockdown's own gene: whatever PIE says of it, the emitted cells are the same
@@ -227,8 +223,11 @@ def test_loco_main_default_and_switch(tmp_path, monkeypatch, challenge):  # noqa
 
 # ----------------------------------------------------------------------------------------- submit.build
 
+STRENGTH = ["--alpha", "1.2", "--alpha-bulk", "1.8", "--emit-lambda", "0.4"]
+
+
 def _pie_argv(ch, stem, extra):
-    argv = _argv(ch, stem, extra)
+    argv = _argv(ch, stem, [*STRENGTH, *extra])
     i = argv.index("--gwps-cache")
     return argv[:i] + argv[i + 2:]
 
@@ -259,15 +258,15 @@ def test_build_pie_carries_pies_map_and_the_generic_shift_for_a_missing_row(chal
     assert build.main(_pie_argv(challenge, "pie", ["--bulk-anchor", "pooled", "--prediction-source", "pie",
                                                    "--pie-parquet", str(f)])) == 0
     (ca, ba), (cb, bb) = seen
-    # A: genes A B C D <- (own, pinned) 5.0 (clipped) -0.3 0.4, at alpha 1.35 / alpha-bulk 1.5
+    # A: genes A B C D <- (own, pinned) 5.0 (clipped) -0.3 0.4, at alpha 1.2 / alpha-bulk 1.8
     assert ca[0] == ba[0] == build.TARGET_SELF_LOG2FC
-    assert np.allclose(ca[1:], np.array([5.0, -0.3, 0.4]) * 1.35)
-    assert np.allclose(ba[1:], np.array([5.0, -0.3, 0.4]) * 1.5)
+    assert np.allclose(ca[1:], np.array([5.0, -0.3, 0.4]) * 1.2)
+    assert np.allclose(ba[1:], np.array([5.0, -0.3, 0.4]) * 1.8)
     # B: no row under context X -> the generic (H1 mean) shift, as a target no source covers
     h1 = PseudobulkSums.load(challenge["data"] / "h1.npz")
     generic = build.h1_mean_shift(h1, "non-targeting", np.array(["A", "B", "C", "D"]))
     assert cb[1] == build.TARGET_SELF_LOG2FC
-    assert np.allclose(np.delete(cb, 1), np.delete(generic, 1) * 1.35)
+    assert np.allclose(np.delete(cb, 1), np.delete(generic, 1) * 1.2)
     rec = json.loads((challenge["out"] / "pie.pie.json").read_text())
     assert rec["pie_context"] == {"X": "X"} and rec["maps"]["X"]["perturbations_missing"] == 1
     args = json.loads((challenge["out"] / "pie.args.json").read_text())
@@ -275,7 +274,7 @@ def test_build_pie_carries_pies_map_and_the_generic_shift_for_a_missing_row(chal
     seen.clear()
     assert build.main(_pie_argv(challenge, "pie_u", ["--bulk-anchor", "pooled", "--prediction-source", "pie",
                                                      "--pie-parquet", str(f), "--pie-context", "unnamed"])) == 0
-    assert np.allclose(seen[1][0][[0, 2, 3]], [0.0, 1.35, 1.35])      # B's row read (A unscored), own gene pinned
+    assert np.allclose(seen[1][0][[0, 2, 3]], [0.0, 1.2, 1.2])        # B's row read (A unscored), own gene pinned
     assert seen[1][0][1] == build.TARGET_SELF_LOG2FC
 
 
@@ -283,7 +282,7 @@ def test_build_pie_refuses_a_pool_and_a_model_name(challenge, tmp_path):  # noqa
     f = _parquet(tmp_path / "p.parquet", ["A"], [("X", "A", [1.0])])
     pie = ["--prediction-source", "pie", "--pie-parquet", str(f)]
     for argv in (_argv(challenge, "pool", pie),                               # --gwps-cache is a pool
-                 _pie_argv(challenge, "ser-99_delta_test_v1", pie),
+                 _pie_argv(challenge, "ser-99_fixture_v1", pie),
                  _pie_argv(challenge, "nopar", ["--prediction-source", "pie"]),
                  _pie_argv(challenge, "noflag", ["--pie-parquet", str(f)])):
         with pytest.raises(SystemExit) as exc:

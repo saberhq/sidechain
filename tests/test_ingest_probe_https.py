@@ -1,17 +1,8 @@
-"""Contract tests for ``probe_https`` -- the sixth host, a plain web server (T102, TargetScan).
+"""`probe_https`, a plain web server as a host, and `fetch.verify` on its evidence.
 
-A web server has no record API, so three things the other probes take from the host come
-from the block instead, and each is a refusal we want to keep:
+    .venv/bin/python -m pytest -q tests/test_ingest_probe_https.py
 
-* the block's ``files`` list IS the listing -- a probe with no names has nothing to HEAD;
-* a name the server answers 404 to is refused HERE, before any download;
-* ``Content-Length`` is required, because without it the budget cannot be checked before
-  the bytes move -- which is the whole order ADR 0003 exists for.
-
-And one thing it records rather than invents: ``Last-Modified`` goes in the checksum slot
-under ``http-last-modified:`` -- evidence a later probe can diff, never a digest a check
-could hash a file into (same shape as ``probe_s3``'s multipart ETag). ``fetch.verify``
-therefore has to treat such a value as "no digest" instead of raising inside a check.
+Writes temporary files only. Notes: private/code-notes/tests/test_ingest_probe_https.py.md
 """
 from __future__ import annotations
 
@@ -108,8 +99,7 @@ def test_run_gate_admits_only_with_the_written_exception(tmp_path, monkeypatch):
     assert prov["notes"]["config"] == "configs/data_sources.yaml"
     assert prov["record"]["license"] == "Free-for-research-with-citation"
     assert prov["license_flags"] == {"noncommercial": False, "redistribution_encumbered": False}
-    # the same block WITHOUT the written exception is refused: the host publishes no digest,
-    # and a Last-Modified stamp in the checksum slot does not count as one (it did, once)
+    # without the written exception the block is refused: a Last-Modified stamp is not a digest
     with patch("urllib.request.urlopen", _urlopen_factory({"a.zip": 10})):
         with pytest.raises(GateError, match="no checksum"):
             fetch_mod.run_gate(_block(tmp_path / "two", allow_missing=False), tmp_path / "two")
@@ -152,8 +142,7 @@ def test_last_modified_parses_as_a_date():
 
 
 # ---------------------------------------------------------------- per-file url and digest --
-# ENCODE (T102): a file lives at /files/<accession>/@@download/<name>, not under one
-# directory, and the API states an md5 no header carries. The block's entry supplies both.
+# A block's entry may give its file its own url and md5.
 
 def test_an_entry_gives_its_file_its_own_url_and_a_stated_digest():
     entries = [{"name": "ENCFF000AAA.tsv", "url": "https://host.org/files/ENCFF000AAA/@@download/ENCFF000AAA.tsv",
@@ -220,7 +209,7 @@ def test_a_block_may_list_its_files_in_a_checked_in_manifest(tmp_path, monkeypat
         fetch_mod.block_files(block)
 
 
-# ------------------------------------------------- a host-built archive (CisBP-RNA, T120) --
+# ------------------------------------------------- a host-built archive --
 
 GEN_REQUEST = {"post": "https://example.org/bulk_archive.php",
                "form": {"selSpec": "Homo_sapiens", "Spec[]": ["RBP_Information", "PFMs"],
@@ -262,7 +251,7 @@ def test_a_request_entry_posts_the_form_heads_the_generated_link_and_records_no_
     f = rec.files[0]
     assert f.name == "human.zip" and f.size_bytes == 248765
     assert f.url == "https://example.org/tmp/Homo_sapiens_2026_10_16_10:23_pm.zip"
-    assert f.checksum is None                    # a generated archive's date is the request's moment
+    assert f.checksum is None                    # no evidence for a generated archive
     body = seen[0].decode()
     assert "selSpec=Homo_sapiens" in body and body.count("Spec%5B%5D=") == 2 and "submit=" in body
     assert seen[1] == f.url                      # the HEAD went to the generated link

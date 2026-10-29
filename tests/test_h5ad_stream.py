@@ -1,16 +1,8 @@
-"""The streamed h5ad writer, and the two mirror paths that were rewritten onto it.
+"""`sidechain.utils.h5ad_stream`, and the two writers on it: each file equals its in-memory construction.
 
-Both `loco.build_transfer_prediction` and `mirror2026.attach_controls` used to hold the whole
-matrix: one through `scipy.sparse.vstack`, the other through `anndata.concat`. On the X-Atlas
-folds (726 M nonzeros on the truth side, ~800 M on the emitted side) each peaks at roughly twice
-its result, which is what kept every arm on those folds box-only. They now append row blocks to
-HDF5 by hand.
+    .venv/bin/python -m pytest -q tests/test_h5ad_stream.py
 
-That is a plumbing change to code whose outputs are recorded numbers, so what these tests pin is
-**equivalence, not the plumbing**: the file the streamed path writes must carry the same matrix,
-the same obs labels and index, and the same gene axis as the in-memory construction it replaced.
-The in-memory forms are written out here longhand rather than imported, so a future edit to
-either function cannot quietly move both sides of the comparison.
+Writes temporary files only. Notes: private/code-notes/tests/test_h5ad_stream.py.md
 """
 from __future__ import annotations
 
@@ -60,10 +52,8 @@ def test_writer_round_trips_a_matrix_anndata_reads_back(tmp_path):
 
 
 def test_writer_row_pointers_survive_2_to_the_31_nonzeros(tmp_path):
-    # A 400-cell prediction on an X-Atlas fold has ~2.45e9 nonzeros. Under NumPy 2 a Python-int
-    # base plus an int32 block indptr stayed int32 and wrapped negative (T103 box night,
-    # 2026-09-30: every such arm died in attach_controls after an hour). Pretend 2^31 - 5
-    # nonzeros are already written, append a block, and read the pointers back.
+    # Pretend 2^31 - 5 nonzeros are already written, append an int32-indexed block, and read
+    # the pointers back.
     X = sp.csr_matrix(np.array([[1, 0, 2], [0, 3, 0], [4, 5, 6]], dtype=np.float32))
     X.indptr = X.indptr.astype(np.int32)
     with open_anndata_h5(tmp_path / "x.h5ad", "w") as h:
@@ -90,7 +80,7 @@ def test_load_rows_csr_returns_scattered_rows_in_order(tmp_path):
 
 
 def test_streamed_prediction_matches_the_in_memory_build(tmp_path, monkeypatch):
-    """`build_transfer_prediction`'s file, against the `vstack` + AnnData form it replaced."""
+    """`build_transfer_prediction`'s file equals the `vstack` + AnnData form."""
     real_path, _ = _toy(tmp_path)
     deltas = {}
 
@@ -100,9 +90,7 @@ def test_streamed_prediction_matches_the_in_memory_build(tmp_path, monkeypatch):
         return d
 
     monkeypatch.setattr(loco, "pooled_delta", fake_pool)
-    # The toy's control cells are shallower than the project floor, so the floor is
-    # named here rather than inherited: this test is about the streamed writer, and
-    # the two sides below have to keep the same control pool.
+    # the toy's control cells are below the default library-size floor, so it is set to 0
     info = loco.build_transfer_prediction(
         real_path, [], tmp_path / "pred.h5ad", pert_col="perturbation", control="non-targeting",
         dispersion="even", seed=7, min_libsize=0.0,

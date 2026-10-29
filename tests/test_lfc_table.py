@@ -1,9 +1,8 @@
-"""Tests for the (lfc, var) source type -- a corpus that ships the contrast taken.
+"""`sidechain.data.lfc_table`: the (lfc, var) source read from a published contrast table.
 
-The assertions worth keeping here are all about the variance, because the fold
-changes are simply read off the file. A source with no cells behind it has to
-have its weight derived, and the derivation has exactly two ways to go wrong:
-give a thin source too much weight, or give a real effect none.
+    .venv/bin/python -m pytest -q tests/test_lfc_table.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_lfc_table.py.md
 """
 from __future__ import annotations
 
@@ -36,13 +35,7 @@ def _write(tmp_path, rows, name="lfc.tsv.gz", header=HEADER):
 
 
 def test_a_saturated_pvalue_abstains_rather_than_voting_toward_zero():
-    """The failure this whole module is shaped around.
-
-    `se = |lfc| / z` on a near-zero lfc gives a near-zero standard error and so
-    an enormous weight -- Feng would dominate the pool on precisely the genes it
-    measured nothing on. 98.9 % of its rows are that case. Infinite variance
-    makes the weight exactly 0, so it abstains instead.
-    """
+    """A saturated p-value gives infinite variance, so the row's weight is 0."""
     lfc = np.array([0.001, 0.02, -0.005])
     p = np.array([0.999999927, 0.9999, 1.0])
     var = variance_from_pvalue(lfc, p)
@@ -51,13 +44,9 @@ def test_a_saturated_pvalue_abstains_rather_than_voting_toward_zero():
 
 
 def test_a_significant_row_gets_a_finite_variance_that_scales_with_the_effect():
-    """A real effect must keep a usable weight, or the source contributes nothing
-    at all and there was no point ingesting it.
+    """A significant row gets a finite variance; at the same p, twice the effect is twice the error.
 
-    Computed as two families of one, deliberately. Put both rows in a single
-    family and the BH inversion ranks them 1 and 2, giving equal adjusted
-    p-values *different* nominal ones -- which is the inversion working, but it
-    would confound the thing under test here.
+    Each row is its own BH family, so the inversion does not rank them against each other.
     """
     one = variance_from_pvalue(np.array([1.0]), np.array([1e-8]))
     two = variance_from_pvalue(np.array([2.0]), np.array([1e-8]))
@@ -68,7 +57,7 @@ def test_a_significant_row_gets_a_finite_variance_that_scales_with_the_effect():
 
 
 def test_a_weaker_pvalue_at_the_same_effect_size_means_more_variance():
-    """Monotonicity is the property that makes this a weighting at all."""
+    """At the same effect size a weaker p-value gives more variance."""
     lfc = np.array([1.0, 1.0, 1.0])
     # distinct ranks so the BH inversion does not tie them
     p = np.array([1e-10, 1e-4, 0.5])
@@ -77,8 +66,7 @@ def test_a_weaker_pvalue_at_the_same_effect_size_means_more_variance():
 
 
 def test_a_zero_effect_never_produces_a_weight():
-    """`se = |lfc|/z` is 0 when lfc is 0, which would be an infinite weight on a
-    gene the source says does not move."""
+    """A zero lfc gives infinite variance, not a zero standard error."""
     var = variance_from_pvalue(np.array([0.0]), np.array([1e-12]))
     assert np.isinf(var[0])
 
@@ -94,8 +82,7 @@ def test_bh_inversion_recovers_nominal_p_where_the_step_up_did_not_bind():
 
 
 def test_bh_inversion_is_order_independent():
-    """The file is sorted by target then gene, not by p, so the inversion has to
-    rank internally rather than assume the rows arrive sorted."""
+    """The BH inversion ranks internally and does not assume rows sorted by p."""
     adj = np.array([0.9, 0.02, 0.5, 0.004])
     shuffled = adj[[3, 1, 2, 0]]
     got = _nominal_from_bh(adj)[[3, 1, 2, 0]]
@@ -126,9 +113,7 @@ def test_reads_a_feng_shaped_table_into_a_matrix(tmp_path):
 
 
 def test_keep_filters_while_streaming(tmp_path):
-    """The genome-wide table is 43 M rows; holding all 6,673 targets is ~691 MB
-    against ~19 MB for the 182 that touch the panel. Filtering afterwards would
-    defeat the point, so it has to happen during the read."""
+    """`keep` filters targets during the read."""
     path = _write(tmp_path, [
         ("AAMP", "TSPAN6", "ENSG00000000003", 1.5, 1e-9),
         ("BRCA1", "TSPAN6", "ENSG00000000003", 0.4, 1e-5),
@@ -139,9 +124,7 @@ def test_keep_filters_while_streaming(tmp_path):
 
 
 def test_per_line_table_selects_one_context(tmp_path):
-    """`Cell_Line` makes context a per-ROW property in the targeted table. Reading
-    it without selecting a line would pool 19 lines into one context -- the exact
-    mistake report 07 caught the genome-wide arm being described with."""
+    """A table with a per-row `Cell_Line` column reads one selected line."""
     header = ("Target\tExpressed_Gene_Symbol\tExpressed_Gene_Ens_ID\t"
               "Cell_Line\twt_expr\tlfc\tpval_adj\n")
     path = _write(tmp_path, [
@@ -158,8 +141,7 @@ def test_per_line_table_selects_one_context(tmp_path):
 
 
 def test_a_renamed_column_raises_rather_than_returning_an_empty_table(tmp_path):
-    """Same strictness as `loaders.gene_index`: a silently empty source looks
-    exactly like a source that legitimately covers nothing."""
+    """A renamed column raises rather than returning an empty table."""
     path = _write(tmp_path, [("AAMP", "TSPAN6", "ENSG00000000003", 1.5, 1e-9)],
                   header="Target\tGene\tEns\tlogFC\tFDR\n")
     with pytest.raises(KeyError, match="lacks column"):
@@ -167,9 +149,7 @@ def test_a_renamed_column_raises_rather_than_returning_an_empty_table(tmp_path):
 
 
 def test_the_bh_family_is_the_rows_the_target_actually_has(tmp_path):
-    """A target measured on fewer genes must not be given a family it never had:
-    the rank/m inversion would then read every one of its p-values as smaller
-    than it is, and inflate its weight."""
+    """The BH family of a target is the rows that target has in the file."""
     # G0 is the SMALLEST adjusted p in WIDE's family, so rank 1 of 6. The other
     # five sit at 0.5, which keeps the sequence non-decreasing and so a valid
     # BH output rather than an impossible one.
@@ -212,14 +192,7 @@ def test_n_usable_counts_genes_carrying_a_weight(tmp_path):
 
 
 def test_a_tiny_pvalue_never_produces_an_infinite_weight():
-    """The numerical door into this module's central failure.
-
-    `1 - p/2` rounds to exactly 1.0 in float64 below p ~ 1e-16, so computing z
-    as `ndtri(1 - p/2)` returns inf, se becomes 0, and the weight 1/var is
-    INFINITE -- on precisely the genes the source is most confident about. On
-    the real Feng cache that hit 35 genes across 34 of 182 targets and each one
-    silently overrode every other source on that gene.
-    """
+    """A p-value below float64 resolution still gives a finite, positive, monotone variance."""
     lfc = np.array([1.0, 1.0, 1.0, 1.0])
     p = np.array([1e-2, 1e-20, 1e-100, 1e-300])
     var = variance_from_pvalue(lfc, p)
@@ -230,8 +203,7 @@ def test_a_tiny_pvalue_never_produces_an_infinite_weight():
 
 
 def test_no_finite_variance_is_ever_zero(tmp_path):
-    """A zero variance is an infinite weight wearing a finite mask -- the pooling
-    site checks `isfinite(var)`, which a 0.0 passes."""
+    """No finite variance read from a file is zero."""
     rows = [("T", f"G{i}", f"E{i}", 2.5, 10.0 ** -(3 * i + 3)) for i in range(8)]
     t = read_feng_lfc(_write(tmp_path, rows))
     fin = np.isfinite(t.var)
@@ -239,7 +211,7 @@ def test_no_finite_variance_is_ever_zero(tmp_path):
     assert (t.var[fin] > 0).all()
 
 
-# ----------------------------------------- the scrambled control (T86, 2026-09-26)
+# ----------------------------------------------------------- the scrambled control
 
 def _voting_table():
     from sidechain.data.lfc_table import LfcTable
@@ -287,7 +259,7 @@ def test_scramble_refuses_a_table_with_nothing_to_shuffle():
 
 
 def test_notes_survive_a_save_and_load(tmp_path):
-    """A saved view has to be able to say how it was built (2026-09-26: notes were dropped)."""
+    """`notes` survive a save and a load."""
     tab = _voting_table()
     tab.notes = {"conditions": ["Rest", "Stim8hr"], "rho": 0.1, "gate": "knockdown"}
     tab.save(tmp_path / "v.npz")

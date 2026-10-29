@@ -1,23 +1,8 @@
-"""The per-source transfer-error floor (tau^2) on the pooling weights -- knob `t`.
+"""`submit.build --transfer-floor NAME=TAU2`: a per-source tau^2 added to the variance, weight 1/(var + tau^2).
 
-A source's variance says how well it measured ITSELF. It says nothing about how well that
-measurement transfers to a different cell line, and against a held-out fold's truth the gap
-is large and very unequal between sources (H1's variance understates its real error ~6.7x
-while the X-Atlas arms are near-honest). `tau^2` is that gap, measured and then ADDED to the
-variance before it becomes a weight.
+    .venv/bin/python -m pytest -q tests/test_transfer_floor.py
 
-The properties worth pinning are the ones the knob's correctness rests on:
-
-  * tau^2 = 0 is the identity, on every branch, so every historical call is bit-identical;
-  * the composition really is `1 / (var + tau^2)` -- the knob is implemented as a transform
-    of the weight, and the whole argument for it being ADDITIVE collapses if that algebra is
-    wrong;
-  * it CAPS a weight at 1/tau^2 rather than rescaling it, which is the difference between an
-    additive and a multiplicative fix and the reason a per-source multiplier could not
-    express it;
-  * it composes with the coverage tier in the right ORDER -- `var/f(n_eff) + tau^2`, tier on
-    the sampling term only, because transfer error does not shrink with cell count;
-  * a floor naming no source is refused rather than silently ignored.
+Writes nothing. Notes: private/code-notes/tests/test_transfer_floor.py.md
 """
 from __future__ import annotations
 
@@ -90,7 +75,7 @@ def test_no_floor_at_all_is_bit_identical():
 # ------------------------------------------------------------- the algebra --
 
 def test_the_weight_transform_really_is_one_over_var_plus_tau2():
-    """`w / (1 + tau2*w)` is the implementation; `1 / (var + tau2)` is the claim."""
+    """The pooled weight equals `1 / (var + tau2)` computed directly."""
     from sidechain.submit.build import _log2fc_with_var
 
     srcs = _two_sources()
@@ -109,19 +94,13 @@ def test_the_weight_transform_really_is_one_over_var_plus_tau2():
 
 
 def test_it_caps_the_weight_rather_than_rescaling_it():
-    """The additive/multiplicative distinction, as a property.
-
-    A source claiming near-zero variance is capped at 1/tau^2 no matter how small its
-    claim gets; a multiplicative factor would leave it unbounded. Checked through the
-    pooled result: as the loud source's claimed variance falls, an uncapped pool converges
-    to the loud source's fold change, a capped one does not.
-    """
+    """A floor caps a near-zero-variance source's weight at 1/tau^2, so it no longer takes over the pool."""
     from sidechain.submit.build import _log2fc_with_var
 
     srcs = _two_sources()
     loud_fc, _ = _log2fc_with_var(srcs[0][0], "T", "ctrl", var_floor="poisson")
 
-    # Uncapped: with 200x the cells, the loud arm's variance collapses and it takes over.
+    # uncapped: with 200x the cells, the loud source's variance collapses and it takes over
     deep = _pb("loud", ["ctrl", "T"],
                per_cell={"ctrl": [100, 100, 100], "T": [400, 100, 100]},
                n_cells={"ctrl": 10000, "T": 10000})
@@ -136,7 +115,7 @@ def test_it_caps_the_weight_rather_than_rescaling_it():
 
 
 def test_abstention_stays_abstention():
-    """A source at var = inf has weight 0; the floor must not resurrect it."""
+    """A source at var = inf keeps weight 0 under a floor."""
     srcs = _two_sources()
     single = _pb("loud", ["ctrl", "T"],
                  per_cell={"ctrl": [100, 100, 100], "T": [400, 100, 100]},
@@ -151,12 +130,7 @@ def test_abstention_stays_abstention():
 # ------------------------------------------------------ order against the tier --
 
 def test_the_tier_scales_the_sampling_term_only():
-    """`var/f + tau^2`, not `(var + tau^2)/f`.
-
-    The tier says the SAMPLING variance was underestimated because few cells stand behind
-    that gene. Transfer error does not shrink with cell count, so inflating tau^2 by the
-    same factor would be wrong -- and on a thin gene at f = 0.1 it would be wrong tenfold.
-    """
+    """The coverage tier divides the sampling variance only: `var/f + tau^2`, not `(var + tau^2)/f`."""
     from sidechain.submit.build import _log2fc_with_var, coverage_factor
 
     srcs = _two_sources()
@@ -213,8 +187,7 @@ def test_parse_rejects_a_non_number():
 
 
 def test_a_floor_naming_no_source_is_refused():
-    """Silently ignoring it would pool uncalibrated weights while build.json claims
-    otherwise -- the same class of quiet wrongness the exact-match control rule prevents."""
+    """A floor whose name matches no source is refused."""
     srcs = _two_sources()
     with pytest.raises(SystemExit, match="match no source"):
         apply_transfer_floors(srcs, parse_transfer_floor(["h1_pseudobulk=0.01"]))
@@ -225,14 +198,7 @@ def test_round_trip():
 
 
 def test_the_named_caches_are_addressable_too(monkeypatch, tmp_path):
-    """`--h1-cache` / `--gwps-cache` load outside `sources_from_specs`.
-
-    They predate `--source`, so they were the only two arms `--transfer-floor` could not
-    reach -- and H1 is precisely the arm the calibration measurement found most
-    over-confident, so a floor that silently cannot attach to it would defeat the knob on
-    the submission path while working on the mirror. Caught by the refusal guard when the
-    first real submission was built, 2026-08-31.
-    """
+    """A cache loaded by `--h1-cache` / `--gwps-cache` is named by its file stem, so a floor attaches to it."""
     import sidechain.submit.build as B
 
     seen = {}
@@ -247,7 +213,7 @@ def test_the_named_caches_are_addressable_too(monkeypatch, tmp_path):
 
     monkeypatch.setattr(PseudobulkSums, "load", classmethod(fake_load))
     h1 = PseudobulkSums.load("/x/h1_pseudobulk.npz")
-    h1.sidechain_name = Path("/x/h1_pseudobulk.npz").stem     # what build.main now does
+    h1.sidechain_name = Path("/x/h1_pseudobulk.npz").stem     # what build.main does
     assert h1.sidechain_name == "h1_pseudobulk"
     # and the floor then finds it rather than refusing
     srcs = [(h1, "ctrl")]

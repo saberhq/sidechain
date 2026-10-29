@@ -1,9 +1,8 @@
-"""`--gene-factor` (T102): a per-gene multiplier on the pooled delta, last before alpha and the pin.
+"""`--gene-factor`: a per-gene multiplier on the pooled delta, on `submit.build` and `eval.loco`.
 
-Pinned here: the loader's alignment and refusals; on `submit.build`, every (context, perturbation)
-block's vector is the plain build's vector times the table's factor on every gene but the pinned
-target, in both channels, and the record names the table; on `eval.loco`, an all-ones table is
-bit-identical to no table and a real one moves the emitted cells and is recorded.
+    .venv/bin/python -m pytest -q tests/test_gene_factor.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_gene_factor.py.md
 """
 from __future__ import annotations
 
@@ -116,7 +115,7 @@ def _argv(ch, stem, extra):
     return ["--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
             "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
             "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "100", "--no-shrink",
-            "--alpha", "1.35", "--alpha-bulk", "1.5", "--emit-lambda", "0.5", *extra]
+            "--alpha", "1.2", "--alpha-bulk", "1.8", "--emit-lambda", "0.4", *extra]
 
 
 def test_build_scales_both_channels_before_alpha_and_records_the_table(challenge, monkeypatch, tmp_path):

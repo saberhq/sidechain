@@ -1,8 +1,8 @@
-"""Tests for the dataset registry and the ingest entry point.
+"""The dataset registry `configs/datasets.yaml` and the ingest gate `sidechain.ingest.fetch`.
 
-These are contract tests over `configs/datasets.yaml` as much as over the code:
-a spec block that forgets to declare a control label is a bug that would only
-surface much later, as a delta computed against an empty control pool.
+    .venv/bin/python -m pytest -q tests/test_ingest_fetch.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_ingest_fetch.py.md
 """
 import json
 import shutil
@@ -19,13 +19,7 @@ from sidechain.ingest.provenance import (
     to_provenance,
 )
 
-# The gate's last check reads the REAL free space on whatever volume the test is
-# running on (`shutil.disk_usage`), so two streamed-route tests below turned red on
-# 2026-09-17 with 21.9 GB free -- a 12 GB output budget plus the gate's 10 GB
-# headroom is 22 GB -- with nothing wrong in the code they cover. A test that
-# passes or fails on how full the machine's disk is cannot gate a push, so every
-# test in this file sees a fixed, roomy volume. The one test that asserts the
-# refusal asks for 10^15 bytes and is refused against this too.
+# Every test here sees a volume with this much free space.
 FAKE_FREE_BYTES = 500 * 10**9
 
 
@@ -37,31 +31,10 @@ def _roomy_disk(monkeypatch):
     monkeypatch.setattr(shutil, "disk_usage", lambda _path: usage)
 
 
-# What an EXPRESSION file's spec must declare. A `gene_map` file is a lookup
-# table, not perturbation data: asking it for a control label is meaningless,
-# so it declares `role` alone. Kept as two explicit sets rather than one
-# relaxed set -- the point of this test is that nothing is left to a default.
+# What an expression file's spec must declare.
 REQUIRED_SPEC_KEYS = {"context", "pert_col", "control_label", "modality", "role"}
 
-# An `lfc_table` is a PRECOMPUTED contrast: the control arm was divided out
-# upstream, so it has no counts, no control label and nothing to pseudobulk.
-# Requiring `control_label` of it would force a block to name a control that
-# does not exist in the file -- which is exactly the fiction this test exists
-# to prevent, arriving through the test itself. It declares the columns it
-# really has instead. `cell_metadata` is the obs sidecar for a counts file that
-# ships its labels in a separate table; like `gene_map` it is a lookup, not
-# perturbation data, so `role` alone.
-# An `observational` file is per-cell counts with NO perturbation label
-# anywhere. It is the mirror image of `lfc_table`: that one has the contrast
-# already taken, this one has no contrast to take. It declares the facts about
-# the MEASUREMENT (`assay`) where expression declares the facts about the
-# perturbation (`modality`), and it declares a `content_filter`, which no other
-# kind needs -- labelled data catches a bad row downstream (a control arm that
-# matches nothing, a delta that comes out zero) and unlabelled data has no such
-# check, so the QC rule has to be at the front door or it is nowhere.
-# `sample_metadata` is `cell_metadata` one grain coarser: one row per
-# EXPERIMENT. Same required keys, kept apart because the name is what stops a
-# reader joining a 35,259-row manifest on a cell barcode.
+# The spec keys each file kind must declare.
 REQUIRED_SPEC_KEYS_BY_KIND = {
     "expression": REQUIRED_SPEC_KEYS,
     "gene_map": {"role"},
@@ -72,30 +45,15 @@ REQUIRED_SPEC_KEYS_BY_KIND = {
                       "assay", "content_filter", "role"},
 }
 
-# Keys a kind may not declare AT ALL -- absent, not null. `null` is this
-# registry's idiom for "the other branch of a mutually exclusive pair"
-# (context/context_col, gene_id_col), and reusing it for "this question is
-# meaningless" would let `pert_col: null` read as a column we have not named yet
-# rather than a link that does not exist in the bytes. scBaseCount is the case:
-# thousands of its experiments ARE Perturb-seq, but SRA submits the guide
-# library as a separate feature-barcoding run, so perturbation status is known
-# per experiment and never per cell.
+# Keys a kind may not declare at all: absent, not null.
 FORBIDDEN_SPEC_KEYS_BY_KIND = {
     "observational": {"pert_col", "control_label"},
 }
 
-# Kinds that describe perturbation data and therefore have to say which context
-# they are. A lookup table does not. `observational` is here because a
-# co-expression prior pooled across cell types measures COMPOSITION rather than
-# regulation -- the within-line restriction is the whole claim, so the context
-# declaration is not optional.
+# Kinds that must name their context.
 CONTEXTUAL_KINDS = {"expression", "lfc_table", "observational"}
 
-# What a file is FOR. Enumerated so a typo cannot invent a role that silently
-# matches no consumer: `role: trian` would just never be trained on.
-# `prior` means a corpus we build priors FROM -- it feeds data_sources.yaml and
-# never reaches `pooled_delta`, which is the distinction that keeps an
-# unlabelled corpus out of the delta path by declaration rather than by luck.
+# The roles a file may declare.
 KNOWN_ROLES = {"train", "analysis", "reference", "excluded", "prior"}
 
 
@@ -110,8 +68,7 @@ def test_every_dataset_block_declares_its_gate_inputs():
 
 
 def test_every_file_declares_a_full_spec():
-    """Declared, not derived. HepG2's obs says `Hep-G2` while Arc's splits say
-    `hepg2`, so nothing here may be left to a normalization rule."""
+    """Every file declares the spec keys its kind requires."""
     for name, block in load_datasets().items():
         for entry in block["files"]:
             kind = entry.get("kind", "expression")
@@ -124,15 +81,7 @@ def test_every_file_declares_a_full_spec():
 
 
 def test_every_contextual_file_names_its_context_exactly_once():
-    """`context` (whole file) or `context_col` (varies per row) -- one, never both.
-
-    Feng's targeted table is the case that forced this: 19 cell lines live in
-    one file under `Cell_Line`, so a per-file `context:` would have to invent a
-    name for a mixture. The opposite error is worse and quieter -- declaring
-    both lets a reader take the per-file name and silently pool 19 lines into
-    one context, which is precisely the mistake report 07 §3.1 caught the
-    genome-wide arm being described with.
-    """
+    """A contextual file sets exactly one of `context` and `context_col`."""
     for name, block in load_datasets().items():
         for entry in block["files"]:
             if entry.get("kind", "expression") not in CONTEXTUAL_KINDS:
@@ -147,11 +96,7 @@ def test_every_contextual_file_names_its_context_exactly_once():
 
 
 def test_no_file_declares_a_spec_key_its_kind_cannot_answer():
-    """The complement of the test above, and the one that keeps `observational`
-    honest. Requiring keys stops a block leaving a question unanswered; this
-    stops a block answering a question that does not exist. A `pert_col` on a
-    corpus with no per-cell guide link is not an unused field -- it is an
-    invitation for a reader to compute a delta out of noise."""
+    """No file declares a spec key its kind forbids."""
     for name, block in load_datasets().items():
         for entry in block["files"]:
             kind = entry.get("kind", "expression")
@@ -159,8 +104,7 @@ def test_no_file_declares_a_spec_key_its_kind_cannot_answer():
             present = forbidden & set(entry.get("spec", {}))
             assert not present, (
                 f"{name}/{entry['name']} is kind {kind!r} and declares {sorted(present)}. "
-                "Remove the keys rather than setting them null -- null means 'the other "
-                "branch', not 'meaningless'."
+                "Remove the keys rather than setting them null."
             )
 
 
@@ -174,12 +118,7 @@ def test_every_file_declares_a_known_role():
 
 
 def test_every_observational_file_declares_a_real_content_filter():
-    """An empty filter is not a filter, and on an unlabelled corpus nothing
-    downstream would notice. scBaseCount is why the rule exists: 20.8 % of its
-    human cells -- 32-55 % within the four lines we actually want -- are
-    guide-capture sub-libraries quantified against the gene reference, tens of
-    thousands of "cells" at a median of 1 UMI. Streamed unfiltered, the prior is
-    mostly zeros and reports success."""
+    """An observational file declares a non-empty `content_filter`."""
     for name, block in load_datasets().items():
         for entry in block["files"]:
             if entry.get("kind") != "observational":
@@ -187,17 +126,12 @@ def test_every_observational_file_declares_a_real_content_filter():
             cf = entry.get("spec", {}).get("content_filter")
             assert isinstance(cf, dict) and cf, (
                 f"{name}/{entry['name']} declares content_filter={cf!r}. It must be a "
-                "non-empty mapping: an unlabelled corpus has no control arm to fail "
-                "against, so this is the only place bad rows get stopped."
+                "non-empty mapping."
             )
 
 
 def test_a_sidecar_join_names_the_key_on_both_sides():
-    """Feng's three spellings of one barcode (`MP-ST-...`, `ST-...`, `MP.ST...`)
-    cost the registry a documented warning about silent misjoins. scBaseCount
-    has the same shape one grain up: the manifest says `srx_accession`, the
-    matrix obs says `SRX_accession`. Declaring only one side means the reader
-    picks the other by guessing."""
+    """A file that joins a sample sidecar names `sample_id_col` and `obs_sample_col`."""
     for name, block in load_datasets().items():
         for entry in block["files"]:
             spec = entry.get("spec", {})
@@ -210,11 +144,7 @@ def test_a_sidecar_join_names_the_key_on_both_sides():
 
 
 def test_a_declared_sidecar_is_a_file_the_gate_actually_selects():
-    """`obs_from` / `sample_from` name the ONLY place a corpus's labels live --
-    the cell line, the guide call, the batch. A sidecar outside the block's
-    `files` would be fetched off the record, hashed by nobody and absent from
-    PROVENANCE.json, so the labels would have no provenance while the counts
-    did."""
+    """An `obs_from` or `sample_from` sidecar is listed in its block's files."""
     for name, block in load_datasets().items():
         listed = {f["name"] for f in block["files"]}
         for entry in block["files"]:
@@ -230,9 +160,7 @@ def test_a_declared_sidecar_is_a_file_the_gate_actually_selects():
 
 
 def test_figshare_records_pin_a_version():
-    """A bare Figshare article id resolves to *latest* and moves when the
-    depositor republishes -- the same trap as a Zenodo concept DOI, wearing an
-    article id's clothes. `.v<n>` is the pin."""
+    """A Figshare record carries a `.v<n>` version."""
     for name, block in load_datasets().items():
         if block["host"] == "figshare":
             assert ".v" in str(block["record"]), (
@@ -242,11 +170,7 @@ def test_figshare_records_pin_a_version():
 
 
 def test_streamed_blocks_declare_where_the_aggregate_goes():
-    """`dest` and `derived` are different trees with opposite recovery
-    properties (ADR 0003 §1): external/ is re-downloadable and safe to delete,
-    derived/ is hours of network to rebuild. A streamed block that pointed both
-    at one directory would make `rm -rf external/<x>` destroy the expensive
-    half."""
+    """A streamed block declares `derived:` under derived/, apart from `dest` under external/."""
     for name, block in load_datasets().items():
         if block.get("route") != "stream":
             continue
@@ -259,8 +183,7 @@ def test_streamed_blocks_declare_where_the_aggregate_goes():
 
 
 def test_no_block_declares_an_unknown_route():
-    """A typo'd route must never fall back to `download`: on X-Atlas that is
-    the difference between a stream and 126 GB on a laptop."""
+    """Every block declares a known route."""
     from sidechain.ingest.provenance import ROUTES
 
     for name, block in load_datasets().items():
@@ -269,22 +192,16 @@ def test_no_block_declares_an_unknown_route():
 
 
 def test_the_real_xatlas_block_would_be_refused_as_a_download():
-    """The registry's own numbers, not a fixture: X-Atlas declares 12 GB and is
-    126 GB on the wire. That combination is only legal because it streams, and
-    this asserts the gate actually depends on the route rather than the block
-    merely claiming to."""
+    """The `xatlas_orion` block streams, with a budget below the corpus size."""
     block = load_datasets()["xatlas_orion"]
     assert block["route"] == "stream"
     assert float(block["budget_gb"]) < 126, "budget should be the OUTPUT ceiling, not the corpus"
 
 
 def test_the_real_scbasecount_block_is_observational_and_streamed():
-    """The registry's own block, not a fixture. Three properties travel
-    together and each is load-bearing: the corpus has no per-cell perturbation
-    label so its counts file is `observational`; its terms are stated nowhere so
-    the licence is the UNSTATED sentinel; and it is streamed, because one pass
-    over 2.4 TB collapses it to an aggregate (ADR 0003 § 3, the size rule; since
-    the 2026-10-15 amendment UNSTATED alone would no longer force a stream)."""
+    """The `scbasecount_human_gene` block: observational, UNSTATED with a source, streamed, and
+    refused by the gate as a download.
+    """
     from sidechain.ingest.provenance import UNSTATED
 
     block = load_datasets()["scbasecount_human_gene"]
@@ -294,8 +211,8 @@ def test_the_real_scbasecount_block_is_observational_and_streamed():
 
     counts = next(f for f in block["files"] if f.get("kind") == "observational")
     assert "pert_col" not in counts["spec"] and "control_label" not in counts["spec"]
-    assert counts["spec"]["context_col"] == "cell_line", "the within-line restriction IS the claim"
-    assert float(block["budget_gb"]) < 2378, "budget is the OUTPUT ceiling, not the 2.4 TB read"
+    assert counts["spec"]["context_col"] == "cell_line", "the counts are split by cell line"
+    assert float(block["budget_gb"]) < 2378, "budget is the output ceiling, not the corpus size"
 
     corpus = HostRecord(
         host="huggingface", record_id=block["record"], api_url="u", title="t",
@@ -306,13 +223,13 @@ def test_the_real_scbasecount_block_is_observational_and_streamed():
     # as a download: refused on size
     with pytest.raises(GateError, match="over the"):
         gate(corpus, budget_gb=float(block["budget_gb"]), route="download")
-    # as a stream: allowed, because those bytes never land
+    # as a stream: allowed
     got = gate(corpus, budget_gb=float(block["budget_gb"]), route="stream")
     assert len(got) == 1
 
 
 def test_record_is_pinned_not_a_concept_doi():
-    """Zenodo concept DOIs resolve to 'latest' and would change under us."""
+    """No Zenodo block names the scPerturb concept DOI."""
     for name, block in load_datasets().items():
         if block["host"] == "zenodo":
             assert "7041848" not in str(block["record"]), (
@@ -321,8 +238,7 @@ def test_record_is_pinned_not_a_concept_doi():
 
 
 def test_cas13_dataset_is_excluded_from_training():
-    """Cas13 degrades mRNA; CRISPRi represses transcription. Mixing them into
-    one holdout confounds modality with context."""
+    """A cas13 file's role is `excluded`."""
     for block in load_datasets().values():
         for entry in block["files"]:
             spec = entry.get("spec", {})
@@ -357,8 +273,7 @@ def _record(license="CC-BY-4.0"):
 
 
 def test_to_provenance_carries_the_licence_the_api_returned():
-    """Without this bridge the license on a HarmonizedDataset is retyped from
-    memory, and stops being evidence."""
+    """`to_provenance` carries the host's licence, source, accession and retrieval date."""
     prov = to_provenance(_record("CC-BY-NC-SA-4.0"))
     assert prov.license == "CC-BY-NC-SA-4.0"
     assert prov.source == "zenodo"
@@ -367,8 +282,7 @@ def test_to_provenance_carries_the_licence_the_api_returned():
 
 
 def test_license_drift_between_config_and_host_is_refused(tmp_path, monkeypatch):
-    """If the host's stated terms stop matching what we agreed to, that is a
-    stop -- not a warning logged into a file nobody reads."""
+    """A host licence that differs from the block's is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "zenodo", lambda _: _record("CC-BY-NC-4.0"))
@@ -415,8 +329,7 @@ def _block(tmp_path, license="CC-BY-4.0"):
 
 
 def test_provenance_is_written_once_and_not_rewritten(tmp_path, monkeypatch):
-    """The original bug: every invocation rewrote PROVENANCE.json, turning
-    evidence of what we fetched into a log of when we last ran the command."""
+    """A second run with nothing changed upstream leaves PROVENANCE.json as it was."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "zenodo", lambda _: _record())
@@ -431,8 +344,7 @@ def test_provenance_is_written_once_and_not_rewritten(tmp_path, monkeypatch):
 
 
 def test_upstream_checksum_change_is_refused(tmp_path, monkeypatch):
-    """Same filename, different bytes upstream. Silently absorbing this is how
-    the provenance record stops meaning anything."""
+    """A changed upstream checksum for the same file is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "zenodo", lambda _: _record())
@@ -482,8 +394,7 @@ def test_refresh_accepts_an_upstream_change_deliberately(tmp_path, monkeypatch):
 
 
 def test_retrieved_date_alone_is_not_a_difference(tmp_path, monkeypatch):
-    """It changes on every probe by definition; treating it as a change would
-    make every run look like upstream moved."""
+    """A new retrieval date alone is not a difference."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "zenodo", lambda _: _record())
@@ -499,8 +410,7 @@ def test_retrieved_date_alone_is_not_a_difference(tmp_path, monkeypatch):
 
 
 def test_gate_refuses_when_the_disk_cannot_take_it(tmp_path):
-    """A per-dataset budget knows nothing about the other datasets sharing the
-    volume; this check does."""
+    """The gate refuses a selection larger than the free disk."""
     huge = HostRecord(
         host="zenodo", record_id="1", api_url="u", title="t", license="CC-BY-4.0",
         retrieved="2026-08-16", version="1",
@@ -524,10 +434,9 @@ def _hf_record(files=None, license="CC-BY-NC-SA-4.0"):
 
 
 def test_streamed_block_writes_provenance_and_records_the_route(tmp_path, monkeypatch):
-    """A streamed dataset still passes through the gate before the first range
-    request. `dest` ends up holding PROVENANCE.json and nothing else -- which is
-    the intended shape, so the file has to say `route: stream` or a later reader
-    reads it as a download that died."""
+    """A streamed block's PROVENANCE.json records the route, the bytes read and the output budget;
+    no data lands.
+    """
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record())
@@ -550,8 +459,7 @@ def test_streamed_block_writes_provenance_and_records_the_route(tmp_path, monkey
 
 
 def test_a_download_block_still_records_route_download(tmp_path, monkeypatch):
-    """Absent `route:` means download -- every block written before streaming
-    existed stays true."""
+    """A block with no `route:` records `route: download`."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "zenodo", lambda _: _record())
@@ -562,8 +470,7 @@ def test_a_download_block_still_records_route_download(tmp_path, monkeypatch):
 
 
 def test_a_typod_route_is_refused_not_downloaded(tmp_path, monkeypatch):
-    """The expensive accident this guards: `route: streamed` silently read as
-    `download` would try to put 126 GB of parquet on the Mac."""
+    """A misspelt route is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record())
@@ -578,11 +485,7 @@ def test_a_typod_route_is_refused_not_downloaded(tmp_path, monkeypatch):
 
 
 def test_provenance_records_the_selection_not_the_hosts_whole_catalogue(tmp_path, monkeypatch):
-    """A `record` used to mean a small deposit, where listing every file showed
-    what we did NOT take. A lamin instance is 311,231 artifacts across releases
-    and organisms a dataset never touches -- writing them made PROVENANCE.json
-    71.8 MB, of which 50.8 MB was a list no code path reads. What is evidence is
-    the selection; what the host held is a number."""
+    """PROVENANCE.json lists the selected files and only a count of the host's files."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record(files=[
@@ -609,9 +512,7 @@ def test_provenance_records_the_selection_not_the_hosts_whole_catalogue(tmp_path
 
 
 def _lamin_record(files=None):
-    """A host that CANNOT state terms. No field on lamin's Artifact model
-    carries a licence, so `unknown` here is a measured property of the host, not
-    a gap in the probe."""
+    """A lamin record, whose host states no licence."""
     if files is None:
         files = [RemoteFile("k/a.h5ad", 2_000_000_000, "lamin:aa", "")]
     return HostRecord(
@@ -633,9 +534,7 @@ def _unstated_block(**over):
 
 
 def test_unstated_terms_pass_the_gate_as_a_stream(tmp_path, monkeypatch):
-    """Naming the absence is allowed. The corpus is read over the network
-    exactly as any public reader may read it, and only our own aggregate
-    lands."""
+    """UNSTATED with an override source passes the gate as a stream and is recorded as the override."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
@@ -647,10 +546,7 @@ def test_unstated_terms_pass_the_gate_as_a_stream(tmp_path, monkeypatch):
 
 
 def test_unstated_terms_are_recorded_as_maximally_encumbered(tmp_path, monkeypatch):
-    """The flags are the whole reason UNSTATED is safe to allow. "We do not
-    know" has to resolve to "assume the strictest thing", or it is not
-    conservative at all -- and these two booleans are what force a fresh
-    decision before anything derived from this corpus is ever published."""
+    """UNSTATED is recorded noncommercial and redistribution-encumbered."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
@@ -661,8 +557,7 @@ def test_unstated_terms_are_recorded_as_maximally_encumbered(tmp_path, monkeypat
 
 
 def test_unstated_terms_are_refused_on_a_download_without_a_citation(tmp_path, monkeypatch):
-    """ADR 0003, amendment of 2026-10-15: a corpus whose terms are stated nowhere
-    may be held locally only by a block that names the citation we give it."""
+    """An UNSTATED download block with no citation, or a blank one, is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
@@ -675,9 +570,7 @@ def test_unstated_terms_are_refused_on_a_download_without_a_citation(tmp_path, m
 
 
 def test_unstated_terms_download_with_a_citation_and_stay_maximally_encumbered(tmp_path, monkeypatch):
-    """With a citation the download passes, the citation is recorded beside the
-    override, and both flags still stand: publication is where the terms are
-    re-evaluated."""
+    """An UNSTATED download with a citation passes, records the citation and keeps both flags."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
@@ -693,9 +586,7 @@ def test_unstated_terms_download_with_a_citation_and_stay_maximally_encumbered(t
 
 
 def test_unstated_without_an_override_source_is_refused(tmp_path, monkeypatch):
-    """Without a source the sentinel is unreachable: it is a record of a search,
-    and with no record of the search it is just a word that skips the licence
-    check."""
+    """UNSTATED without `license_override_source` is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: _lamin_record())
@@ -706,10 +597,7 @@ def test_unstated_without_an_override_source_is_refused(tmp_path, monkeypatch):
 
 
 def test_the_gate_itself_refuses_unstated_arriving_without_an_override(tmp_path):
-    """The backstop under the check above, for a caller that reaches `gate()`
-    directly. UNSTATED is not a licence a host can state, so it may only ever
-    arrive as an override -- otherwise a probe returning that literal string
-    would skip the accepted-licence check entirely."""
+    """`gate()` refuses an UNSTATED licence that arrives without an override."""
     from sidechain.ingest.provenance import UNSTATED
 
     record = HostRecord(
@@ -721,10 +609,7 @@ def test_the_gate_itself_refuses_unstated_arriving_without_an_override(tmp_path)
 
 
 def test_unstated_cannot_paper_over_a_host_that_did_state_terms(tmp_path, monkeypatch):
-    """The pre-existing rule, asserted for the new value: an override fills an
-    absence, it does not outvote a host. Declaring UNSTATED against a host that
-    published a licence would be laundering a known licence into an unknown
-    one -- the opposite direction from the CC0 trap, and just as wrong."""
+    """UNSTATED is refused against a host that states a licence."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "lamin", lambda _: HostRecord(
@@ -736,9 +621,7 @@ def test_unstated_cannot_paper_over_a_host_that_did_state_terms(tmp_path, monkey
 
 
 def test_a_stated_but_unrecognised_licence_is_still_refused(tmp_path, monkeypatch):
-    """The sentinel must not have widened the gate. `other` is a real Hugging
-    Face licence slug and it still stops the run: UNSTATED is for terms that do
-    not exist, not for terms we have not read yet."""
+    """A stated licence off the accepted list (`other`) is refused."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record(license="other"))
@@ -755,9 +638,7 @@ def test_a_stated_but_unrecognised_licence_is_still_refused(tmp_path, monkeypatc
 
 
 def test_verify_uses_the_algorithm_the_host_published(tmp_path):
-    """Zenodo says md5, HF says sha256. Hashing an HF file with md5 would
-    report MISMATCH on bytes that are perfectly fine, and a verifier that cries
-    wolf gets ignored."""
+    """`verify` hashes with the algorithm the checksum names."""
     import hashlib
 
     from sidechain.ingest import fetch
@@ -785,8 +666,7 @@ def test_verify_rejects_an_algorithm_it_cannot_compute(tmp_path):
 
 
 def test_a_stream_block_without_derived_is_refused_at_runtime(tmp_path, monkeypatch):
-    """The contract test only sees the checked-in config; this is the next
-    block someone adds."""
+    """`run_gate` refuses a stream block with no `derived:`."""
     from sidechain.ingest import fetch
 
     monkeypatch.setitem(fetch.PROBES, "huggingface", lambda _: _hf_record())

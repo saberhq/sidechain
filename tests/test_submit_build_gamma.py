@@ -1,11 +1,8 @@
-"""`submit.build` with the transfer exponent: gamma != 1 makes the shifts context-specific.
+"""`submit.build --gamma`: gamma = 1 is the default build; gamma != 1 reads each context's controls.
 
-The mirror side (`eval.loco --gamma`) predicts one context, so a single pooled-shift pass was
-enough. A submission emits into THREE contexts from one pass, and gamma reads each context's
-own control profile -- so the builder had to move pooling inside the per-context write loop.
-Two contracts are pinned here: the gamma = 1 path is byte-identical to the historical single
-pass (every shipped build), and gamma != 1 really does consult each context's own profile
-rather than computing one set of shifts and reusing it.
+    .venv/bin/python -m pytest -q tests/test_submit_build_gamma.py
+
+Writes temporary builds only. Notes: private/code-notes/tests/test_submit_build_gamma.py.md
 """
 from __future__ import annotations
 
@@ -83,9 +80,7 @@ def _share_of_A(pred, ctx):
 
 
 def test_gamma_1_is_identical_to_the_historical_single_pass(challenge):
-    """The restructure (finalize + per-context hook) must leave every shipped build's
-    bytes alone: an explicit --gamma 1.0 and the default must produce the identical
-    cell matrix at the same seed."""
+    """An explicit `--gamma 1.0` writes the same cells as the default at the same seed."""
     a = _run(challenge, "default", [])
     b = _run(challenge, "explicit", ["--gamma", "1.0"])
     assert np.array_equal(a.X.toarray(), b.X.toarray())
@@ -93,12 +88,11 @@ def test_gamma_1_is_identical_to_the_historical_single_pass(challenge):
 
 
 def test_gamma_reads_each_context_s_own_control_profile(challenge):
-    """The mutant this exists to kill: computing gamma shifts once (against whichever
-    profile) and reusing them across contexts. At gamma = 0 the source's absolute
-    +100k-CPM change on gene A lands as a ~21x multiplier in context X (A at 5k CPM)
-    but only ~1.2x in context Y (A at 500k CPM) -- so X's emitted share of A must
-    leap versus its gamma = 1 build while Y's must FALL. A shared-shift mutant moves
-    both contexts the same way and fails one of the two."""
+    """At gamma = 0 gene A's share rises in context X (low A) and falls in context Y (high A).
+
+    The source's absolute +100k-CPM change on A is a large multiplier where A is at 5k CPM and a
+    small one where A is at 500k CPM, so shifts shared across contexts fail one of the asserts.
+    """
     g1 = _run(challenge, "g1", ["--gamma", "1.0"])
     g0 = _run(challenge, "g0", ["--gamma", "0.0"])
     assert _share_of_A(g0, "X") > 3 * _share_of_A(g1, "X")

@@ -1,8 +1,8 @@
-"""Regression tests for two mistakes made during the first external ingest.
+"""`sidechain.ingest.checks`: control labels, counts state, cp10k, the on-target knockdown check.
 
-Each test reproduces the original failure with the data that caused it, so a
-future rewrite that reintroduces the bug fails here rather than in a findings
-document six weeks later.
+    .venv/bin/python -m pytest -q tests/test_ingest_checks.py
+
+Writes nothing. Notes: private/code-notes/tests/test_ingest_checks.py.md
 """
 import numpy as np
 import pytest
@@ -17,14 +17,12 @@ from sidechain.ingest.checks import (
     to_cp10k,
 )
 
-# The real labels from WesselsSatija2023 that a substring test misread.
+# Perturbation labels that contain `NT` and `INTS` as substrings.
 WESSELS_LABELS = np.array(
     ["INTS1", "DOT1L_INTS1", "INTS1_RING1", "IKZF1_INTS1", "GATA2_INTS1", "control"] * 3
 )
 
-# Raw counts with DIFFERENT per-cell totals (10 and 12), as real UMI data has.
-# Equal totals are the signature of already-normalized data, so a fixture with
-# equal row sums cannot stand in for counts.
+# Raw counts with unequal per-cell totals (10 and 12); equal totals read as normalized.
 COUNTS = np.array([[1.0, 9.0], [4.0, 8.0]])
 
 
@@ -32,8 +30,7 @@ COUNTS = np.array([[1.0, 9.0], [4.0, 8.0]])
 
 
 def test_substring_control_match_does_not_happen():
-    """The original bug: "NT" matched "INTS1", so five perturbations were
-    reported as controls."""
+    """A control label matches whole labels, never a substring."""
     mask = control_mask(WESSELS_LABELS, "control")
     assert mask.sum() == 3
     assert set(WESSELS_LABELS[mask]) == {"control"}
@@ -42,14 +39,13 @@ def test_substring_control_match_does_not_happen():
 
 
 def test_nt_is_not_a_control_label_here():
-    """`NT` is a real control name in some corpora, which is exactly why it
-    must be matched exactly rather than searched for."""
+    """`NT` matches no cell in these labels."""
     with pytest.raises(ValueError, match="no cells match"):
         control_mask(WESSELS_LABELS, "NT")
 
 
 def test_absent_control_error_names_substring_near_misses():
-    """The error should point at the trap it just avoided."""
+    """The no-match error names the labels that contain the label as a substring."""
     with pytest.raises(ValueError) as exc:
         control_mask(np.array(["INTS1", "DOT1L_INTS1"]), "INTS")
     assert "substring" in str(exc.value)
@@ -86,7 +82,7 @@ def test_log1p_is_detected_as_transformed():
 
 
 def test_negative_values_are_transformed():
-    """Scaled/centred data is never counts, even if it rounds cleanly."""
+    """Negative values read as transformed."""
     assert counts_state(np.array([[-1.0, 2.0], [3.0, -4.0]])) == TRANSFORMED
 
 
@@ -96,16 +92,7 @@ def test_sparse_input_is_handled():
 
 
 def test_double_transform_is_refused():
-    """The original bug: transforming data that was already transformed.
-
-    Applied to real values it overflowed float32 to inf and produced nan
-    summary statistics -- no exception, just wrong numbers.
-
-    Note the fixture has UNEQUAL row totals (10 and 12). An earlier version of
-    this test used [[1,9],[4,6]], whose rows both sum to 10 -- which the
-    detector now correctly calls already-normalized, because constant library
-    size is what normalization produces.
-    """
+    """`to_cp10k` refuses data that is already transformed."""
     once = to_cp10k(COUNTS)
     with pytest.raises(ValueError, match="already-transformed"):
         to_cp10k(once)
@@ -121,8 +108,7 @@ def test_require_raw_counts_passes_on_counts():
 
 
 def test_zero_count_cells_are_refused_rather_than_nan():
-    """Dividing by a zero row total yields nan, which is the silent-wrong
-    failure mode this module exists to prevent."""
+    """A cell with zero total counts is refused."""
     with pytest.raises(ValueError, match="zero total counts"):
         to_cp10k(np.array([[0.0, 0.0], [1.0, 2.0]]))
 
@@ -136,24 +122,20 @@ def test_cp10k_rows_sum_to_10k():
 
 
 def test_control_mask_accepts_several_labels():
-    """Feng 2026 defines its controls as "either no guide or a non-targeting
-    gRNA", so its control arm is two labels. Until this accepted a list the
-    corpus could not be declared correctly at all."""
+    """A list of control labels matches any of them."""
     labels = ["TP53", "NonTarget", "unassigned", "BRCA1", "unassigned"]
     mask = control_mask(labels, ["NonTarget", "unassigned"])
     assert mask.tolist() == [False, True, True, False, True]
 
 
 def test_a_single_string_still_works():
-    """Every existing block declares one label; none of them may change."""
+    """A single control label given as a string still works."""
     mask = control_mask(["a", "control", "b"], "control")
     assert mask.tolist() == [False, True, False]
 
 
 def test_taking_only_the_control_looking_label_undercounts_the_arm():
-    """The 2026-08-23 mistake, in miniature. `NonTarget` alone is 1 of 4 cells
-    here; Feng's real ratio was 48 against 499,998, and a delta anchored on the
-    48 would have been noise presented as signal."""
+    """One label of a two-label control arm selects only its own cells."""
     labels = ["NonTarget"] + ["unassigned"] * 3 + ["TP53"] * 6
     narrow = control_mask(labels, "NonTarget")
     full = control_mask(labels, ["NonTarget", "unassigned"])
@@ -162,8 +144,7 @@ def test_taking_only_the_control_looking_label_undercounts_the_arm():
 
 
 def test_a_declared_label_matching_nothing_raises_even_if_others_match():
-    """Silently partial is the failure mode of the whole module: three of four
-    labels matching looks exactly like a control arm that is simply smaller."""
+    """A listed label that matches nothing raises, even when the others match."""
     labels = ["TP53", "NonTarget", "BRCA1"]
     with pytest.raises(ValueError, match="unassigned"):
         control_mask(labels, ["NonTarget", "unassigned"])
@@ -174,7 +155,7 @@ def test_an_empty_control_label_list_raises():
         control_mask(["a", "b"], [])
 
 
-# ── the on-target positive control (T18 check 4) ────────────────────────────────
+# ── the on-target positive control ──────────────────────────────────────────────
 
 
 def _screen(n_targets=120, n_genes=200, knockdown_log2=-2.0, seed=0):
@@ -207,8 +188,7 @@ def test_a_real_screen_passes_the_on_target_control():
 
 
 def test_a_shuffled_perturbation_column_is_caught():
-    """The failure this exists for: a well-formed aggregate whose labels name the wrong rows.
-    Every other check in this module passes on it."""
+    """Shuffled perturbation labels fail the on-target check."""
     import numpy as np
     import pytest
 
@@ -223,7 +203,7 @@ def test_a_shuffled_perturbation_column_is_caught():
 
 
 def test_a_gene_axis_off_by_one_is_caught():
-    """A misaligned axis keeps every number and moves every meaning."""
+    """A gene axis shifted by one fails the on-target check."""
     import numpy as np
     import pytest
 
@@ -236,7 +216,7 @@ def test_a_gene_axis_off_by_one_is_caught():
 
 
 def test_an_activation_screen_is_caught_by_the_sign():
-    """CRISPRi silences. A positive median is not this screen, whatever else is right."""
+    """A positive median on-target change fails the check."""
     import pytest
 
     from sidechain.ingest.checks import require_on_target_knockdown
@@ -246,8 +226,7 @@ def test_an_activation_screen_is_caught_by_the_sign():
 
 
 def test_too_few_measurable_arms_is_not_applicable_rather_than_a_pass():
-    """A pre-filtered axis need not carry the perturbed genes. Three arms cannot support a
-    median, and a check that cannot see must not report agreement."""
+    """Three self-measurable arms read not applicable, not a pass."""
     from sidechain.ingest.checks import NOT_APPLICABLE, require_on_target_knockdown
 
     got = require_on_target_knockdown(_screen(n_targets=3), "non-targeting")
@@ -257,7 +236,7 @@ def test_too_few_measurable_arms_is_not_applicable_rather_than_a_pass():
 
 
 def test_labels_whose_gene_is_off_the_axis_are_skipped_not_counted():
-    """K562 genome-wide perturbs 272 fold targets and carries the on-target row for 229."""
+    """A label whose gene is not on the axis is skipped."""
     from sidechain.ingest.checks import require_on_target_knockdown
 
     pb = _screen(n_targets=120, n_genes=200)
@@ -271,7 +250,7 @@ def test_labels_whose_gene_is_off_the_axis_are_skipped_not_counted():
 
 
 def test_the_control_arm_may_be_several_labels():
-    """Same rule as `control_mask`: Feng 2026's arm is two labels."""
+    """The on-target check takes a two-label control arm."""
     import numpy as np
 
     from sidechain.ingest.checks import require_on_target_knockdown

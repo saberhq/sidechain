@@ -1,10 +1,8 @@
-"""Contract tests for the pooled-delta cache on `sidechain.eval.loco` (T103 round three).
+"""`sidechain.eval.delta_cache`: the pooled-delta cache that `eval.loco` builds and reads.
 
-What is pinned: an arm that reads the cache emits the cells an uncached arm emits, bit for bit,
-and writes the same record apart from one `delta_cache` key (counters replayed, the neighbour
-pool's fits counted apart as before); a build over several processes writes the same cache as
-one process; a read under other knobs, other sources or for a label the cache was not built for
-is refused, never answered by pooling; and anything but the plain pool is refused.
+    .venv/bin/python -m pytest -q tests/test_delta_cache.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_delta_cache.py.md
 """
 from __future__ import annotations
 
@@ -24,8 +22,8 @@ from sidechain.models.neighbour_arm import SELECTS
 
 G, N_LAB = 80, 9
 IDS = [["src", "0" * 64, "ctrl"]]
-KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.5,
-          alpha=1.35, alpha_bulk=1.35, bulk_anchor="pooled", min_libsize=0.0,
+KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.4,
+          alpha=1.2, alpha_bulk=1.2, bulk_anchor="pooled", min_libsize=0.0,
           shrink_stage="pooled", shrink_rule="adaptive", cells_per_pert=6)
 
 
@@ -41,8 +39,8 @@ def fold(tmp_path):
                          cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2 + mean) * n[:, None],
                          n_cells=n, libsize_sum=n.astype(float) * 2e4, sources=["t"])
     rows, obs = [], []
-    # the fold predicts five of the labels and one the source never measured; the pool holds
-    # the fold's own five and four more, so pool and targets overlap as they do on a real fold
+    # the fold predicts five of the labels and one the source lacks; the pool holds those five
+    # and four more
     for lab, k in [("non-targeting", 40)] + [(x, 8) for x in [*labs[:5], "zz"]]:
         for _ in range(k):
             rows.append(rng.poisson(basal / basal.sum() * rng.integers(3000, 6000)))
@@ -55,7 +53,7 @@ def fold(tmp_path):
     torch.save({x: torch.tensor(rng.normal(size=6), dtype=torch.float32) for x in [*labs, "absent"]},
                tmp_path / "table.pt")
     nb = dict(neighbour_table=[tmp_path / "table.pt"], neighbour_pool=tmp_path / "pool.csv",
-              neighbour_k=3, neighbour_w=[0.2])
+              neighbour_k=3, neighbour_w=[0.3])
     return tmp_path, tmp_path / "real.h5ad", [(src, "ctrl")], nb
 
 
@@ -161,8 +159,7 @@ def test_the_key_moves_with_the_threads_and_the_axis(fold, monkeypatch):
     with monkeypatch.context() as m:                            # another machine
         m.setattr(dc.platform, "node", lambda: "elsewhere")
         assert base != dc.key_of(dc.key_fields(IDS, axis, pooling))
-    # the code that does the arithmetic: these six files, and an edit to any moves the key (the
-    # last two since T98: the variance model behind the weight and the dispersion math its fits carry)
+    # the code that does the arithmetic: these six files, and an edit to any moves the key
     assert set(dc.code_digests()) == {
         "sidechain.submit.build", "sidechain.models.adaptive_shrink",
         "sidechain.models.count_emitters", "sidechain.data.stream_pseudobulk",
@@ -216,7 +213,7 @@ def test_a_read_is_a_copy_and_the_main_entry_builds_what_an_arm_reads(fold, caps
     argv = ["--real", str(real), "--pert-col", "perturbation", "--control", "non-targeting",
             "--source", spec, "--bundle", str(tmp), "--out", str(tmp / "never"),
             "--shrink-stage", "pooled", "--shrink-rule", "adaptive", "--var-floor", "poisson",
-            "--neighbour-table", str(nb["neighbour_table"][0]), "--neighbour-w", "0.2",
+            "--neighbour-table", str(nb["neighbour_table"][0]), "--neighbour-w", "0.3",
             "--neighbour-pool", str(nb["neighbour_pool"]), "--neighbour-k", "3",
             "--delta-cache", str(tmp / "cli"), "--delta-cache-build", "--delta-cache-jobs", "2"]
     assert loco.main(argv) == 0
@@ -230,7 +227,7 @@ def test_a_read_is_a_copy_and_the_main_entry_builds_what_an_arm_reads(fold, caps
     cache = dc.DeltaCache(tmp / "cli", dc.key_fields(use["sources"], axis, {
         "shrinkage": True, "shrink_k": 1.0, "shrink_stage": "pooled", "shrink_rule": "adaptive",
         "var_floor": "poisson", "log_bias_correct": False,
-        # T98: the variance model and, per source, the fit it carries (none here)
+        # the variance model and, per source, the fit it carries (none here)
         "variance_model": "shipped", "rule_variance": "model", "dispersion_fits": [None]}))
     one, two = cache.get("g0"), cache.get("g0")
     assert one is not two and not np.shares_memory(one, two) and one.flags.writeable
@@ -240,8 +237,7 @@ def test_a_read_is_a_copy_and_the_main_entry_builds_what_an_arm_reads(fold, caps
 
 
 def test_a_cache_built_under_one_variance_model_is_refused_by_every_other(fold):
-    """T98's gate 4: the variance model, the rule setting and the fit behind a cached delta are in the key, so
-    an arm under another model, another --rule-variance or another fit finds no cache -- and the same arm does."""
+    """The variance model, `--rule-variance` and the fit are in the key: another of any finds no cache."""
     from sidechain.data.dispersion import fit_gene_dispersion
     from sidechain.submit.variance_model import VarianceModel
 
@@ -308,8 +304,7 @@ def _lfc_table(seed=3):
 
 
 def test_a_published_contrast_source_is_cached_bit_for_bit(fold):
-    """T93: an --lfc-source joins the plain pool; a cached arm with one is the uncached arm, and the
-    table's id and the LfcTable reader's digest are in the key only when a table is in the pool."""
+    """A cached arm with an `--lfc-source` table is the uncached arm; a pooled table moves the key."""
     tmp, real, sources, nb = fold
     tab = _lfc_table()
     with_tab = [*sources, tab]

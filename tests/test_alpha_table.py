@@ -1,9 +1,8 @@
-"""`--alpha-table` (T1): a per-target multiplier on alpha, in both channels, the target's own gene pinned after.
+"""`--alpha-table`, a per-target multiplier on alpha, on `submit.build` and `eval.loco`.
 
-Pinned here: the loader's alignment and refusals; on `submit.build`, a named perturbation's block carries the
-plain build's vector times its factor on every gene but the pinned target, in both channels, an unnamed one the
-plain build's vector, and the record names the table; on `eval.loco`, an all-ones table is bit-identical to no
-table and a real one moves the emitted cells and is recorded; a model-named stem refuses the flag (no letter yet).
+    .venv/bin/python -m pytest -q tests/test_alpha_table.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_alpha_table.py.md
 """
 from __future__ import annotations
 
@@ -116,7 +115,7 @@ def _argv(ch, stem, extra):
     return ["--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
             "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
             "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "100", "--no-shrink",
-            "--alpha", "1.35", "--alpha-bulk", "1.5", "--emit-lambda", "0.5", *extra]
+            "--alpha", "1.2", "--alpha-bulk", "1.8", "--emit-lambda", "0.4", *extra]
 
 
 def test_build_scales_a_named_target_in_both_channels_and_records_the_table(challenge, monkeypatch, tmp_path):
@@ -145,14 +144,16 @@ def test_build_scales_a_named_target_in_both_channels_and_records_the_table(chal
     assert json.loads((challenge["out"] / "fac.args.json").read_text())["alpha_table"] == str(t)
 
 
-def test_build_refuses_the_flag_off_delta_transfer_and_under_a_model_name(challenge, tmp_path):
+def test_build_refuses_the_flag_off_delta_transfer_and_under_a_model_name(challenge, tmp_path, capsys):
     t = _table(tmp_path / "f.parquet", [("A", 0.5)])
     argv = _argv(challenge, "null", ["--alpha-table", str(t)])
     argv[argv.index("delta-transfer")] = "control-null"
     with pytest.raises(SystemExit):
         build.main(argv)
+    capsys.readouterr()
     with pytest.raises(SystemExit):
-        build.main(_argv(challenge, "ser-99a_delta_test_v1", ["--alpha-table", str(t)]))
+        build.main(_argv(challenge, "ser-99_fixture_v1", ["--alpha-table", str(t)]))
+    assert "--alpha-table has no registered knob letter" in capsys.readouterr().err
 
 
 # ------------------------------------------------------------------------------------ eval.loco
@@ -186,7 +187,7 @@ def test_loco_all_ones_is_bit_identical_and_a_real_table_moves_the_cells(tmp_pat
     real_path = tmp_path / "real.h5ad"
     real.write_h5ad(real_path)
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              min_libsize=0.0, seed=0, alpha=1.35)
+              min_libsize=0.0, seed=0, alpha=1.2)
     off = loco.build_transfer_prediction(real_path, srcs, tmp_path / "off.h5ad", **kw)
     ones = _table(tmp_path / "ones.parquet", [(t, 1.0) for t in targets[:2]])
     same = loco.build_transfer_prediction(real_path, srcs, tmp_path / "same.h5ad", alpha_table=ones, **kw)

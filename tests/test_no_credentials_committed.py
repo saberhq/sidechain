@@ -1,16 +1,8 @@
-"""No credential ever reaches a tracked file. ADR 0007 §4.
+"""No Lamin API key reaches a tracked file, and the key-shipping scripts never print or pass it.
 
-The data plane runs on one long-lived Lamin API key, and a leaked key is *write* access
-to the instance — it can overwrite the artifacts the backup exists to protect. The key
-therefore lives in exactly two places by design (`~/.lamin/current_user.env` on the Mac,
-and the box's own copy after `lamin login`), and this file is the tripwire for a third.
+    .venv/bin/python -m pytest -q tests/test_no_credentials_committed.py
 
-The strongest form of this check is only available on Saber's Mac, where the real key is
-readable: search every tracked file in both repos for that exact string. Elsewhere it
-degrades to the static checks, which are the ones that catch the likelier mistake anyway
-— a session hardcoding a key into a script "just to test the box".
-
-The key's value is never printed. A failure names the file, not the secret.
+Reads tracked files; writes nothing. Notes: private/code-notes/tests/test_no_credentials_committed.py.md
 """
 from __future__ import annotations
 
@@ -61,8 +53,7 @@ def test_the_lamin_api_key_appears_in_no_tracked_file(repo):
 
 
 def test_the_shipping_scripts_read_the_key_and_never_write_it_down():
-    """A literal assignment is the shape of the mistake: `LAMIN_API_KEY=lmn_...`.
-    Reading it from a variable or from ~/.lamin is fine; a value after the `=` is not."""
+    """No shipping script assigns a literal key to `LAMIN_API_KEY`."""
     literal = re.compile(r"""LAMIN_API_KEY\s*=\s*(?!["']?\$|["']?\s*$)["']?[A-Za-z0-9_\-]{8,}""")
     for script in SHIPPERS:
         text = script.read_text()
@@ -70,13 +61,7 @@ def test_the_shipping_scripts_read_the_key_and_never_write_it_down():
 
 
 def test_the_key_is_never_echoed_or_traced():
-    """`set -x` in either script would print the key into the box's log and into the
-    session transcript — the two places the file transport exists to keep it out of.
-
-    The one legitimate expansion of the key is the `printf ... > "$TMP"` that writes the
-    0600 file, so a redirect is what separates "wrote it to the file we are shipping"
-    from "put it on a terminal somebody is recording".
-    """
+    """No shipping script enables `set -x` or prints the key anywhere but the `$TMP` file."""
     for script in SHIPPERS:
         for line in script.read_text().splitlines():
             stripped = line.strip()
@@ -90,9 +75,7 @@ def test_the_key_is_never_echoed_or_traced():
 
 
 def test_the_key_never_becomes_a_command_line_argument():
-    """argv is visible in the box's process table and in this Mac's shell history, so
-    the key goes over as a 0600 file. `brev exec ... LAMIN_API_KEY=$KEY ...` would undo
-    the whole point of the transport."""
+    """`brev exec` and `brev create` never carry the key."""
     text = (REPO / "scripts" / "brev_lamin_key.sh").read_text()
     for line in text.splitlines():
         if line.strip().startswith("#"):
@@ -102,8 +85,7 @@ def test_the_key_never_becomes_a_command_line_argument():
 
 
 def test_the_box_key_file_is_gitignored_by_name():
-    """If a session ever copies `.lamin_env` into the checkout to debug it, git must
-    already be refusing to stage it."""
+    """`.lamin_env` is gitignored."""
     ignored = subprocess.run(["git", "-C", str(REPO), "check-ignore", "-q", ".lamin_env"],
                              check=False)
     assert ignored.returncode == 0, "add `.lamin_env` to .gitignore"

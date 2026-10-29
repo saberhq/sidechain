@@ -1,8 +1,8 @@
-"""Tests for the local eval mirror: metric mapping, config precedence, path
-resolution and the anti-hacking guardrail.
+"""The 2025 local mirror (`eval.local_mirror`): metric names, config precedence, paths, the guardrail.
 
-These deliberately do not invoke cell-eval itself (that needs real DE and is
-exercised by the dry run) -- they pin the contract Sidechain owns.
+    .venv/bin/python -m pytest -q tests/test_eval.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_eval.py.md
 """
 import anndata as ad
 import numpy as np
@@ -16,8 +16,7 @@ from sidechain.utils.paths import find_repo_root, resolve_config
 
 
 def test_challenge_metrics_map_to_the_cell_eval_registry_names():
-    """DES/PDS/MAE are Sidechain vocabulary; cell-eval has its own names. If this
-    mapping drifts, every score silently describes the wrong metric."""
+    """DES/PDS/MAE map to cell-eval's registry names."""
     assert lm.CHALLENGE_TO_CELL_EVAL == {
         "des": "overlap_at_N",
         "pds": "discrimination_score_l1",
@@ -26,7 +25,7 @@ def test_challenge_metrics_map_to_the_cell_eval_registry_names():
 
 
 def test_mapping_matches_cell_evals_own_vcc_profile():
-    """cell-eval's 'vcc' profile is the challenge metric set; ours must equal it."""
+    """The mapped names are cell-eval's 'vcc' profile."""
     from cell_eval._pipeline._runner import VCC_METRICS
 
     assert set(lm.CHALLENGE_TO_CELL_EVAL.values()) == set(VCC_METRICS)
@@ -79,7 +78,7 @@ def test_real_configs_load_and_resolve():
 
 
 def test_metrics_live_in_the_challenge_config_not_the_core():
-    """The year-agnostic layer must not be the authority on a per-year fact."""
+    """The metric list lives in the challenge config."""
     import yaml
 
     challenge = yaml.safe_load(resolve_config("challenges/vcc2025/config.yaml").read_text())
@@ -90,8 +89,7 @@ def test_metrics_live_in_the_challenge_config_not_the_core():
 
 
 def test_config_resolves_from_an_unrelated_cwd(tmp_path, monkeypatch):
-    """score(config='configs/eval.yaml') used to resolve against the process CWD,
-    so an installed package invoked from anywhere else got FileNotFoundError."""
+    """A config path resolves from a working directory outside the repo."""
     monkeypatch.chdir(tmp_path)
     assert resolve_config("configs/eval.yaml").is_file()
 
@@ -136,17 +134,7 @@ def test_variance_inflation_passes_a_well_scaled_prediction():
 
 def test_similarity_beta_reaches_the_pool_with_a_control_profile_at_default_gamma(
         monkeypatch, tmp_path):
-    """The bug this pins cost three of four sweep arms on 2026-08-29.
-
-    `ctrl_tgt_cpm` is built inside `build_transfer_prediction`, and it used to be built ONLY
-    when `gamma != 1`. A guard for `--similarity-beta` was placed above that assignment, so at
-    the default gamma the guard could never be satisfied and every similarity arm died in eight
-    seconds with "needs the held-out context's control profile". The unit tests all passed --
-    they call `pooled_delta` directly and hand it a profile themselves, so nothing exercised
-    the path where loco has to construct one.
-
-    So: default gamma, non-zero beta, and the pool must receive a real profile.
-    """
+    """At the default gamma a non-zero `similarity_beta` reaches the pool with a control profile."""
     import anndata as ad
     import scipy.sparse as sp
 

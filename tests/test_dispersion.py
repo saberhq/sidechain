@@ -1,9 +1,8 @@
-"""Contract tests for `sidechain.data.dispersion` -- the numpy port of glmGamPoi's step 8.
+"""`sidechain.data.dispersion`, checked on synthetic Gamma-Poisson counts with a known theta(mu) curve.
 
-The estimator is checked against **synthetic Gamma-Poisson counts with a known theta(mu)
-curve**, because that is the only setting where "did it recover the truth" is answerable. The
-generator here is the model's own definition -- a Poisson whose rate is a Gamma draw -- so a
-failure is the estimator's, never the simulator's.
+    .venv/bin/python -m pytest -q tests/test_dispersion.py
+
+Writes nothing. Notes: private/code-notes/tests/test_dispersion.py.md
 """
 from __future__ import annotations
 
@@ -60,22 +59,13 @@ def test_moment_dispersion_recovers_a_known_dispersion():
     _, theta_ml, _ = moment_dispersion(pb)
     ratio = theta_ml / theta_true
     assert 0.90 < float(np.median(ratio)) < 1.10, float(np.median(ratio))
-    # It also has to ORDER the genes, because that is all the trend reads. Ranks, not values:
-    # a handful of genes clamp to exactly zero (a negative slope is undersampling, not negative
-    # dispersion), and on a log scale those few dominate any correlation of the values. Measured
-    # here at 200 groups of 45 cells: Spearman 0.73, and our thinnest real arm has 2,393 groups.
+    # rank order, not values: a few genes clamp to exactly zero
     ranks = lambda a: np.argsort(np.argsort(a))
     assert np.corrcoef(ranks(theta_ml), ranks(theta_true))[0, 1] > 0.6
 
 
 def test_the_bessel_correction_is_what_makes_it_unbiased():
-    """The reason `moment_dispersion` rescales the cached variance, held as a test.
-
-    `PseudobulkSums.var_cpm` is the population form. Its expectation is (n-1)/n of the truth,
-    which is a 2% error on the variance and a ~35% error on the *excess over Poisson* that the
-    dispersion is estimated from -- because the subtraction cancels the large term and leaves
-    the small bias standing. If someone ever "simplifies" this back to `var_cpm()`, this fails.
-    """
+    """With the Bessel correction `moment_dispersion` recovers theta; without it, theta is low."""
     pb, theta_true = synthetic()
     _, theta_corrected, _ = moment_dispersion(pb)
 
@@ -89,7 +79,7 @@ def test_the_bessel_correction_is_what_makes_it_unbiased():
 
     corrected = float(np.median(theta_corrected / theta_true))
     uncorrected = float(np.median(theta_uncorrected / theta_true))
-    assert uncorrected < 0.80, uncorrected          # measured ~0.66 at 45 cells
+    assert uncorrected < 0.80, uncorrected
     assert abs(corrected - 1.0) < abs(uncorrected - 1.0)
 
 
@@ -101,7 +91,7 @@ def test_moment_dispersion_needs_more_than_one_usable_group():
 
 
 def test_dispersion_trend_beats_the_raw_estimate_at_recovering_the_curve():
-    """The whole claim of step 8: borrowing across genes of similar expression helps."""
+    """The trend is closer to the true curve than the per-gene estimate."""
     pb, theta_true = synthetic(n_genes=600, n_groups=40)   # few groups => noisy per-gene theta
     mean_count, theta_ml, _ = moment_dispersion(pb)
     trend = dispersion_trend(mean_count, theta_ml, window=101)
@@ -120,7 +110,7 @@ def test_dispersion_trend_is_a_median_so_one_wild_gene_cannot_move_it():
 
 
 def test_dispersion_trend_never_returns_zero():
-    """A zero trend would divide by zero in `quasi_dispersion`, so it is clamped, not allowed."""
+    """The trend is clamped at `MIN_DISPERSION`."""
     trend = dispersion_trend(np.array([0.0, 0.0, 5.0, 9.0]), np.zeros(4), window=3)
     assert np.all(trend >= MIN_DISPERSION)
 
@@ -220,14 +210,8 @@ def test_excluding_a_label_drops_it_from_the_fit():
     assert not np.allclose(without.theta_ml, full.theta_ml)
 
 
-def test_df0_can_be_forced_because_the_fitted_one_is_inert_on_our_arms():
-    """Saber, 2026-09-18: can the shrinkage strength be dialled? Not in glmGamPoi; here, yes.
-
-    The point is falsifiability. On every real arm the fitted `df0` is three orders of
-    magnitude under the residual `df`, so `theta_sql` equals `theta_ql` and the empirical-Bayes
-    step is inert. Forcing `df0` is what turns that from an observation into a claim someone
-    can break.
-    """
+def test_df0_can_be_forced():
+    """A forced `df0` changes only the shrinkage, monotonically; `df0=0` is the identity."""
     pb, _ = synthetic(n_genes=200, n_groups=60)
     fitted = fit_gene_dispersion(pb, window=51)
 
@@ -239,12 +223,7 @@ def test_df0_can_be_forced_because_the_fitted_one_is_inert_on_our_arms():
     # df0 = 0 is the far end: no prior, so shrinkage is the identity.
     assert np.allclose(fit_gene_dispersion(pb, window=51, df0=0.0).theta_sql, fitted.theta_ql)
 
-    # NOTE the synthetic fit goes the OTHER way from the real arms, and that is the estimator
-    # being right in both cases. Here every gene is drawn from one exact theta(mu) curve, so
-    # they agree with their trend and the prior is correctly strong -- fitted df0 lands ~11x
-    # ABOVE df. Real arms carry genuine gene-to-gene dispersion heterogeneity, so the same fit
-    # puts df0 three orders of magnitude BELOW df and steps aside. df0 is a measurement of how
-    # well the genes agree with their own trend, not a constant of the method.
+    # genes drawn from one exact curve agree with their trend, so the fitted prior is strong
     assert fitted.df0 > fitted.df
 
 
@@ -284,9 +263,8 @@ def synthetic_varying_libsize(n_genes=200, n_groups=150, n_cells=150, seed=3, lo
 def test_varying_library_sizes_read_as_dispersion_unless_the_per_group_inverse_sum_is_given():
     # A cell's CPM carries Poisson noise mu*1e6/L_i, so over a group the Poisson term is
     # mu*1e6*mean(1/L), larger than mu*1e6/mean(L) by kappa = mean(1/L)*mean(L). Without
-    # sum(1/L) the estimator attributes (kappa-1)*s/mu to dispersion -- large at low
-    # expression, where the fitted trend's level on the real arms is half this term (T98
-    # re-assessment, 2026-10-13). With it, pure Poisson counts read as dispersion 0.
+    # sum(1/L) the estimator attributes (kappa-1)*s/mu to dispersion; with it, pure Poisson
+    # counts read as dispersion 0.
     pb, base_cpm, inv = synthetic_varying_libsize(theta_true=0.0)
     kappa = float(np.mean(inv / pb.n_cells) * np.mean(pb.libsize_sum / pb.n_cells))
     assert 1.2 < kappa < 1.4

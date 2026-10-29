@@ -1,36 +1,8 @@
-"""The neighbour arm (T103): the geometry gate's cross-mode fusion in the shipping path.
+"""The neighbour arm, `sidechain.models.neighbour_arm`, and its wiring in `submit.build` and `eval.loco`.
 
-What is pinned, in the order it would cost us if it slipped:
+    .venv/bin/python -m pytest -q tests/test_neighbour_arm.py
 
-* **Off is off.** Without ``--neighbour-w`` neither entry point builds, loads or calls anything
-  of the arm, so every existing arm is untouched; a half-set arm is refused before any work.
-* **The port IS the gate.** On one footing, the direction of ``out - m`` equals the gate's
-  ``unit(ser) + w * unit(knn_mean(...))`` computed with the gate's own functions, and its length
-  is SER's residual length -- so a w read off the gate's sweep means the same thing here.
-* **No self-knockdown leaks.** A neighbour's own-gene value (its knockdown) never reaches
-  another target's prediction, and a target is never its own neighbour.
-* **Never zero-filled.** A target the table lacks keeps SER's delta; pool members the table
-  lacks or no source covers are dropped and counted; retired symbols resolve.
-* **Both entry points fuse and record.** `submit.build` writes ``<out>.neighbour.json`` and
-  emits the fused shift; `eval.loco` records the arm in its build info and passes the flags on.
-* **The default blend is the gate's, to the bit.** ``--neighbour-size median`` scales the
-  neighbour arm by the pool's median residual length instead of normalising it; ``unit``, the
-  default, runs the same floating-point operations in the same order as before the flag existed
-  -- and the expectation re-derives the neighbour pick instead of calling the method the flag
-  refactored, so the rows picked and their order are pinned too.
-* **A median run can be read and replayed.** ``|n|/s`` is reported with its own value (per table
-  in a mix), and the scale is recorded unrounded as well, because the rounded one cannot
-  reproduce ``fuse`` to the 1e-10 the screen's gate asks of it.
-* **The default pick is the gate's, to the bit, and every other pick is what a plain loop picks.**
-  ``--neighbour-select`` chooses which k members are averaged (round two): ``table``, the default,
-  is untouched; ``hybrid``, ``response`` and ``euclid`` are each re-derived member by member
-  without the arm's own code, never pick the target itself, and read nothing but the pool's
-  residuals and the target's own. A declared pick (``--neighbour-picks``) is averaged exactly as
-  declared -- direction AND length, since ``size="unit"`` would normalise a mis-scaled mean away
-  -- is refused when it names a label the pool lacks or names one twice, and must name every
-  target the arm fuses: one it leaves out is refused by name, never answered by another rule. A
-  mix refuses a pick and a moved ``select``, so does a pick together with a moved ``select``, and
-  a model-named stem refuses both until a knob letter exists.
+Writes temporary files only. Notes: private/code-notes/tests/test_neighbour_arm.py.md
 """
 from __future__ import annotations
 
@@ -157,7 +129,7 @@ def test_a_target_outside_the_pool_excludes_nothing():
 
 def test_unresolved_target_keeps_sers_delta_and_is_counted():
     targets, axis, deltas, table = _world()
-    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2)
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3)
     d = np.arange(len(axis), dtype=float)
     assert arm.fuse("NOT_IN_TABLE", d) is d
     assert arm.stats["targets_unresolved"] == 1
@@ -171,17 +143,17 @@ def test_pool_drops_unresolved_and_uncovered_and_resolves_retired_symbols():
     deltas["QARS"] = deltas.pop(targets[5])                 # the corpus speaks the retired one
     pool = targets[:5] + ["QARS"] + targets[6:] + ["NO_TABLE_ROW"]
     table_extra = dict(table, UNCOVERED=np.ones(8))
-    arm = na.build_neighbour_arm(pool + ["UNCOVERED"], deltas.get, axis, table_extra, k=5, w=0.2)
+    arm = na.build_neighbour_arm(pool + ["UNCOVERED"], deltas.get, axis, table_extra, k=5, w=0.3)
     assert "QARS" in arm.pool
     assert arm.stats["pool_unresolved"] == 1                # NO_TABLE_ROW
-    assert arm.stats["pool_uncovered"] == 1                 # UNCOVERED: no source measured it
+    assert arm.stats["pool_uncovered"] == 1                 # UNCOVERED: no source covers it
     assert len(arm.pool) == len(targets)
 
 
 def test_a_pool_no_larger_than_k_is_refused_and_w_must_be_positive():
     targets, axis, deltas, table = _world(n_targets=6)
     with pytest.raises(ValueError, match="not more than k"):
-        na.build_neighbour_arm(targets, deltas.get, axis, table, k=6, w=0.2)
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=6, w=0.3)
     with pytest.raises(ValueError, match="w must be finite and > 0"):
         na.build_neighbour_arm(targets, deltas.get, axis, table, k=2, w=0.0)
 
@@ -240,7 +212,7 @@ def _argv(ch, stem, extra=()):
     return ["--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
             "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
             "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "100", "--no-shrink",
-            "--alpha", "1.35", *extra]
+            "--alpha", "1.2", *extra]
 
 
 def _arm_flags(ch, w="0.3", k="3"):
@@ -273,8 +245,8 @@ def test_build_off_never_touches_the_arm(challenge, monkeypatch):
 
 
 @pytest.mark.parametrize("extra, why", [
-    (["--neighbour-w", "0.2"], "needs both"),
-    (["--neighbour-w", "0.2", "--neighbour-table", "t.pt"], "needs both"),
+    (["--neighbour-w", "0.3"], "needs both"),
+    (["--neighbour-w", "0.3", "--neighbour-table", "t.pt"], "needs both"),
     (["--neighbour-table", "t.pt"], "--neighbour-table without --neighbour-w does nothing"),
     (["--neighbour-table", "t.pt", "--neighbour-pool", "p.csv", "--neighbour-size", "median"],
      "--neighbour-table, --neighbour-pool, --neighbour-size median without --neighbour-w "
@@ -320,7 +292,7 @@ def test_build_emits_the_fused_shift_and_records_the_arm(challenge, monkeypatch)
     arm = na.build_neighbour_arm(na.read_pool(challenge["data"] / "pool.csv"), delta_of, axis,
                                  table, k=3, w=0.3)
     for i, p in enumerate(GENES[:4]):
-        expect = arm.fuse(p, delta_of(p)) * 1.35
+        expect = arm.fuse(p, delta_of(p)) * 1.2
         expect[i] = build.TARGET_SELF_LOG2FC
         np.testing.assert_allclose(on[i], expect, atol=1e-12)
         assert not np.allclose(on[i], off[i])                       # the arm did something
@@ -369,7 +341,7 @@ def test_loco_fuses_end_to_end_and_off_is_unchanged(tmp_path, challenge):
                                      index=[f"c{i}" for i in range(len(labels))]),
                var=pd.DataFrame(index=GENES)).write_h5ad(real)
     gw = PseudobulkSums.load(challenge["data"] / "gwps.npz")
-    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.35,
+    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.2,
               seed=0, min_libsize=100)
     info_off = build_transfer_prediction(real, [(gw, "control")], tmp_path / "off.h5ad", **kw)
     info_def = build_transfer_prediction(real, [(gw, "control")], tmp_path / "def.h5ad", **kw,
@@ -386,7 +358,7 @@ def test_loco_fuses_end_to_end_and_off_is_unchanged(tmp_path, challenge):
     x_on = ad.read_h5ad(tmp_path / "on.h5ad").X
     assert (x_off != x_def).nnz == 0                       # off is bit-identical
     assert (x_off != x_on).nnz > 0                         # on moves the emitted cells
-    # T84: under the adaptive rule the pool's fits are counted apart from the targets'
+    # under the adaptive rule the pool's fits are counted apart from the targets'
     info_ash = build_transfer_prediction(
         real, [(gw, "control")], tmp_path / "ash.h5ad", **{**kw, "shrinkage": True},
         shrink_stage="pooled", shrink_rule="adaptive",
@@ -402,16 +374,15 @@ def test_a_zero_or_non_finite_table_row_counts_as_absent():
     table = dict(table)
     table[targets[3]] = np.zeros(8)
     table[targets[4]] = np.full(8, np.nan)
-    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2)
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3)
     assert arm.stats["pool_unresolved"] == 2
     assert targets[3] not in arm.pool and targets[4] not in arm.pool
     assert arm.fuse(targets[3], deltas[targets[3]]) is deltas[targets[3]]
 
 
 def test_the_pool_is_pooled_with_the_targets_own_knobs(challenge, monkeypatch):
-    """Every pooled_delta call -- targets and pool members alike -- carries the same floor,
-    tiers and bias correction; a pool pooled differently would put SER's residual and its
-    neighbours' in different spaces."""
+    """Every pooled_delta call, targets and pool members alike, carries the same floor, tiers and bias
+    correction."""
     seen = []
     real = build.pooled_delta
 
@@ -452,20 +423,20 @@ def test_two_tables_sum_their_unit_neighbour_arms_on_one_shared_pool():
     targets, axis, deltas, t1 = _world(seed=0)
     _, _, _, t2 = _world(seed=1)
     t2 = {k: v for k, v in t2.items() if k != targets[7]}          # table 2 lacks one target
-    mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.2, 0.4])
+    mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.3, 0.4])
     assert targets[7] not in mix.arms[0].pool                       # the pool both tables resolve
-    a1 = na.build_neighbour_arm(mix.arms[0].pool, deltas.get, axis, t1, k=5, w=0.2)
+    a1 = na.build_neighbour_arm(mix.arms[0].pool, deltas.get, axis, t1, k=5, w=0.3)
     a2 = na.build_neighbour_arm(mix.arms[0].pool, deltas.get, axis, t2, k=5, w=0.4)
     for t in targets[10:20]:                                        # off the axis: no pin
         r = deltas[t] - a1.mean
         u1, _ = a1.neighbour_unit(t, na.table_vector(t1, t))
         u2, _ = a2.neighbour_unit(t, na.table_vector(t2, t))
-        want = a1.mean + np.linalg.norm(r) * na.unit(na.unit(r) + 0.2 * u1 + 0.4 * u2)
+        want = a1.mean + np.linalg.norm(r) * na.unit(na.unit(r) + 0.3 * u1 + 0.4 * u2)
         np.testing.assert_allclose(mix.fuse(t, deltas[t]), want, atol=1e-12)
     out = mix.fuse(targets[7], deltas[targets[7]])                  # only table 1 resolves it
     assert mix.stats["table1_unresolved"] == 1 and not np.allclose(out, deltas[targets[7]])
     summ = mix.summary()
-    assert summ["w"] == [0.2, 0.4] and "table0_cosine_mean" in summ
+    assert summ["w"] == [0.3, 0.4] and "table0_cosine_mean" in summ
 
 
 def test_build_blends_two_tables_and_refuses_unpaired_weights(challenge, capsys):
@@ -473,19 +444,19 @@ def test_build_blends_two_tables_and_refuses_unpaired_weights(challenge, capsys)
     t2 = challenge["data"] / "table2.pt"
     torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
                 for p in GENES[:N_PERTS]}, t2)
-    flags = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.2",
+    flags = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.3",
              "--neighbour-table", str(t2), "--neighbour-w", "0.1",
              "--neighbour-pool", str(challenge["data"] / "pool.csv"), "--neighbour-k", "3"]
     assert build.main(_argv(challenge, "mix", flags)) == 0
     rec = json.loads((challenge["out"] / "mix.neighbour.json").read_text())
-    assert rec["w"] == [0.2, 0.1] and len(rec["table_sha256"]) == 2 and rec["targets_fused"] == 4
+    assert rec["w"] == [0.3, 0.1] and len(rec["table_sha256"]) == 2 and rec["targets_fused"] == 4
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "bad", flags[:-6] + ["--neighbour-table", str(t2)]
                          + flags[-4:]))
     assert "one --neighbour-w per --neighbour-table" in capsys.readouterr().err
 
 
-# ------------------------------------------------------- the size-aware blend (direction 1 (i))
+# ------------------------------------------------------------------------ the size-aware blend
 
 def _median_scale(arm):
     """s, re-derived from the arm's own residual rows rather than read off the arm."""
@@ -493,10 +464,7 @@ def _median_scale(arm):
 
 
 def _mean_of_the_k_nearest(arm, table, t, k):
-    """``n_t`` re-derived WITHOUT the arm's own pick, so a change to `neighbour_mean` moves
-    `fuse` and not this expectation: the rows chosen, their order and the flat mean are all
-    pinned, not only `fuse`'s own arithmetic.
-    """
+    """``n_t`` re-derived without the arm's own pick: the rows chosen, their order and the flat mean."""
     sim = arm.pool_unit @ na.unit(na.table_vector(table, t))
     if t in arm.pool:
         sim[arm.pool.index(t)] = -np.inf                 # never its own neighbour
@@ -504,14 +472,8 @@ def _mean_of_the_k_nearest(arm, table, t, k):
 
 
 def test_size_unit_default_is_bit_identical():
-    """The default and an explicit size="unit" are the same numbers, and both are the
-    pre-flag arithmetic operation for operation (np.array_equal, not allclose).
-
-    The expectation re-derives the neighbour pick itself (`_mean_of_the_k_nearest`) rather than
-    calling the method the size flag refactored, so the pick's row ORDER is pinned here too; the
-    pick's agreement with an outside implementation is pinned by
-    `test_port_equals_the_gate_fusion_term_for_term`, which reads the gate's own `knn_mean`.
-    """
+    """The default and an explicit size="unit" are the unit blend operation for operation, the pick
+    re-derived by `_mean_of_the_k_nearest`."""
     targets, axis, deltas, table = _world()
     default = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3)
     explicit = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3, size="unit")
@@ -549,9 +511,7 @@ def test_size_median_matches_the_formula():
     summ = arm.summary()
     assert summ["size"] == "median" and "arm_size_mean" in summ
     assert summ["scale"] == round(s, 6)
-    # the |n|/s reading itself, not just its presence: it is the number the w grid is read on,
-    # so "the arm is 0.42 of a pool-median residual" must not be able to become 3.21 (the /s
-    # dropped) or "always longer than SER's residual" (the > 1 threshold slipped)
+    # the |n|/s reading itself, not just its presence
     assert summ["arm_size_mean"] == pytest.approx(float(np.mean(sizes)), abs=1e-6)
     assert summ["arm_size_gt1_frac"] == round(float(np.mean(np.array(sizes) > 1.0)), 6)
     assert 0.0 <= summ["arm_size_gt1_frac"] <= 1.0
@@ -566,9 +526,7 @@ def test_size_median_matches_the_formula():
 
 
 def test_size_median_counts_arms_longer_than_the_residual_at_k_1():
-    """At k = 1 the arm is one member's whole residual, so |n|/s is around 1 and the `> 1`
-    counter is exercised on both sides -- the one thing the k >= 5 worlds never do (there the
-    frac is exactly 0.000, which a broken threshold also produces)."""
+    """At k = 1, |n|/s falls on both sides of 1, and the `> 1` counter counts it."""
     targets, axis, deltas, table = _world(on_axis=0)
     arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=1, w=0.3, size="median")
     s = _median_scale(arm)
@@ -586,11 +544,7 @@ def test_size_median_counts_arms_longer_than_the_residual_at_k_1():
 
 
 def test_size_median_reduces_to_unit_r_when_neighbours_cancel():
-    """A neighbourhood that cancels exactly contributes nothing: n = 0 leaves SER's direction
-    alone, and w cannot matter. (So does the unit blend here -- `unit`'s 1e-12 guard sends 0 to
-    0, not to an arbitrary unit vector; the two part company just off exact cancellation, which
-    is the next test's job -- this one pins the exact-zero edge and the w-invariance that only
-    an arm adding exactly nothing has.)"""
+    """A neighbourhood that cancels exactly adds nothing: n = 0 leaves SER's direction alone, at any w."""
     axis = np.array([f"G{i:03d}" for i in range(12)])
     rng = np.random.default_rng(11)
     v1, v2 = rng.normal(size=12), rng.normal(size=12)
@@ -618,9 +572,8 @@ def test_size_median_reduces_to_unit_r_when_neighbours_cancel():
 
 
 def test_size_median_shrinks_a_neighbourhood_the_unit_blend_trusts_in_full():
-    """Just off exact cancellation the two blends diverge, which is the point of the flag:
-    the unit arm pulls with full weight w in whatever direction is left over, the size-aware
-    arm pulls with w |n| / s, and |n| / s is tiny when the neighbours disagree."""
+    """Just off exact cancellation the median arm pulls with w |n| / s and barely turns; the unit arm
+    pulls with w and turns."""
     axis = np.array([f"G{i:03d}" for i in range(12)])
     rng = np.random.default_rng(12)
     v1, v2, u = rng.normal(size=12), rng.normal(size=12), rng.normal(size=12)
@@ -641,14 +594,10 @@ def test_size_median_shrinks_a_neighbourhood_the_unit_blend_trusts_in_full():
 
 
 def test_neighbour_unit_is_unit_of_neighbour_mean():
-    """One pick, one path -- under every selection rule, not only the table's.
-
-    `neighbour_unit` is the diagnostic twin of `neighbour_mean`, so a rule that reached one and
-    not the other would let a probe and `fuse` disagree about which members were averaged.
-    """
+    """`neighbour_unit` is the unit of `neighbour_mean` under every selection rule."""
     targets, axis, deltas, table = _world()
     for select in na.SELECTS:
-        arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=7, w=0.2,
+        arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=7, w=0.3,
                                      select=select, cand=12)
         for t in targets[:5] + targets[20:25]:
             e = na.table_vector(table, t)
@@ -662,25 +611,22 @@ def test_neighbour_unit_is_unit_of_neighbour_mean():
 def test_build_arm_refuses_an_unknown_size_and_a_flat_pool():
     targets, axis, deltas, table = _world(on_axis=0)
     with pytest.raises(ValueError, match="size must be one of"):
-        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2, size="mean")
+        na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, size="mean")
     flat = {t: np.ones(len(axis)) for t in targets}      # every delta equals the pool mean
     with pytest.raises(ValueError, match="median .*residual length"):
-        na.build_neighbour_arm(targets, flat.get, axis, table, k=5, w=0.2, size="median")
+        na.build_neighbour_arm(targets, flat.get, axis, table, k=5, w=0.3, size="median")
     # the unit blend does not divide by s, so a flat pool is still a legal (useless) arm
-    assert na.build_neighbour_arm(targets, flat.get, axis, table, k=5, w=0.2).scale == 0.0
-    # a non-finite member poisons s as well; `scale == 0` would have let a NaN scale through and
-    # every fused vector would have come back all-NaN
+    assert na.build_neighbour_arm(targets, flat.get, axis, table, k=5, w=0.3).scale == 0.0
+    # a non-finite member makes s non-finite: refused
     nan_pool = {t: d.copy() for t, d in deltas.items()}
     nan_pool[targets[0]][3] = np.nan
     with pytest.raises(ValueError, match="non-finite"):
-        na.build_neighbour_arm(targets, nan_pool.get, axis, table, k=5, w=0.2, size="median")
+        na.build_neighbour_arm(targets, nan_pool.get, axis, table, k=5, w=0.3, size="median")
 
 
 def test_a_hand_built_median_arm_refuses_to_run_without_its_scale():
-    """The analytic screen cross-checks its own fusion by constructing `NeighbourArm` directly
-    (its gate is 1e-10 against `fuse`), so the median path's preconditions have to hold at
-    construction, not only in the factory -- otherwise a missing scale surfaces as a TypeError
-    about dividing a float by None, deep inside `fuse`."""
+    """`NeighbourArm` built directly refuses a median size without a positive scale, and an unknown
+    size."""
     targets, axis, deltas, table = _world()
     ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=2, w=0.3, size="median")
     kw = dict(k=2, w=0.3, table=table, pool=ref.pool, mean=ref.mean, resid=ref.resid,
@@ -698,7 +644,7 @@ def test_a_hand_built_median_arm_refuses_to_run_without_its_scale():
 def test_mix_respects_size():
     targets, axis, deltas, t1 = _world(seed=0)
     _, _, _, t2 = _world(seed=1)
-    mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.2, 0.4],
+    mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.3, 0.4],
                                   size="median")
     a0, a1 = mix.arms
     s = _median_scale(a0)
@@ -708,24 +654,22 @@ def test_mix_respects_size():
         n1, _ = a0.neighbour_mean(t, na.table_vector(t1, t))
         n2, _ = a1.neighbour_mean(t, na.table_vector(t2, t))
         r = deltas[t] - a0.mean
-        want = a0.mean + np.linalg.norm(r) * na.unit(na.unit(r) + 0.2 * n1 / s + 0.4 * n2 / s)
+        want = a0.mean + np.linalg.norm(r) * na.unit(na.unit(r) + 0.3 * n1 / s + 0.4 * n2 / s)
         np.testing.assert_allclose(mix.fuse(t, deltas[t]), want, atol=1e-12)
         sizes[0].append(float(np.linalg.norm(n1)) / s)
         sizes[1].append(float(np.linalg.norm(n2)) / s)
     summ = mix.summary()
     assert summ["size"] == "median" and summ["scale"] == round(s, 6)
     assert summ["scale_exact"] == s
-    # how hard EACH table's arm pulled, per table: a median mix that records only `size` says
-    # nothing about whether the size term did anything
+    # how hard each table's arm pulled, per table
     for i in (0, 1):
         assert summ[f"table{i}_size_mean"] == pytest.approx(float(np.mean(sizes[i])), abs=1e-6)
         assert summ[f"table{i}_size_gt1_frac"] == round(
             float(np.mean(np.array(sizes[i]) > 1.0)), 6)
-    unit_mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.2, 0.4])
+    unit_mix = na.build_neighbour_arms(targets, deltas.get, axis, [t1, t2], k=5, ws=[0.3, 0.4])
     for t in targets[12:18]:
         unit_mix.fuse(t, deltas[t])
-    # the unit blend has no size term, so it reports no reading -- never 0.0, which would read
-    # as "both neighbourhoods cancelled"
+    # the unit blend has no size term, so it reports no size reading
     assert not [k for k in unit_mix.summary() if "size" in k and k != "size"]
 
 
@@ -740,8 +684,7 @@ def test_a_one_table_median_mix_is_the_single_median_arm_bit_for_bit():
 
 
 def test_the_flags_size_choices_are_the_modules_sizes():
-    """build.py names the two spellings so that off never imports the arm module; if
-    `SIZES` grows, this is what says the flag did not."""
+    """The flag's choices are `na.SIZES`; its default is unit."""
     ap = argparse.ArgumentParser()
     build.add_neighbour_args(ap, twin="sidechain.eval.loco")
     action = next(a for a in ap._actions if a.dest == "neighbour_size")
@@ -753,7 +696,7 @@ def test_build_refuses_size_without_w(challenge, capsys):
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "bad", ["--neighbour-size", "median"]))
     err = capsys.readouterr().err
-    # one flag, so a singular verb and "drop it": the message is pasted into logs as it stands
+    # one flag: a singular verb and "drop it"
     assert "--neighbour-size median without --neighbour-w does nothing" in err
     assert "drop it" in err and "/--neighbour" not in err
     with pytest.raises(SystemExit):                       # argparse guards the spelling
@@ -773,7 +716,7 @@ def test_build_records_size(challenge):
     assert med_rec["scale"] == unit_rec["scale"]          # one pool, one scale either way
     assert med_rec["targets_fused"] == 4 and "arm_size_mean" in med_rec
     assert "arm_size_mean" not in unit_rec
-    # the exact scale rides along, so a replay can re-derive the blend from the record alone
+    # the exact scale is recorded beside the rounded one
     assert round(med_rec["scale_exact"], 6) == med_rec["scale"]
     for stem, want in (("szu", "unit"), ("szm", "median")):
         args = json.loads((challenge["out"] / f"{stem}.args.json").read_text())
@@ -781,9 +724,7 @@ def test_build_records_size(challenge):
 
 
 def test_the_arm_record_carries_the_size_before_the_summary_merge(challenge):
-    """Both consumers merge `arm.summary()` OVER this record, and the summary always carries
-    `size`, so the record's own key can only be read here. The arm's value winning is the safe
-    direction -- a record that disagrees with the arm that ran cannot be written."""
+    """`neighbour_arm_for`'s own record carries `size` before `arm.summary()` is merged over it."""
     from types import SimpleNamespace
 
     axis = np.array(GENES)
@@ -800,7 +741,7 @@ def test_the_arm_record_carries_the_size_before_the_summary_merge(challenge):
     arm, rec = build.neighbour_arm_for(args_for(neighbour_size="median"), delta_of, axis)
     assert rec["size"] == "median" and arm.size == "median"
     assert "arm_size_mean" not in rec                     # pre-merge: the record's own keys only
-    # and a caller from before the flag (eval.loco's older SimpleNamespace) still gets the gate's
+    # an args namespace without neighbour_size gets unit
     old_arm, old_rec = build.neighbour_arm_for(args_for(), delta_of, axis)
     assert old_rec["size"] == "unit" and old_arm.size == "unit"
 
@@ -812,13 +753,13 @@ def test_build_records_size_for_a_two_table_mix(challenge):
     t2 = challenge["data"] / "table2.pt"
     torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
                 for p in GENES[:N_PERTS]}, t2)
-    flags = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.2",
+    flags = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.3",
              "--neighbour-table", str(t2), "--neighbour-w", "0.1",
              "--neighbour-pool", str(challenge["data"] / "pool.csv"), "--neighbour-k", "3",
              "--neighbour-size", "median"]
     assert build.main(_argv(challenge, "mixmed", flags)) == 0
     rec = json.loads((challenge["out"] / "mixmed.neighbour.json").read_text())
-    assert rec["size"] == "median" and rec["w"] == [0.2, 0.1] and rec["targets_fused"] == 4
+    assert rec["size"] == "median" and rec["w"] == [0.3, 0.1] and rec["targets_fused"] == 4
     assert np.isfinite(rec["scale"]) and rec["scale"] > 0
     assert round(rec["scale_exact"], 6) == rec["scale"]
     for i in (0, 1):
@@ -847,8 +788,7 @@ def test_loco_passes_size_through(monkeypatch, tmp_path, challenge):
 
 
 def test_loco_default_size_is_unit_and_reaches_the_arm(tmp_path, challenge):
-    """The SimpleNamespace eval.loco hands `neighbour_arm_for` carries the flag, so a loco
-    arm and a submission arm blend the same way."""
+    """eval.loco hands `neighbour_arm_for` the size flag; the default is unit."""
     from sidechain.eval.loco import build_transfer_prediction
 
     rng = np.random.default_rng(13)
@@ -860,7 +800,7 @@ def test_loco_default_size_is_unit_and_reaches_the_arm(tmp_path, challenge):
                                      index=[f"c{i}" for i in range(len(labels))]),
                var=pd.DataFrame(index=GENES)).write_h5ad(real)
     gw = PseudobulkSums.load(challenge["data"] / "gwps.npz")
-    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.35,
+    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.2,
               seed=0, min_libsize=100, neighbour_table=challenge["data"] / "table.pt",
               neighbour_pool=challenge["data"] / "pool.csv", neighbour_k=3, neighbour_w=0.3)
     info_u = build_transfer_prediction(real, [(gw, "control")], tmp_path / "u.h5ad", **kw)
@@ -873,7 +813,7 @@ def test_loco_default_size_is_unit_and_reaches_the_arm(tmp_path, challenge):
     assert (x_u != x_m).nnz > 0                            # the blend moved the emitted cells
 
 
-# ------------------------------------------------ which k: the selection rules (round two)
+# --------------------------------------------------------------------------- the selection rules
 
 def _resid_of(arm, deltas, t):
     d = np.array(deltas[t], dtype=float)
@@ -883,9 +823,7 @@ def _resid_of(arm, deltas, t):
 
 
 def _loop_pick(arm, table, deltas, t, k, select, cand=None):
-    """The k members a rule should pick, member by member in plain Python: no matrix product,
-    no argsort, none of the arm's own code -- so a slip in the arm's vectorised pick moves
-    `fuse` and not this expectation."""
+    """The k members a rule should pick, member by member in plain Python, without the arm's own code."""
     r = _resid_of(arm, deltas, t)
     e = na.table_vector(table, t)
     others = [j for j, lab in enumerate(arm.pool) if lab != t]
@@ -952,13 +890,8 @@ def test_each_selection_rule_picks_what_a_plain_loop_picks(select, cand, k):
 
 
 def test_the_rules_differ_and_hybrid_stays_inside_the_tables_candidates():
-    """Each moved rule changes somebody's prediction, and hybrid never leaves cand.
-
-    The candidate assertion reads the ARM, not two test-side computations: the hybrid arm's own
-    neighbour mean has to equal the mean of the loop's pick, and that pick has to sit inside the
-    table's `cand` nearest. An arm that ignored `cand` -- re-ranking the whole pool -- would
-    average other rows and fail the first half.
-    """
+    """Each moved rule changes some target's prediction, and hybrid's pick stays inside the table's
+    `cand` nearest."""
     targets, axis, deltas, table = _world()
     arms = {s: na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select=s,
                                       cand=12) for s in na.SELECTS}
@@ -1001,23 +934,22 @@ def test_a_response_rule_reads_the_sources_residuals_and_nothing_else():
 
 
 def test_the_constant_rule_is_minus_the_pool_mean_for_every_target():
-    """The control for the response rules (T103 round three): nobody is averaged, so the arm is
-    `-m` whoever the target is, k and the table's vectors have no say in it, and the table still
-    decides which targets are fused -- the same ones the table arm fuses."""
+    """The constant rule's arm is `-m` for every target, whatever k and the table's vectors; the table
+    still decides which targets are fused."""
     targets, axis, deltas, table = _world()
-    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2, select="constant")
-    k1 = na.build_neighbour_arm(targets, deltas.get, axis, table, k=1, w=0.2, select="constant")
+    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3, select="constant")
+    k1 = na.build_neighbour_arm(targets, deltas.get, axis, table, k=1, w=0.3, select="constant")
     rng = np.random.default_rng(5)
     other = {t: rng.normal(size=8) for t in targets}
-    oth = na.build_neighbour_arm(targets, deltas.get, axis, other, k=5, w=0.2, select="constant")
-    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.2)
+    oth = na.build_neighbour_arm(targets, deltas.get, axis, other, k=5, w=0.3, select="constant")
+    ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3)
     for t in targets:
         r = _resid_of(arm, deltas, t)
         n, own = arm.neighbour_mean(t, na.table_vector(table, t), r)
         assert np.array_equal(n, -arm.mean) and own == arm.pool.index(t)
         out = arm.fuse(t, deltas[t])
         assert np.array_equal(out, arm.mean + float(np.linalg.norm(r))
-                              * na.unit(na.unit(r) + 0.2 * na.unit(-arm.mean)))
+                              * na.unit(na.unit(r) + 0.3 * na.unit(-arm.mean)))
         assert np.array_equal(out, k1.fuse(t, deltas[t]))
         assert np.array_equal(out, oth.fuse(t, deltas[t]))
         ref.fuse(t, deltas[t])
@@ -1025,7 +957,7 @@ def test_the_constant_rule_is_minus_the_pool_mean_for_every_target():
     assert summ["select"] == "constant" and "cand" not in summ
     assert summ["targets_fused"] == ref.summary()["targets_fused"] == len(targets)
     gone = {k: v for k, v in table.items() if k != targets[0]}      # the table still gates
-    cut = na.build_neighbour_arm(targets[1:], deltas.get, axis, gone, k=5, w=0.2,
+    cut = na.build_neighbour_arm(targets[1:], deltas.get, axis, gone, k=5, w=0.3,
                                  select="constant")
     assert cut.fuse(targets[0], deltas[targets[0]]) is deltas[targets[0]]
     assert cut.summary()["targets_unresolved"] == 1
@@ -1045,10 +977,10 @@ def test_selection_refusals():
     with pytest.raises(ValueError, match="pass r"):            # no residual, no response rule
         arm.neighbour_mean(targets[0], na.table_vector(table, targets[0]))
     with pytest.raises(ValueError, match="one table"):
-        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
+        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.3, 0.1],
                                 select="hybrid")
     with pytest.raises(ValueError, match="one table"):
-        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.2, 0.1],
+        na.build_neighbour_arms(targets, deltas.get, axis, [table, table], k=5, ws=[0.3, 0.1],
                                 picks={targets[0]: {"members": targets[1:3], "weights": None}})
     # a pick answers every target, so a ranking rule beside it would rank nothing
     for select in ("hybrid", "response", "euclid", "constant"):
@@ -1060,9 +992,8 @@ def test_selection_refusals():
 
 
 def test_a_hand_built_arm_refuses_an_unknown_rule_and_too_few_candidates():
-    """The analytic screen builds `NeighbourArm` directly, so the selection preconditions have
-    to hold at construction -- and `neighbour_mean`'s chain must refuse a rule it does not know
-    rather than fall through to the last branch, which would answer under another rule's pick."""
+    """`NeighbourArm` built directly refuses an unknown rule and too few candidates; `neighbour_mean`
+    refuses a rule assigned after construction."""
     targets, axis, deltas, table = _world()
     ref = na.build_neighbour_arm(targets, deltas.get, axis, table, k=5, w=0.3)
     kw = {"k": 5, "w": 0.3, "table": table, "pool": ref.pool, "mean": ref.mean,
@@ -1079,12 +1010,7 @@ def test_a_hand_built_arm_refuses_an_unknown_rule_and_too_few_candidates():
 
 
 def test_a_declared_pick_is_averaged_exactly_as_declared():
-    """Direction AND length.
-
-    ``size="unit"`` normalises the neighbour mean away inside `fuse`, so a pick that was
-    rescaled -- summed instead of averaged, divided by the wrong weight total -- fuses to the
-    same vector. The length is therefore asserted on `neighbour_mean` itself, per case.
-    """
+    """A declared pick is averaged exactly as declared: direction and length."""
     targets, axis, deltas, table = _world()
     picks = {targets[0]: {"members": targets[3:6], "weights": None},             # flat, 3 members
              targets[1]: {"members": targets[4:8], "weights": [1.0, 0.0, 2.0, 1.0]},
@@ -1108,7 +1034,7 @@ def test_a_declared_pick_is_averaged_exactly_as_declared():
     assert summ["picks_zero_weight"] == 1
     assert summ["targets_fused"] == 3 and "picks_missing" not in summ
     assert summ["own_in_pool"] == summ["targets_fused"]               # every target is a member
-    # the pick's widths, measured at construction: 3, 4 and 2 members
+    # the pick's widths: 3, 4 and 2 members
     assert summ["picks_members_min"] == 2 and summ["picks_members_max"] == 4
     # the LENGTH, read off the mean itself (after the summary, which these reads would count):
     # a pick summed instead of averaged, or divided by the wrong weight total, fuses to the very
@@ -1119,8 +1045,7 @@ def test_a_declared_pick_is_averaged_exactly_as_declared():
 
 
 def test_a_declared_pick_must_name_every_target_the_arm_fuses():
-    """No fallback. A pick comes from a rule the arm cannot compute, so a target it leaves out
-    has no rule at all; answering it by `select` would score two rules under the pick's hash."""
+    """A target the declared pick leaves out is refused by name, never answered by another rule."""
     targets, axis, deltas, table = _world()
     picks = {t: {"members": targets[20:23], "weights": None} for t in targets[:3]}
     arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=10, w=0.3, picks=picks)
@@ -1204,7 +1129,7 @@ def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
     t2 = challenge["data"] / "table2.pt"
     torch.save({p: torch.tensor(rng.normal(size=4), dtype=torch.float32)
                 for p in GENES[:N_PERTS]}, t2)
-    mix = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.2",
+    mix = ["--neighbour-table", str(challenge["data"] / "table.pt"), "--neighbour-w", "0.3",
            "--neighbour-table", str(t2), "--neighbour-w", "0.1",
            "--neighbour-pool", str(challenge["data"] / "pool.csv"), "--neighbour-k", "3"]
     for extra in (["--neighbour-select", "response"], ["--neighbour-picks", str(picks)]):
@@ -1214,11 +1139,7 @@ def test_build_refuses_a_half_set_or_unwired_selection(challenge, capsys):
 
 
 def test_build_reads_the_picks_file_before_it_pools_anything(challenge, capsys, monkeypatch):
-    """A malformed pick must die at the launch, not after the pool is pooled.
-
-    The pool is 849 targets on the real panel and costs minutes; a KeyError raised inside the
-    arm after that is a wasted box hour, and a stack trace instead of a named entry.
-    """
+    """A malformed picks file is refused, by entry, before any delta is pooled."""
     def boom(*a, **k):
         raise AssertionError("the pool was pooled before the picks file was read")
 
@@ -1236,9 +1157,9 @@ def test_build_reads_the_picks_file_before_it_pools_anything(challenge, capsys, 
 
 
 def test_build_refuses_a_model_named_stem_with_a_moved_selection(challenge, capsys):
-    """Letter `k` says "the table's k nearest"; a moved rule has no letter yet (ADR 0005)."""
+    """A model-named stem refuses a moved selection rule or a declared pick; the default passes."""
     picks = _picks_file(challenge)
-    stem = "ser-9abefkn_delta4_test_v1"
+    stem = "ser-99_fixture_v1"
     for extra in (["--neighbour-select", "hybrid", "--neighbour-cand", "6"],
                   ["--neighbour-select", "constant"],
                   ["--neighbour-picks", str(picks)]):
@@ -1289,7 +1210,7 @@ def test_build_emits_the_selected_pick_and_records_it(challenge, monkeypatch):
     moved = 0
     for i, p in enumerate(GENES[:4]):
         for got, arm in ((hyb, arm_h), (dec, arm_d)):
-            expect = arm.fuse(p, delta_of(p)) * 1.35
+            expect = arm.fuse(p, delta_of(p)) * 1.2
             expect[i] = build.TARGET_SELF_LOG2FC
             np.testing.assert_allclose(got[i], expect, atol=1e-12)
         moved += int(not np.allclose(hyb[i], tab[i]))
@@ -1344,7 +1265,7 @@ def test_loco_selection_reaches_the_arm_and_moves_the_cells(tmp_path, challenge)
                                      index=[f"c{i}" for i in range(len(labels))]),
                var=pd.DataFrame(index=GENES)).write_h5ad(real)
     gw = PseudobulkSums.load(challenge["data"] / "gwps.npz")
-    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.35,
+    kw = dict(pert_col="target_gene", control="non-targeting", shrinkage=False, alpha=1.2,
               seed=0, min_libsize=100, neighbour_table=challenge["data"] / "table.pt",
               neighbour_pool=challenge["data"] / "pool.csv", neighbour_k=3, neighbour_w=0.3)
     info_t = build_transfer_prediction(real, [(gw, "control")], tmp_path / "t.h5ad", **kw)
@@ -1363,14 +1284,12 @@ def test_loco_selection_reaches_the_arm_and_moves_the_cells(tmp_path, challenge)
 
 
 def test_the_adaptive_rule_with_the_arm_counts_targets_and_pool_apart(challenge, monkeypatch):
-    """T84, SER-14aefksw's own path end to end: the adaptive rule after pooling with the arm on.
-
-    The build's `.shrink.json` must count the targets' fits and the neighbour pool's apart, and a
-    pool member that is also a target reuses its delta, so it is fitted once and counted once."""
+    """The adaptive rule after pooling with the arm on: `.shrink.json` counts the targets' fits and the
+    pool's apart, and a pool member that is also a target is fitted and counted once."""
     from sidechain.models import adaptive_shrink as ash
 
     monkeypatch.setattr(ash, "MIN_GENES", 5)                      # the fixture has 16 genes
-    stem = "ser-99aefksw_ashpool_v1"
+    stem = "ser-99s_fixture_v1"
     argv = [a for a in _argv(challenge, stem, [*_arm_flags(challenge), "--shrink-stage", "pooled",
                                                "--shrink-rule", "adaptive"]) if a != "--no-shrink"]
     assert build.main(argv) == 0

@@ -1,11 +1,8 @@
-"""`--ctrl-axes` (T125): the context's control-cell axes out of the summed-profile channel.
+"""`--ctrl-axes`: the context's control-cell axes taken out of the summed-profile channel (`submit.ctrl_axes`).
 
-Pinned here: the axes are the centred log1p-CP50K principal axes (against a dense SVD), nested over K and
-cached by their inputs; the projection removes eta of the emitted change's along-axis part and holds the
-target's own gene; eta 0 and no axes are no-ops; on `submit.build` the per-cell channel is bit-identical with
-the flag on while the summed-profile channel moves, the record is written, and off the build writes what it
-wrote before (no record, no new keys in args.json); on `eval.loco` the same, and the flag needs the pooled
-anchor, and a model-named build stem carries the letter x exactly when the flag is on (ADR 0005).
+    .venv/bin/python -m pytest -q tests/test_ctrl_axes.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_ctrl_axes.py.md
 """
 from __future__ import annotations
 
@@ -128,7 +125,7 @@ def test_build_moves_only_the_summed_profile_and_records_it(challenge, monkeypat
     for (c0, b0), (c1, b1) in zip(seen["plain"], seen["axes"]):
         assert np.array_equal(c0, c1)                             # the per-cell channel, bit-identical
         assert not np.array_equal(b0, b1)                         # the summed profile moved
-    assert seen["axes"][0][1][0] == seen["plain"][0][1][0]          # A's own gene keeps its pin
+    assert seen["axes"][0][1][0] == seen["plain"][0][1][0]          # target A's own gene keeps its pin
     rec = json.loads((challenge["out"] / "axes.ctrl_axes.json").read_text())
     assert rec["k"] == 1 and rec["contexts"]["X"]["deflation"]["targets"] == 2
     assert rec["contexts"]["X"]["axes"]["key"] and "dual_fallbacks" in rec
@@ -149,12 +146,12 @@ def test_a_model_named_stem_carries_the_letter_x_both_ways(challenge, monkeypatc
     _spy(monkeypatch)
     axes = ["--bulk-anchor", "pooled", "--ctrl-axes", "1", "--ctrl-axes-cache", str(tmp_path / "c")]
     with pytest.raises(SystemExit):                                   # the flag needs the letter
-        build.main(_argv(challenge, "ser-99w_delta_test_v1", axes))
+        build.main(_argv(challenge, "ser-99_fixture_v1", axes))
     assert "must carry the letter x" in capsys.readouterr().err
     with pytest.raises(SystemExit):                                   # the letter needs the flag
-        build.main(_argv(challenge, "ser-99wx_delta_test_v1", ["--bulk-anchor", "pooled"]))
+        build.main(_argv(challenge, "ser-99x_fixture_v1", ["--bulk-anchor", "pooled"]))
     assert "carries the letter x" in capsys.readouterr().err
-    assert build.main(_argv(challenge, "ser-99wx_delta_test_v1", axes)) == 0
+    assert build.main(_argv(challenge, "ser-99x_fixture_v1", axes)) == 0
 
 
 # ------------------------------------------------------------------------------------ eval.loco
@@ -188,7 +185,7 @@ def test_loco_moves_only_the_summed_profile_and_off_is_the_historical_path(tmp_p
                       var=pd.DataFrame(index=genes.astype(str)))
     real.write_h5ad(tmp_path / "real.h5ad")
     kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
-              min_libsize=0.0, seed=0, alpha=1.35, emit_lambda=0.5, bulk_anchor="pooled")
+              min_libsize=0.0, seed=0, alpha=1.2, emit_lambda=0.4, bulk_anchor="pooled")
     off = loco.build_transfer_prediction(tmp_path / "real.h5ad", srcs, tmp_path / "off.h5ad", **kw)
     zero = loco.build_transfer_prediction(tmp_path / "real.h5ad", srcs, tmp_path / "zero.h5ad", ctrl_axes=0, **kw)
     assert "ctrl_axes" not in off and "ctrl_axes" not in zero
@@ -220,7 +217,7 @@ def test_loco_moves_only_the_summed_profile_and_off_is_the_historical_path(tmp_p
     with pytest.raises(SystemExit, match="pooled"):
         loco.build_transfer_prediction(tmp_path / "real.h5ad", srcs, tmp_path / "r.h5ad", ctrl_axes=2,
                                        ctrl_axes_cache=None, **{**kw, "bulk_anchor": "mean_cpm",
-                                                                "alpha_bulk": 1.35})
+                                                                "alpha_bulk": 1.2})
 
 
 def test_the_weakest_share_deflates_only_the_smallest_changes(challenge, monkeypatch, tmp_path):  # noqa: F811

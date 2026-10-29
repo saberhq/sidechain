@@ -1,15 +1,8 @@
-"""Tests for the Cell Ranger feature-barcode h5 reader (Pan 2026's H1 screen, T114).
+"""`sidechain.data.stream_10x_h5`: Cell Ranger feature-barcode lanes to per-label sums.
 
-The sums are checked against a plain loop over cells rather than against a second
-implementation, as in the parquet streamer's tests and for the same reason. What is new in
-this reader, and so what most of these pin, is everything BEFORE the sums: the file has no
-perturbation column, so the orientation of the matrix, the cell filter, the guide call and
-the control arm are all derived here from rules a config block declares.
+    .venv/bin/python -m pytest -q tests/test_stream_10x_h5.py
 
-Every fixture mirrors the real layout as read from GEO on 2026-10-09
-(`GSM8943725_..._filtered_feature_bc_matrix.h5`): the matrix is stored features x barcodes
-and compressed by barcode, `data` is int32 and `indices` int64, gene features carry an
-Ensembl id and a symbol, guide features carry the guide name twice and no target tag.
+Writes temporary files only. Notes: private/code-notes/tests/test_stream_10x_h5.py.md
 """
 import contextlib
 import hashlib
@@ -28,8 +21,8 @@ from sidechain.data.stream_pseudobulk import PseudobulkSums
 
 GENES = [  # (ensembl id, symbol)
     ("ENSG0", "AAA"), ("ENSG1", "BBB"), ("ENSG2", "CCC"),
-    ("ENSG3", "DUP"), ("ENSG4", "DUP"),          # one symbol on two ids, as 21 real names are
-    ("ENSG5", "AARS1"),                          # the CURRENT symbol; the 2026 axis says AARS
+    ("ENSG3", "DUP"), ("ENSG4", "DUP"),          # one symbol on two ids
+    ("ENSG5", "AARS1"),                          # the current symbol; the axis spells it AARS
     ("ENSG6", "MT-ND1"),
     ("ENSG7", "TGT1"), ("ENSG8", "TGT2"),
     ("ENSG9", "NEWX"),                           # the library spells this target OLDX
@@ -122,8 +115,7 @@ def test_rules_are_read_from_the_spec_and_never_defaulted():
 
 
 def test_the_registry_block_parses_into_rules():
-    """The real block, not a fixture: every lane of Pan 2026 shares one spec and it carries
-    every rule this reader needs."""
+    """The `pan2026_h1_crispri` registry block carries one spec for every lane, and it parses into rules."""
     from sidechain.ingest.fetch import load_datasets
 
     block = load_datasets()["pan2026_h1_crispri"]
@@ -154,8 +146,7 @@ def test_a_lane_reads_as_cells_by_features(tmp_path):
 
 
 def test_a_matrix_compressed_the_other_way_is_refused(tmp_path):
-    """The three arrays build a matrix either way round whenever the sizes allow it; only
-    the lengths say which way the file was compressed."""
+    """A matrix compressed by feature is refused."""
     dense = np.random.default_rng(1).integers(0, 4, size=(7, N_GE + N_GUIDE))
     path = _write_lane(tmp_path / "a.h5", dense)
     with h5py.File(path, "r+") as f:
@@ -534,10 +525,8 @@ def test_the_cli_refuses_a_lane_that_is_not_the_recorded_size(three_lanes, tmp_p
 
 # ------------------------------------------------- what is SAVED, read back --
 #
-# Everything above checks objects in memory. The tests below run the command line once on
-# lanes that carry the edge cases (guide counts exactly on 2, 5 and 10, low-gene cells, a
-# count above 127) and read every saved file back, because a column that is written wrong
-# and never read by a test is a column nobody checked.
+# The tests below run the command line once on lanes that carry the edge cases (guide counts
+# exactly on 2, 5 and 10, low-gene cells, a count above 127) and read every saved file back.
 
 LAB = ["TGT1", "TGT1", "TGT2", "OLDX", "non-targeting", "non-targeting"]
 AXIS = {"AAA": [0], "AARS": [5], "DUP": [3, 4], "CCC": [2], "TGT1": [7], "TGT2": [8], "MT-ND1": [6]}
@@ -673,8 +662,7 @@ def test_the_lane_table_and_the_lineage_carry_the_counts_and_the_digest_of_the_b
 
 
 def test_a_groups_lineage_entry_counts_its_own_lanes(run):
-    """A group's entry counts its own lanes: the first version reported the whole run's
-    barcodes and drops beside the group's own cells."""
+    """A group's lineage entry counts its own lanes' barcodes and drops."""
     tsv = pd.read_csv(run["out"].with_name("h1_tiny.lanes.tsv"), sep="\t").set_index("lane")
     entries = json.loads((run["out"].parent / "LINEAGE.json").read_text())["entries"]
     cov = entries["tiny/h1_tiny.day1"]["coverage"]
@@ -815,7 +803,7 @@ def test_the_refusals_nothing_else_exercises(run, tmp_path):
 
 
 def test_a_group_that_keeps_no_cell_merges_and_keeps_its_lane_in_the_sources(tmp_path):
-    """`merge` built its row index from an empty list as float64 and died after the pass."""
+    """A group that keeps no cell merges, and its lane stays in the sources."""
     rng = np.random.default_rng(5)
     good = _write_lane(tmp_path / "good.h5", _random_lane(rng, 40))
     dead = _write_lane(tmp_path / "dead.h5", np.vstack(
@@ -830,9 +818,7 @@ def test_a_group_that_keeps_no_cell_merges_and_keeps_its_lane_in_the_sources(tmp
 
 
 def test_stored_zeros_and_split_entries_are_canonicalised_before_anything_is_counted(tmp_path):
-    """A file may store a zero, or one (cell, feature) count in two pieces; neither may
-    count as a detected gene or change a guide call. Written entry by entry, because the
-    dense fixture writer can store neither."""
+    """A stored zero, or a count split in two entries, changes no detection and no guide call."""
     n_feat = N_GE + N_GUIDE
     cells = [  # (feature, count) pairs per cell, as stored
         [(0, 1), (1, 1), (2, 1), (3, 0), (N_GE + 0, 10), (N_GE + 0, 10)],  # 3 genes; guide 10+10
@@ -889,8 +875,7 @@ def test_the_printed_fetch_plan_makes_the_directories_a_nested_name_needs(tmp_pa
     from sidechain.ingest import fetch
     from sidechain.ingest.provenance import HostRecord, RemoteFile
 
-    # A roomy volume: the gate reads the machine's real free space and keeps 10 GB free, so a
-    # CI runner with 8.1 GB free refused this tiny fetch (2026-10-26).
+    # a roomy volume: the gate reads the machine's free space
     monkeypatch.setattr("sidechain.ingest.provenance.shutil.disk_usage",
                         lambda p: type("U", (), {"free": 500 * 10**9})())
     record = HostRecord(

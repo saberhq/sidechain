@@ -1,12 +1,8 @@
-"""Tests for the metadata-first gate.
+"""The metadata-first gate in `sidechain.ingest.provenance`: selection, gate, provenance, probes.
 
-Every assertion here is a refusal we want to keep. The gate's whole value is
-that it says no *before* a download starts, so a gate that silently says yes is
-worse than no gate at all -- it would carry the authority of having checked.
+    .venv/bin/python -m pytest -q tests/test_ingest_provenance.py
 
-The three cases that motivated it are all real: a 559.7 GB record that would
-have filled the disk, a file whose host-side checksum was never computed, and
-a published repo declaring no license at all.
+Writes temporary files only. Notes: private/code-notes/tests/test_ingest_provenance.py.md
 """
 import json
 
@@ -44,10 +40,7 @@ def _record(license="CC-BY-4.0", files=None):
 
 
 def test_select_is_strict_about_unknown_names():
-    """Skipping a requested file yields a partial corpus that looks whole.
-
-    Same failure shape as a non-strict gene_index: no error, wrong answer.
-    """
+    """`select` refuses a name the record does not hold."""
     with pytest.raises(GateError, match="no file"):
         _record().select(["small.h5ad", "not_there.h5ad"])
 
@@ -61,8 +54,7 @@ def test_select_preserves_requested_order():
 
 
 def test_unknown_license_is_a_stop():
-    """Arc's State-Replogle-Filtered declares none. Unstated is more
-    restrictive than permissive, not less."""
+    """A record whose licence is `unknown` is refused."""
     with pytest.raises(GateError, match="no license"):
         gate(_record(license="unknown"), budget_gb=100)
 
@@ -73,8 +65,7 @@ def test_empty_license_string_is_also_a_stop():
 
 
 def test_license_override_fills_an_absence():
-    """A host with no license field (lamin) passes only via an override that
-    names where the terms were actually verified."""
+    """An override with a source passes a record whose licence is `unknown`."""
     got = gate(_record(license="unknown"), budget_gb=100,
                license_override=("CC-BY-4.0", "zenodo record 13350497 v1.4, verified 2026-08-16"))
     assert [f.name for f in got] == ["small.h5ad", "big.h5ad"]
@@ -99,8 +90,7 @@ def test_license_override_still_faces_the_accepted_list():
 
 
 def test_over_budget_is_a_stop():
-    """The X-Atlas case: 559.7 GB discovered from metadata, not from a disk
-    that filled up mid-transfer."""
+    """A selection over the budget is refused."""
     with pytest.raises(GateError, match="over the"):
         gate(_record(), budget_gb=5.0)
 
@@ -139,9 +129,7 @@ def test_gate_passes_and_returns_the_selection():
 
 
 def test_provenance_is_written_before_data_exists(tmp_path):
-    """The ordering is the point: written first, it is the thing the fetch is
-    checked against; written after, it merely describes what we happened to get.
-    """
+    """`write_provenance` writes the record before any data file exists."""
     dest = tmp_path / "zenodo-13350497"
     rec = _record()
     sel = gate(rec, budget_gb=15.0)
@@ -159,8 +147,7 @@ def test_provenance_is_written_before_data_exists(tmp_path):
 
 
 def test_provenance_flags_license_terms_that_outlive_ingest(tmp_path):
-    """ShareAlike constrains redistribution of derived artifacts -- a decision
-    that surfaces long after the download, so it is recorded, not remembered."""
+    """An NC-SA licence is flagged noncommercial and redistribution-encumbered."""
     rec = _record(license="CC-BY-NC-SA-4.0")
     payload = json.loads(
         write_provenance(tmp_path / "d", rec, rec.files).read_text()
@@ -199,8 +186,7 @@ def _globbable():
 
 
 def test_glob_expands_to_every_matching_file():
-    """332 per-batch files cannot be listed by hand without the list going
-    stale the moment Xaira adds a batch."""
+    """A glob selects every matching file."""
     got = _globbable().select(["data/HCT116_*.parquet"])
     assert [f.name for f in got] == [
         "data/HCT116_Batch1.parquet",
@@ -210,15 +196,13 @@ def test_glob_expands_to_every_matching_file():
 
 
 def test_glob_matching_nothing_is_a_stop_not_an_empty_selection():
-    """The whole point of strict selection. A renamed upstream folder must
-    stop the run, not stream zero cells and report success."""
+    """A glob that matches nothing is refused."""
     with pytest.raises(GateError, match="no file"):
         _globbable().select(["data/HELA_*.parquet"])
 
 
 def test_one_dead_glob_among_live_ones_still_stops():
-    """A partial corpus that looks whole is the failure being prevented, so a
-    selection is all-or-nothing."""
+    """One glob that matches nothing refuses the whole selection."""
     with pytest.raises(GateError, match="HELA"):
         _globbable().select(["data/HCT116_*.parquet", "data/HELA_*.parquet"])
 
@@ -232,16 +216,14 @@ def test_globs_and_exact_names_mix_and_keep_request_order():
 
 
 def test_overlapping_globs_do_not_double_count():
-    """Two patterns matching the same file must select it once: the gate sums
-    sizes, and a double-counted 46 GB line would misreport the corpus."""
+    """A file matched by two patterns is selected once."""
     got = _globbable().select(["data/HCT116_*.parquet", "data/*.parquet"])
     assert len(got) == len({f.name for f in got})
     assert len(got) == 4
 
 
 def test_exact_name_behaviour_is_unchanged_by_glob_support():
-    """A name with no metacharacters must still be an exact match, so every
-    existing block keeps its meaning."""
+    """A name with no glob characters is an exact match."""
     rec = _globbable()
     assert [f.name for f in rec.select(["README.md"])] == ["README.md"]
     with pytest.raises(GateError, match="no file"):
@@ -252,7 +234,7 @@ def test_exact_name_behaviour_is_unchanged_by_glob_support():
 
 
 class _FakeHF:
-    """The two HF endpoints, with the shape the real API returned 2026-08-23."""
+    """The two HF endpoints the probe calls."""
 
     def __init__(self, *, sha="53a5bc98", card=None, tags=(), sizes=None, omit=()):
         self.sha, self.card, self.tags = sha, card, list(tags)
@@ -287,9 +269,7 @@ def _install(monkeypatch, fake):
 
 
 def test_probe_pins_the_commit_sha_as_the_version(monkeypatch):
-    """HF has no immutable record id -- `main` moves when the depositor pushes.
-    The sha is the only thing that makes the record re-checkable, and is what
-    makes diff_against_recorded fire on a republish."""
+    """The probe records the repo's commit sha as the version."""
     _install(monkeypatch, _FakeHF(card={"license": "cc-by-nc-sa-4.0"}))
     rec = probe_huggingface("Owner/Repo")
     assert rec.version == "53a5bc98"
@@ -298,16 +278,14 @@ def test_probe_pins_the_commit_sha_as_the_version(monkeypatch):
 
 
 def test_probe_pins_file_urls_to_that_sha(monkeypatch):
-    """So a stream reads exactly the bytes that were probed, not whatever
-    `main` points at by the time the run starts."""
+    """File urls resolve at that sha."""
     _install(monkeypatch, _FakeHF(card={"license": "cc-by-nc-sa-4.0"}))
     rec = probe_huggingface("Owner/Repo")
     assert all("/resolve/53a5bc98/" in f.url for f in rec.files)
 
 
 def test_probe_records_sha256_from_the_lfs_pointer(monkeypatch):
-    """LFS stores an object under its sha256, so that is the checksum HF can
-    actually publish. Recorded with its algorithm so verify hashes correctly."""
+    """An LFS file's checksum is its sha256; a non-LFS file has none."""
     _install(monkeypatch, _FakeHF(card={"license": "cc-by-nc-sa-4.0"}))
     rec = probe_huggingface("Owner/Repo")
     by = {f.name: f for f in rec.files}
@@ -316,9 +294,7 @@ def test_probe_records_sha256_from_the_lfs_pointer(monkeypatch):
 
 
 def test_probe_reads_sizes_and_does_not_leave_them_zero(monkeypatch):
-    """The repo endpoint carries no sizes at all. A probe that skipped
-    paths-info would build a record of zero-byte files, and the budget check
-    would then wave through anything at all -- wearing the gate's authority."""
+    """Sizes come from paths-info and are never zero."""
     _install(monkeypatch, _FakeHF(card={"license": "cc-by-nc-sa-4.0"}))
     rec = probe_huggingface("Owner/Repo")
     assert rec.total_bytes == 400_004_000
@@ -333,15 +309,13 @@ def test_probe_refuses_when_a_file_has_no_resolvable_size(monkeypatch):
 
 
 def test_probe_falls_back_to_the_license_tag(monkeypatch):
-    """A `license:` tag is a declaration too. The fallback exists so the
-    `unknown` stop fires only for a repo that declares NOTHING."""
+    """A `license:` tag supplies the licence when the card has none."""
     _install(monkeypatch, _FakeHF(card={}, tags=["license:cc-by-nc-sa-4.0"]))
     assert probe_huggingface("Owner/Repo").license == "CC-BY-NC-SA-4.0"
 
 
 def test_probe_reports_unknown_when_nothing_is_declared(monkeypatch):
-    """Arc's State-Replogle-Filtered is the live example, and `gate` turns this
-    into a stop."""
+    """A repo that declares no licence reads `unknown`, and the gate refuses it."""
     _install(monkeypatch, _FakeHF(card={}, tags=[]))
     rec = probe_huggingface("Owner/Repo")
     assert rec.license == "unknown"
@@ -369,8 +343,7 @@ def test_unknown_route_is_refused_rather_than_defaulted():
 
 
 def test_stream_route_does_not_measure_the_budget_against_the_corpus():
-    """126 GB read, 12 GB written. Bounding the selection would refuse every
-    stream; bounding nothing would let the aggregate fill the volume."""
+    """A stream's budget does not bound the bytes read."""
     got = gate(_record(), budget_gb=0.5, route="stream")
     assert len(got) == 2
 
@@ -381,7 +354,7 @@ def test_stream_route_still_checks_the_disk_against_the_output_budget(tmp_path):
 
 
 def test_stream_route_still_enforces_licence_and_checksums():
-    """Streaming relaxes the SIZE reading of the budget and nothing else."""
+    """A stream still faces the licence and checksum checks."""
     with pytest.raises(GateError, match="no license"):
         gate(_record(license="unknown"), budget_gb=1, route="stream")
     nosum = [RemoteFile("a.parquet", 10, None, "u")]
@@ -393,24 +366,19 @@ def test_stream_route_still_enforces_licence_and_checksums():
 
 
 def test_stated_but_unrecognised_licence_is_a_stop():
-    """The gap the HF host exposes. HF's namespace includes `other`, `unknown`
-    and bespoke slugs; before this, anything non-empty that was not literally
-    "unknown" passed -- AND was recorded with both license_flags false, i.e. as
-    less encumbered than it is. ADR 0003 says the gate stops on terms we have
-    not accepted, and this is that stop."""
+    """A stated licence off the accepted list is refused."""
     with pytest.raises(GateError, match="not on the accepted list"):
         gate(_record(license="other"), budget_gb=100)
 
 
 def test_an_unrecognised_noncommercial_licence_cannot_slip_through_as_unencumbered():
-    """The concrete harm: a CC-BY-NC-ND variant we do not model would be
-    recorded noncommercial=False, redistribution_encumbered=False."""
+    """An NC-ND licence, not on the accepted list, is refused."""
     with pytest.raises(GateError, match="not on the accepted list"):
         gate(_record(license="CC-BY-NC-ND-4.0"), budget_gb=100)
 
 
 def test_every_accepted_licence_still_passes():
-    """The stop must not become a wall: everything on the policy list works."""
+    """Every accepted licence passes."""
     from sidechain.ingest.provenance import ACCEPTED_LICENSES
 
     for lic in ACCEPTED_LICENSES:
@@ -422,13 +390,11 @@ def test_the_licence_stop_applies_on_a_stream_too():
         gate(_record(license="other"), budget_gb=1, route="stream")
 
 
-# ------------------------------ free space is measured where the bytes land --
+# ----------------------------------- free space, where the bytes land --
 
 
 def test_stream_checks_free_space_where_the_aggregate_is_written(tmp_path):
-    """dest and space_dest are different trees on a stream: PROVENANCE.json
-    goes to external/, the 12 GB aggregate to derived/. Measuring external/'s
-    volume assumes they share one, and nothing was checking that."""
+    """A stream reads free space on `space_dest`, not on `dest`."""
     seen = {}
     import sidechain.ingest.provenance as prov
 
@@ -449,7 +415,7 @@ def test_stream_checks_free_space_where_the_aggregate_is_written(tmp_path):
              space_dest=derived, headroom_gb=0)
     finally:
         prov.shutil = saved
-    assert seen["path"] == derived, "free space was measured on the wrong tree"
+    assert seen["path"] == derived, "free space was read on the wrong tree"
 
 
 def test_download_route_still_measures_dest(tmp_path):
@@ -478,9 +444,7 @@ def test_download_route_still_measures_dest(tmp_path):
 
 
 def test_a_route_flip_is_reported_as_a_difference():
-    """Flipping route changes what budget_gb bounds AND whether the bytes are
-    ever verified. Absorbing that silently would let a config edit switch off
-    the checksum pass on an already-recorded dataset."""
+    """A changed route is a difference from the recorded provenance."""
     recorded = {"route": "stream", "record": {"license": "CC-BY-4.0", "version": "1.4"},
                 "selected": [{"name": "a", "size_bytes": 1, "checksum": "md5:x"}]}
     rec = HostRecord(host="zenodo", record_id="1", api_url="u", title="t",
@@ -494,8 +458,7 @@ def test_a_route_flip_is_reported_as_a_difference():
 
 
 def test_a_schema_1_record_does_not_read_as_a_route_change():
-    """Records written before routes existed carry no `route` key. Treating
-    that absence as a difference would make every scPerturb run raise."""
+    """A recorded provenance with no `route` key is not a route change."""
     recorded = {"record": {"license": "CC-BY-4.0", "version": "1.4"},
                 "selected": [{"name": "a", "size_bytes": 1, "checksum": "md5:x"}]}
     rec = HostRecord(host="zenodo", record_id="1", api_url="u", title="t",
@@ -510,13 +473,7 @@ def test_a_schema_1_record_does_not_read_as_a_route_change():
 
 
 class _FakeFigshare:
-    """One Figshare article, with the shape the real API returned 2026-08-23.
-
-    Figshare differs from Zenodo in the two ways that matter to the gate: it
-    states a license by human NAME rather than SPDX id, and it publishes both
-    a `computed_md5` (its own verification) and a `supplied_md5` (the
-    uploader's claim), either of which can be the empty string.
-    """
+    """One Figshare article from the v2 API."""
 
     def __init__(self, *, license_name="MIT", files=None, version=1):
         self.license_name, self.version = license_name, version
@@ -548,8 +505,7 @@ def _install_get(monkeypatch, fake):
 
 
 def test_figshare_version_suffix_reads_the_pinned_endpoint(monkeypatch):
-    """`.v1` is the pin. A bare article id resolves to *latest* and moves when
-    the depositor republishes -- the same trap as a Zenodo concept DOI."""
+    """`.v<n>` reads the versioned endpoint; a bare id reads the article."""
     from sidechain.ingest.provenance import probe_figshare
 
     fake = _FakeFigshare()
@@ -567,9 +523,7 @@ def test_figshare_version_suffix_reads_the_pinned_endpoint(monkeypatch):
 
 
 def test_figshare_records_the_versionless_doi_as_the_concept_doi(monkeypatch):
-    """Figshare publishes no concept-DOI field, but the versionless form of the
-    article DOI is that identifier -- the one that follows 'latest'. Recording
-    both makes it visible which is pinned and which drifts."""
+    """The versionless article DOI is recorded as the concept DOI."""
     from sidechain.ingest.provenance import probe_figshare
 
     _install_get(monkeypatch, _FakeFigshare())
@@ -579,9 +533,7 @@ def test_figshare_records_the_versionless_doi_as_the_concept_doi(monkeypatch):
 
 
 def test_figshare_licence_name_is_normalised_to_the_spdx_the_gate_compares(monkeypatch):
-    """Figshare says "CC BY 4.0", the gate's accepted list says "CC-BY-4.0".
-    Passing the name through raw would refuse a perfectly usable dataset --
-    a false refusal, which erodes the gate as surely as a false pass."""
+    """Figshare licence names map to SPDX ids; an unaccepted one passes through and is refused."""
     from sidechain.ingest.provenance import ACCEPTED_LICENSES, probe_figshare
 
     for stated, expected in [("MIT", "MIT"), ("CC BY 4.0", "CC-BY-4.0"),
@@ -612,14 +564,7 @@ def test_figshare_missing_licence_is_unknown_and_therefore_a_stop(monkeypatch):
 
 
 def test_empty_computed_md5_is_an_absent_checksum_not_an_empty_one(monkeypatch):
-    """The live X-Atlas/Orion defect, generalised: Figshare returns "" rather
-    than omitting the field when it never verified the uploader's hash.
-
-    Carried through as a checksum, `verify` would compare a real digest against
-    "" and report MISMATCH on good bytes forever -- a verifier that cries wolf
-    gets ignored. As None it routes to the gate's refusal, where the exception
-    has to be asked for and is recorded in PROVENANCE.json.
-    """
+    """An empty `computed_md5` is no checksum, which the gate refuses without the exception."""
     from sidechain.ingest.provenance import probe_figshare
 
     _install_get(monkeypatch, _FakeFigshare(files=[
@@ -635,10 +580,7 @@ def test_empty_computed_md5_is_an_absent_checksum_not_an_empty_one(monkeypatch):
 
 
 def test_supplied_md5_is_never_substituted_for_a_missing_computed_md5(monkeypatch):
-    """`supplied_md5` is the uploader's claim about their own bytes, which is
-    the very thing `computed_md5` exists to corroborate. Falling back to it
-    would erase the distinction ADR 0003 was written around and turn an
-    unverified file into a verified-looking one."""
+    """`supplied_md5` never stands in for a missing `computed_md5`."""
     from sidechain.ingest.provenance import probe_figshare
 
     _install_get(monkeypatch, _FakeFigshare(files=[

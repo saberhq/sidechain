@@ -1,8 +1,8 @@
-"""`sidechain.eval.loco --alpha-bulk-target` (T84's knee rule on a fold, T93).
+"""`sidechain.eval.loco --alpha-bulk-target` and `--alpha-bulk-floor`: the knee rule on a fold.
 
-What is pinned: the knee run's prediction is, cell for cell, a plain run at the strength it chose; its record
-carries every read, the ceiling's first; a ratio already under the target stops at the ceiling; and the flag
-is refused where it cannot act.
+    .venv/bin/python -m pytest -q tests/test_loco_knee.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_loco_knee.py.md
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from sidechain.data.stream_pseudobulk import PseudobulkSums
 from sidechain.eval import loco
 
 G, N_LAB = 120, 12
-KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.5,
+KW = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson", emit_lambda=0.4,
           alpha=1.0, bulk_anchor="pooled", min_libsize=0.0, shrink_stage="pooled", shrink_rule="adaptive",
           dual_fallback="anchor", emit_shape="controls")
 
@@ -80,7 +80,7 @@ def test_a_ratio_under_the_target_stops_at_the_ceiling(fold):
 ])
 def test_the_flag_is_refused_where_it_cannot_act(fold, extra, msg):
     tmp, real, sources = fold
-    kw = {**KW, "alpha_bulk_target": 0.9, **extra}
+    kw = {**KW, "alpha_bulk_target": 0.8, **extra}
     with pytest.raises(SystemExit, match=msg):
         loco.build_transfer_prediction(real, sources, tmp / "r.h5ad", **kw)
 
@@ -119,14 +119,13 @@ def test_a_floor_below_alpha_lets_the_fold_settle_below_the_per_cell_strength(fo
 ])
 def test_the_floor_is_refused_where_it_cannot_act(fold, extra, msg):
     tmp, real, sources = fold
-    kw = {**KW, "alpha_bulk": 2.0, "alpha_bulk_target": 0.9, **extra}
+    kw = {**KW, "alpha_bulk": 2.0, "alpha_bulk_target": 0.8, **extra}
     with pytest.raises(SystemExit, match=msg):
         loco.build_transfer_prediction(real, sources, tmp / "r.h5ad", **kw)
 
 
 def test_an_undershoot_steps_back_up_and_the_file_is_a_plain_run_at_the_kept_strength(fold, monkeypatch):
-    """T134: a step that lands far under the target is stepped back up; the prediction is a plain run at the strength
-    the rule keeps. The square-root step is forced to overshoot (to 0.15) so the fixture undershoots."""
+    """A step forced far under the target is stepped back up; the prediction is a plain run at the kept strength."""
     from sidechain.submit import knee
     tmp, real, sources = fold
     kw = {**KW, "alpha": 0.5, "alpha_bulk": 0.6, "alpha_bulk_target": 0.5, "alpha_bulk_floor": 0.12, "seed": 3}

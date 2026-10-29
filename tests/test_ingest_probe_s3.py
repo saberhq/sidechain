@@ -1,24 +1,8 @@
-"""Contract tests for ``probe_s3`` -- the fourth host, a plain public S3 bucket.
+"""`probe_s3`, a public S3 bucket as a host: ETags, listing, pagination, refusals.
 
-Added 2026-09-23 for GWCD4i (the Marson/Zhu CD4 screen), which the CZI Virtual
-Cells Platform publishes as bare objects rather than through a record API like
-Zenodo's or Figshare's.
+    .venv/bin/python -m pytest -q tests/test_ingest_probe_s3.py
 
-Two things here are not stylistic and cost a real decision:
-
-* **A multipart ETag is not an MD5, and must never be recorded as one.** S3
-  computes it as the MD5 of the concatenated part MD5s plus ``-<n_parts>``, and
-  it cannot be recomputed without the uploader's part size. Every large object in
-  this bucket is multipart -- the 16.79 GB DE file is ``...-2002``. Labelling it
-  ``md5:`` would put a number in PROVENANCE.json that ``fetch --check`` can never
-  reproduce, and the failure would read as corruption rather than as a bad label.
-* **A bucket cannot state a licence**, so ``probe_s3`` always returns
-  ``"unknown"`` and the block only passes the gate through
-  ``license_override_source``. Same shape as ``probe_lamin``, same reason.
-
-Pagination is covered because a listing caps at 1,000 keys and a real corpus
-exceeds it; a truncated listing silently returning page one is the exact "partial
-corpus that looks whole" failure the gate exists to prevent.
+Writes temporary files only. Notes: private/code-notes/tests/test_ingest_probe_s3.py.md
 """
 from __future__ import annotations
 
@@ -85,7 +69,7 @@ def _urlopen_returning(*pages: bytes):
 # ------------------------------------------------------------------ the checksum
 
 def test_a_multipart_etag_is_never_labelled_md5():
-    """The decision this module turns on."""
+    """A multipart ETag is recorded as `s3-etag:`, never `md5:`."""
     out = _s3_etag_checksum('"c9ff52fcc6d6ce8a387a76dc757a5b97-2002"')
     assert out == "s3-etag:c9ff52fcc6d6ce8a387a76dc757a5b97-2002"
     assert not out.startswith("md5:")
@@ -98,7 +82,7 @@ def test_a_single_part_etag_is_a_real_md5():
 
 @pytest.mark.parametrize("etag", [None, "", '""', "   "])
 def test_a_missing_etag_stays_none(etag):
-    """None means absent, which the gate treats as needing an explicit override."""
+    """A missing or blank ETag is None."""
     assert _s3_etag_checksum(etag) is None
 
 
@@ -131,7 +115,7 @@ def test_probe_reads_keys_sizes_and_checksums():
 
 
 def test_the_prefix_is_stripped_so_config_names_stay_short():
-    """A block should say `GWCD4i.DE_stats.h5ad`, not repeat the prefix."""
+    """File names are relative to the probed prefix."""
     page = _listing(_obj("marson2025_data/x.h5ad", 10, "a" * 32))
     with patch("urllib.request.urlopen", _urlopen_returning(page)):
         rec = probe_s3("bkt/marson2025_data/")
@@ -146,7 +130,7 @@ def test_no_prefix_keeps_the_whole_key():
 
 
 def test_pagination_is_followed_to_the_end():
-    """A listing caps at 1,000 keys; stopping at page one is a partial corpus."""
+    """A truncated listing is followed through its continuation token."""
     p1 = _listing(_obj("p/a.h5ad", 1, "a" * 32), truncated=True, token="TOKEN-2")
     p2 = _listing(_obj("p/b.h5ad", 2, "b" * 32))
     fake = _urlopen_returning(p1, p2)
@@ -181,7 +165,7 @@ def test_files_come_back_sorted_so_provenance_is_stable():
 # ------------------------------------------------------------------ the refusals
 
 def test_a_bucket_never_states_a_licence():
-    """So the block can only pass the gate through an explicit override."""
+    """An S3 record's licence is `unknown`."""
     page = _listing(_obj("p/a.h5ad", 1, "a" * 32))
     with patch("urllib.request.urlopen", _urlopen_returning(page)):
         rec = probe_s3("bkt/p/")
@@ -200,7 +184,7 @@ def test_a_record_with_no_bucket_is_refused():
 
 
 def test_select_still_globs_over_an_s3_record():
-    """The strict selection contract is the HostRecord's, and must hold here too."""
+    """`select` globs, and refuses an absent name, on an S3 record."""
     page = _listing(_obj("p/suppl_tables/a.csv", 1, "a" * 32)
                     + _obj("p/suppl_tables/b.csv", 1, "b" * 32)
                     + _obj("p/big.h5ad", 9, "c" * 32))
@@ -223,7 +207,7 @@ def test_probe_s3_is_registered_as_a_host():
     not __import__("os").environ.get("SIDECHAIN_NETWORK_TESTS"),
     reason="set SIDECHAIN_NETWORK_TESTS=1 to hit the live GWCD4i bucket")
 def test_live_gwcd4i_bucket_still_lists():
-    """The real bucket, opt-in. Measured 2026-09-21: 57 keys, DE file 16,786,240,107 B."""
+    """The live bucket still lists the DE file at its recorded size; opt-in."""
     try:
         rec = probe_s3("genome-scale-tcell-perturb-seq/marson2025_data/")
     except urllib.error.URLError as exc:            # offline is not a failure

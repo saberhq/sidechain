@@ -1,3 +1,9 @@
+"""`sidechain.models.count_emitters`, and the `--emit-lambda` wiring in `eval.loco` and `submit.build`.
+
+    .venv/bin/python -m pytest -q tests/test_count_emitters.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_count_emitters.py.md
+"""
 import anndata as ad
 import numpy as np
 import pandas as pd
@@ -13,13 +19,7 @@ from sidechain.models.count_emitters import (
 
 
 class _StubPB(str):
-    """A stand-in for a loaded `PseudobulkSums` that is still a plain string.
-
-    `sources_from_specs` stamps `sidechain_name` on whatever `PseudobulkSums.load` returns
-    (it is the key `--transfer-floor NAME=TAU2` matches on), and a bare `str` takes no
-    attributes. Subclassing `str` keeps the stub comparable to the string the tests expect
-    while giving it a `__dict__`.
-    """
+    """A `PseudobulkSums.load` stand-in: a string that takes attributes."""
 
 
 def _controls(tmp_path, rng, n=200, g=40):
@@ -86,8 +86,7 @@ def test_even_mode_has_exact_means_and_minimal_spread(tmp_path):
 
 
 def _flat_controls(tmp_path, rng, n=300, g=30, depth=2000.0):
-    """Controls at near-constant depth, so per-gene spread isolates the emission
-    dial from library-size variation."""
+    """Controls at near-constant depth."""
     base = rng.gamma(2.0, 1.0, size=g)
     frac = base / base.sum()
     X = rng.poisson(depth * frac[None, :], size=(n, g))
@@ -100,8 +99,7 @@ def _flat_controls(tmp_path, rng, n=300, g=30, depth=2000.0):
 
 
 def test_the_lam_endpoints_are_the_two_modes_bit_for_bit(tmp_path):
-    """even is lam=0 and poisson is lam=1 by construction, so a lam=0 control
-    arm reproduces a shipped even-mode emission exactly, RNG stream included."""
+    """lam=0 and lam=1 emit bit for bit what dispersion 'even' and 'poisson' emit."""
     rng = np.random.default_rng(11)
     p, _ = _controls(tmp_path, rng)
     prof = ContextProfile.from_controls(p, "A")
@@ -112,25 +110,20 @@ def test_the_lam_endpoints_are_the_two_modes_bit_for_bit(tmp_path):
 
 
 def test_lam_beside_dispersion_or_outside_the_unit_interval_is_refused(tmp_path):
-    """The two knobs are one dial; accepting both would let them disagree
-    silently, and crash-to-wrong is the bad direction."""
+    """lam beside dispersion, or lam outside [0, 1], is refused."""
     rng = np.random.default_rng(12)
     p, _ = _controls(tmp_path, rng)
     prof = ContextProfile.from_controls(p, "A")
     with pytest.raises(ValueError, match="not both"):
-        PoissonEmitter(prof, dispersion="even", lam=0.5)
+        PoissonEmitter(prof, dispersion="even", lam=0.4)
     for bad in (-0.1, 1.5):
         with pytest.raises(ValueError, match=r"\[0, 1\]"):
             PoissonEmitter(prof, lam=bad)
 
 
 def test_an_interior_lam_keeps_the_means_and_scales_the_spread(tmp_path):
-    """The dial's CONDITIONAL contract, isolated on a flat-depth pool
-    (mean ~= median, CV(lib) ~2%): counts stay integral and non-negative,
-    per-gene means sit at the profile, and cell-to-cell sd is ~lam times the
-    Poisson sd on well-expressed genes. On pools with real depth spread the
-    marginal law differs -- the class docstring carries it -- so this fixture
-    is flat BY DESIGN and a skewed pool must not be swapped in."""
+    """On a flat-depth pool an interior lam keeps counts integral and the profile's means,
+    with a per-gene sd of about lam times the Poisson sd."""
     rng = np.random.default_rng(13)
     p = _flat_controls(tmp_path, rng)
     prof = ContextProfile.from_controls(p, "A")
@@ -151,10 +144,7 @@ def test_an_interior_lam_keeps_the_means_and_scales_the_spread(tmp_path):
 
 
 def test_an_interior_lam_carries_the_shift_in_both_components(tmp_path):
-    """At lam=0.3 the even share holds 91% of the depth, so an 8x knockdown
-    must survive emission essentially in full. A mixture whose even component
-    were built from the UNSHIFTED profile (the mutation-test survivor this
-    test was added to kill) would leave the gene at ~92% of baseline."""
+    """At an interior lam an 8x knockdown survives emission in both components."""
     rng = np.random.default_rng(21)
     p, _ = _controls(tmp_path, rng)
     prof = ContextProfile.from_controls(p, "A")
@@ -167,10 +157,7 @@ def test_an_interior_lam_carries_the_shift_in_both_components(tmp_path):
 
 
 def test_loco_passes_emit_lambda_through_and_records_it(monkeypatch, tmp_path):
-    """The flag's wiring, with the heavy stages stubbed: --emit-lambda must
-    reach build_transfer_prediction (deleting the pass-through made it a
-    silent no-op under the full suite) and must land in the log_run payload;
-    with neither flag given, the CLI's historical default 'even' must arrive."""
+    """loco passes --emit-lambda to the build and the run log; with neither flag, 'even' arrives."""
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.eval import loco
 
@@ -200,10 +187,7 @@ def test_loco_passes_emit_lambda_through_and_records_it(monkeypatch, tmp_path):
 
 
 def test_submit_build_passes_emit_lambda_to_the_emitter(monkeypatch, tmp_path):
-    """The submission side of the same wiring, on a 3-gene, 2-perturbation
-    toy config. This one has the worse silent failure mode: losing the
-    `lam=` pass-through leaves dispersion=None and the constructor's
-    historical default is POISSON, not the CLI's 'even'."""
+    """submit.build passes --emit-lambda to the emitter as `lam`."""
     import yaml
 
     from sidechain.submit import build as submit_build
@@ -244,19 +228,15 @@ def test_submit_build_passes_emit_lambda_to_the_emitter(monkeypatch, tmp_path):
 
 
 def test_the_two_entry_points_refuse_dispersion_beside_emit_lambda():
-    """Both CLIs resolve the pair before touching any file, so the refusal is
-    testable without data on disk -- and the flag really exists on both, which
-    is what lets a mirror-scored lam arm submit verbatim."""
+    """Both CLIs refuse --dispersion beside --emit-lambda, and a lam outside [0, 1], before reading a file."""
     from sidechain.eval import loco
     from sidechain.submit import build as submit_build
     with pytest.raises(SystemExit):
         loco.main(["--real", "x.h5ad", "--bundle", "b", "--out", "lam_probe",
-                   "--source", "s.npz:control", "--dispersion", "even", "--emit-lambda", "0.5"])
+                   "--source", "s.npz:control", "--dispersion", "even", "--emit-lambda", "0.4"])
     with pytest.raises(SystemExit):
         submit_build.main(["--emitter", "control-null", "--out", "lam_probe_v1",
-                           "--dispersion", "even", "--emit-lambda", "0.5"])
-    # ...and an out-of-range lam dies at the argument parser, not an hour into
-    # a build inside the write loop.
+                           "--dispersion", "even", "--emit-lambda", "0.4"])
     with pytest.raises(SystemExit):
         loco.main(["--real", "x.h5ad", "--bundle", "b", "--out", "lam_probe",
                    "--source", "s.npz:control", "--emit-lambda", "1.5"])
@@ -276,9 +256,7 @@ def test_shrinkage_pulls_noisy_genes_more_than_precise_ones():
 
 
 def test_a_floor_that_empties_the_control_pool_raises_rather_than_going_nan(tmp_path):
-    """T18 check 5: raising the default floor to 1000 turned a shallow toy pool into an
-    all-nan profile and a numpy warning, not an error, and the emitter went on to write
-    nan counts. The analytic path has always refused this; so does the shipping one."""
+    """A library-size floor that drops every control cell raises instead of giving a nan profile."""
     import anndata as ad
     import numpy as np
     import pytest

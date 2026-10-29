@@ -1,12 +1,8 @@
 """`--source-weight`, `--source-weight-table` and `--source-scale` (`sidechain.submit.source_vote`).
 
-Pinned here: the parsers' refusals; in `pooled_delta`, a vote of 1 everywhere and a strength of 1 are
-bit-identical to the plain pool, a uniform vote changes nothing (the general pooled variance reduces to
-`1 / sum(w)`), a vote of 0 is the source's absence, and a strength scales one source's contribution while its
-weight stays put; on `submit.build`, a vote of 0 in a context writes the file `--source-context` writes, a
-per-knockdown table row acts on its knockdown, contexts that vote alike share one pool, and the records are
-written only when the flags are on; on `eval.loco`, a vote reaches the targets' pool and a delta cache is
-refused.
+    .venv/bin/python -m pytest -q tests/test_source_vote.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_source_vote.py.md
 """
 from __future__ import annotations
 
@@ -53,9 +49,9 @@ def _sources(tmp_path):
 # ------------------------------------------------------------------------------------------- parsers
 
 def test_parsers_and_refusals(tmp_path):
-    assert parse_source_weights(["cd4=A:1.25", "cd4=B:0"]) == {("cd4", "A"): 1.25, ("cd4", "B"): 0.0}
-    for bad, why in ((["cd4=A"], "NAME=CTX:W"), (["cd4=A:-1"], ">= 0"), (["cd4=A:x"], "not a number"),
-                     (["cd4=A:1", "cd4=A:2"], "given twice")):
+    assert parse_source_weights(["other=A:1.25", "other=B:0"]) == {("other", "A"): 1.25, ("other", "B"): 0.0}
+    for bad, why in ((["other=A"], "NAME=CTX:W"), (["other=A:-1"], ">= 0"), (["other=A:x"], "not a number"),
+                     (["other=A:1", "other=A:2"], "given twice")):
         with pytest.raises(SystemExit, match=why):
             parse_source_weights(bad)
     names = ["h1", "gwps", "extra"]
@@ -177,7 +173,7 @@ def _run(ch, stem, *extra):
                        "--gwps-control", "control", "--source", f"{d / 'extra.npz'}:control",
                        "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "10",
                        "--var-floor", "poisson", "--shrink-stage", "pooled", "--shrink-rule", "adaptive",
-                       "--alpha", "1.35", "--alpha-bulk", "1.6", "--emit-lambda", "0.5", *extra]) == 0
+                       "--alpha", "1.2", "--alpha-bulk", "1.6", "--emit-lambda", "0.4", *extra]) == 0
     return ad.read_h5ad(ch["out"] / f"{stem}.h5ad")
 
 
@@ -232,7 +228,7 @@ def test_a_vote_moves_and_a_strength_moves(ch):
 
 def test_a_model_named_stem_refuses_the_flags(ch, capsys):
     with pytest.raises(SystemExit):
-        _run(ch, "ser-99abefsw_vote_v1", "--bulk-anchor", "pooled", "--source-weight", "extra=Y:0")
+        _run(ch, "ser-99s_fixture_v1", "--bulk-anchor", "pooled", "--source-weight", "extra=Y:0")
     assert "no registered knob letter" in capsys.readouterr().err
 
 

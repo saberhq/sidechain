@@ -1,22 +1,8 @@
-"""Contract tests for ``sidechain.data.stream_de_h5ad`` -- a remote DE-stats AnnData.
+"""`sidechain.data.stream_de_h5ad`: reading a DE-statistics AnnData and combining its conditions.
 
-GWCD4i is the second table-type source and the first with a real standard error.
-A table's variance BYPASSES the pool's Poisson floor, so the pinned things are the
-ones that decide how loud it is:
+    .venv/bin/python -m pytest -q tests/test_stream_de_h5ad.py
 
-* **The combined variance is exact for the stated error correlation.** rho = 0 is
-  independent inverse-variance weighting, var = 1/sum(1/v); rho = 1 is no
-  reduction at all. Three conditions sharing donors and guides are NOT independent,
-  and the independent formula would report up to 3x too little variance -- the
-  Feng failure (9-17x over-confident) by another door.
-* **A row whose knockdown did not take ABSTAINS; it never votes zero.** 37.6 % of
-  GWCD4i's rows have `ontarget_significant = False`.
-* **Rows land where they belong.** A (condition, target) placed in the wrong slot is
-  a silent misjoin; two rows for one slot is refused.
-
-The fixture writes an h5ad by hand in AnnData's on-disk encoding (categorical
-groups, bool datasets, contiguous layers) so the reader is exercised on the same
-shapes the real object has, with no network.
+Writes temporary h5 files only. Notes: private/code-notes/tests/test_stream_de_h5ad.py.md
 """
 from __future__ import annotations
 
@@ -177,14 +163,14 @@ def test_rho_zero_is_independent_inverse_variance():
 
 
 def test_rho_one_gives_no_reduction_for_equal_variances():
-    """Fully correlated errors: averaging three copies of one error learns nothing."""
+    """With rho = 1, equal variances combine to the same variance."""
     de = _de([[1.0], [1.2], [0.8]], [[0.2], [0.2], [0.2]])
     assert combine(de, rho=1.0).var[0, 0] == pytest.approx(0.04, rel=1e-5)
     assert combine(de, rho=0.0).var[0, 0] == pytest.approx(0.04 / 3, rel=1e-5)
 
 
 def test_the_independent_formula_is_the_overconfident_one():
-    """The whole reason rho exists: rho=0 is always the SMALLEST variance."""
+    """The combined variance grows with rho; rho = 0 gives the smallest."""
     de = _de([[1.0], [2.0], [0.5]], [[0.1], [0.3], [0.2]])
     vs = [combine(de, rho=r).var[0, 0] for r in (0.0, 0.3, 0.7, 1.0)]
     assert vs == sorted(vs) and vs[0] < vs[-1]
@@ -232,7 +218,7 @@ def test_bad_arguments_are_refused(kw, exc):
 
 
 def test_the_view_is_a_delta_source_the_pool_accepts():
-    """It must enter `pooled_delta` exactly as Feng does -- via duck typing."""
+    """The combined table is a delta source `as_delta_source` accepts."""
     from sidechain.submit.build import as_delta_source
     tab = combine(_de([[1.0, -1.0]], [[0.1, 0.1]]))
     src = as_delta_source(tab)
@@ -250,10 +236,10 @@ def test_every_gate_names_real_flags():
 
 
 
-# --------------------------------------------- hardening after review (2026-09-26)
+# ------------------------------------------------------------------ refusals
 
 def test_combining_several_conditions_without_rho_is_refused():
-    """rho = 0 is the over-confident assumption here; nobody inherits it by accident."""
+    """Combining several conditions without an explicit rho is refused."""
     de = _de([[1.0], [2.0]], [[0.1], [0.1]])
     with pytest.raises(ValueError, match="explicit rho"):
         combine(de)
@@ -283,7 +269,7 @@ def test_a_missing_gene_name_in_a_var_categorical_is_refused(tmp_path):
 
 
 def test_the_registry_block_describes_what_the_reader_reads():
-    """One source of truth: the gwcd4i_de block's spec must supply every reader column."""
+    """The `gwcd4i_de` registry block's spec supplies every reader column."""
     import yaml
 
     from sidechain.data.stream_de_h5ad import reader_kwargs
@@ -348,11 +334,10 @@ def test_an_unchanged_file_resolves_to_the_url_the_gate_admitted(tmp_path):
     assert r["reader_kwargs"]["se_layer"] == "s"
 
 
-# --------------------------------------- math-review findings (2026-09-26)
+# --------------------------------------------------- string flags and read order
 
 def test_a_bool_flag_stored_as_strings_is_read_correctly_end_to_end(tmp_path):
-    """A bool column round-tripped through object dtype arrives as a "True"/"False"
-    categorical; astype(bool) made every one True and inverted the gate."""
+    """A bool flag stored as a "True"/"False" categorical reads as its value."""
     rows = [{"target": "A", "cond": "Rest"}]
     path = tmp_path / "s.h5ad"
     str_dt = h5py.string_dtype()
@@ -378,8 +363,7 @@ def test_a_bool_flag_stored_as_strings_is_read_correctly_end_to_end(tmp_path):
 
 
 def test_duplicate_rows_are_caught_before_any_layer_is_read(tmp_path):
-    """The file has NO layers at all: the refusal must come from the row check, proving it
-    runs before the reads that are the whole cost on the remote object."""
+    """Duplicate rows are refused on a file with no layers, so the row check runs before any layer read."""
     str_dt = h5py.string_dtype()
     path = tmp_path / "dup_nolayers.h5ad"
     with h5py.File(path, "w") as h:
@@ -414,7 +398,7 @@ def test_duplicate_gene_names_are_refused(tmp_path):
         tab.subset(["A"], ["G0"])
 
 
-# ---- controls: what IS right, pinned so the suite records it (math review, 2026-09-26)
+# ---------------------------------------------- the combined variance and the slots
 
 def test_the_combined_variance_is_w_sigma_w_for_any_number_of_conditions():
     """Brute force: w' Sigma w with Sigma_cd = rho*sqrt(v_c v_d), for 2-5 conditions."""

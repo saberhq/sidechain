@@ -1,10 +1,8 @@
-"""The per-context source switch (T126): `--source-context NAME=CTX` lets one source vote in the named
-contexts only, on `submit.build` and on `eval.loco`.
+"""`--source-context NAME=CTX`: one source pooled in the named contexts only, on `submit.build` and `eval.loco`.
 
-The contract: a routed build's block for a context equals, cell for cell, the block an unrouted build of
-that context's own pool writes at the same seed, so a route changes which sources a context pools and
-nothing else; and every way a route could miss (a name matching no source, a context the build does not
-write, a context left with no source) stops the build before any work.
+    .venv/bin/python -m pytest -q tests/test_source_context.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_source_context.py.md
 """
 from __future__ import annotations
 
@@ -74,7 +72,7 @@ def _run(ch, stem, extra):
         "--challenge-config", str(ch["cfg"]), "--emitter", "delta-transfer",
         "--h1-cache", str(ch["data"] / "h1.npz"), "--gwps-cache", str(ch["data"] / "gwps.npz"),
         "--out", str(ch["out"] / stem), "--no-pack", "--min-libsize", "100",
-        "--no-shrink", "--emit-lambda", "0.5", *extra])
+        "--no-shrink", "--emit-lambda", "0.4", *extra])
     assert rc == 0
     return ad.read_h5ad(ch["out"] / f"{stem}.h5ad")
 
@@ -88,9 +86,7 @@ def _extra(ch):
 
 
 def test_a_routed_context_is_the_build_of_its_own_pool(challenge):
-    """X pools all three sources, Y the two caches only: X's block is the three-source build's X block
-    and Y's the two-source build's Y block, cell for cell. A mutant that routes nothing, routes
-    everywhere, or swaps the two pools fails one of the four comparisons."""
+    """X pools all three sources and Y the two caches: each block is its own pool's build, cell for cell."""
     two = _run(challenge, "two", [])
     three = _run(challenge, "three", _extra(challenge))
     routed = _run(challenge, "routed", _extra(challenge) + ["--source-context", "extra=X"])
@@ -149,22 +145,23 @@ def test_a_stem_shared_by_two_sources_cannot_be_routed():
 
 
 def test_pools_keep_order_and_identity_and_group_by_pool():
-    s = [_Named("k562"), _Named("cd4"), _Named("h1"), _Named("pan")]
-    pools = build.route_sources(s, {"cd4": ("A",), "pan": ("A", "C")}, ["A", "B", "C"])
-    assert [x.sidechain_name for x in pools["A"]] == ["k562", "cd4", "h1", "pan"]
+    s = [_Named("k562"), _Named("other"), _Named("h1"), _Named("wide")]
+    pools = build.route_sources(s, {"other": ("A",), "wide": ("A", "C")}, ["A", "B", "C"])
+    assert [x.sidechain_name for x in pools["A"]] == ["k562", "other", "h1", "wide"]
     assert [x.sidechain_name for x in pools["B"]] == ["k562", "h1"]
-    assert [x.sidechain_name for x in pools["C"]] == ["k562", "h1", "pan"]
+    assert [x.sidechain_name for x in pools["C"]] == ["k562", "h1", "wide"]
     assert pools["B"][0] is s[0]
     groups = build.context_groups(pools, ["A", "B", "C"])
     assert [g[0] for g in groups] == [("A",), ("B",), ("C",)]
-    groups = build.context_groups(build.route_sources(s, {"cd4": ("A",)}, ["A", "B", "C"]), ["A", "B", "C"])
+    groups = build.context_groups(build.route_sources(s, {"other": ("A",)}, ["A", "B", "C"]), ["A", "B", "C"])
     assert [g[0] for g in groups] == [("A",), ("B", "C")]
 
 
-def test_a_model_named_stem_refuses_the_flag_until_it_has_a_letter(challenge):
+def test_a_model_named_stem_refuses_the_flag_until_it_has_a_letter(challenge, capsys):
     with pytest.raises(SystemExit) as exc:
-        _run(challenge, "ser-99aefhkrsw_delta5full_v1", _extra(challenge) + ["--source-context", "extra=X"])
+        _run(challenge, "ser-99_fixture_v1", _extra(challenge) + ["--source-context", "extra=X"])
     assert exc.value.code == 2
+    assert "--source-context has no registered knob letter" in capsys.readouterr().err
 
 
 class _Named:

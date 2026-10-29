@@ -1,8 +1,8 @@
-"""Tests for the rung-0/1 predictors.
+"""The rung-0/1 predictors in `sidechain.models.baseline_stats`.
 
-The prediction contract cell-eval enforces (same gene order, same perturbation
-set including the control) plus the two properties that are easy to get wrong and
-expensive when you do: output sparsity, and the DEG-frequency statistic.
+    .venv/bin/python -m pytest -q tests/test_models.py
+
+Writes nothing. Notes: private/code-notes/tests/test_models.py.md
 """
 import anndata as ad
 import numpy as np
@@ -26,7 +26,7 @@ def _train(n_ctrl=200, n_pert_each=60, n_genes=40, seed=0):
     perts = ["SYM0", "SYM1", "SYM2"]
     labels = [CONTROL] * n_ctrl + [p for p in perts for _ in range(n_pert_each)]
     counts = rng.poisson(3, size=(len(labels), n_genes)).astype(np.float32)
-    X = np.log1p(counts)  # ~5% of entries land at 0, mimicking dropout
+    X = np.log1p(counts)
 
     # Give each perturbation a real self-knockdown so knockdown_ is learnable.
     gene_names = [f"SYM{i}" for i in range(n_genes)]
@@ -79,8 +79,7 @@ def test_fit_without_controls_raises():
 
 
 def test_prediction_is_sparse_by_default():
-    """A dense prediction at the full 2025 scale is 5.2 GB and drove a 17 GB
-    machine into swap thrashing. Sparse is the default for that reason."""
+    """The prediction is sparse unless asked otherwise."""
     a = _train()
     pred = StatisticalBackbone().fit(a).predict({"SYM0": 50}, include_control=20)
     assert sp.issparse(pred.X)
@@ -95,9 +94,7 @@ def test_sparse_output_can_be_disabled():
 
 
 def test_values_below_the_assay_floor_are_snapped_to_zero():
-    """Adding a delta to a dropped-out gene produces values far below the smallest
-    value the assay can represent. Those are arithmetic artifacts, and leaving
-    them in makes predictions ~4% denser than the truth."""
+    """Values below the smallest non-zero control value are set to 0; the rest are unchanged."""
     a = _train()
     m = StatisticalBackbone().fit(a)
     assert m.min_nonzero_ > 0
@@ -117,10 +114,7 @@ def test_values_below_the_assay_floor_are_snapped_to_zero():
 
 
 def test_deg_frequency_uses_standard_error_not_per_cell_sd():
-    """The original gate z-scored a pseudobulk mean against per-cell SD, which
-    overstates the noise by ~sqrt(n): only 10 of 18,080 genes cleared it and the
-    generic response collapsed to zero. With the correct denominator a real
-    shared response must clear it for a substantial fraction of genes."""
+    """The DEG frequency is in [0, 1] per gene and non-zero for some gene."""
     a = _train()
     m = StatisticalBackbone().fit(a)
     assert m.deg_frequency_.shape == (a.n_vars,)
@@ -137,8 +131,7 @@ def test_target_gene_is_knocked_down_and_overrides_the_generic_response():
 
 
 def test_unknown_perturbation_still_predicts_the_generic_response():
-    """The real task is unseen genes, so a label absent from training must not
-    raise -- it just gets the generic response with no knockdown term."""
+    """A label absent from training gets the generic response, finite, with no knockdown term."""
     a = _train()
     m = StatisticalBackbone().fit(a)
     delta = m.delta_for("A_GENE_NEVER_SEEN")
@@ -174,12 +167,8 @@ def test_predict_rejects_an_empty_request():
 
 # ------------------------------------------------- the control-draw guardrail --
 #
-# T3. The emitter draws its control cells uniformly from the whole pool, and must
-# keep doing so: a draw matched to a perturbation's batch would import the batch's
-# own offset into the prediction and then score it as biology. Nothing in the code
-# matches today -- `rng.integers(0, pool.shape[0], ...)` -- and these two tests are
-# what stops it from being introduced. The 0.95 batch-effect scare that raised the
-# question was refuted in `private reports/03` §4; the guardrail outlived it.
+# The emitter draws its control cells uniformly from the whole pool, never matched to a
+# perturbation's batch.
 
 
 def _tagged_pool(n_ctrl=120, n_pert_each=30, n_genes=12, seed=0):
@@ -226,9 +215,7 @@ def test_control_draws_cover_the_whole_pool():
 
 
 def test_a_perturbation_does_not_draw_from_its_own_batch():
-    """The guardrail itself. SYM1 is entirely the first batch and SYM2 entirely the second,
-    and both must still be emitted from both halves of the pool in proportion.
-    A batch-matched draw would push one share to 0 and the other to 1."""
+    """SYM1 is all first batch and SYM2 all second; both draw from both halves of the pool in proportion."""
     n_ctrl = 120
     m = PredictControl().fit(_tagged_pool(n_ctrl=n_ctrl))
     pred = m.predict({"SYM1": 4000, "SYM2": 4000}, seed=1, sparse_output=False)
@@ -243,8 +230,7 @@ def test_a_perturbation_does_not_draw_from_its_own_batch():
 
 
 def test_control_pool_is_not_densified():
-    """38,176 control cells densified is 2.8 GB held for the whole run. The pool
-    keeps whatever layout the data arrived in; predict() densifies only its draw."""
+    """The control pool keeps the sparse layout it arrived in."""
     a = _train()
     assert sp.issparse(a.X)
     m = StatisticalBackbone().fit(a)
@@ -252,9 +238,7 @@ def test_control_pool_is_not_densified():
 
 
 def test_sparse_moments_match_a_float64_dense_recompute():
-    """Sparse reductions accumulate in the matrix dtype, and E[X^2]-E[X]^2 loses
-    precision to cancellation. In float32 those two together reached ~1e-3
-    relative error on real data, so both moments accumulate in float64."""
+    """Both moments of a float32 sparse matrix match a float64 dense recompute."""
     rng = np.random.default_rng(0)
     dense = (rng.random((900, 60)) * 8.0).astype(np.float32)
     dense[rng.random(dense.shape) < 0.55] = 0.0  # realistic dropout
@@ -285,8 +269,7 @@ def test_moments_handle_dense_input_too():
 
 
 def test_variance_is_never_negative():
-    """Cancellation can drive E[X^2]-E[X]^2 slightly below zero for a constant
-    column; a negative variance would produce NaN in the z-score denominator."""
+    """A constant column's variance is never below zero."""
     const = np.full((300, 5), 7.25, dtype=np.float32)
     _, var = _col_moments(sp.csr_matrix(const), chunk=32)
     assert (var >= 0).all()

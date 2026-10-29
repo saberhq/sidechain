@@ -1,11 +1,8 @@
-"""Contract tests: every PriorSource must stay aligned to the master gene index
-and never emit a dense matrix. These guard the extensibility invariant.
+"""Contract tests for `PriorSource`: aligned to the master gene index, sparse edges only, and the registry file.
 
-Note on the assertion that used to live here: `edge_index.shape[0] == 2` against
-the fixture [[0,1],[2,3]] passes for a 2-edge COO array AND for a dense 2-gene
-adjacency matrix -- so it passed for exactly the thing it claimed to forbid. The
-tests below assert integer dtype, that the edge count equals the input pair count
-after filtering, and behaviour when genes fall outside the index.
+    .venv/bin/python -m pytest -q tests/test_priors.py
+
+Writes nothing. Notes: private/code-notes/tests/test_priors.py.md
 """
 import numpy as np
 import pytest
@@ -186,10 +183,9 @@ def test_enabled_flag_respected():
 
 
 def test_edge_type_key_disambiguates_shared_relations():
-    """mirbind2 and targetscan both declare relation 'mirna_target'; keying on
-    relation alone would drop one when both are enabled."""
-    a = _EdgeSource(_spec(name="mirbind2", relation="mirna_target"), GI)
-    b = _EdgeSource(_spec(name="targetscan", relation="mirna_target"), GI)
+    """Two sources with one relation get two edge-type keys."""
+    a = _EdgeSource(_spec(name="source_a", relation="shared"), GI)
+    b = _EdgeSource(_spec(name="source_b", relation="shared"), GI)
     assert a.relation == b.relation
     assert a.edge_type_key != b.edge_type_key
 
@@ -198,10 +194,10 @@ def test_graph_builder_keeps_both_sources_of_a_shared_relation():
     from sidechain.priors.graph_builder import build_prior_graph
 
     a = _EdgeSource(
-        _spec(name="mirbind2", relation="mirna_target"), GI, srcs=["g0"], dsts=["g1"]
+        _spec(name="source_a", relation="shared"), GI, srcs=["g0"], dsts=["g1"]
     )
     b = _EdgeSource(
-        _spec(name="targetscan", relation="mirna_target"), GI, srcs=["g2"], dsts=["g3"]
+        _spec(name="source_b", relation="shared"), GI, srcs=["g2"], dsts=["g3"]
     )
     graph = build_prior_graph([a, b], n_genes=len(GI), to_pyg=False)
     assert len(graph["edges"]) == 2, "a shared relation name must not collapse sources"

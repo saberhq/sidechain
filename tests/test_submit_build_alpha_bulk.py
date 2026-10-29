@@ -1,9 +1,8 @@
-"""`submit.build --alpha-bulk` (letter b, ADR 0005): the pseudobulk channel at its own amplitude.
+"""`submit.build`'s two-channel flags: --alpha-bulk, --bulk-anchor, --dual-fallback, --emit-shape, --scatter-table.
 
-The emitter's numerics are pinned in `test_dual_moment.py`; what is pinned here is the
-builder's wiring: unset, `emit_dual` is never touched; set, every (context, perturbation)
-block goes through it with the SAME pooled vector at two amplitudes; the knob is recorded;
-and the two configurations that cannot carry it are refused before any work.
+    .venv/bin/python -m pytest -q tests/test_submit_build_alpha_bulk.py
+
+Writes temporary builds only. Notes: private/code-notes/tests/test_submit_build_alpha_bulk.py.md
 """
 from __future__ import annotations
 
@@ -75,7 +74,7 @@ def test_unset_never_touches_emit_dual(challenge, monkeypatch):
     def boom(self, *a, **k):
         raise AssertionError("emit_dual called without --alpha-bulk")
     monkeypatch.setattr(PoissonEmitter, "emit_dual", boom)
-    assert build.main(_argv(challenge, "plain", ["--alpha", "1.35", "--emit-lambda", "0.5"])) == 0
+    assert build.main(_argv(challenge, "plain", ["--alpha", "1.2", "--emit-lambda", "0.4"])) == 0
     assert not (challenge["out"] / "plain.dual.json").exists()
     assert json.loads((challenge["out"] / "plain.args.json").read_text())["alpha_bulk"] is None
 
@@ -87,58 +86,56 @@ def test_set_every_block_carries_one_pooled_vector_at_two_amplitudes(challenge, 
         seen.append((self.p.name, n, np.array(log2fc_cell), np.array(log2fc_bulk), kw))
         return self.emit(n, log2fc_cell)          # the fit's numerics are test_dual_moment's job
     monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
-    rc = build.main(_argv(challenge, "dual", ["--alpha", "1.35", "--alpha-bulk", "1.5",
-                                              "--emit-lambda", "0.5"]))
+    rc = build.main(_argv(challenge, "dual", ["--alpha", "1.2", "--alpha-bulk", "1.8",
+                                              "--emit-lambda", "0.4"]))
     assert rc == 0
     assert [(c, n) for c, n, *_ in seen] == [("X", 6), ("Y", 6)]      # one block per (context, pert)
     for _c, _n, cell, bulk, kw in seen:
         assert kw == {"on_fail": "fallback"}
         assert np.abs(cell).max() > 0
-        assert np.allclose(bulk, cell * (1.5 / 1.35))                  # same vector, two amplitudes
-    assert json.loads((challenge["out"] / "dual.args.json").read_text())["alpha_bulk"] == 1.5
+        assert np.allclose(bulk, cell * (1.8 / 1.2))                   # same vector, two amplitudes
+    assert json.loads((challenge["out"] / "dual.args.json").read_text())["alpha_bulk"] == 1.8
     rec = json.loads((challenge["out"] / "dual.dual.json").read_text())
-    assert rec == {"alpha": 1.35, "alpha_bulk": 1.5, "dual_fallbacks": {"X": 0, "Y": 0}}
+    assert rec == {"alpha": 1.2, "alpha_bulk": 1.8, "dual_fallbacks": {"X": 0, "Y": 0}}
     pred = ad.read_h5ad(challenge["out"] / "dual.h5ad")
     assert pred.n_obs == 12
 
 
 def test_the_two_configurations_that_cannot_carry_it_are_refused(challenge):
     with pytest.raises(SystemExit):                                     # lambda 0: no depth spread
-        build.main(_argv(challenge, "even", ["--alpha-bulk", "1.5"]))
+        build.main(_argv(challenge, "even", ["--alpha-bulk", "1.8"]))
     with pytest.raises(SystemExit):
-        build.main(_argv(challenge, "lam0", ["--alpha-bulk", "1.5", "--emit-lambda", "0"]))
-    argv = _argv(challenge, "null", ["--alpha-bulk", "1.5", "--emit-lambda", "0.5"])
+        build.main(_argv(challenge, "lam0", ["--alpha-bulk", "1.8", "--emit-lambda", "0"]))
+    argv = _argv(challenge, "null", ["--alpha-bulk", "1.8", "--emit-lambda", "0.4"])
     argv[argv.index("delta-transfer")] = "control-null"
     with pytest.raises(SystemExit):
         build.main(argv)
 
 
 def test_pooled_anchor_rides_every_block_and_is_recorded(challenge, monkeypatch):
-    """`--bulk-anchor pooled` (T84 round 2): the emitter carries the anchor; without --alpha-bulk
-    the pseudobulk takes --alpha (a two-channel emission at one amplitude), with it the two
-    amplitudes; the record names the anchor, and a mean_cpm build's record stays as written."""
+    """`--bulk-anchor pooled` rides every block at --alpha, or at --alpha-bulk when given; the record names it."""
     seen = []
 
     def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
         seen.append((self.bulk_anchor, np.array(log2fc_cell), np.array(log2fc_bulk)))
         return self.emit(n, log2fc_cell)
     monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
-    assert build.main(_argv(challenge, "anch", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                                "--emit-lambda", "0.5"])) == 0
+    assert build.main(_argv(challenge, "anch", ["--alpha", "1.2", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.4"])) == 0
     assert len(seen) == 2
     for anchor, cell, bulk in seen:
         assert anchor == "pooled" and np.abs(cell).max() > 0 and np.allclose(bulk, cell)
     rec = json.loads((challenge["out"] / "anch.dual.json").read_text())
-    assert rec == {"alpha": 1.35, "alpha_bulk": None, "bulk_anchor": "pooled",
+    assert rec == {"alpha": 1.2, "alpha_bulk": None, "bulk_anchor": "pooled",
                    "dual_fallbacks": {"X": 0, "Y": 0}}
     assert json.loads((challenge["out"] / "anch.args.json").read_text())["bulk_anchor"] == "pooled"
 
     seen.clear()
-    assert build.main(_argv(challenge, "anch2", ["--alpha", "1.35", "--alpha-bulk", "1.25",
-                                                 "--bulk-anchor", "pooled", "--emit-lambda", "0.5"])) == 0
+    assert build.main(_argv(challenge, "anch2", ["--alpha", "1.2", "--alpha-bulk", "1.1",
+                                                 "--bulk-anchor", "pooled", "--emit-lambda", "0.4"])) == 0
     for anchor, cell, bulk in seen:
-        assert anchor == "pooled" and np.allclose(bulk, cell * (1.25 / 1.35))
-    assert json.loads((challenge["out"] / "anch2.dual.json").read_text())["alpha_bulk"] == 1.25
+        assert anchor == "pooled" and np.allclose(bulk, cell * (1.1 / 1.2))
+    assert json.loads((challenge["out"] / "anch2.dual.json").read_text())["alpha_bulk"] == 1.1
 
 
 def test_pooled_anchor_is_refused_where_it_cannot_ride(challenge):
@@ -146,16 +143,14 @@ def test_pooled_anchor_is_refused_where_it_cannot_ride(challenge):
         build.main(_argv(challenge, "a_lam0", ["--bulk-anchor", "pooled", "--emit-lambda", "0"]))
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "a_even", ["--bulk-anchor", "pooled"]))
-    argv = _argv(challenge, "a_null", ["--bulk-anchor", "pooled", "--emit-lambda", "0.5"])
+    argv = _argv(challenge, "a_null", ["--bulk-anchor", "pooled", "--emit-lambda", "0.4"])
     argv[argv.index("delta-transfer")] = "control-null"
     with pytest.raises(SystemExit):
         build.main(argv)
 
 
 def test_the_fallback_rung_is_a_flag_and_the_record_names_who_fell_back(challenge, monkeypatch):
-    """`--dual-fallback anchor` (T84, 2026-10-01): the emitter is told to keep the summed profile on
-    the anchor when the two amplitudes cannot both be met; the record names the rung and the
-    perturbations that fell back, per context. The default's record stays as it was written."""
+    """`--dual-fallback anchor` reaches the emitter; the record names the rung and who fell back, per context."""
     seen = []
 
     def spy(self, n, log2fc_cell, log2fc_bulk, **kw):
@@ -168,8 +163,8 @@ def test_the_fallback_rung_is_a_flag_and_the_record_names_who_fell_back(challeng
             self.dual_fallbacks_anchor = getattr(self, "dual_fallbacks_anchor", 0) + 1
         return block
     monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
-    assert build.main(_argv(challenge, "rung", ["--alpha", "1.35", "--alpha-bulk", "1.0", "--bulk-anchor", "pooled",
-                                                "--emit-lambda", "0.5", "--dual-fallback", "anchor"])) == 0
+    assert build.main(_argv(challenge, "rung", ["--alpha", "1.2", "--alpha-bulk", "1.0", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.4", "--dual-fallback", "anchor"])) == 0
     assert seen == [{"on_fail": "anchor"}, {"on_fail": "anchor"}]
     rec = json.loads((challenge["out"] / "rung.dual.json").read_text())
     pert = json.loads((challenge["out"] / "rung.args.json").read_text())
@@ -180,10 +175,8 @@ def test_the_fallback_rung_is_a_flag_and_the_record_names_who_fell_back(challeng
 
 
 def test_a_real_fallback_keeps_the_default_record_and_the_anchor_rung_names_it(challenge, capsys):
-    """No spy: the real emitter. Under the default rung a build with a genuine fallback writes the
-    same four-key record every shipped entry wrote; with `--dual-fallback anchor` the record names
-    the rung and the perturbation, and the cells of that perturbation differ."""
-    argv = ["--alpha", "1.35", "--alpha-bulk", "1.5", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    """The real emitter: the default rung writes the four-key record; the anchor rung names who fell back."""
+    argv = ["--alpha", "1.2", "--alpha-bulk", "1.8", "--bulk-anchor", "pooled", "--emit-lambda", "0.4"]
     assert build.main(_argv(challenge, "old", argv)) == 0
     old = json.loads((challenge["out"] / "old.dual.json").read_text())
     assert set(old) == {"alpha", "alpha_bulk", "bulk_anchor", "dual_fallbacks"}
@@ -203,12 +196,11 @@ def test_a_real_fallback_keeps_the_default_record_and_the_anchor_rung_names_it(c
 
 def test_the_fallback_rung_is_refused_where_it_cannot_act(challenge):
     with pytest.raises(SystemExit):                                 # one channel: nothing to fall back from
-        build.main(_argv(challenge, "inert", ["--alpha", "1.35", "--emit-lambda", "0.5",
+        build.main(_argv(challenge, "inert", ["--alpha", "1.2", "--emit-lambda", "0.4",
                                               "--dual-fallback", "anchor"]))
 
 
-# --emit-shape controls (T85): every block as real control cells re-rated to the prediction. What is
-# pinned here is the builder's wiring; the emitter's numerics are test_dual_moment's.
+# -- --emit-shape controls ---------------------------------------------------------------------------------
 
 def test_emit_shape_is_off_by_default_and_refused_on_one_channel(challenge, monkeypatch):
     seen = []
@@ -218,13 +210,13 @@ def test_emit_shape_is_off_by_default_and_refused_on_one_channel(challenge, monk
         seen.append(kw)
         return real(path, name, **kw)
     monkeypatch.setattr(build.ContextProfile, "from_controls", staticmethod(spy_profile))
-    assert build.main(_argv(challenge, "off", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                               "--emit-lambda", "0.5"])) == 0
+    assert build.main(_argv(challenge, "off", ["--alpha", "1.2", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.4"])) == 0
     assert all("keep_cells" not in kw for kw in seen)                  # the default call is the old call
     assert json.loads((challenge["out"] / "off.args.json").read_text())["emit_shape"] == "template"
     assert "emit_shape" not in json.loads((challenge["out"] / "off.dual.json").read_text())
     with pytest.raises(SystemExit):                                    # one channel: nothing to re-rate against
-        build.main(_argv(challenge, "bad", ["--alpha", "1.35", "--emit-lambda", "0.5",
+        build.main(_argv(challenge, "bad", ["--alpha", "1.2", "--emit-lambda", "0.4",
                                             "--emit-shape", "controls"]))
 
 
@@ -237,8 +229,8 @@ def test_emit_shape_controls_rides_every_block_and_is_recorded(challenge, monkey
         self.last_shaped = self.p.name == "X"      # say context Y's block fell to the template rung
         return block
     monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
-    assert build.main(_argv(challenge, "shp", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                               "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    assert build.main(_argv(challenge, "shp", ["--alpha", "1.2", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.4", "--emit-shape", "controls"])) == 0
     assert seen == [("X", True, {"on_fail": "fallback", "shape": True}),
                     ("Y", True, {"on_fail": "fallback", "shape": True})]     # the cells are kept, the flag rides
     rec = json.loads((challenge["out"] / "shp.dual.json").read_text())
@@ -250,7 +242,7 @@ def test_emit_shape_controls_rides_every_block_and_is_recorded(challenge, monkey
 
 
 def test_emit_shape_controls_runs_the_real_emitter_end_to_end(challenge, capsys):
-    common = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    common = ["--alpha", "1.2", "--bulk-anchor", "pooled", "--emit-lambda", "0.4"]
     assert build.main(_argv(challenge, "tmpl", common)) == 0
     assert build.main(_argv(challenge, "real", [*common, "--emit-shape", "controls"])) == 0
     out = capsys.readouterr().out
@@ -274,10 +266,10 @@ def test_the_build_record_counts_the_cells_held_to_the_caps(challenge, monkeypat
     from sidechain.models import count_emitters
 
     monkeypatch.setattr(count_emitters, "SHAPE_DEPTH_GAIN_CAP", 1.0)       # a cap this fixture's cells do reach
-    assert build.main(_argv(challenge, "held", ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5",
+    assert build.main(_argv(challenge, "held", ["--alpha", "1.2", "--bulk-anchor", "pooled", "--emit-lambda", "0.4",
                                                 "--emit-shape", "controls"])) == 0
     ctx = json.loads((challenge["out"] / "held.dual.json").read_text())["emit_shape"]["contexts"]
-    assert {c: ctx[c]["cells_held_to_the_caps"] for c in ctx} == {"X": 1, "Y": 3}, ctx
+    assert {c: ctx[c]["cells_held_to_the_caps"] for c in ctx} == {"X": 1, "Y": 4}, ctx
     assert "held to the caps" in capsys.readouterr().out
 
 
@@ -287,8 +279,8 @@ def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monke
     def fail(*a, **k):
         raise ValueError("moment fitting failed: forced by the test")
     monkeypatch.setattr(count_emitters, "dual_moment_counts", fail)
-    assert build.main(_argv(challenge, "lost", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                                "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    assert build.main(_argv(challenge, "lost", ["--alpha", "1.2", "--bulk-anchor", "pooled",
+                                                "--emit-lambda", "0.4", "--emit-shape", "controls"])) == 0
     ctx = json.loads((challenge["out"] / "lost.dual.json").read_text())["emit_shape"]["contexts"]
     for c in ("X", "Y"):                           # the real emitter's last rung, read off its own flag
         assert ctx[c]["blocks_in_the_controls_shape"] == 0 and ctx[c]["blocks_left_on_the_template"] == ["TP53"]
@@ -296,20 +288,18 @@ def test_a_block_the_fit_cannot_carry_is_named_and_warned_about(challenge, monke
 
 
 def test_a_model_named_build_with_a_scatter_table_needs_the_letter_h(challenge, tmp_path, capsys):
-    """ADR 0005: `h` is which genes a block's cells are made callable for, a per-gene dial table
-    named in the slug; no letter is every gene as the emission writes it. It rides with or without
-    `r`, and a name may not carry it without the table."""
+    """A model-named stem carries h exactly when --scatter-table is given, with or without r."""
     table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0)])
     shaped = [*DUAL, "--emit-shape", "controls"]
-    for stem, flags in (("ser-99aefhkrw_ctrlshape_head_v1", shaped), ("ser-99aefhkw_head_v1", DUAL)):
+    for stem, flags in (("ser-99hr_shaped_head_v1", shaped), ("ser-99h_head_v1", DUAL)):
         assert build.main(_argv(challenge, stem, [*flags, "--scatter-table", str(table)])) == 0, stem
         assert json.loads((challenge["out"] / f"{stem}.dual.json").read_text())["scatter_table"]["contexts"]["X"]["pairs_applied"] == 1, stem
     capsys.readouterr()
     for stem, flags, why in (
-            ("ser-99aefhkrw_ctrlshape_v1", shaped, "carries the letter h"),          # h, but no table
-            ("ser-99aefhkw_plain_v1", DUAL, "carries the letter h"),
-            ("ser-99aefkrw_ctrlshape_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter h"),
-            ("ser-99aefhkw_ctrlshape_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter r")):  # h does not stand in for r
+            ("ser-99hr_shaped_v1", shaped, "carries the letter h"),          # h, but no table
+            ("ser-99h_plain_v1", DUAL, "carries the letter h"),
+            ("ser-99r_shaped_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter h"),
+            ("ser-99h_shaped_head_v1", [*shaped, "--scatter-table", str(table)], "must carry the letter r")):  # h does not stand in for r
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, stem, flags))
         assert why in capsys.readouterr().err, stem
@@ -319,17 +309,16 @@ def test_a_model_named_build_with_a_scatter_table_needs_the_letter_h(challenge, 
 
 
 def test_a_model_named_build_in_the_controls_shape_needs_the_letter_r(challenge, capsys):
-    """ADR 0005 (2026-10-07): `r` is what the emitted cells are built from, moved off the emitter's
-    own drawn cells and named in the slug; no letter is the drawn template."""
-    flags = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+    """A model-named stem carries r exactly when --emit-shape is off the drawn template."""
+    flags = ["--alpha", "1.2", "--bulk-anchor", "pooled", "--emit-lambda", "0.4"]
     shaped = flags + ["--emit-shape", "controls"]
-    assert build.main(_argv(challenge, "ser-99aefkrw_ctrlshape_v1", shaped)) == 0
-    rec = json.loads((challenge["out"] / "ser-99aefkrw_ctrlshape_v1.dual.json").read_text())
+    assert build.main(_argv(challenge, "ser-99r_shaped_v1", shaped)) == 0
+    rec = json.loads((challenge["out"] / "ser-99r_shaped_v1.dual.json").read_text())
     assert rec["emit_shape"]["shape"] == "controls"
     capsys.readouterr()
     for stem, extra, why in (
-            ("ser-99aefkw_ctrlshape_v1", shaped, "must carry the letter r"),      # shaped, no r
-            ("ser-99aefkrw_template_v1", flags, "carries the letter r")):         # r, but the drawn template
+            ("ser-99_shaped_v1", shaped, "must carry the letter r"),      # shaped, no r
+            ("ser-99r_template_v1", flags, "carries the letter r")):         # r, but the drawn template
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, stem, extra))
         assert why in capsys.readouterr().err, stem
@@ -347,19 +336,17 @@ def test_a_target_no_source_covers_keeps_its_generic_shift_and_is_shaped_too(cha
         seen.append((self.p.name, log2fc_cell is None, log2fc_bulk is None, kw.get("shape")))
         return self.emit(n, log2fc_cell)
     monkeypatch.setattr(PoissonEmitter, "emit_dual", spy)
-    assert build.main(_argv(challenge, "unc", ["--alpha", "1.35", "--bulk-anchor", "pooled",
-                                               "--emit-lambda", "0.5", "--emit-shape", "controls"])) == 0
+    assert build.main(_argv(challenge, "unc", ["--alpha", "1.2", "--bulk-anchor", "pooled",
+                                               "--emit-lambda", "0.4", "--emit-shape", "controls"])) == 0
     assert seen == [("X", False, False, True)] * 2 + [("Y", False, False, True)] * 2
     rec = json.loads((challenge["out"] / "unc.dual.json").read_text())["emit_shape"]["contexts"]
     for c in ("X", "Y"):                           # the spy never shapes
         assert rec[c]["blocks_left_on_the_template"] == ["TP53", "NOSOURCE1"]
 
 
-# --scatter-table (T85): a per-(context, perturbation, gene) dial on the emitted cell-to-cell scatter,
-# the table sidechain.eval.loco reads with a context beside it. What is pinned here is the builder's
-# wiring and its record; the dial's numerics are test_dual_moment's.
+# -- --scatter-table ----------------------------------------------------------------------------------------
 
-DUAL = ["--alpha", "1.35", "--bulk-anchor", "pooled", "--emit-lambda", "0.5"]
+DUAL = ["--alpha", "1.2", "--bulk-anchor", "pooled", "--emit-lambda", "0.4"]
 
 
 def _scatter_table(path, rows, columns=("context", "target", "feature", "scatter")):
@@ -422,9 +409,9 @@ def test_scatter_table_is_off_by_default_and_refused_where_it_cannot_act(challen
                            columns=("target", "feature", "scatter"))
     capsys.readouterr()
     for stem, flags, tab, why in (
-            ("one", ["--alpha", "1.35", "--emit-lambda", "0.5"], table, "two-channel"),     # one channel: no fit to act in
-            ("ser-99aefkw_head_v1", DUAL, table, "must carry the letter h"),                # a model name claims its letters
-            ("ser-99aefkrw_ctrlshape_v1", [*DUAL, "--emit-shape", "controls"], table, "must carry the letter h"),
+            ("one", ["--alpha", "1.2", "--emit-lambda", "0.4"], table, "two-channel"),     # one channel: no fit to act in
+            ("ser-99_head_v1", DUAL, table, "must carry the letter h"),                # a model name claims its letters
+            ("ser-99r_shaped_v1", [*DUAL, "--emit-shape", "controls"], table, "must carry the letter h"),
             ("twice", DUAL, twice, "twice.parquet (context X): a (target, feature) pair is listed twice"),
             ("bare", DUAL, bare, "no column"),
             ("wild", DUAL, wild, ">= 0"),
@@ -575,7 +562,7 @@ def test_a_dialled_block_on_a_fallback_rung_is_recorded_as_it_ended(challenge, m
 
     table = _scatter_table(tmp_path / "t.parquet", [("X", "TP53", "B", 0.0), ("Y", "TP53", "B", 0.0)])
     # the real emitter, two amplitudes this fixture cannot always meet: who lands on which rung is its own record
-    two = ["--alpha", "1.35", "--alpha-bulk", "1.5", "--bulk-anchor", "pooled", "--emit-lambda", "0.5",
+    two = ["--alpha", "1.2", "--alpha-bulk", "1.8", "--bulk-anchor", "pooled", "--emit-lambda", "0.4",
            "--dual-fallback", "anchor", "--scatter-table", str(table)]
     assert build.main(_argv(challenge, "rungs", two)) == 0
     rec = json.loads((challenge["out"] / "rungs.dual.json").read_text())

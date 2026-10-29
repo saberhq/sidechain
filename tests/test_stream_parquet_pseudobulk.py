@@ -1,13 +1,8 @@
-"""Tests for the long-format parquet streamer (X-Atlas/Orion).
+"""`sidechain.data.stream_parquet_pseudobulk`: per-label sums from long-format parquet, checked by hand.
 
-The sums are checked against hand-computed numbers rather than against a second
-implementation, because the failure this module can have is the expensive kind: a
-per-perturbation aggregate that is quietly wrong is indistinguishable from one that is right
-until it has been pooled into a submission, and rebuilding it costs 126 GB of network.
+    .venv/bin/python -m pytest -q tests/test_stream_parquet_pseudobulk.py
 
-Every fixture below mirrors the real schema as measured on 2026-08-23:
-`gene_token_id` and `gene_expression` are parallel LIST columns, `pass_guide_filter` is
-int64 rather than bool, and counts are integers stored as float64.
+Writes temporary files only. Notes: private/code-notes/tests/test_stream_parquet_pseudobulk.py.md
 """
 import json
 
@@ -34,8 +29,7 @@ from sidechain.data.stream_parquet_pseudobulk import (
 )
 from sidechain.data.stream_pseudobulk import PseudobulkSums
 
-# token -> symbol. Token 3 and 4 deliberately share a symbol (`DUP`), mirroring the 22
-# real collisions among X-Atlas's 38,606 ids over 38,584 names.
+# token -> symbol; tokens 3 and 4 share the symbol `DUP`
 GENE_MAP = pd.DataFrame({
     "ensembl_id": ["ENSG0", "ENSG1", "ENSG2", "ENSG3", "ENSG4"],
     "gene_name": ["AAA", "BBB", "CCC", "DUP", "DUP"],
@@ -44,12 +38,7 @@ GENE_MAP = pd.DataFrame({
 
 
 def _write(path, rows):
-    """One parquet file in the real schema. `rows` are dicts of column -> value.
-
-    `guide_target` defaults to one construct per target (`<TARGET>_c1`), which is the shape
-    16,832 of X-Atlas's 18,330 targets actually have. A row that wants a second construct
-    says so with `guide=`.
-    """
+    """One parquet file; `rows` are dicts of column -> value, one construct per target unless `guide=`."""
     table = pa.table({
         "gene_token_id": pa.array([r["tokens"] for r in rows], type=pa.list_(pa.int64())),
         "gene_expression": pa.array([r["values"] for r in rows], type=pa.list_(pa.float64())),
@@ -80,16 +69,14 @@ def _axis(challenge=("AAA", "BBB", "CCC", "MISSING")):
 
 
 def test_challenge_genes_the_source_lacks_are_recorded_not_silently_dropped():
-    """"X-Atlas is blind to these 427 genes" is a fact about our coverage. Dropping it
-    silently is how a blind spot becomes an unexplained score."""
+    """A challenge gene the source lacks is recorded as unmapped."""
     axis = _axis()
     assert list(axis.genes) == ["AAA", "BBB", "CCC"]
     assert axis.unmapped_challenge == ["MISSING"]
 
 
 def test_the_emitted_axis_keeps_challenge_order():
-    """`pooled_delta` remaps by symbol, so order is not load-bearing downstream -- but a
-    stable, documented order makes two aggregates directly comparable."""
+    """The emitted axis keeps the challenge order."""
     axis = build_gene_axis(GENE_MAP, ["CCC", "AAA", "BBB"])
     assert list(axis.genes) == ["CCC", "AAA", "BBB"]
 
@@ -133,7 +120,7 @@ def test_sums_are_arithmetically_right(tmp_path):
 
 
 def test_mean_cpm_and_var_cpm_come_out_of_the_emitted_object(tmp_path):
-    """The consumers call these two methods; the sums exist to serve them."""
+    """`mean_cpm` and `var_cpm` come out of the emitted object."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53"},
         {"tokens": [0, 1], "values": [1.0, 1.0], "target": "TP53"},
@@ -146,9 +133,7 @@ def test_mean_cpm_and_var_cpm_come_out_of_the_emitted_object(tmp_path):
 
 
 def test_genes_outside_the_emitted_axis_are_dropped_not_misplaced(tmp_path):
-    """Token 3 is `DUP`, which is not on this challenge axis. It must vanish, not land in
-    some other gene's column -- the silent-misalignment failure this project has already
-    paid for once with gene_names.csv."""
+    """A token off the emitted axis is dropped, not written to another gene's column."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0, 3], "values": [5.0, 999.0], "target": "TP53"},
     ])
@@ -172,7 +157,7 @@ def test_a_token_beyond_the_map_does_not_crash(tmp_path):
 
 
 def test_pass_guide_filter_is_compared_as_an_integer(tmp_path):
-    """The trap: the column is int64, not bool. A cell with 0 must not be accumulated."""
+    """`pass_guide_filter` is int64; a cell with 0 is not accumulated."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [10.0], "target": "TP53", "pass": 1},
         {"tokens": [0], "values": [99.0], "target": "TP53", "pass": 0},
@@ -200,8 +185,7 @@ def test_a_cell_with_no_on_axis_counts_is_dropped_not_divided_by_zero(tmp_path):
 
 
 def test_the_control_label_is_matched_exactly(tmp_path):
-    """`Non-Targeting` is an equality test. A substring rule would sweep in anything
-    containing it, which is the INTS1/"NT" bug in a different costume."""
+    """The control label is matched by equality, not substring."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": CONTROL_LABEL},
         {"tokens": [0], "values": [2.0], "target": "Non-Targeting-Control"},
@@ -229,8 +213,7 @@ def test_labels_outside_the_keep_list_are_ignored(tmp_path):
 
 
 def test_pct_counts_mt_mean_and_spread_survive_the_stream(tmp_path):
-    """Free now, another 126 GB later. A perturbation whose delta is a dying-cell
-    signature is the thing this is kept to detect."""
+    """The per-label mean and sd of `pct_counts_mt` are kept."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53", "mt": 2.0},
         {"tokens": [0], "values": [2.0], "target": "TP53", "mt": 6.0},
@@ -242,9 +225,7 @@ def test_pct_counts_mt_mean_and_spread_survive_the_stream(tmp_path):
 
 
 def test_per_batch_cell_counts_are_kept_although_the_sums_are_not(tmp_path):
-    """The resolution decision in one test: sums pool across batches (1.7 cells per
-    bucket is not a measurement), COUNTS stay per batch (~8 MB, keeps batch structure
-    auditable)."""
+    """Sums pool across batches; cell counts stay per batch."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53", "sample": "B1"},
         {"tokens": [0], "values": [2.0], "target": "TP53", "sample": "B2"},
@@ -271,8 +252,7 @@ def test_the_qc_sidecar_round_trips(tmp_path):
 
 
 def test_a_transformed_matrix_is_refused_rather_than_pseudobulked(tmp_path):
-    """The card says raw UMI counts. `counts_state` asks the data instead -- that is the
-    whole point of that function, and the expm1-on-counts bug is why."""
+    """A matrix that does not read as raw counts is refused."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0, 1], "values": [1.5, 2.7], "target": "TP53"},
     ])
@@ -285,9 +265,7 @@ def test_a_transformed_matrix_is_refused_rather_than_pseudobulked(tmp_path):
 
 
 def test_the_emitted_object_is_exactly_what_the_scorer_consumes(tmp_path):
-    """The constraint that makes this cheap: `pooled_delta` and `loco` take a
-    `PseudobulkSums` and nothing else, so X-Atlas is a new --source and no model, emitter
-    or scorer code changes. If this ever fails, the shape is wrong."""
+    """The output is a `PseudobulkSums` that round-trips and that `pooled_delta` reads."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0, 1], "values": [4.0, 6.0], "target": CONTROL_LABEL},
         {"tokens": [0, 1], "values": [1.0, 8.0], "target": "TP53"},
@@ -306,7 +284,7 @@ def test_the_emitted_object_is_exactly_what_the_scorer_consumes(tmp_path):
     axis = np.array(["AAA", "BBB", "CCC", "MISSING"])
     delta = pooled_delta("TP53", [(back, CONTROL_LABEL)], axis)
     assert delta is not None and delta.shape == (4,)
-    assert delta[3] == 0.0          # a gene the source never measured -> no change
+    assert delta[3] == 0.0          # a gene the source lacks -> no change
     assert delta[0] < 0 < delta[1]  # AAA down, BBB up, as constructed
 
 
@@ -321,7 +299,7 @@ def test_two_files_accumulate_into_one_aggregate(tmp_path):
 
 
 def test_batching_does_not_change_the_answer(tmp_path):
-    """Resident memory is a tuning knob; the aggregate must not be."""
+    """`batch_rows` does not change the sums."""
     rows = [{"tokens": [0, 1], "values": [float(i), float(i + 1)], "target": "TP53"}
             for i in range(1, 51)]
     _write(tmp_path / "f.parquet", rows)
@@ -336,7 +314,7 @@ def test_batching_does_not_change_the_answer(tmp_path):
 # ------------------------------------------------------------------- lineage --
 
 
-def test_lineage_records_the_resolution_that_costs_126_gb_to_re_answer(tmp_path):
+def test_lineage_records_the_resolution(tmp_path):
     _write(tmp_path / "f.parquet", [{"tokens": [0], "values": [1.0], "target": "TP53"}])
     axis = _axis()
     pb, qc = stream_files(["f.parquet"], opener=_opener(tmp_path), axis=axis,
@@ -355,8 +333,7 @@ def test_lineage_records_the_resolution_that_costs_126_gb_to_re_answer(tmp_path)
 
 
 def test_a_second_context_does_not_erase_the_first_lineage(tmp_path):
-    """Two aggregates and a record for one of them is worse than no record: it looks
-    complete. HCT116 and HEK293T land in the same derived directory."""
+    """A second context's lineage entry is added beside the first."""
     _write(tmp_path / "f.parquet", [{"tokens": [0], "values": [1.0], "target": "TP53"}])
     axis = _axis()
     pb, qc = stream_files(["f.parquet"], opener=_opener(tmp_path), axis=axis,
@@ -376,8 +353,7 @@ def test_a_second_context_does_not_erase_the_first_lineage(tmp_path):
 
 
 def test_gene_names_header_trap_is_caught_by_the_count(tmp_path):
-    """`header=None` on the 2026 file yields 18,534 rows whose first gene is the literal
-    string `gene_name`, misaligning every gene after it. Nothing downstream would raise."""
+    """A header row read as a gene is caught by the expected count."""
     p = tmp_path / "gene_names.csv"
     p.write_text("gene_name\nTSPAN6\nTNMD\nDPM1\n")
     assert read_gene_names(p, expect=3) == ["TSPAN6", "TNMD", "DPM1"]
@@ -386,13 +362,7 @@ def test_gene_names_header_trap_is_caught_by_the_count(tmp_path):
 
 
 def test_total_counts_is_the_corpus_column_not_the_emitted_axis_sum(tmp_path):
-    """These are different numbers and the sidecar promises the bigger one.
-
-    `libsize_sum` sums the 18,106 genes we emit; `total_counts` is the cell's whole
-    transcriptome across all 38,606. Recording the former under the latter's name would
-    make the alternative CPM normalization cost another 126 GB to recover -- which is the
-    one thing capturing it at ingest was meant to prevent.
-    """
+    """`total_counts` in the sidecar is the corpus column; `libsize_sum` is the emitted-axis sum."""
     _write(tmp_path / "f.parquet", [
         # 5 counts land on the emitted axis; the cell's real library size is 100.
         {"tokens": [0], "values": [5.0], "target": "TP53", "total": 100.0},
@@ -408,13 +378,7 @@ def test_total_counts_is_the_corpus_column_not_the_emitted_axis_sum(tmp_path):
 
 
 def test_never_observed_labels_are_pruned_from_the_emitted_object(tmp_path):
-    """`pooled_delta` decides whether a source votes with `target not in pb.labels`. A
-    label present with zero cells passes that test and then votes "every gene silenced",
-    because mean_cpm is 0/1 and log2fc becomes log2(1/(ctrl+1)).
-
-    The h5ad streamer never had this problem -- it intersects the keep list with the labels
-    actually in the file. This is that parity.
-    """
+    """A kept label with zero cells is pruned from the sums and kept, at zero, in the sidecar."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [5.0], "target": "TP53"},
         {"tokens": [0], "values": [9.0], "target": CONTROL_LABEL},
@@ -429,8 +393,7 @@ def test_never_observed_labels_are_pruned_from_the_emitted_object(tmp_path):
 
 
 def test_a_pruned_source_abstains_instead_of_voting_wrongly(tmp_path):
-    """End to end through the real consumer: the failure this prevents is a source
-    confidently reporting a transcriptome-wide shutdown for a gene it never perturbed."""
+    """`pooled_delta` returns None for a label the source never perturbed."""
     from sidechain.submit.build import pooled_delta
 
     _write(tmp_path / "f.parquet", [
@@ -446,16 +409,11 @@ def test_a_pruned_source_abstains_instead_of_voting_wrongly(tmp_path):
     assert pooled_delta("NEVER_SEEN", [(pb, CONTROL_LABEL)], axis) is None
 
 
-# ============================================================ review findings ==
-# Each test below pins a defect a review found in this module. They are grouped
-# because they share a property: every one of them failed SILENTLY, producing a
-# plausible aggregate rather than an error.
+# ====================================================== tokens, guards, lineage ==
 
 
 def test_a_negative_gene_token_cannot_wrap_into_a_real_genes_column(tmp_path):
-    """`tokens < len(col_of_token)` alone lets -1 index from the END of the lookup,
-    landing a count silently in some unrelated gene. Gene misalignment is this
-    project's most expensive recurring bug and it never announces itself."""
+    """A negative token is dropped, not indexed from the end of the lookup."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0, -1], "values": [4.0, 999.0], "target": "TP53"},
         {"tokens": [0], "values": [7.0], "target": CONTROL_LABEL},
@@ -468,10 +426,7 @@ def test_a_negative_gene_token_cannot_wrap_into_a_real_genes_column(tmp_path):
 
 
 def test_the_raw_counts_guard_stays_armed_until_it_actually_runs(tmp_path):
-    """It used to be disarmed by the FIRST batch regardless of whether the check ran.
-    A first batch where every cell fails the guide filter returns early, so whether a
-    transformed matrix was caught depended on --batch-rows and row order, not on the
-    data. The module docstring claimed it ran 'on the first block of every file'."""
+    """The raw-counts guard still runs after a first batch whose cells all fail the guide filter."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [3.0], "target": "TP53", "pass": 0},   # dropped
         {"tokens": [0, 1], "values": [1.5, 2.7], "target": "TP53"},      # log1p-ish
@@ -492,9 +447,7 @@ def test_the_guard_survives_a_first_batch_carrying_no_kept_label(tmp_path):
 
 
 def test_a_cp10k_matrix_that_lands_on_integers_is_still_caught(tmp_path):
-    """The signal that needs ROW STRUCTURE. counts_state catches a normalized matrix by
-    its constant row totals, and that signal is dead if every cell's values are handed
-    over as one flat vector -- which is what long format naturally produces."""
+    """A matrix with constant row totals is refused even when every value is an integer."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0, 1], "values": [2000.0, 8000.0], "target": "TP53"},
         {"tokens": [0, 1], "values": [4000.0, 6000.0], "target": "TP53"},
@@ -506,10 +459,7 @@ def test_a_cp10k_matrix_that_lands_on_integers_is_still_caught(tmp_path):
 
 
 def test_a_control_arm_that_yielded_nothing_stops_the_run(tmp_path):
-    """Without this the prune removes the control, the .npz and LINEAGE.json are still
-    written, and the failure surfaces much later inside pooled_delta as
-    `ValueError: 'Non-Targeting' is not in list` -- naming neither this corpus nor this
-    run. Reproduces what checks.control_mask guarantees for an in-memory matrix."""
+    """A control label that accumulated no cells stops the run."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [5.0], "target": "TP53"},
         {"tokens": [0], "values": [9.0], "target": "Non-Targeting-Control"},
@@ -520,8 +470,7 @@ def test_a_control_arm_that_yielded_nothing_stops_the_run(tmp_path):
 
 
 def test_the_control_guard_offers_the_near_miss_label(tmp_path):
-    """The same hint checks.control_mask gives: if a near-miss label is the real
-    control, declare it exactly rather than matching loosely."""
+    """The refusal names a near-miss control label."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [5.0], "target": "TP53"},
         {"tokens": [0], "values": [9.0], "target": "non-targeting"},
@@ -532,8 +481,7 @@ def test_the_control_guard_offers_the_near_miss_label(tmp_path):
 
 
 def test_lineage_keys_are_dataset_qualified(tmp_path):
-    """Two datasets can share a derived directory; keying on the artifact name alone
-    would let one erase the other's entry."""
+    """Lineage entries are keyed `<dataset>/<entry>`."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53"},
         {"tokens": [0], "values": [4.0], "target": CONTROL_LABEL},
@@ -550,8 +498,7 @@ def test_lineage_keys_are_dataset_qualified(tmp_path):
 
 
 def test_an_unrecognised_lineage_file_is_moved_aside_not_overwritten(tmp_path):
-    """Losing lineage is worse than an extra file: the aggregate it described stays on
-    disk looking trustworthy."""
+    """An unrecognised LINEAGE.json is moved to `.bak`, not overwritten."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53"},
         {"tokens": [0], "values": [4.0], "target": CONTROL_LABEL},
@@ -569,8 +516,7 @@ def test_an_unrecognised_lineage_file_is_moved_aside_not_overwritten(tmp_path):
 
 
 def test_lineage_records_the_axis_the_caller_asked_for(tmp_path):
-    """A source covering every challenge gene must still be recorded as a
-    challenge-restricted axis, not as the much larger all-symbols one."""
+    """A challenge axis with nothing unmapped is still recorded as `challenge-symbols`."""
     _write(tmp_path / "f.parquet", [
         {"tokens": [0], "values": [1.0], "target": "TP53"},
         {"tokens": [0], "values": [4.0], "target": CONTROL_LABEL},
@@ -589,12 +535,7 @@ def test_lineage_records_the_axis_the_caller_asked_for(tmp_path):
 
 # ----------------------------------------------- the construct-keyed accumulator --
 #
-# `--guide-agreement` adds a second accumulator keyed by `guide_target` -- the dual-guide
-# CONSTRUCT -- in the same pass. It exists to answer "do two independently delivered
-# constructs against the same gene produce the same profile?", which prices what a
-# single-construct estimate is worth. These tests hold the three properties that make the
-# answer meaningful: the split is exact, the population is restricted to the targets that
-# can answer it, and the control is not split.
+# `--guide-agreement` adds a second accumulator keyed by `guide_target` in the same pass.
 
 
 def _keyings(labels, guide_labels=None):
@@ -607,11 +548,7 @@ def _keyings(labels, guide_labels=None):
 
 
 def test_two_constructs_against_one_gene_split_exactly_into_that_genes_row(tmp_path):
-    """The strong invariant: the construct rows must SUM to the gene row, cell for cell.
-
-    If they do not, the two aggregates describe different populations and any concordance
-    measured between them is measuring the bug instead of the biology.
-    """
+    """The construct rows sum to the gene row, cell for cell."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0, 1], "values": [4.0, 6.0]},
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [2.0]},
@@ -634,9 +571,7 @@ def test_two_constructs_against_one_gene_split_exactly_into_that_genes_row(tmp_p
 
 
 def test_the_control_is_pooled_under_the_construct_keying_not_split_by_it(tmp_path):
-    """X-Atlas pairs its 1,026 non-targeting sgRNAs at random, so every control cell can
-    carry a different construct string. Splitting on it would replace the one arm every
-    delta is measured against with a cloud of one-cell labels."""
+    """Control cells pool under the control label whatever their construct string."""
     _write(tmp_path / "f.parquet", [
         {"target": CONTROL_LABEL, "guide": "nt_1|nt_2", "tokens": [0], "values": [3.0]},
         {"target": CONTROL_LABEL, "guide": "nt_7|nt_9", "tokens": [0], "values": [5.0]},
@@ -653,8 +588,7 @@ def test_the_control_is_pooled_under_the_construct_keying_not_split_by_it(tmp_pa
 
 
 def test_a_single_construct_targets_cells_are_left_out_of_the_construct_aggregate(tmp_path):
-    """Its construct profile IS its gene profile, already accumulated next door. Carrying
-    all ~20,890 constructs on the 38,584-gene axis would cost ~19 GB to duplicate them."""
+    """A target with one construct is left out of the construct sums."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
@@ -673,8 +607,7 @@ def test_a_single_construct_targets_cells_are_left_out_of_the_construct_aggregat
 
 
 def test_one_pass_feeds_both_accumulators_rather_than_two_reads(tmp_path):
-    """Two passes would read 126 GB twice and could not be compared cell for cell -- the
-    second read is not guaranteed to land on the same revision."""
+    """Both accumulators fill from one read of each file."""
     reads = []
     real = _opener(tmp_path)
 
@@ -694,8 +627,7 @@ def test_one_pass_feeds_both_accumulators_rather_than_two_reads(tmp_path):
 
 
 def test_the_guide_filter_drops_the_same_cells_from_both_keyings(tmp_path):
-    """`pass_guide_filter` is a property of the CELL, not of the keying, so the count is
-    the same in both sidecars and neither aggregate contains a filtered cell."""
+    """`pass_guide_filter` drops the same cells from both keyings."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [7.0], "pass": 0},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
@@ -712,8 +644,7 @@ def test_the_guide_filter_drops_the_same_cells_from_both_keyings(tmp_path):
 
 def test_the_raw_counts_guard_still_fires_when_only_the_construct_keying_wants_the_cells(
         tmp_path):
-    """The guard asks about `gene_expression`, which no keying changes -- so an early
-    return from the perturbation accumulator must not disarm it."""
+    """The raw-counts guard fires when only the construct keying keeps the cells."""
     _write(tmp_path / "f.parquet", [
         # cp10k rows: not raw counts. The perturbation keying keeps none of these labels.
         {"target": "ZZZ", "guide": "ZZZ_c1", "tokens": [0, 1], "values": [4000.0, 6000.0]},
@@ -725,7 +656,7 @@ def test_the_raw_counts_guard_still_fires_when_only_the_construct_keying_wants_t
 
 
 def test_the_guide_column_is_fetched_only_when_a_keying_keys_on_it(tmp_path):
-    """126 GB of columnar parquet: a column nobody asked for is a column never sent."""
+    """`guide_target` is read only when a keying keys on it."""
     plain = _keyings(["AAA"])
     assert "guide_target" not in _columns_for(plain)
     assert "guide_target" in _columns_for(_keyings(["AAA"], ["AAA_c1", "AAA_c2"]))
@@ -734,8 +665,7 @@ def test_the_guide_column_is_fetched_only_when_a_keying_keys_on_it(tmp_path):
 
 
 def test_construct_discovery_reads_both_columns_and_leaves_the_control_out(tmp_path):
-    """The control's construct strings are unbounded (random sgRNA pairs) and nothing keys
-    on them; the targeting ones are a designed library of ~20,890."""
+    """Discovery returns (target, construct) pairs and leaves the control's constructs out."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
@@ -768,8 +698,7 @@ def test_only_targets_with_more_than_one_construct_become_construct_labels():
 
 
 def test_the_construct_set_is_a_refinement_of_the_labels_being_accumulated():
-    """Otherwise the two aggregates in one directory would describe different populations
-    that merely share a filename stem."""
+    """`keep` restricts the construct labels to the kept targets."""
     pairs = {("AAA", "AAA_c1"), ("AAA", "AAA_c2"), ("CCC", "CCC_c1"), ("CCC", "CCC_c2")}
     labels, n_targets = multi_construct_labels(pairs, keep={"AAA", CONTROL_LABEL})
     assert n_targets == 1
@@ -777,9 +706,7 @@ def test_the_construct_set_is_a_refinement_of_the_labels_being_accumulated():
 
 
 def test_the_construct_aggregate_records_its_own_resolution_in_lineage(tmp_path):
-    """An aggregate whose resolution is unknown cannot be trusted or extended -- and a
-    reader must know whether `labels` holds gene symbols or `sgRNA1|sgRNA2` strings before
-    loading a multi-GB array."""
+    """The construct aggregate's lineage entry records its resolution and key column."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
@@ -806,8 +733,7 @@ def test_the_construct_aggregate_records_its_own_resolution_in_lineage(tmp_path)
 
 
 def test_labels_in_corpus_is_counted_under_each_keying_not_shared(tmp_path):
-    """"18,294 targets" and "20,890 constructs" are different facts about the same corpus.
-    Sharing one counter would report whichever accumulator ran last."""
+    """`labels_in_corpus` is counted per keying."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [1.0]},
@@ -824,7 +750,7 @@ def test_labels_in_corpus_is_counted_under_each_keying_not_shared(tmp_path):
 
 
 def test_a_construct_keying_with_no_control_cells_stops_the_run(tmp_path):
-    """Same guarantee as the perturbation keying, and the message says which keying."""
+    """A construct keying with no control cells stops the run and names the keying."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0, 1], "values": [1.0, 4.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0], "values": [7.0]},
@@ -837,7 +763,7 @@ def test_a_construct_keying_with_no_control_cells_stops_the_run(tmp_path):
 
 
 def test_stream_files_still_returns_one_pair(tmp_path):
-    """The 30 callers that want the ordinary per-perturbation aggregate are untouched."""
+    """`stream_files` returns one (sums, qc) pair."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "tokens": [0], "values": [1.0]},
         {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
@@ -849,10 +775,7 @@ def test_stream_files_still_returns_one_pair(tmp_path):
 
 
 def test_the_sparse_scatter_is_bit_identical_to_the_dense_form():
-    """The accumulator stopped densifying `(labels in batch x genes)` because that was 13x
-    the sparse product and made the full-corpus run CPU-bound at ~7 hours. The saving is
-    only allowed if the arithmetic does not move -- not "close to", bit-identical, because
-    these sums are compared against artifacts built by the dense form."""
+    """`_scatter_add` is bit-identical to the dense form."""
     rng = np.random.default_rng(0)
     n_labels, n_genes, n_cells = 40, 500, 300
     codes = rng.integers(0, n_labels, n_cells)
@@ -873,8 +796,7 @@ def test_the_sparse_scatter_is_bit_identical_to_the_dense_form():
 
 
 def test_the_scatter_survives_a_batch_whose_product_is_empty():
-    """Every cell's counts fell outside the emitted axis: nnz 0, and `tocoo` on an empty
-    product must not index with empty arrays into a real accumulator."""
+    """`_scatter_add` leaves the target unchanged on an empty product."""
     target = np.ones((3, 4))
     _scatter_add(target, np.array([0, 2]), sp.csr_matrix((2, 4)))
     np.testing.assert_array_equal(target, np.ones((3, 4)))
@@ -882,15 +804,11 @@ def test_the_scatter_survives_a_batch_whose_product_is_empty():
 
 # ------------------------------------------------------- screen-coverage QC tallies --
 #
-# Two numbers a screen is judged on before it is worth pooling, and neither is recoverable
-# from a finished aggregate: how many CELLS each gene was detected in (`count_sum` says how
-# many counts, which is a different question), and how many cells carried each construct.
+# Per gene, the cells it was detected in; per construct, the cells that carried it.
 
 
 def test_gene_detection_counts_cells_not_counts(tmp_path):
-    """A gene at count_sum=100 might be 100 cells at 1 count or 1 cell at 100. Only the
-    detection count separates them, and it is the one the "expressed in < N cells" filter
-    needs."""
+    """`gene_cells` counts cells with the gene detected, not counts."""
     _write(tmp_path / "f.parquet", [
         # AAA: one cell, 100 counts.  BBB: three cells, 1 count each.
         {"target": "T", "tokens": [0, 1], "values": [100.0, 1.0]},
@@ -913,9 +831,7 @@ def test_gene_detection_counts_cells_not_counts(tmp_path):
 
 
 def test_two_tokens_colliding_into_one_gene_count_the_cell_once(tmp_path):
-    """`DUP` is fed by tokens 3 and 4. A cell carrying both is one cell that detected DUP,
-    not two -- otherwise the detection count exceeds the cell count and the filter built on
-    it is wrong in the safe-looking direction."""
+    """A cell carrying both tokens of `DUP` counts once."""
     axis = build_gene_axis(GENE_MAP, ["AAA", "DUP"])
     _write(tmp_path / "f.parquet", [
         {"target": "T", "tokens": [3, 4], "values": [2.0, 5.0]},
@@ -929,9 +845,7 @@ def test_two_tokens_colliding_into_one_gene_count_the_cell_once(tmp_path):
 
 
 def test_construct_coverage_counts_every_construct_not_just_multi(tmp_path):
-    """The construct-keyed ACCUMULATOR is restricted to multi-construct targets because it
-    carries a gene axis. This tally carries none, so it covers the whole library -- which is
-    the gRNA-level coverage view."""
+    """The construct tally covers single-construct targets too, and pools the control."""
     _write(tmp_path / "f.parquet", [
         {"target": "AAA", "guide": "AAA_c1", "tokens": [0], "values": [1.0]},
         {"target": "AAA", "guide": "AAA_c2", "tokens": [0, 1], "values": [1.0, 2.0]},
@@ -953,7 +867,7 @@ def test_construct_coverage_counts_every_construct_not_just_multi(tmp_path):
 
 
 def test_coverage_is_off_unless_asked_for(tmp_path):
-    """It costs a (G,) array and a column the stream would not otherwise fetch."""
+    """Coverage tallies are off unless `guide_coverage=True`."""
     _write(tmp_path / "f.parquet", [
         {"target": "T", "tokens": [0, 1], "values": [4.0, 1.0]},
         {"target": CONTROL_LABEL, "tokens": [0], "values": [3.0]},
@@ -981,7 +895,7 @@ def test_coverage_tallies_round_trip_through_the_sidecar(tmp_path):
 
 
 def test_a_cell_dropped_for_zero_on_axis_counts_is_not_tallied(tmp_path):
-    """The tallies must describe the cells that actually entered the aggregate."""
+    """A cell dropped for zero on-axis counts is not tallied."""
     _write(tmp_path / "f.parquet", [
         {"target": "T", "guide": "T_c1", "tokens": [3], "values": [50.0]},   # DUP: off-axis
         {"target": "T", "guide": "T_c1", "tokens": [0, 1], "values": [4.0, 1.0]},

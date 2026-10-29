@@ -1,11 +1,8 @@
-"""Contract tests for the shrinkage rule's three knobs (T84): hardness, stage and rule.
+"""The shrinkage rule's three knobs (`--shrink-k`, `--shrink-stage`, `--shrink-rule`) and the adaptive rule.
 
-What is pinned: the defaults are the historical rule, bit for bit; `k` moves the garrote's
-threshold and nothing else; the pooled stage shrinks the pooled vector with the pooled
-variance and is the per-source rule when one source measures the gene; the settings that
-name no model are refused, in the function and at both entry points; the adaptive rule
-recovers a known mixture and never zeroes a gene; and `eval.loco` and `submit.build` hand
-`pooled_delta` the same keyword arguments for the same flags.
+    .venv/bin/python -m pytest -q tests/test_shrink_rules.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_shrink_rules.py.md
 """
 from __future__ import annotations
 
@@ -107,7 +104,7 @@ def test_the_pooled_stage_shrinks_the_pooled_vector_with_the_pooled_variance():
 
 
 def test_two_sources_under_one_standard_error_survive_only_when_pooled_first():
-    """The stage's whole point: 0.9 standard errors twice is 1.27 standard errors once."""
+    """Two sources at 0.9 standard errors each: zeroed per source, kept when pooled first."""
     se = 0.2
     a = _lfc([0.9 * se] * 4, [se**2] * 4)
     b = _lfc([0.9 * se] * 4, [se**2] * 4)
@@ -194,7 +191,7 @@ def test_adaptive_recovers_a_known_mixture():
     got = ash.adaptive_shrink(x, s * s, stats=stats)
     oracle = ash.posterior_mean(x, s, np.array([1e-9, 0.3, 1.5]), np.array([0.7, 0.2, 0.1]))
     mse = lambda est: float(np.mean((est - beta) ** 2))
-    assert mse(got) < 1.02 * mse(oracle) < 0.5 * mse(x)          # within 2 % of knowing the prior
+    assert mse(got) < 1.02 * mse(oracle) < 0.5 * mse(x)          # close to the oracle prior
     assert stats == {"adaptive_fits": 1, "adaptive_cycles": stats["adaptive_cycles"],
                      "adaptive_fits_at_cap": 0}
     assert 1 <= stats["adaptive_cycles"] < ash.MAX_CYCLES
@@ -232,9 +229,7 @@ def test_adaptive_fit_agrees_with_plain_em():
 
 
 def test_adaptive_constants_and_a_reference_fit_are_pinned():
-    """The stopping constants are part of the model a scored arm was built with: moving one
-    must fail here, not pass quietly. The reference values hold to 1e-3, not to the bit --
-    the fit is reproducible to about 1e-4 across BLAS builds (the module's docstring)."""
+    """The stopping constants and a reference fit, to 1e-3."""
     assert (ash.MAX_CYCLES, ash.TOL_PER_GENE, ash.CALM_CYCLES, ash.MIN_GENES) == (5000, 1e-9, 3, 50)
     _, x, s = _mixture(2000, seed=11)
     stats = {}
@@ -245,8 +240,7 @@ def test_adaptive_constants_and_a_reference_fit_are_pinned():
 
 
 def test_adaptive_on_a_vector_that_is_all_noise():
-    """Nothing but noise is the flat-likelihood case real knockdowns sit near: the fit runs to
-    its cap, says so, stays finite, and removes nearly everything."""
+    """On pure noise the fit runs to its cap, says so, stays finite and removes nearly everything."""
     r = np.random.default_rng(3)
     s = np.exp(r.uniform(np.log(0.05), np.log(1.0), 400))
     x = r.normal(size=400) * s
@@ -380,7 +374,7 @@ def test_loco_hands_the_rule_to_every_pool_and_records_it(monkeypatch, tmp_path)
     monkeypatch.setattr(loco, "pooled_delta", lambda *a, **k: seen.append(
         {x: k.get(x) for x in ("shrinkage", "shrink_k", "shrink_stage", "shrink_rule")}) or orig(*a, **k))
     kw = dict(pert_col="perturbation", control="non-targeting", var_floor="poisson",
-              emit_lambda=0.5, alpha=1.35, min_libsize=0.0)
+              emit_lambda=0.4, alpha=1.2, min_libsize=0.0)
     plain = loco.build_transfer_prediction(real_path, [(src, "ctrl")], tmp_path / "plain.h5ad", **kw)
     assert seen and all(s == {"shrinkage": True, "shrink_k": 1.0, "shrink_stage": "source",
                               "shrink_rule": "garrote"} for s in seen)
@@ -476,12 +470,12 @@ def test_build_refuses_the_flags_where_they_cannot_act(challenge):
     with pytest.raises(SystemExit):
         build.main(_argv(challenge, "ash", ["--shrink-rule", "adaptive"]))
     assert build.main(_argv(challenge, "ok", ["--shrink-rule", "adaptive", "--shrink-stage", "pooled"])) == 0
-    # a moved rule is knob letter s, so a stem named like a model without it is refused
+    # a moved rule under a model-named stem that does not say so is refused
     with pytest.raises(SystemExit):
-        build.main(_argv(challenge, "ser-99aefkw_k8pool_v1", ["--shrink-k", "8", "--shrink-stage", "pooled"]))
+        build.main(_argv(challenge, "ser-99_fixture_v1", ["--shrink-k", "8", "--shrink-stage", "pooled"]))
 
 
-# ------------------------------------------------- paths a mutation review found unwalked --
+# ------------------------------------------------------ the knobs through every pool --
 
 
 def _spy(monkeypatch, module):
@@ -493,7 +487,7 @@ def _spy(monkeypatch, module):
 
 
 def test_build_hands_the_adaptive_rule_through(challenge, monkeypatch):
-    """An arm named adaptive that silently ran the garrote could never be renamed (ADR 0005)."""
+    """The build hands the adaptive rule to every pool."""
     seen = _spy(monkeypatch, build)
     assert build.main(_argv(challenge, "ash2", ["--shrink-rule", "adaptive", "--shrink-stage", "pooled"])) == 0
     assert seen and all(s == {"shrink_k": 1.0, "shrink_stage": "pooled", "shrink_rule": "adaptive"}
@@ -508,7 +502,7 @@ def test_build_carries_the_rule_through_the_per_context_gamma_pool(challenge, mo
 
 
 def test_loco_hands_the_rule_to_the_neighbour_pool_too(monkeypatch, tmp_path):
-    """The pool is pooled with every knob the targets get, or the two live in different spaces."""
+    """The neighbour pool is pooled with the targets' shrinkage knobs."""
     real_path, src = _fold(tmp_path)
     seen = _spy(monkeypatch, loco)
 
@@ -518,7 +512,7 @@ def test_loco_hands_the_rule_to_the_neighbour_pool_too(monkeypatch, tmp_path):
     monkeypatch.setattr(loco, "neighbour_arm_for", fake_arm)
     loco.build_transfer_prediction(
         real_path, [(src, "ctrl")], tmp_path / "nb.h5ad", pert_col="perturbation",
-        control="non-targeting", var_floor="poisson", emit_lambda=0.5, alpha=1.35,
+        control="non-targeting", var_floor="poisson", emit_lambda=0.4, alpha=1.2,
         min_libsize=0.0, neighbour_table=[tmp_path / "t.pt"], neighbour_w=[0.3],
         shrink_k=8.0, shrink_stage="pooled")
     assert len(seen) == 3 and all(s == {"shrink_k": 8.0, "shrink_stage": "pooled",
@@ -560,36 +554,35 @@ def test_the_adaptive_stop_waits_for_several_quiet_cycles(monkeypatch):
     assert ash.fit_weights(lik)[1] < n_three
 
 
-# --------------------------------------------- the letter s and the build's shrinkage record --
+# ------------------------------------- model-named stems and the build's shrinkage record --
 
 
 def test_a_model_named_build_with_a_moved_rule_needs_the_letter_s(challenge, capsys):
-    """ADR 0005 (2026-10-03): `s` is the fold-change shrinkage rule moved off the baseline garrote,
-    with the rule named in the slug; `n` is the same object switched off; no letter is the baseline."""
+    """A model-named build with a moved shrinkage rule needs s; s without a moved rule, or with n, is refused."""
     flags = ["--shrink-k", "8", "--shrink-stage", "pooled"]
-    assert build.main(_argv(challenge, "ser-99aefksw_k8pool_v1", flags)) == 0
-    rec = json.loads((challenge["out"] / "ser-99aefksw_k8pool_v1.shrink.json").read_text())
+    assert build.main(_argv(challenge, "ser-99s_fixture_v1", flags)) == 0
+    rec = json.loads((challenge["out"] / "ser-99s_fixture_v1.shrink.json").read_text())
     assert rec == {"shrink_k": 8.0, "shrink_stage": "pooled", "shrink_rule": "garrote"}
     capsys.readouterr()
     for stem, extra, why in (
-            ("ser-99aefkw_k8pool_v1", flags, "must carry the letter s"),          # moved rule, no s
-            ("ser-99aefksw_shrink_v1", [], "carries the letter s"),               # s, but the baseline rule
-            ("ser-99aefknsw_k8pool_v1", flags, "both n"),                         # n and s together
-            # the depth-aware arm at a harder threshold: a real model with no name yet
-            ("ser-99dn_k8_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name"),
-            ("ser-99ds_k8_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name")):
+            ("ser-99_fixture_v1", flags, "must carry the letter s"),              # moved rule, no s
+            ("ser-99s_plain_v1", [], "carries the letter s"),                     # s, but the baseline rule
+            ("ser-99ns_fixture_v1", flags, "both n"),                             # n and s together
+            # the rule off, one source pinned on, k moved
+            ("ser-99n_a_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name"),
+            ("ser-99s_b_v1", ["--no-shrink", "--shrink-source", "x.npz:c", "--shrink-k", "8"], "no registered name")):
         with pytest.raises(SystemExit):
             build.main(_argv(challenge, stem, extra))
         assert why in capsys.readouterr().err, stem
     # the baseline rule writes no shrinkage record: its records keep their shipped shape
-    assert build.main(_argv(challenge, "ser-99aefkw_shrink_v1", [])) == 0
-    assert not (challenge["out"] / "ser-99aefkw_shrink_v1.shrink.json").exists()
+    assert build.main(_argv(challenge, "ser-99_plain_v1", [])) == 0
+    assert not (challenge["out"] / "ser-99_plain_v1.shrink.json").exists()
 
 
 def test_the_adaptive_build_records_its_fit(challenge):
-    assert build.main(_argv(challenge, "ser-99aefksw_ashpool_v1",
+    assert build.main(_argv(challenge, "ser-99s_fixture_v1",
                             ["--shrink-stage", "pooled", "--shrink-rule", "adaptive"])) == 0
-    rec = json.loads((challenge["out"] / "ser-99aefksw_ashpool_v1.shrink.json").read_text())
+    rec = json.loads((challenge["out"] / "ser-99s_fixture_v1.shrink.json").read_text())
     assert (rec["shrink_rule"], rec["shrink_stage"]) == ("adaptive", "pooled")
     assert rec["adaptive_fit"] == {"max_cycles": ash.MAX_CYCLES, "tol_per_gene": ash.TOL_PER_GENE,
                                    "calm_cycles": ash.CALM_CYCLES, "min_genes": ash.MIN_GENES,

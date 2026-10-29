@@ -1,9 +1,8 @@
-"""`pooled_delta` taking two kinds of source, and what must not change.
+"""`pooled_delta` over pseudobulk and fold-change-table sources, its knobs, and their `eval.loco` flags.
 
-Feng is the first corpus that publishes a contrast instead of cells, so pooling
-had to stop assuming every source is a `PseudobulkSums`. Two properties matter
-enough to pin: every existing call site keeps working untouched, and a source
-that abstains contributes nothing rather than contributing a zero.
+    .venv/bin/python -m pytest -q tests/test_pooled_delta_sources.py
+
+Writes temporary files only. Notes: private/code-notes/tests/test_pooled_delta_sources.py.md
 """
 from __future__ import annotations
 
@@ -16,13 +15,7 @@ from sidechain.submit.build import as_delta_source, pooled_delta
 
 
 class _StubPB(str):
-    """A stand-in for a loaded `PseudobulkSums` that is still a plain string.
-
-    `sources_from_specs` stamps `sidechain_name` on whatever `PseudobulkSums.load` returns
-    (it is the key `--transfer-floor NAME=TAU2` matches on), and a bare `str` takes no
-    attributes. Subclassing `str` keeps every existing equality assertion below working
-    while giving the stub a `__dict__`.
-    """
+    """A stand-in for a loaded `PseudobulkSums`: a `str` that takes attributes."""
 
 AXIS = np.array(["A", "B", "C"])
 
@@ -51,8 +44,7 @@ def _lfc(labels, lfc, var, genes=("A", "B", "C")):
 
 
 def test_the_historical_tuple_form_still_works():
-    """`loco.py` and `build.py` both construct `[(PseudobulkSums, control), ...]`
-    and neither was touched. If this breaks, every scored run breaks."""
+    """The `(PseudobulkSums, control)` pair pools as before."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
     out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False)
     assert out is not None
@@ -62,9 +54,7 @@ def test_the_historical_tuple_form_still_works():
 
 
 def test_a_target_no_source_covers_is_still_none():
-    """None is what makes `build.py` fall back to the mean shift. A source type
-    that returned zeros instead would silently replace that fallback with a
-    prediction of 'nothing happens'."""
+    """A target no source covers returns None."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
     assert pooled_delta("BRCA1", [(pb, "control")], AXIS) is None
 
@@ -78,7 +68,7 @@ def test_as_delta_source_rejects_something_that_is_neither():
 
 
 def test_an_lfc_table_pools_alongside_a_pseudobulk():
-    """The point of the whole exercise: one call, two kinds of evidence."""
+    """An LfcTable and a pseudobulk pool in one call."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 100.0]])
     tab = _lfc(["TP53"], [[2.0, 0.0, 0.0]], [[0.01, np.inf, np.inf]])
 
@@ -92,10 +82,7 @@ def test_an_lfc_table_pools_alongside_a_pseudobulk():
 
 
 def test_an_abstaining_gene_contributes_no_weight_at_all():
-    """`var = inf` must mean 'no vote', not 'a vote for zero'. If it voted, a
-    thin source would drag a well-powered source's real effect toward 0 using
-    evidence it does not have -- which at Feng's median 25 cells per target is
-    the difference between a useful prior and a harmful one."""
+    """A gene with `var = inf` carries no weight in the pool."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [400.0, 400.0, 400.0]])
     abstains = _lfc(["TP53"], [[0.0, 0.0, 0.0]], [[np.inf, np.inf, np.inf]])
 
@@ -105,10 +92,7 @@ def test_an_abstaining_gene_contributes_no_weight_at_all():
 
 
 def test_a_target_only_a_fully_abstaining_source_covers_returns_zeros_not_none():
-    """A real distinction: the source HAS this target and reports no detectable
-    change anywhere. That is different from no source covering it, and the two
-    must not collapse -- None routes to the mean-shift fallback, which would be
-    a fabricated effect."""
+    """A target covered only by a source abstaining on every gene returns zeros, not None."""
     tab = _lfc(["TP53"], [[0.1, 0.2, 0.3]], [[np.inf, np.inf, np.inf]])
     out = pooled_delta("TP53", [tab], AXIS)
     assert out is not None
@@ -126,8 +110,7 @@ def test_pooling_is_inverse_variance_across_two_lfc_tables():
 
 
 def test_a_source_on_a_different_gene_axis_is_remapped_not_misaligned():
-    """Feng's axis is 6,472 genes against the challenge's 18,533. Pooling by
-    position rather than by name would silently pair unrelated genes."""
+    """A source on another gene axis is matched by gene name, not by position."""
     tab = LfcTable(labels=["TP53"], genes=np.array(["C", "A"]),
                    lfc=np.array([[5.0, 1.0]]), var=np.array([[1.0, 1.0]]),
                    source="reordered")
@@ -152,11 +135,7 @@ def test_shrinkage_on_an_abstaining_gene_does_not_produce_nan():
 
 
 def _pb_var(labels, cpm, var, n_cells=150, lib_per_cell=20000.0, genes=("A", "B", "C")):
-    """A PseudobulkSums with chosen per-gene observed variance per label.
-
-    `n_cells` may be a scalar or per-label; `lib_per_cell` sets the mean library
-    size the Poisson floor reads.
-    """
+    """A PseudobulkSums with chosen per-gene variance; `n_cells` scalar or per label; `lib_per_cell` mean depth."""
     m = np.asarray(cpm, dtype=float)
     v = np.asarray(var, dtype=float)
     n = np.asarray(n_cells if np.ndim(n_cells) else [n_cells] * len(labels), dtype=np.int64)
@@ -169,10 +148,7 @@ def _pb_var(labels, cpm, var, n_cells=150, lib_per_cell=20000.0, genes=("A", "B"
 
 
 def test_without_the_floor_a_zero_spread_gene_pins_the_pool():
-    """The measured pathology (research idea: inverse-variance weight flooring),
-    pinned as the DEFAULT so the shipped arms stay bit-for-bit reproducible: a
-    gene whose observed spread is exactly 0 hits the 1e-6 clamp, takes weight
-    1e6, and erases another source's real +2 effect down to ~nothing."""
+    """By default a zero-spread gene sits at the 1e-6 clamp and erases another source's +2 effect."""
     flat = _pb_var(["control", "TP53"], [[100.0] * 3, [100.0] * 3], [[0.0] * 3, [0.0] * 3])
     # Poisson-realistic spread at 20k UMI: var_cpm = mean * 1e6/libsize = mean * 50
     real = _pb_var(["control", "TP53"], [[100.0] * 3, [400.0] * 3],
@@ -180,7 +156,7 @@ def test_without_the_floor_a_zero_spread_gene_pins_the_pool():
     stats: dict = {}
     out = pooled_delta("TP53", [(flat, "control"), (real, "control")], AXIS,
                        shrinkage=False, stats=stats)
-    assert abs(out[0]) < 0.05                     # ~99.8 % erasure of a ~2.0 log2FC
+    assert abs(out[0]) < 0.05                     # the +2 effect all but erased
     assert stats["gene_weights_var_le_1e-6"] == 3  # every zero-spread gene sat at the clamp
 
 
@@ -201,10 +177,7 @@ def test_the_poisson_floor_unpins_zero_spread_genes():
 
 
 def test_a_single_cell_arm_dominates_without_the_floor_and_abstains_with_it():
-    """A label seen once computes observed variance identically 0 (population
-    form), so without the floor its pure-noise fold change outvotes a 150-cell
-    source; with the floor the arm abstains and the pool is the other source
-    alone. This is the 150x-weight arm from the idea file's measurements."""
+    """Without the floor a one-cell arm outvotes a 150-cell source; with it the arm abstains."""
     once = _pb_var(["control", "TP53"], [[100.0] * 3, [800.0] * 3], [[0.0] * 3, [0.0] * 3],
                    n_cells=[150, 1])
     real = _pb_var(["control", "TP53"], [[100.0] * 3, [200.0] * 3], [[1.0] * 3, [1.0] * 3])
@@ -221,9 +194,7 @@ def test_a_single_cell_arm_dominates_without_the_floor_and_abstains_with_it():
 
 
 def test_a_target_covered_only_by_a_single_cell_arm_reports_zero_weight_not_fallback():
-    """Abstention must not collapse into the None -> mean-shift fallback: the
-    source covers the target, so the pool returns a genuine all-zero delta and
-    the stats count the target, which is how the A/B reports coverage cost."""
+    """A target covered only by a one-cell arm returns zeros under the floor, and the stats count it."""
     once = _pb_var(["control", "TP53"], [[100.0] * 3, [800.0] * 3], [[0.0] * 3, [0.0] * 3],
                    n_cells=[150, 1])
     stats: dict = {}
@@ -263,10 +234,7 @@ def _noisy_pb(genes=("A", "B", "C")):
 
 
 def test_a_shrink_flagged_source_is_shrunk_while_the_global_switch_is_off():
-    """The depth-aware A/B's shape: global no-shrink (the shipped SER-3fn
-    setting), one deep arm opted back in via the tuple triple. If the flag
-    were ignored, the arm would come through raw and the A/B would silently
-    score two identical pools."""
+    """A source flagged True in the tuple is shrunk while the global switch is off."""
     noisy = _noisy_pb()
     raw = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=False)
     flagged = pooled_delta("TP53", [(noisy, "control", True)], AXIS, shrinkage=False)
@@ -286,8 +254,7 @@ def test_a_shrink_false_source_stays_raw_while_the_global_switch_is_on():
 
 
 def test_the_two_tuple_form_inherits_the_global_flag_bit_for_bit():
-    """Every scored run to date passed two-tuples; None must mean 'follow the
-    global flag' exactly, in both positions of the switch."""
+    """A pair and a None third slot follow the global flag, bit for bit, in both positions."""
     noisy = _noisy_pb()
     for flag in (True, False):
         a = pooled_delta("TP53", [(noisy, "control")], AXIS, shrinkage=flag)
@@ -307,9 +274,7 @@ def test_only_the_flagged_source_is_shrunk_inside_a_mixed_pool():
 
 
 def test_a_non_bool_shrink_slot_is_refused_not_coerced():
-    """The tuple's third slot sits beside `var_floor` in the constructor, so a
-    stray string there ('poisson') would silently force shrinkage ON. Before
-    the slot existed the same tuple crashed loudly; refusal keeps it loud."""
+    """A non-bool third slot is refused."""
     import pytest
 
     pb = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
@@ -318,11 +283,7 @@ def test_a_non_bool_shrink_slot_is_refused_not_coerced():
 
 
 def test_sources_from_specs_binds_the_flag_and_the_default_control(monkeypatch):
-    """The one parser both entry points call. A --shrink-source spec must come
-    back as the (pb, control, True) triple and a --source spec as the plain
-    pair -- the mutant that appends a pair for both (silently turning
-    --shrink-source into an alias of --source) survived the whole suite before
-    this test existed."""
+    """`--shrink-source` specs parse to `(pb, control, True)`, `--source` to pairs; an empty suffix is `control`."""
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.submit.build import sources_from_specs
 
@@ -334,11 +295,7 @@ def test_sources_from_specs_binds_the_flag_and_the_default_control(monkeypatch):
 
 
 def test_loco_passes_the_triple_through_and_records_it(monkeypatch, tmp_path):
-    """The CLI contract end to end, with the heavy stages stubbed: a
-    --shrink-source arm must reach build_transfer_prediction as the True
-    triple, and the run's records -- summary.json's sources block and the
-    log_run payload -- must say which arms were shrunk. Losing either half
-    recreates the 2026-08-26 which-sources-produced-this incident."""
+    """`loco` passes a `--shrink-source` arm as the True triple and records it in summary.json and log_run."""
     import json
 
     from sidechain.data.stream_pseudobulk import PseudobulkSums
@@ -384,9 +341,7 @@ def test_an_lfc_table_without_the_attribute_still_follows_the_global_flag():
 
 
 def test_gamma_1_is_bit_identical_to_the_historical_call():
-    """gamma defaults to today's emitter, and the fast path must skip the transform
-    entirely -- even a float-exact round trip through expm1/log2 would move pooled
-    values that every scored arm is compared against bit-for-bit."""
+    """gamma 1 skips the transform: bit-identical to the call without it."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
     plain = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False)
     explicit = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
@@ -395,10 +350,7 @@ def test_gamma_1_is_bit_identical_to_the_historical_call():
 
 
 def test_gamma_0_transfers_the_absolute_cpm_change():
-    """The gamma = 0 endpoint has an exact closed form: the effective multiplier is
-    1 + (mean_pert - mean_ctrl) / (ctrl_tgt + 1), i.e. the source's absolute CPM
-    change lands on the target's own control level. This is the non-tautological
-    law the whole family hangs on (idea file: effect-size-from-control-features)."""
+    """gamma 0 transfers the source's absolute CPM change onto the target's own control level."""
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
     ctrl_tgt = np.array([10.0, 100.0, 400.0])
     out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
@@ -409,10 +361,7 @@ def test_gamma_0_transfers_the_absolute_cpm_change():
 
 
 def test_a_negative_predicted_expression_clamps_to_the_floor_not_no_change():
-    """An absolute-change transfer can predict below-zero expression. log2 of that
-    is nan/-inf, and the emitter's _fraction repairs non-finite shifts to 0.0 --
-    which would silently turn the strongest predicted silencings into no-ops. The
-    clamp must produce a large FINITE downshift, and the stats must count it."""
+    """A negative predicted expression clamps to a finite floor, counted in the stats."""
     from sidechain.submit.build import GAMMA_MULT_FLOOR
 
     pb = _pb(["control", "TP53"], [[100.0, 100.0, 100.0], [200.0, 100.0, 50.0]])
@@ -440,10 +389,7 @@ def test_each_source_transforms_against_its_own_control():
 
 
 def test_genes_the_target_axis_lacks_do_not_poison_a_gamma_pool():
-    """A source usually measures genes the target file never carries (X-Atlas is
-    38,584 symbols against the fold's 8,248). Those have no target-side control
-    CPM; they must ride through as identity (r = 1), not as nan, and must not be
-    counted as transformed."""
+    """Genes off the target axis pass through gamma as identity, not nan, and are not counted as transformed."""
     pb = _pb(["control", "TP53"], [[100.0] * 4, [200.0] * 4], genes=("A", "B", "C", "D"))
     stats: dict = {}
     out = pooled_delta("TP53", [(pb, "control")], AXIS, shrinkage=False,
@@ -453,12 +399,7 @@ def test_genes_the_target_axis_lacks_do_not_poison_a_gamma_pool():
 
 
 def test_gamma_runs_after_shrinkage_not_before():
-    """The order contract (kills the block-swap mutant, which survived the whole
-    suite in the 2026-08-29 adversarial review): shrinkage estimates the true fc
-    on the scale its variance was computed on, THEN gamma transforms the best
-    estimate. A within-noise gene must shrink to exactly 0 and pass through
-    gamma as the identity (m = 1); the swapped order inflates it by r^(gamma-1)
-    first (~+1.6 log2 at r ~ 0.06) and then shrinks the wrong scale."""
+    """Gamma transforms the shrunk fold change: transform(shrink(fc))."""
     from sidechain.submit.build import gamma_transfer
     from sidechain.submit.build import shrink as shrink_fn
 
@@ -468,7 +409,7 @@ def test_gamma_runs_after_shrinkage_not_before():
                        gamma=0.0, ctrl_tgt_cpm=ctrl_tgt)
     assert np.allclose(out, 0.0)
 
-    # and a well-measured effect composes exactly as transform(shrink(fc))
+    # and a solid effect composes exactly as transform(shrink(fc))
     solid = _pb(["control", "TP53"], [[100.0] * 3, [200.0] * 3])
     src = as_delta_source((solid, "control"))
     fc, var = src.effect("TP53")
@@ -479,13 +420,7 @@ def test_gamma_runs_after_shrinkage_not_before():
 
 
 def test_gamma_leaves_the_pooling_weights_untouched():
-    """The weight-invariance contract: two sources voting on the SAME genes with
-    different control CPMs and different variances must pool as the closed-form
-    inverse-variance mean of the gamma-transformed fold changes with the
-    ORIGINAL weights. A mutant that propagates the transform into the variance
-    (var * r^(2(gamma-1)) -- the plausible 'delta-method' refactor) reweights
-    the pool and fails here; it survived every earlier test because no gamma
-    test had two sources sharing a gene."""
+    """Gamma leaves the inverse-variance weights as they were when two sources share a gene."""
     from sidechain.submit.build import gamma_transfer
 
     deep = _pb_var(["control", "TP53"], [[100.0] * 3, [200.0] * 3],
@@ -527,8 +462,7 @@ def test_gamma_on_a_contrast_only_source_is_refused():
 
 
 def test_loco_passes_gamma_through_and_records_it(monkeypatch, tmp_path):
-    """The CLI contract: --gamma must reach build_transfer_prediction and land in
-    the log_run payload -- the sweep's provenance is these two records."""
+    """`loco --gamma` reaches the builder and the log_run payload."""
     from sidechain.data.stream_pseudobulk import PseudobulkSums
     from sidechain.eval import loco
 
@@ -552,11 +486,7 @@ def test_loco_passes_gamma_through_and_records_it(monkeypatch, tmp_path):
 
 
 def test_gamma_reaches_the_emitted_cells_end_to_end(tmp_path):
-    """gamma must change what is EMITTED, not just what is poolable: the mutant
-    that accepts the kwarg and never passes it to pooled_delta survives every
-    unit test above. gamma = 0 on a target expressing a gene far below the
-    source turns a 2x fold change into a ~20x one, so the emitted share of that
-    gene must move by much more than the fold change alone allows."""
+    """gamma 0 moves the emitted share of a low-expressed gene well past the fold change alone, and not to 1."""
     import anndata as ad
     import pandas as pd
     import scipy.sparse as sp
@@ -589,11 +519,8 @@ def test_gamma_reaches_the_emitted_cells_end_to_end(tmp_path):
     assert infos[0.0]["gamma"] == 0.0
     assert infos[1.0]["gamma"] == 1.0
     # gamma=1 roughly doubles gene A's share; gamma=0 adds the source's absolute
-    # +100k CPM onto 5k-CPM controls, a ~20x multiplier. Well separated -- and
-    # bounded ABOVE too: the units mutant (prof.fraction without the *1e6 at
-    # loco.py's call site) makes r ~ 1e-5, explodes the multiplier to ~1e5,
-    # clamps genes B and C, and drives the share to ~1.0. It cleared the
-    # one-sided bound in the 2026-08-29 adversarial review.
+    # +100k CPM onto 5k-CPM controls, a ~20x multiplier; bounded above too, where
+    # a CPM units error at the call site drives the share to ~1.0
     assert shares[0.0] > 3 * shares[1.0]
     assert 0.02 < shares[0.0] < 0.2
     assert infos[0.0]["pool_stats"]["gamma_mult_clamped"] == 0
@@ -603,14 +530,7 @@ def test_gamma_reaches_the_emitted_cells_end_to_end(tmp_path):
 
 
 def test_loco_requires_at_least_one_source_but_not_a_pseudobulk_one():
-    """An LfcTable is a complete source, so an arm built only from published
-    contrasts is a legitimate run -- and scoring one is how you learn what that
-    corpus is worth alone. `--source` was `required=True`, which made that arm
-    unrunnable; it was caught only when the GPU box refused it mid-run.
-
-    An arm with NO sources at all stays an error: it would silently score the
-    fallback shift and look like a model.
-    """
+    """`loco` with no source of any kind is an argparse error."""
     import pytest
 
     from sidechain.eval import loco
@@ -634,10 +554,7 @@ def test_loco_counts_a_shrink_source_as_a_complete_arm(tmp_path):
 
 
 def test_row_wise_log2fc_matches_the_whole_matrix_form():
-    """`_log2fc_with_var` stopped materialising `mean_cpm()`/`var_cpm()` because on a
-    full-corpus artifact (18,294 x 38,584) each was 5.6 GB for two rows. The saving is only
-    allowed if the numbers do not move -- bit-identical, since these sums are pooled against
-    results produced by the matrix form."""
+    """`_log2fc_with_var` row by row is bit-identical to the whole-matrix form."""
     from sidechain.models.count_emitters import log2fc_from_cpm
     from sidechain.submit.build import LN2_SQ, _log2fc_with_var
 
@@ -681,9 +598,7 @@ def test_control_similarity_is_a_log_cosine_over_shared_genes():
 
 
 def test_control_similarity_ignores_genes_only_one_side_measures():
-    """Our pseudobulk sources carry 8-10k genes and a challenge context carries 18,533.
-    Scoring a source down for genes it never had the chance to report would rank sources by
-    gene-axis truncation rather than by cell identity."""
+    """`control_similarity` reads only the genes both profiles measure."""
     from sidechain.submit.build import control_similarity
 
     src = np.arange(1, 201, dtype=float)
@@ -705,9 +620,7 @@ def test_control_similarity_refuses_an_axis_mismatch_rather_than_scoring_it_low(
 
 
 def test_control_similarity_uses_log_not_raw_cpm():
-    """On raw CPM a handful of thousand-CPM genes dominate the cosine, so every pair of human
-    cell lines scores ~1.0 and the weighting carries no information. log1p is what makes the
-    measure discriminative rather than a formality."""
+    """`control_similarity` is a cosine on log1p CPM, which a dominant shared gene does not saturate."""
     from sidechain.submit.build import control_similarity
 
     n = 500
@@ -769,7 +682,7 @@ def test_a_source_with_no_control_profile_keeps_full_weight_and_is_counted():
     assert stats["similarity_sources_unweighted"] == 1
 
 
-# ── the log-bias correction (T18 check 6) ───────────────────────────────────────
+# ── the log-bias correction ─────────────────────────────────────────────────────────────
 
 
 def _two_arm_pb(n_pert: int, n_ctrl: int, mean_cpm: float, var_cpm: float):
