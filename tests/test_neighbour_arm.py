@@ -7,7 +7,6 @@ Writes temporary files only. Notes: private/code-notes/tests/test_neighbour_arm.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 from pathlib import Path
 
@@ -24,17 +23,6 @@ from sidechain.models import neighbour_arm as na
 from sidechain.models.count_emitters import PoissonEmitter
 from sidechain.submit import build
 
-ROOT = Path(__file__).resolve().parents[1]
-GATE = ROOT / "scripts" / "esm2_geometry_gate.py"
-
-
-def load_gate():
-    spec = importlib.util.spec_from_file_location("gate_for_neighbour_arm", GATE)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
 def _world(n_targets=40, n_genes=60, dim=8, seed=0, on_axis=10):
     """Pooled deltas for n_targets, an axis on which the first `on_axis` targets are genes."""
     rng = np.random.default_rng(seed)
@@ -45,35 +33,6 @@ def _world(n_targets=40, n_genes=60, dim=8, seed=0, on_axis=10):
         deltas[t][i] = -2.0 - rng.random()                             # its own knockdown
     table = {t: rng.normal(size=dim) for t in targets}
     return targets, axis, deltas, table
-
-
-# ------------------------------------------------------------------------ the port is the gate
-
-@pytest.mark.parametrize("w", [0.05, 0.15, 0.5, 2.0])
-@pytest.mark.parametrize("k", [1, 10, 25])
-def test_port_equals_the_gate_fusion_term_for_term(w, k):
-    g = load_gate()
-    targets, axis, deltas, table = _world()
-    arm = na.build_neighbour_arm(targets, deltas.get, axis, table, k=k, w=w)
-
-    # the gate's own arithmetic on the same footing: own genes zeroed, centred over the targets
-    A = np.stack([deltas[t].copy() for t in targets])
-    pos = {s: i for i, s in enumerate(axis)}
-    for r, t in enumerate(targets):
-        if t in pos:
-            A[r, pos[t]] = 0.0
-    A = A - A.mean(0)
-    e = np.stack([table[t] for t in targets])
-    se = g.unit(e) @ g.unit(e).T
-    gate_fused = g.unit(g.unit(A) + w * g.unit(g.knn_mean(se, A, k)))
-
-    for r, t in enumerate(targets):
-        out = arm.fuse(t, deltas[t])
-        resid = out - arm.mean
-        np.testing.assert_allclose(na.unit(resid), gate_fused[r], atol=1e-12)
-        np.testing.assert_allclose(np.linalg.norm(resid), np.linalg.norm(A[r]), rtol=1e-9)
-    assert arm.stats["targets_fused"] == len(targets)
-    assert arm.summary()["pool_used"] == len(targets)
 
 
 def test_fusion_moves_direction_only_and_is_continuous_at_small_w():

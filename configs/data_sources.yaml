@@ -18,50 +18,6 @@ master_gene_space:
 
 sources:
 
-  # ---------------- TRANS layer: transcriptional regulation ----------------
-  - name: dorothea
-    kind: edge
-    layer: trans
-    relation: tf_target
-    entity: gene
-    loader: TransGRNSource
-    provider: "DoRothEA via decoupler/OmniPath"
-    url: "https://omnipathdb.org"
-    directed: true
-    signed: true                 # +1 activation / -1 repression
-    confidence_levels: [A, B, C] # drop D/E (low-confidence) by default
-    enabled: true
-    notes: "Directed, signed TF->target. Signs let the cascade propagate up/down."
-
-  - name: string
-    kind: edge
-    layer: trans
-    relation: functional_ppi
-    entity: gene
-    loader: TransGRNSource
-    provider: "STRING v12"
-    url: "https://string-db.org"
-    directed: false
-    score_threshold: 700         # high-confidence edges only
-    enabled: true
-    notes: "Undirected functional/PPI edges; clusters co-regulated nodes."
-
-  # ---------------- CIS layer: sequence-derived node features ----------------
-  - name: nt_utr_embed
-    kind: node_feature
-    layer: cis
-    relation: utr_embedding      # a semantic name; `kind` carries node-vs-edge
-    entity: transcript_3utr
-    loader: CisSequenceSource
-    model: "InstaDeepAI/nucleotide-transformer-v2-500m-multi-species"
-    sequence_region: "3utr"      # one of {3utr, full_cdna, 5utr}
-    fallback_region: "full_cdna" # if no annotated 3'UTR
-    pooling: "mean_over_chunks"  # chunk long UTRs, then pool
-    embed_dim: 1024
-    precompute: true             # compute once on a rented GPU, cache in lamindb
-    enabled: true
-    notes: "Per-gene 3'UTR embedding as a frozen node feature. The modern ntEmbd."
-
   # ------------ Gene tables: one vector per gene, keyed on symbol ------------
   # Shelved: no PriorSource loader reads a symbol-keyed table yet.
   - name: esm2_3b_gene_table
@@ -598,18 +554,6 @@ sources:
     region_filter: "3utr"
     enabled: false               # motif fallback where CLIP is unavailable for an RBP
     notes: "Sequence-motif RBP site predictions. Lower confidence than CLIP."
-
-  # ---------------- EPIGENOMIC layer: add later ----------------
-  - name: encode_hesc_atac
-    kind: edge
-    layer: epigenomic
-    relation: chromatin_access
-    entity: gene
-    loader: TransGRNSource        # reuse; refine when needed
-    provider: "ENCODE hESC ATAC/ChIP"
-    url: "https://www.encodeproject.org"
-    enabled: false
-    notes: "Promoter reachability / open chromatin. Add only if it earns its keep."
 
   # ---------------- POSTTX layer, phase 3 of T120: measured per-line mRNA stability ----------------
   # Four lines' own measurements, each a small published table read as one per-gene row per

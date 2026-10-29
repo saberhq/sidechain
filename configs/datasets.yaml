@@ -316,8 +316,7 @@ datasets:
     notes: >
       scBaseCount (Youngblut et al., bioRxiv 10.1101/2025.02.27.640494): SRA
       10x runs re-quantified through one STARsolo pipeline; human, Gene mode,
-      release 2026-01-12. No per-cell perturbation label; read by
-      sidechain.data.stream_observational.
+      release 2026-01-12. No per-cell perturbation label.
 
     files:
       # One h5ad per SRA experiment; content_filter narrows what the reader opens.

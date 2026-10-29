@@ -206,6 +206,15 @@ def test_graph_builder_keeps_both_sources_of_a_shared_relation():
 # ------------------------------------------------------- the registry file --
 
 
+def test_the_registry_file_loads_as_the_2025_notebook_calls_it():
+    """`load_registry` on configs/data_sources.yaml: every enabled block names a registered loader."""
+    from sidechain.data.registry import load_registry
+
+    reg = load_registry("configs/data_sources.yaml", {"ENSG00000141510": 0}, id_type="ensembl_gene_id")
+    assert reg.master_gene_space.id_type == "ensembl_gene_id"
+    assert reg.describe().startswith("master gene space:")
+
+
 def test_every_registry_block_declares_a_known_layer():
     """`Layer` is a Literal nothing enforces at runtime, so a block can coin a layer word
     the type does not list (DepMap's fitness table needed `phenotype`, T113)."""
