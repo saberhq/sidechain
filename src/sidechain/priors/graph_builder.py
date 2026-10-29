@@ -1,17 +1,9 @@
-"""Assemble ONE multi-relational sparse graph + node-feature block from all enabled
-sources. Each 'edge' source contributes a distinct relation (edge type); each
-'node_feature' source contributes a concatenated feature block. Add/remove
-sources freely -- this function does not know or care which biology is present.
+"""Assemble one multi-relational sparse graph and node-feature block from the enabled prior sources.
 
-Returns a torch_geometric HeteroData when PyG is importable, else a plain dict
-with the same content.
+    graph = build_prior_graph(sources, n_genes=len(gene_index), to_pyg=True)
 
-Edge types are keyed on `layer:relation:name`, NOT on `relation`. Keying on
-relation alone silently drops sources: mirbind2 and targetscan both declare
-`mirna_target`, postar3 and encode_eclip both declare `rbp_binding`, and
-data_sources.yaml explicitly invites enabling each pair together to ensemble
-them. The final edge-type count is asserted against the number of enabled edge
-sources so a future collision fails loudly instead of quietly halving the graph.
+Returns a torch_geometric HeteroData when PyG imports, else a plain dict; edge types are keyed on
+`layer:relation:name`. Reads and writes nothing. Notes: private/code-notes/src/sidechain/priors/graph_builder.py.md
 """
 from __future__ import annotations
 

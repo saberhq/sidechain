@@ -5,7 +5,7 @@
 
 Watchlist: arXiv/bioRxiv (perturbation prediction, generative models for expression, sequence
 priors), scPerturb / PerturBase / Arc Virtual Cell Atlas releases, the challenge forum, new
-RBP/miRNA resources.
+per-gene annotation resources.
 
 **Writes to the research inbox only** — one file per finding, named
 `YYYY-MM-DD_<thread>-<what-it-says>.md` with `status: raw` and a `source:` line. The thread word is
