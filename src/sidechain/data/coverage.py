@@ -39,7 +39,7 @@ SOURCES = [
      "note": "streamed for the 2026 panel targets only — the cache holds just those columns"},
     {"path": "derived/xatlas-orion/hct116_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
      "line": "HCT116", "role": "prior",
-     "note": "every knockdown and every gene the screen measured, 38,584 symbols, 18,106 of them among the challenge's genes"},
+     "note": "every knockdown and every gene the screen reads out"},
     {"path": "derived/xatlas-orion/hek293t_full.npz", "name": "Genome-wide dual-guide CRISPRi (X-Atlas/Orion)",
      "line": "HEK293T", "role": "prior"},
     {"path": "cache/vcc2026/feng_genomewide_lfc.npz", "name": "Genome-wide CRISPRi, published log2FCs",

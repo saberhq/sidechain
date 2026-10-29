@@ -472,7 +472,7 @@ def parse_dispersion_fits(specs: list[str] | None) -> dict[str, Path]:
         name, _, value = part.partition("=")
         if not value or not name:
             raise SystemExit(f"--dispersion-fit: {part!r} is not NAME=PATH, e.g. "
-                             "'h1_pseudobulk=~/data/sidechain/runs/t98_variance_ab_20261009/fits/h1_pseudobulk.fit.npz'")
+                             "'h1_pseudobulk=/path/to/h1_pseudobulk.fit.npz'")
         if name in out:
             raise SystemExit(f"--dispersion-fit: {name!r} given twice")
         out[name] = Path(value).expanduser()

@@ -534,9 +534,8 @@ def write_lineage(out_dir: Path, *, provenance: Path, dataset: str, context: str
             # `sgRNA1|sgRNA2` construct strings before loading a multi-GB array.
             "keyed_by": keyed_by,
             "not_per_perturbation_batch": (
-                "109 GEM batches x 18,330 targets is ~1.7 cells per bucket and a ~290 GB "
-                "dense tensor; per-(perturbation, batch) CELL COUNTS are kept in the sidecar "
-                "instead (report 07 section 2.3, overturning ADR 0003 on this point)"
+                "sums are per label; per-(perturbation, batch) cell counts are kept in the "
+                "sidecar instead"
             ),
             "scope": scope,
             "labels": len(pb.labels),
