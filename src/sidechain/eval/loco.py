@@ -109,6 +109,8 @@ def build_transfer_prediction(
     neighbour_cand: int = 100,
     neighbour_picks: Path | None = None,
     dual_fallback: str = "template",
+    dual_pin: str = "fit",
+    dual_band: float = 0.01,
     delta_cache: dict | None = None,
     scatter_table: Path | None = None,
     emit_shape: str = "template",
@@ -132,8 +134,10 @@ def build_transfer_prediction(
     cell_lfc_map: Path | None = None,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`; returns the build record."""
-    if dual_fallback not in ("template", "anchor"):
-        raise SystemExit(f"dual_fallback must be 'template' or 'anchor', got {dual_fallback!r}")
+    if dual_fallback not in ("template", "anchor", "shrink"):
+        raise SystemExit(f"dual_fallback must be 'template', 'anchor' or 'shrink', got {dual_fallback!r}")
+    if dual_pin not in ("fit", "bulk"):
+        raise SystemExit(f"dual_pin must be 'fit' or 'bulk', got {dual_pin!r}")
     if emit_shape not in ("template", "controls"):
         raise SystemExit(f"emit_shape must be 'template' or 'controls', got {emit_shape!r}")
     shaped = emit_shape == "controls"            # every block is re-rated control cells
@@ -161,8 +165,10 @@ def build_transfer_prediction(
     pool_fit_stats = {} if shrinkage and shrink_rule == "adaptive" else None
     # what a target whose two moments cannot both be met falls back to: the one-amplitude template
     # or one amplitude with the summed profile kept on the emitter's anchor (PoissonEmitter.emit_dual)
-    on_fail = "fallback" if dual_fallback == "template" else "anchor"
+    on_fail = {"template": "fallback", "anchor": "anchor", "shrink": "shrink"}[dual_fallback]
     fell_back: dict[str, list] = {"anchor": [], "template": []}
+    pin_kw = {"pin_bulk": True, "band": dual_band} if dual_pin == "bulk" else {}
+    clamped: dict[str, dict] = {}                # target -> what the depth band took from its per-cell request
 
     sharpened: dict[str, int] = {}               # target -> genes whose scatter the block carries
     in_shape: dict[str, bool] = {}               # target -> its block is control cells (not the template rung)
@@ -170,10 +176,14 @@ def build_transfer_prediction(
     shape_unmet: dict[str, int] = {}             # target -> genes the re-rating's solve left outside its tolerance
 
     def dual(n, d_cell, d_bulk, label, scatter=None):   # called only inside the write loop, after `em` exists
-        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter, shape=shaped)
+        block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter, shape=shaped, **pin_kw)
         how = getattr(em, "last_dual", "dual")
         if how in ("anchor", "template"):
             fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None)])
+        elif how == "shrink":
+            fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None), em.last_dual_keep])
+        if pin_kw and getattr(em, "last_dual_clamp", None) is not None:
+            clamped[label] = dict(em.last_dual_clamp)
         if scatter is not None:
             sharpened[label] = int(em.last_sharpened or 0)
         if shaped:
@@ -252,6 +262,9 @@ def build_transfer_prediction(
     two_channel = alpha_bulk is not None or bulk_anchor != "mean_cpm"
     if dual_fallback != "template" and not two_channel:
         raise SystemExit("--dual-fallback only acts on a two-channel emission -- pass --alpha-bulk "
+                         "or --bulk-anchor pooled")
+    if dual_pin != "fit" and not two_channel:
+        raise SystemExit("--dual-pin only acts on a two-channel emission -- pass --alpha-bulk "
                          "or --bulk-anchor pooled")
     if two_channel and em.lam == 0.0:
         raise SystemExit("--alpha-bulk / --bulk-anchor pooled need a depth spread (--emit-lambda "
@@ -401,6 +414,7 @@ def build_transfer_prediction(
             rec.clear()
         fell_back.clear()
         fell_back.update({"anchor": [], "template": []})
+        clamped.clear()
         deflated = None
         if axes_v is not None and ctrl_axes_share < 1.0:
             deflated = weakest({p: change_size(bulk_of(p, d0, a_bulk), prof.bulk_fraction, held(p))
@@ -527,6 +541,9 @@ def build_transfer_prediction(
             # ("envelope": refused before the fit; "fit": the moment fit did not converge)
             "dual_fallback": dual_fallback if two_channel else None,
             "dual_fallback_targets": fell_back if two_channel else None,
+            # present only with dual_pin bulk: per target, the per-cell L1 the depth band took, the genes it clipped
+            # and the largest relative move of a cell's depth
+            **({"dual_pin": {"pin": dual_pin, "band": dual_band, "targets": clamped}} if pin_kw else {}),
             # present only with --scatter-table. `targets_carrying_it` counts the blocks whose
             # fit took the table's genes; a target that ended on the template rung carries none.
             **({"scatter_table": {**scatter_record,
@@ -651,13 +668,24 @@ def main(argv: list[str] | None = None) -> int:
                          "(default) the mean of per-cell CPM, 'pooled' sum of counts / sum of depths. "
                          "The per-cell channel stays on mean_cpm either way. Needs --emit-lambda > 0 "
                          "(count_emitters.PoissonEmitter.bulk_anchor)")
-    ap.add_argument("--dual-fallback", choices=["template", "anchor"], default="template",
+    ap.add_argument("--dual-fallback", choices=["template", "anchor", "shrink"], default="template",
                     help="what a target whose two moments cannot both be met falls back to. "
                          "'template' (default): one amplitude on the mean-per-cell-CPM profile, so under "
                          "--bulk-anchor pooled it loses the anchor too. 'anchor': one amplitude "
                          "with the summed profile kept on the anchor, the template only if that "
                          "fails as well (under --bulk-anchor mean_cpm it re-pins the column sums "
-                         "to their expectation instead). As on sidechain.submit.build")
+                         "to their expectation instead). 'shrink': the summed request kept, the per-cell "
+                         "request's log2 excess over it halved up to three times, then removed, the template "
+                         "only if every try fails. As on sidechain.submit.build")
+    ap.add_argument("--dual-pin", choices=["fit", "bulk"], default="fit",
+                    help="how a two-channel block meets its moments: 'fit' (default), both to the fit's "
+                         "tolerance, the summed request projected onto the depth envelope; 'bulk', the summed "
+                         "request exactly, each gene's per-cell request first clamped into the depth band "
+                         "(--dual-band), cells' depths following (count_emitters.dual_moment_counts). As on "
+                         "sidechain.submit.build")
+    ap.add_argument("--dual-band", type=float, default=0.01, metavar="Q",
+                    help="with --dual-pin bulk: the depth band's tail, a quantile in [0, 0.5) of the block's "
+                         "depth over its mean depth")
     ap.add_argument("--scatter-table", type=Path, default=None, metavar="PARQUET",
                     help="a per-(perturbation, gene) dial on the emitted cell-to-cell scatter: a "
                          "parquet with target, feature, scatter >= 0 (1 = as emitted, 0 = no sampling "
@@ -838,6 +866,8 @@ def main(argv: list[str] | None = None) -> int:
                                      neighbour_cand=args.neighbour_cand,
                                      neighbour_picks=args.neighbour_picks,
                                      dual_fallback=args.dual_fallback,
+                                     **({"dual_pin": args.dual_pin, "dual_band": args.dual_band}
+                                        if args.dual_pin != "fit" else {}),
                                      delta_cache=delta_cache,
                                      scatter_table=args.scatter_table,
                                      emit_shape=args.emit_shape,
@@ -899,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
          **({"prediction_source": "pie", "pie_parquet": str(args.pie_parquet), "pie_context": args.pie_context}
             if pie else {}),
          "dual_fallback": args.dual_fallback,
+         **({"dual_pin": args.dual_pin, "dual_band": args.dual_band} if args.dual_pin != "fit" else {}),
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,
          "gamma": args.gamma,

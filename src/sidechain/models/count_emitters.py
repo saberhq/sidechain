@@ -25,6 +25,10 @@ SHAPE_DEPTH_GAIN_CAP = 2.0
 SHAPE_MAX_COUNTS_PER_CELL = 1_000_000
 SHAPE_SOLVE_STEPS = 64
 SHAPE_SOLVE_TOL = 1e-6
+#: `emit_dual(on_fail="shrink")`: halvings of the per-cell request's excess over the summed one before the last rung
+DUAL_SHRINK_STEPS = 3
+#: `dual_moment_counts(pin_bulk=True)`: the largest per-cell L1 left once the bulk is pinned
+DUAL_PIN_CELL_TOL = 0.01
 
 
 @dataclass
@@ -171,15 +175,16 @@ class PoissonEmitter:
     def emit_dual(self, n: int, log2fc_cell: np.ndarray | None, log2fc_bulk: np.ndarray | None, *,
                   iterations: int = 100, tolerance: float = 2e-4,
                   max_projection: float = 0.03, on_fail: str = "raise",
-                  scatter: np.ndarray | None = None, shape: bool = False) -> sp.csr_matrix:
+                  scatter: np.ndarray | None = None, shape: bool = False,
+                  pin_bulk: bool = False, band: float = 0.01) -> sp.csr_matrix:
         """Cells whose equal-weight per-cell mean follows `log2fc_cell` and whose column sums follow `log2fc_bulk`.
 
-        Starts from `self.emit(n, log2fc_cell)` (with `shape=True`, control cells re-rated by `_rerate`), `scatter`
-        scaling each gene's spread around its predicted count; `dual_moment_counts` pins both moments. An unmet pair
-        raises, returns the template ("fallback"), or first retries the per-cell amplitude on both channels ("anchor").
+        Starts from `self.emit(n, log2fc_cell)` or, with `shape=True`, re-rated control cells (`_rerate`); `scatter`
+        scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`: see there). An
+        unmet pair raises, or falls to the template ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
         """
-        if on_fail not in ("raise", "fallback", "anchor"):
-            raise ValueError(f"on_fail must be 'raise', 'fallback' or 'anchor', got {on_fail!r}")
+        if on_fail not in ("raise", "fallback", "anchor", "shrink"):
+            raise ValueError(f"on_fail must be 'raise', 'fallback', 'anchor' or 'shrink', got {on_fail!r}")
         if self.lam == 0.0:
             raise ValueError("emit_dual needs a depth spread: at lam=0 every cell has the same "
                              "depth, so the pseudobulk and the per-cell mean cannot differ")
@@ -204,27 +209,36 @@ class PoissonEmitter:
         depths = np.rint(template.sum(axis=1)).astype(np.int64)
         seed = int(self.rng.integers(0, 2**32 - 1))
         self.last_dual, self.last_dual_reason = "dual", None
+        self.last_dual_keep, self.last_dual_clamp = None, None
         self.last_sharpened = None if scatter is None else int((scatter != 1.0).sum())
         self.last_shaped = True if shape else None
+        band_kw = dict(pin_bulk=True, band=band) if pin_bulk else {}
 
-        def start_for(bulk_profile):
+        def start_for(bulk_profile, cell_profile=p_cell):
             """The fit's start (the template, or control cells re-rated to this pair), the per-gene dial applied."""
-            start, at = (self._shaped_start(n, p_cell, bulk_profile, seed) if shape
+            start, at = (self._shaped_start(n, cell_profile, bulk_profile, seed) if shape
                          else (template, depths))
             if scatter is not None:
                 move = scatter != 1.0
                 if move.any():
-                    predicted = at[:, None].astype(np.float64) * p_cell[None, move]
+                    predicted = at[:, None].astype(np.float64) * cell_profile[None, move]
                     column = start[:, move]
                     if start is template:
                         start = template.copy()
                     start[:, move] = np.maximum(predicted + scatter[None, move] * (column - predicted), 0.0)
             return start, dict(depths=at, seed=seed, iterations=iterations, tolerance=tolerance,
-                               max_projection=max_projection)
+                               max_projection=max_projection, **band_kw)
+
+        def fitted(start, cell_profile, bulk_profile, fit):
+            report = {} if pin_bulk else None
+            counts = dual_moment_counts(start, cell_profile, bulk_profile, **fit,
+                                        **({"report": report} if pin_bulk else {}))
+            self.last_dual_clamp = report
+            return counts
 
         start, fit = start_for(p_bulk)
         try:
-            counts = dual_moment_counts(start, p_cell, p_bulk, **fit)
+            counts = fitted(start, p_cell, p_bulk, fit)
         except ValueError as err:
             if on_fail == "raise":
                 raise
@@ -232,7 +246,24 @@ class PoissonEmitter:
             msg = str(err)
             self.last_dual_reason = ("fit" if "moment fitting failed" in msg else
                                      "envelope" if ("depth envelope" in msg or "bulk projection" in msg
-                                                    or "feasible moment bounds" in msg) else "other")
+                                                    or "feasible moment bounds" in msg
+                                                    or "depth band" in msg) else "other")
+            if on_fail == "shrink" and self.last_dual_reason != "other":
+                d_cell = np.zeros_like(p_cell) if log2fc_cell is None else np.nan_to_num(
+                    np.asarray(log2fc_cell, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+                d_bulk = np.zeros_like(p_cell) if log2fc_bulk is None else np.nan_to_num(
+                    np.asarray(log2fc_bulk, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+                for k in range(1, DUAL_SHRINK_STEPS + 2):
+                    keep = 0.5 ** k if k <= DUAL_SHRINK_STEPS else 0.0
+                    p_try = self._fraction(d_bulk + keep * (d_cell - d_bulk))
+                    start, fit = start_for(p_bulk, p_try)
+                    try:
+                        counts = fitted(start, p_try, p_bulk, fit)
+                    except ValueError:
+                        continue
+                    self.dual_fallbacks_shrink = getattr(self, "dual_fallbacks_shrink", 0) + 1
+                    self.last_dual, self.last_dual_keep = "shrink", keep
+                    return sp.csr_matrix(counts.astype(np.float32))
             if on_fail == "anchor" and self.last_dual_reason != "other":
                 p_one = self._fraction(log2fc_cell, bulk=True)
                 if not np.array_equal(p_one, p_bulk):     # the request was not already this rung
@@ -438,14 +469,44 @@ def repair_bulk_totals(integer: np.ndarray, expected: np.ndarray) -> np.ndarray:
     return integer
 
 
+def clamp_to_band(probability: np.ndarray, bulk_probability: np.ndarray, z: np.ndarray,
+                  band: float) -> tuple[np.ndarray, float, int]:
+    """The per-cell composition nearest `probability` (one scale, then a clip per gene) whose ratio to the bulk lies
+    inside the depth band [z_q, z_(1-q)], q = `band`; with the L1 it moved and the genes it clipped."""
+    if not 0.0 <= band < 0.5:
+        raise ValueError(f"band must be in [0, 0.5), got {band}")
+    lo_z = max(float(np.quantile(z, band)), z.min() + 0.01 * (1 - z.min()))
+    hi_z = min(float(np.quantile(z, 1 - band)), z.max() - 0.01 * (z.max() - 1))
+    if not lo_z < 1.0 < hi_z:
+        raise ValueError(f"the depth band [{lo_z:.4f}, {hi_z:.4f}] does not hold z = 1")
+    floor, ceiling = bulk_probability / hi_z, bulk_probability / lo_z
+    if np.where(probability > 0, ceiling, floor).sum() < 1.0:
+        raise ValueError("the per-cell request cannot be met inside the depth band")
+    lo, hi = 0.0, 1.0
+    while np.clip(probability * hi, floor, ceiling).sum() < 1.0:
+        hi *= 2.0
+    for _ in range(100):
+        mid = (lo + hi) / 2
+        if np.clip(probability * mid, floor, ceiling).sum() < 1.0:
+            lo = mid
+        else:
+            hi = mid
+    scale = (lo + hi) / 2
+    out = np.clip(probability * scale, floor, ceiling)
+    clipped = int(((probability * scale < floor) | (probability * scale > ceiling)).sum())
+    out = out / out.sum()
+    return out, float(np.abs(out - probability).sum()), clipped
+
+
 def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_probability: np.ndarray,
                        *, depths: np.ndarray, seed: int, iterations: int = 100,
-                       tolerance: float = 2e-4, max_projection: float = 0.03) -> np.ndarray:
+                       tolerance: float = 2e-4, max_projection: float = 0.03,
+                       pin_bulk: bool = False, band: float = 0.01, report: dict | None = None) -> np.ndarray:
     """Integer cells whose per-cell mean composition is `probability` and pseudobulk is `bulk_probability`.
 
-    The bulk is projected onto the depth envelope `[z_min p, z_max p]` (z = depth / mean depth), then each gene's
-    column is tilted by `1 + t_g (z_i - m_g)` alternating with a column rescale until both hold to `tolerance`
-    (L1); rounding keeps each row's depth and `repair_bulk_totals` pins the column totals. After kaipengm2 (MIT).
+    The bulk is projected onto the depth envelope (z = depth / mean depth), each column tilted by `1 + t_g (z_i - m_g)`
+    alternating with a column rescale to `tolerance` (L1), then rounded keeping depths and column totals (after
+    kaipengm2, MIT). `pin_bulk`: `clamp_to_band` first, the bulk exact, the depths following; `report` says what moved.
     """
     template = np.asarray(template, dtype=np.float64)
     p = np.asarray(probability, dtype=np.float64)
@@ -470,6 +531,12 @@ def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_proba
     x = template.copy()
     z = depths / depths.mean()
     n = len(x)
+    if pin_bulk:
+        if np.ptp(depths) == 0:
+            raise ValueError("pin_bulk needs a depth spread: the depth band is empty")
+        p, moved, clipped = clamp_to_band(p, bulk, z, band)
+        if report is not None:
+            report.update(cell_l1_moved=moved, genes_clamped=clipped)
     desired = n * p
     requested_bulk = bulk.copy()
     if np.ptp(depths) == 0:
@@ -522,9 +589,28 @@ def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_proba
                 break
     cpm_error = float(np.abs(x.mean(axis=0) - p).sum())
     bulk_error = float(np.abs(z @ x / n - bulk).sum())
-    if max(cpm_error, bulk_error) > 1e-3:
+    if not pin_bulk and max(cpm_error, bulk_error) > 1e-3:
         raise ValueError(f"moment fitting failed: per-cell L1 {cpm_error:.4g}, bulk L1 {bulk_error:.4g}")
+    if pin_bulk:
+        reached = z @ x / n
+        x *= np.divide(bulk, reached, out=np.zeros_like(bulk), where=reached > 0)[None, :]
+        cpm_error = float(np.abs((x / np.maximum(x.sum(axis=1, keepdims=True), 1e-30)).mean(axis=0) - p).sum())
+        if report is not None:
+            report["cell_l1_residual"] = cpm_error
+        if cpm_error > DUAL_PIN_CELL_TOL:
+            raise ValueError(f"moment fitting failed: per-cell L1 {cpm_error:.4g} with the bulk pinned")
     expected = x * depths[:, None]
+    if pin_bulk:
+        rows = expected.sum(axis=1)
+        whole = np.floor(rows).astype(np.int64)
+        extra = int(np.rint(rows.sum())) - int(whole.sum())
+        if extra > 0:
+            whole[np.argsort(-(rows - whole), kind="stable")[:extra]] += 1
+        if (whole < 1).any():
+            raise ValueError("moment fitting failed: a cell's depth fell below one count")
+        if report is not None:
+            report["depth_moved_max"] = float(np.abs(whole / depths - 1).max())
+        depths = whole
     integer = np.floor(expected).astype(np.int64)
     fractions = expected - integer
     rng = np.random.default_rng(seed)

@@ -1163,13 +1163,23 @@ def main(argv: list[str] | None = None) -> int:
                          "control pseudobulk is. The per-cell channel stays on mean_cpm either way; without "
                          "--alpha-bulk the pseudobulk takes --alpha. Needs a depth spread and the delta-transfer "
                          "emitter (count_emitters.PoissonEmitter.bulk_anchor; same flag on sidechain.eval.loco)")
-    ap.add_argument("--dual-fallback", choices=["template", "anchor"], default="template",
+    ap.add_argument("--dual-fallback", choices=["template", "anchor", "shrink"], default="template",
                     help="what a perturbation whose two moments cannot both be met falls back to. 'template' "
                          "(default): one amplitude on the mean-per-cell-CPM profile, so under --bulk-anchor "
                          "pooled it loses the anchor too. 'anchor': one amplitude with the summed profile kept on "
                          "the anchor, the template only if that fails as well; under --bulk-anchor mean_cpm it "
-                         "re-pins the column sums to their expectation instead "
+                         "re-pins the column sums to their expectation instead. 'shrink': the summed request "
+                         "kept, the per-cell request's log2 excess over it halved up to three times, then removed, "
+                         "the template only if every try fails "
                          "(count_emitters.PoissonEmitter.emit_dual; same flag on sidechain.eval.loco)")
+    ap.add_argument("--dual-pin", choices=["fit", "bulk"], default="fit",
+                    help="how a two-channel block meets its moments: 'fit' (default), both to the fit's tolerance, "
+                         "the summed request projected onto the depth envelope; 'bulk', the summed request exactly, "
+                         "each gene's per-cell request first clamped into the depth band (--dual-band), cells' "
+                         "depths following (count_emitters.dual_moment_counts; same flag on sidechain.eval.loco)")
+    ap.add_argument("--dual-band", type=float, default=0.01, metavar="Q",
+                    help="with --dual-pin bulk: the depth band's tail, a quantile in [0, 0.5) of the block's depth "
+                         "over its mean depth")
     ap.add_argument("--emit-shape", choices=["template", "controls"], default="template",
                     help="what every block of cells starts from: 'template' (default), the emitter's own drawn "
                          "cells; 'controls', real control cells of the context, each gene's counts re-rated to "
@@ -1302,6 +1312,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.dual_fallback != "template" and bulk_alpha is None:
         ap.error("--dual-fallback only acts on a two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
+    if args.dual_pin != "fit" and bulk_alpha is None:
+        ap.error("--dual-pin only acts on a two-channel emission -- pass --alpha-bulk or "
+                 "--bulk-anchor pooled")
+    if not 0.0 <= args.dual_band < 0.5:
+        ap.error(f"--dual-band must be in [0, 0.5), got {args.dual_band}")
     if args.emit_shape != "template" and bulk_alpha is None:
         ap.error("--emit-shape controls needs the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
@@ -1712,7 +1727,10 @@ def main(argv: list[str] | None = None) -> int:
     dual_fallbacks: dict[str, int] = {}
     # which perturbations fell back, per context and per rung, with why the requested pair failed
     fell_back: dict[str, dict[str, list]] = {}
-    on_fail = "fallback" if args.dual_fallback == "template" else "anchor"
+    on_fail = {"template": "fallback", "anchor": "anchor", "shrink": "shrink"}[args.dual_fallback]
+    pin_kw = {"pin_bulk": True, "band": args.dual_band} if args.dual_pin == "bulk" else {}
+    # per context and target, what the depth band took from the per-cell request (--dual-pin bulk)
+    clamped: dict[str, dict[str, dict]] = {}
     # every block as real control cells re-rated to the prediction
     shaped = args.emit_shape == "controls"
     shape_kw = {"shape": True} if shaped else {}
@@ -1733,7 +1751,7 @@ def main(argv: list[str] | None = None) -> int:
             scatter[scatter_of[ctx][p][0]] = scatter_of[ctx][p][1]
             scatter_kw = {"scatter": scatter}
         block = em.emit_dual(contract.cells_per_pert, ctx_shifts[p], ctx_bulk[p],
-                             on_fail=on_fail, **shape_kw, **scatter_kw)
+                             on_fail=on_fail, **shape_kw, **scatter_kw, **pin_kw)
         return block, True, bool(scatter_kw)
 
     # --alpha-bulk-target: per context, the summed strength the knee rule chose and how it chose it
@@ -1846,6 +1864,11 @@ def main(argv: list[str] | None = None) -> int:
                     if how in ("anchor", "template"):
                         fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
                             how, []).append([p, getattr(em, "last_dual_reason", None)])
+                    elif how == "shrink":
+                        fell_back.setdefault(ctx, {"anchor": [], "template": []}).setdefault(
+                            how, []).append([p, getattr(em, "last_dual_reason", None), em.last_dual_keep])
+                    if pin_kw and getattr(em, "last_dual_clamp", None) is not None:
+                        clamped.setdefault(ctx, {})[p] = dict(em.last_dual_clamp)
                 if written is not None:
                     written.add(p, block)
                 w.add_block(block, ctx, p)
@@ -1883,8 +1906,12 @@ def main(argv: list[str] | None = None) -> int:
                 # counted, never refused
                 dual_fallbacks[ctx] = int(getattr(em, "dual_fallbacks", 0))
                 kept = int(getattr(em, "dual_fallbacks_anchor", 0))
+                shrunk = int(getattr(em, "dual_fallbacks_shrink", 0))
                 tail = ("amplitude on the mean_cpm profile" if args.dual_fallback == "template" else
-                        f"amplitude, {dual_fallbacks[ctx] - kept} of them from the one-amplitude template")
+                        f"amplitude, {dual_fallbacks[ctx] - kept} of them from the one-amplitude template"
+                        if args.dual_fallback == "anchor" else
+                        f"per-cell request shrunk toward the summed one, {dual_fallbacks[ctx] - shrunk} of them "
+                        "the one-amplitude template")
                 print(f"  {ctx}: alpha_bulk={alpha_bulk_of.get(ctx, bulk_alpha):g} anchor={args.bulk_anchor}: "
                       f"{dual_fallbacks[ctx]} of {len(perts)} perturbations carried one {tail}",
                       flush=True)
@@ -1916,6 +1943,8 @@ def main(argv: list[str] | None = None) -> int:
             anchor["dual_fallback"] = args.dual_fallback
             if fell_back:
                 anchor["dual_fallback_targets"] = fell_back
+        if pin_kw:                                 # written only when the knob is on
+            anchor["dual_pin"] = {"pin": args.dual_pin, "band": args.dual_band, "contexts": clamped}
         if shaped:                                 # written only when the knob is on
             anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
         if scatter_record is not None:             # likewise
