@@ -1,4 +1,4 @@
-"""`sidechain.models.count_emitters`, and the `--emit-lambda` wiring in `eval.loco` and `submit.build`.
+"""`sidechain.models.count_emitters`, and the `--emit-lambda` and `--min-libsize` wiring in `eval.loco` and `submit.build`.
 
     .venv/bin/python -m pytest -q tests/test_count_emitters.py
 
@@ -272,3 +272,22 @@ def test_a_floor_that_empties_the_control_pool_raises_rather_than_going_nan(tmp_
         ContextProfile.from_controls(p, "shallow", min_libsize=CONTROL_MIN_LIBSIZE)
     kept = ContextProfile.from_controls(p, "shallow", min_libsize=0.0)
     assert kept.n_cells == 5 and np.isfinite(kept.fraction).all()
+
+
+def test_loco_and_the_builder_default_the_control_floor_to_control_min_libsize():
+    """`eval.loco` and `submit.build` default the control-cell floor to `CONTROL_MIN_LIBSIZE`, in process and as a flag."""
+    import inspect
+    import re
+
+    from sidechain.eval import loco
+    from sidechain.models.count_emitters import CONTROL_MIN_LIBSIZE
+    from sidechain.submit import build
+
+    assert inspect.signature(
+        loco.build_transfer_prediction).parameters["min_libsize"].default == CONTROL_MIN_LIBSIZE
+    for mod in (build, loco):
+        flag = re.search(r'"--min-libsize".*?default=([^,\s)]+)',
+                         inspect.getsource(mod.main), re.S)
+        assert flag, f"{mod.__name__} lost its --min-libsize flag"
+        assert flag.group(1) == "CONTROL_MIN_LIBSIZE", (
+            f"{mod.__name__} hardcodes its control-cell floor as {flag.group(1)}")
