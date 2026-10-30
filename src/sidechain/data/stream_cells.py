@@ -76,7 +76,10 @@ class CellSink:
     """Collects up to a quota of cells per (label, batch) as CSR shards."""
 
     def __init__(self, axis: GeneAxis, quota: dict[tuple[str, str], int],
-                 relabel: dict[str, str] | None = None, seed: int = 20260831):
+                 relabel: dict[str, str] | None = None, seed: int = 20260831,
+                 totals: dict[tuple[str, str], int] | None = None):
+        """`totals` (cells per (label, batch) in the stream) switches the pick from filling each quota from the
+        batch's first record batches to a uniform draw over the whole batch."""
         self.axis = axis
         self.quota = dict(quota)
         self.relabel = relabel or {}
@@ -88,6 +91,7 @@ class CellSink:
         # Remaining budget is drawn down across the several record-batches a file is read
         # in, so it lives on the sink rather than in `fold`.
         self.left: dict[tuple[str, str], int] = dict(quota)
+        self.unseen: dict[tuple[str, str], int] | None = dict(totals) if totals is not None else None
 
     def wanted_labels(self) -> set[str]:
         return {lab for lab, _ in self.quota}
@@ -100,17 +104,25 @@ class CellSink:
         present = set(targets.tolist())
         if not any(self.left.get((lab, batch), 0) for lab in present):
             return
-        # Choose rows first, decode second; within a batch the pick is a seeded draw, not the first N rows.
+        # Choose rows first, decode second. Without `totals`, a record batch that fits the remaining budget is
+        # taken whole, so a quota fills from the batch's first rows.
         take = np.zeros(len(targets), dtype=bool)
         for lab in present:
             budget = self.left.get((lab, batch), 0)
             if budget <= 0:
                 continue
             rows = np.flatnonzero(targets == lab)
-            if len(rows) > budget:
-                # crc32, not hash(): Python randomises string hashing per process, which
-                # would make the selection unreproducible between runs of the same command.
-                key = f"{self.seed}|{batch}|{lab}|{len(self.blocks)}".encode()
+            # crc32, not hash(): Python randomises string hashing per process, which
+            # would make the selection unreproducible between runs of the same command.
+            key = f"{self.seed}|{batch}|{lab}|{len(self.blocks)}".encode()
+            if self.unseen is not None:
+                unseen = max(self.unseen.get((lab, batch), len(rows)), len(rows))
+                self.unseen[(lab, batch)] = unseen - len(rows)
+                rng = np.random.default_rng(zlib.crc32(key))
+                n = len(rows) if budget >= unseen else int(rng.hypergeometric(len(rows), unseen - len(rows), budget))
+                if n < len(rows):
+                    rows = rng.choice(rows, size=n, replace=False)
+            elif len(rows) > budget:
                 rng = np.random.default_rng(zlib.crc32(key))
                 rows = rng.choice(rows, size=budget, replace=False)
             take[rows] = True
@@ -209,6 +221,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cap", type=int, default=400,
                     help="max cells per perturbation")
     ap.add_argument("--control-cells", type=int, default=20000)
+    ap.add_argument("--pick", choices=["stream", "uniform"], default="stream",
+                    help="how a (label, batch) quota is drawn: 'stream' fills it from the batch's first record "
+                         "batches; 'uniform' draws it uniformly over the whole batch from the QC sidecar's counts")
     ap.add_argument("--limit-files", type=int, help="stream only the first N files (smoke run)")
     ap.add_argument("--batch-rows", type=int, default=2048)
     ap.add_argument("--shard-nnz", type=int, default=0,
@@ -256,9 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     labels_planned = len({lab for lab, _ in quota})
     print(json.dumps({"labels_requested": len(want), "labels_with_cells": labels_planned,
                       "cells_planned": planned, "files": len(names),
-                      "genes": len(axis.genes), "revision": revision}), flush=True)
+                      "genes": len(axis.genes), "revision": revision, "pick": args.pick}), flush=True)
 
-    sink = CellSink(axis, quota, relabel={CONTROL_IN_CORPUS: CONTROL_HARMONISED})
+    totals = None
+    if args.pick == "uniform":
+        li, bi = {lab: i for i, lab in enumerate(qc_labels)}, {b: j for j, b in enumerate(qc_batches)}
+        totals = {(lab, b): int(qc["batch_cells"][li[lab], bi[b]]) for lab, b in quota}
+    sink = CellSink(axis, quota, relabel={CONTROL_IN_CORPUS: CONTROL_HARMONISED}, totals=totals)
     columns = ["gene_token_id", "gene_expression", "gene_target", "guide_target",
                "pass_guide_filter", "sample", "pct_counts_mt", "total_counts",
                "n_genes_by_counts", "cell_barcode"]
@@ -299,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
                 "nnz": sum(s["nnz"] for s in shards) + info["nnz"],
                 "file_gb": round(sum(s["file_gb"] for s in shards) + info["file_gb"], 3),
                 "genes": info["genes"]}
-    info.update(planned=planned, kept=sink.kept, labels=len(sink.by_label),
+    info.update(planned=planned, kept=sink.kept, labels=len(sink.by_label), pick=args.pick,
                 control_cells=sink.by_label.get(CONTROL_HARMONISED, 0),
                 seconds=round(time.time() - t0))
     print(json.dumps(info), flush=True)

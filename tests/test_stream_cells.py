@@ -74,3 +74,28 @@ def test_a_write_after_the_last_spill_took_every_cell(tmp_path):
     info = sink.write(out)
     assert info["cells"] == 0 and info["shard"] is None
     assert sorted(f.name for f in tmp_path.iterdir()) == ["cells_s01.h5ad"]
+
+
+def _control_frames(n_frames: int = 10, per: int = 100) -> list[pd.DataFrame]:
+    return [pd.DataFrame({"gene_token_id": [[0, 1]] * per, "gene_expression": [[1.0, 1.0]] * per,
+                          "gene_target": ["Non-Targeting"] * per,
+                          "cell_barcode": [f"C{f}_{i}" for i in range(per)]}) for f in range(n_frames)]
+
+
+def _picked_frames(sink: CellSink, tmp_path) -> np.ndarray:
+    for frame in _control_frames():
+        sink.fold(frame, "B1")
+    out = tmp_path / "cells.h5ad"
+    sink.write(out)
+    return np.array([int(b[1:].split("_")[0]) for b in ad.read_h5ad(out).obs["cell_barcode"].astype(str)])
+
+
+def test_stream_pick_fills_a_quota_from_the_first_record_batches(tmp_path):
+    frames = _picked_frames(CellSink(_axis(), {("Non-Targeting", "B1"): 100}), tmp_path)
+    assert len(frames) == 100 and set(frames) == {0}
+
+
+def test_uniform_pick_draws_a_quota_over_the_whole_batch(tmp_path):
+    sink = CellSink(_axis(), {("Non-Targeting", "B1"): 100}, totals={("Non-Targeting", "B1"): 1000})
+    frames = _picked_frames(sink, tmp_path)
+    assert len(frames) == 100 and len(set(frames)) >= 8 and 3.0 < frames.mean() < 6.0
