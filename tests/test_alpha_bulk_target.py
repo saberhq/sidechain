@@ -441,3 +441,26 @@ def test_a_build_that_undershoots_keeps_the_strongest_read_under_the_target(ch, 
     assert x["kept_read"] == 2 and x["alpha_bulk"] == 1.0 and x["met"] and x["written_cells_are_the_cells_read"]
     assert build.main(_argv(ch, "at_x", "--alpha-bulk", "1.0")) == 0
     assert np.array_equal(_cells(ch["out"] / "rule.h5ad", "X"), _cells(ch["out"] / "at_x.h5ad", "X"))
+
+
+def test_each_context_records_its_largest_share_and_a_warning_changes_no_cell(ch, monkeypatch, capsys):
+    flags = ("--alpha-bulk", "1.8", "--alpha-bulk-target", "0.8")
+    assert build.main(_argv(ch, "rule", *flags)) == 0
+    rec = json.loads((ch["out"] / "rule.alpha_bulk.json").read_text())
+    for c in ("X", "Y"):
+        x = rec["contexts"][c]
+        for t in x["tries"]:
+            s = [y["share"] for y in t["shares"]]
+            assert 0 < len(s) <= knee.SHARE_TOP and s == sorted(s, reverse=True)
+        kept = x["tries"][x.get("kept_read", x["reads"]) - 1]
+        big = x["largest_share"]
+        assert {k: big[k] for k in kept["shares"][0]} == kept["shares"][0] and big["alpha_bulk"] == x["alpha_bulk"]
+        assert x["alpha_bulk"] <= big["alpha_bulk_without"] <= 1.8 and big["warn"] == (big["share"] >= knee.SHARE_WARN)
+    capsys.readouterr()
+    monkeypatch.setattr(knee, "SHARE_WARN", 0.0)
+    assert build.main(_argv(ch, "warned", *flags)) == 0
+    assert capsys.readouterr().out.count("of the budget at alpha_bulk=") == 2
+    assert all(json.loads((ch["out"] / "warned.alpha_bulk.json").read_text())["contexts"][c]["largest_share"]["warn"]
+               for c in ("X", "Y"))
+    a, b = ad.read_h5ad(ch["out"] / "rule.h5ad"), ad.read_h5ad(ch["out"] / "warned.h5ad")
+    assert (a.X != b.X).nnz == 0

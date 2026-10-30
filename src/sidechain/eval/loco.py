@@ -462,7 +462,8 @@ def build_transfer_prediction(
         # the knee rule on this fold's emitted cells (as submit.build's choose_alpha_bulk): each read
         # writes its file; the read that stops is renamed to the prediction and the others are removed
         from sidechain.submit.build import KNEE_MAX_READS
-        from sidechain.submit.knee import AIM_MARGIN, TARGET_SUM, UNDERSHOOT, KneeMeter, knee_keep, knee_next
+        from sidechain.submit.knee import (AIM_MARGIN, TARGET_SUM, UNDERSHOOT, KneeMeter, knee_keep, knee_next,
+                                           largest_share)
 
         a, reads = alpha_bulk, []
         floor = alpha if alpha_bulk_floor is None else alpha_bulk_floor
@@ -496,7 +497,12 @@ def build_transfer_prediction(
                        **({"alpha_bulk_floor": alpha_bulk_floor} if alpha_bulk_floor is not None else {}),
                        "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
                        "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads,
+                       "largest_share": largest_share(reads[kept], alpha_bulk),
                        **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
+        big = knee_record["largest_share"]
+        if big["warn"]:
+            print(f"  WARNING: {big['knockdown']} carries {big['share']:.1%} of the budget at alpha_bulk={a:.4f}; "
+                  f"without its part the strength would be {big['alpha_bulk_without']:.4f}", flush=True)
         if not knee_record["met"]:
             print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)

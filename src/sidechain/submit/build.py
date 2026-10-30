@@ -46,7 +46,7 @@ from sidechain.submit.knee import UNDERSHOOT as KNEE_UNDERSHOOT
 from sidechain.submit.source_vote import (parse_source_scales, parse_source_weights, pool_kwargs,
                                           read_source_weight_table, source_votes, vote_groups)
 from sidechain.submit.knee import TARGET_SUM as KNEE_TARGET_SUM
-from sidechain.submit.knee import KneeMeter, knee_keep, knee_next
+from sidechain.submit.knee import KneeMeter, knee_keep, knee_next, largest_share
 from sidechain.submit.pie_source import (
     add_prediction_source_args,
     check_prediction_source_args,
@@ -1803,8 +1803,13 @@ def main(argv: list[str] | None = None) -> int:
                    f"after {KNEE_MAX_READS} reads" if len(reads) >= KNEE_MAX_READS else "the ratio is not finite")
             print(f"  WARNING {ctx}: budget over claim {ratio:.4f} is above the target {knee_target:g} {why}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)
+        big = largest_share(reads[kept], ceiling)
+        if big["warn"]:
+            print(f"  WARNING {ctx}: {big['knockdown']} carries {big['share']:.1%} of the budget at "
+                  f"alpha_bulk={a:.4f}; without its part the strength would be {big['alpha_bulk_without']:.4f}",
+                  flush=True)
         rec = {"alpha_bulk": a, "met": met, "reads": len(reads), "at_floor": a <= floor,
-               "ratio_budget_over_claim": ratio, "tries": reads,
+               "ratio_budget_over_claim": ratio, "tries": reads, "largest_share": big,
                **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
         return a, rec, sums[kept]
 

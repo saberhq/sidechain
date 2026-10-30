@@ -165,3 +165,14 @@ def test_an_earlier_read_is_kept_when_the_last_is_over_the_target(fold, monkeypa
     assert (a.X != b.X).nnz == 0
     info.pop("pred"), plain.pop("pred"), info.pop("alpha_bulk_knee")
     assert info == plain                                          # every record is the kept read's own
+
+
+def test_the_knee_record_carries_the_largest_share_of_the_kept_read(fold):
+    tmp, real, sources = fold
+    info = loco.build_transfer_prediction(real, sources, tmp / "k.h5ad", **KW, alpha_bulk=6.0,
+                                          alpha_bulk_target=0.5, seed=3)
+    k = info["alpha_bulk_knee"]
+    kept = k["tries"][k.get("kept_read", k["reads"]) - 1]
+    big = k["largest_share"]
+    assert {x: big[x] for x in kept["shares"][0]} == kept["shares"][0]
+    assert big["alpha_bulk"] == k["alpha_bulk"] <= big["alpha_bulk_without"] <= 6.0
