@@ -180,9 +180,8 @@ class PoissonEmitter:
         """Cells whose equal-weight per-cell mean follows `log2fc_cell` and whose column sums follow `log2fc_bulk`.
 
         Starts from `self.emit(n, log2fc_cell)` or, with `shape=True`, re-rated control cells (`_rerate`); `scatter`
-        scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`; `read_floor` floors each
-        gene the controls give a count in the block: see there). An unmet pair raises, or falls to the template
-        ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
+        scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`, `read_floor`: see there). An
+        unmet pair raises, or falls to the template ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
         """
         if on_fail not in ("raise", "fallback", "anchor", "shrink"):
             raise ValueError(f"on_fail must be 'raise', 'fallback', 'anchor' or 'shrink', got {on_fail!r}")
