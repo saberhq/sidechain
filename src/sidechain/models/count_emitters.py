@@ -180,9 +180,9 @@ class PoissonEmitter:
         """Cells whose equal-weight per-cell mean follows `log2fc_cell` and whose column sums follow `log2fc_bulk`.
 
         Starts from `self.emit(n, log2fc_cell)` or, with `shape=True`, re-rated control cells (`_rerate`); `scatter`
-        scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`: see there). An
-        unmet pair raises, or falls to the template ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
-        `read_floor` (with `pin_bulk`): a gene the controls' profile gives one count or more in the block keeps one.
+        scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`; `read_floor` floors each
+        gene the controls give a count in the block: see there). An unmet pair raises, or falls to the template
+        ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
         """
         if on_fail not in ("raise", "fallback", "anchor", "shrink"):
             raise ValueError(f"on_fail must be 'raise', 'fallback', 'anchor' or 'shrink', got {on_fail!r}")
@@ -511,9 +511,8 @@ def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_proba
     """Integer cells whose per-cell mean composition is `probability` and pseudobulk is `bulk_probability`.
 
     The bulk is projected onto the depth envelope (z = depth / mean depth), each column tilted by `1 + t_g (z_i - m_g)`
-    alternating with a column rescale to `tolerance` (L1), then rounded keeping depths and column totals (after
-    kaipengm2, MIT). `pin_bulk`: `clamp_to_band` first, the bulk exact, the depths following; `report` says what moved.
-    `floor_genes` (a boolean mask, with `pin_bulk`): each of those genes keeps at least one count in the block.
+    alternating with a column rescale to `tolerance` (L1), rounded keeping depths and column totals (kaipengm2, MIT).
+    `pin_bulk`: `clamp_to_band` first, the bulk exact, depths following, `floor_genes` >= 1 count; `report`: what moved.
     """
     template = np.asarray(template, dtype=np.float64)
     p = np.asarray(probability, dtype=np.float64)
