@@ -43,6 +43,9 @@ if [ "$ALIAS" != "$INSTANCE" ]; then
     echo "warning: $SRC also defines 'Host $ALIAS'; ssh takes the first match, so that block wins over this mirror" >&2
   fi
 fi
+hostport=$(printf '%s\n' "$block" | awk 'tolower($1)=="hostname"{h=$2} tolower($1)=="port"{p=$2}
+  END{print (p == "" || p == 22) ? h : "[" h "]:" p}')
+ssh-keygen -R "$hostport" >/dev/null 2>&1 || true   # a recycled address must not trip an old host key
 
 begin="# >>> brev_ssh_mirror: $ALIAS (refreshed by scripts/brev_ssh_mirror.sh; do not edit) >>>"
 end="# <<< brev_ssh_mirror: $ALIAS <<<"
