@@ -1180,6 +1180,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dual-band", type=float, default=0.01, metavar="Q",
                     help="with --dual-pin bulk: the depth band's tail, a quantile in [0, 0.5) of the block's depth "
                          "over its mean depth")
+    ap.add_argument("--dual-read-floor", action="store_true",
+                    help="with --dual-pin bulk: a gene the controls' profile gives one count or more in a block keeps "
+                         "at least one count in it (same flag on sidechain.eval.loco)")
     ap.add_argument("--emit-shape", choices=["template", "controls"], default="template",
                     help="what every block of cells starts from: 'template' (default), the emitter's own drawn "
                          "cells; 'controls', real control cells of the context, each gene's counts re-rated to "
@@ -1317,6 +1320,8 @@ def main(argv: list[str] | None = None) -> int:
                  "--bulk-anchor pooled")
     if not 0.0 <= args.dual_band < 0.5:
         ap.error(f"--dual-band must be in [0, 0.5), got {args.dual_band}")
+    if args.dual_read_floor and args.dual_pin != "bulk":
+        ap.error("--dual-read-floor needs --dual-pin bulk")
     if args.emit_shape != "template" and bulk_alpha is None:
         ap.error("--emit-shape controls needs the two-channel emission -- pass --alpha-bulk or "
                  "--bulk-anchor pooled")
@@ -1729,6 +1734,8 @@ def main(argv: list[str] | None = None) -> int:
     fell_back: dict[str, dict[str, list]] = {}
     on_fail = {"template": "fallback", "anchor": "anchor", "shrink": "shrink"}[args.dual_fallback]
     pin_kw = {"pin_bulk": True, "band": args.dual_band} if args.dual_pin == "bulk" else {}
+    if args.dual_read_floor:
+        pin_kw["read_floor"] = True
     # per context and target, what the depth band took from the per-cell request (--dual-pin bulk)
     clamped: dict[str, dict[str, dict]] = {}
     # every block as real control cells re-rated to the prediction
@@ -1949,7 +1956,8 @@ def main(argv: list[str] | None = None) -> int:
             if fell_back:
                 anchor["dual_fallback_targets"] = fell_back
         if pin_kw:                                 # written only when the knob is on
-            anchor["dual_pin"] = {"pin": args.dual_pin, "band": args.dual_band, "contexts": clamped}
+            anchor["dual_pin"] = {"pin": args.dual_pin, "band": args.dual_band,
+                                  **({"read_floor": True} if args.dual_read_floor else {}), "contexts": clamped}
         if shaped:                                 # written only when the knob is on
             anchor["emit_shape"] = {"shape": args.emit_shape, "contexts": in_shape}
         if scatter_record is not None:             # likewise

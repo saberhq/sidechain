@@ -232,3 +232,99 @@ def test_loco_passes_the_pin_and_the_shrink_rung_and_records_them(monkeypatch, t
         loco.build_transfer_prediction(tmp_path / "real.h5ad", [(src, "ctrl")], tmp_path / "one.h5ad",
                                        pert_col="perturbation", control="non-targeting", shrinkage=False,
                                        emit_lambda=0.6, alpha=1.2, min_libsize=0.0, dual_pin="bulk")
+
+
+def _flat_profile(rng, g=G, n_ctrl=600):
+    frac = np.full(g, 1.0 / g)
+    libs = rng.lognormal(np.log(8000), 0.6, size=n_ctrl).round()
+    return ContextProfile(name="A", genes=np.array([f"g{i}" for i in range(g)]), fraction=frac, libsizes=libs,
+                          n_cells=n_ctrl, bulk_fraction=frac.copy())
+
+
+def test_the_read_floor_keeps_one_count_where_the_summed_request_rounds_to_none():
+    rng = np.random.default_rng(16)
+    prof = _profile(rng)
+    n = 400
+    em0 = PoissonEmitter(prof, seed=5, lam=1.0, bulk_anchor="pooled")
+    expect = em0._fraction(None, bulk=True) * prof.libsizes.mean() * n
+    at = np.flatnonzero((expect > 5) & (expect < 500))
+    d = np.zeros(G)
+    d[at] = -12.0
+    X0 = em0.emit_dual(n, d, d, pin_bulk=True).toarray()
+    em1 = PoissonEmitter(prof, seed=5, lam=1.0, bulk_anchor="pooled")
+    X1 = em1.emit_dual(n, d, d, pin_bulk=True, read_floor=True).toarray()
+    none = at[X0[:, at].sum(axis=0) == 0]
+    assert len(at) >= 10 and len(none) >= 5
+    assert np.array_equal(X1[:, none].sum(axis=0), np.ones(len(none))) and X1[:, at].sum(axis=0).min() >= 1
+    others = np.setdiff1d(np.arange(G), at)
+    moved = np.abs(X1.sum(axis=0) - X0.sum(axis=0))[others]
+    assert np.array_equal(X1.sum(axis=1), X0.sum(axis=1)) and np.all(moved <= 1 + 1e-3 * X0.sum(axis=0)[others])
+    assert em1.last_dual_clamp["genes_floored"] >= len(none) and "genes_floored" not in em0.last_dual_clamp
+
+
+def test_the_read_floor_moves_nothing_when_every_gene_keeps_a_count():
+    rng = np.random.default_rng(17)
+    prof = _flat_profile(rng)
+    d_cell, d_bulk = _request(rng, prof, 1.0)
+    blocks, reports = [], []
+    for floor in (False, True):
+        em = PoissonEmitter(prof, seed=6, lam=1.0, bulk_anchor="pooled")
+        blocks.append(em.emit_dual(400, d_cell, d_bulk, pin_bulk=True, read_floor=floor))
+        reports.append(em.last_dual_clamp)
+    assert (blocks[0] != blocks[1]).nnz == 0 and reports[1]["genes_floored"] == 0
+
+
+def test_the_read_floor_needs_the_pin():
+    rng = np.random.default_rng(18)
+    prof = _profile(rng)
+    d_cell, d_bulk = _request(rng, prof, 1.0)
+    with pytest.raises(ValueError, match="read_floor needs pin_bulk"):
+        PoissonEmitter(prof, seed=0, lam=1.0).emit_dual(50, d_cell, d_bulk, read_floor=True)
+    template = rng.poisson(3.0, size=(20, 10)).astype(float) + 0.1
+    p = np.full(10, 0.1)
+    depths = rng.integers(20, 60, size=20)
+    with pytest.raises(ValueError, match="floor_genes needs pin_bulk"):
+        dual_moment_counts(template, p, p, depths=depths, seed=0, floor_genes=np.ones(10, bool))
+    with pytest.raises(ValueError, match="boolean mask"):
+        dual_moment_counts(template, p, p, depths=depths, seed=0, pin_bulk=True, floor_genes=np.ones(10))
+
+
+def test_loco_passes_the_read_floor_and_records_it(monkeypatch, tmp_path):
+    import anndata as ad
+    import pandas as pd
+
+    from sidechain.data.stream_pseudobulk import PseudobulkSums
+    from sidechain.eval import loco
+
+    rng = np.random.default_rng(15)
+    g = 60
+    genes = np.array([f"g{i}" for i in range(g)], dtype=object)
+    basal = rng.uniform(100, 2000, size=g)
+    mean = np.stack([basal, basal * np.exp2(rng.normal(0, 0.15, g))])
+    n = np.full(2, 1000, dtype=np.int64)
+    src = PseudobulkSums(labels=["ctrl", "g0"], genes=genes.copy(), count_sum=mean * n[:, None],
+                         cpm_sum=mean * n[:, None], cpm_sq_sum=(mean**2 + mean) * n[:, None],
+                         n_cells=n, libsize_sum=n.astype(float) * 2e4, sources=["t"])
+    rows, labels = [], []
+    for lab, k in (("non-targeting", 60), ("g0", 12)):
+        for _ in range(k):
+            rows.append(rng.poisson(basal / basal.sum() * rng.integers(3000, 6000))); labels.append(lab)
+    real = ad.AnnData(X=sp.csr_matrix(np.asarray(rows, dtype=np.float32)),
+                      obs=pd.DataFrame({"perturbation": labels}, index=[f"c{i}" for i in range(len(rows))]),
+                      var=pd.DataFrame(index=genes.astype(str)))
+    real.write_h5ad(tmp_path / "real.h5ad")
+    kw = dict(pert_col="perturbation", control="non-targeting", shrinkage=False, var_floor="poisson",
+              emit_lambda=0.6, alpha=1.2, alpha_bulk=1.6, bulk_anchor="pooled", min_libsize=0.0)
+    seen = []
+    orig = loco.PoissonEmitter.emit_dual
+    monkeypatch.setattr(loco.PoissonEmitter, "emit_dual", lambda self, *a, **k: seen.append(k) or orig(self, *a, **k))
+    pinned = loco.build_transfer_prediction(tmp_path / "real.h5ad", [(src, "ctrl")], tmp_path / "pin.h5ad",
+                                            dual_pin="bulk", dual_band=0.02, **kw)
+    assert "read_floor" not in seen[-1] and "read_floor" not in pinned["dual_pin"]
+    on = loco.build_transfer_prediction(tmp_path / "real.h5ad", [(src, "ctrl")], tmp_path / "on.h5ad",
+                                        dual_pin="bulk", dual_band=0.02, dual_read_floor=True, **kw)
+    assert seen[-1]["read_floor"] is True and on["dual_pin"]["read_floor"] is True
+    assert "genes_floored" in on["dual_pin"]["targets"]["g0"]
+    with pytest.raises(SystemExit, match="dual_read_floor"):
+        loco.build_transfer_prediction(tmp_path / "real.h5ad", [(src, "ctrl")], tmp_path / "bad.h5ad",
+                                       dual_read_floor=True, **kw)

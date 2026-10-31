@@ -111,6 +111,7 @@ def build_transfer_prediction(
     dual_fallback: str = "template",
     dual_pin: str = "fit",
     dual_band: float = 0.01,
+    dual_read_floor: bool = False,
     delta_cache: dict | None = None,
     scatter_table: Path | None = None,
     emit_shape: str = "template",
@@ -138,6 +139,8 @@ def build_transfer_prediction(
         raise SystemExit(f"dual_fallback must be 'template', 'anchor' or 'shrink', got {dual_fallback!r}")
     if dual_pin not in ("fit", "bulk"):
         raise SystemExit(f"dual_pin must be 'fit' or 'bulk', got {dual_pin!r}")
+    if dual_read_floor and dual_pin != "bulk":
+        raise SystemExit("dual_read_floor needs dual_pin 'bulk'")
     if emit_shape not in ("template", "controls"):
         raise SystemExit(f"emit_shape must be 'template' or 'controls', got {emit_shape!r}")
     shaped = emit_shape == "controls"            # every block is re-rated control cells
@@ -168,6 +171,8 @@ def build_transfer_prediction(
     on_fail = {"template": "fallback", "anchor": "anchor", "shrink": "shrink"}[dual_fallback]
     fell_back: dict[str, list] = {"anchor": [], "template": []}
     pin_kw = {"pin_bulk": True, "band": dual_band} if dual_pin == "bulk" else {}
+    if dual_read_floor:
+        pin_kw["read_floor"] = True
     clamped: dict[str, dict] = {}                # target -> what the depth band took from its per-cell request
 
     sharpened: dict[str, int] = {}               # target -> genes whose scatter the block carries
@@ -549,7 +554,8 @@ def build_transfer_prediction(
             "dual_fallback_targets": fell_back if two_channel else None,
             # present only with dual_pin bulk: per target, the per-cell L1 the depth band took, the genes it clipped
             # and the largest relative move of a cell's depth
-            **({"dual_pin": {"pin": dual_pin, "band": dual_band, "targets": clamped}} if pin_kw else {}),
+            **({"dual_pin": {"pin": dual_pin, "band": dual_band, **({"read_floor": True} if dual_read_floor else {}),
+                             "targets": clamped}} if pin_kw else {}),
             # present only with --scatter-table. `targets_carrying_it` counts the blocks whose
             # fit took the table's genes; a target that ended on the template rung carries none.
             **({"scatter_table": {**scatter_record,
@@ -692,6 +698,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dual-band", type=float, default=0.01, metavar="Q",
                     help="with --dual-pin bulk: the depth band's tail, a quantile in [0, 0.5) of the block's "
                          "depth over its mean depth")
+    ap.add_argument("--dual-read-floor", action="store_true",
+                    help="with --dual-pin bulk: a gene the controls' profile gives one count or more in a block "
+                         "keeps at least one count in it. As on sidechain.submit.build")
     ap.add_argument("--scatter-table", type=Path, default=None, metavar="PARQUET",
                     help="a per-(perturbation, gene) dial on the emitted cell-to-cell scatter: a "
                          "parquet with target, feature, scatter >= 0 (1 = as emitted, 0 = no sampling "
@@ -874,6 +883,7 @@ def main(argv: list[str] | None = None) -> int:
                                      dual_fallback=args.dual_fallback,
                                      **({"dual_pin": args.dual_pin, "dual_band": args.dual_band}
                                         if args.dual_pin != "fit" else {}),
+                                     **({"dual_read_floor": True} if args.dual_read_floor else {}),
                                      delta_cache=delta_cache,
                                      scatter_table=args.scatter_table,
                                      emit_shape=args.emit_shape,
@@ -936,6 +946,7 @@ def main(argv: list[str] | None = None) -> int:
             if pie else {}),
          "dual_fallback": args.dual_fallback,
          **({"dual_pin": args.dual_pin, "dual_band": args.dual_band} if args.dual_pin != "fit" else {}),
+         **({"dual_read_floor": True} if args.dual_read_floor else {}),
          "scatter_table": None if args.scatter_table is None else str(args.scatter_table),
          "emit_shape": args.emit_shape,
          "gamma": args.gamma,

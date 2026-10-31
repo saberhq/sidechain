@@ -176,15 +176,18 @@ class PoissonEmitter:
                   iterations: int = 100, tolerance: float = 2e-4,
                   max_projection: float = 0.03, on_fail: str = "raise",
                   scatter: np.ndarray | None = None, shape: bool = False,
-                  pin_bulk: bool = False, band: float = 0.01) -> sp.csr_matrix:
+                  pin_bulk: bool = False, band: float = 0.01, read_floor: bool = False) -> sp.csr_matrix:
         """Cells whose equal-weight per-cell mean follows `log2fc_cell` and whose column sums follow `log2fc_bulk`.
 
         Starts from `self.emit(n, log2fc_cell)` or, with `shape=True`, re-rated control cells (`_rerate`); `scatter`
         scales each gene's spread; `dual_moment_counts` pins both moments (`pin_bulk`, `band`: see there). An
         unmet pair raises, or falls to the template ("fallback"), one amplitude ("anchor") or less per-cell ("shrink").
+        `read_floor` (with `pin_bulk`): a gene the controls' profile gives one count or more in the block keeps one.
         """
         if on_fail not in ("raise", "fallback", "anchor", "shrink"):
             raise ValueError(f"on_fail must be 'raise', 'fallback', 'anchor' or 'shrink', got {on_fail!r}")
+        if read_floor and not pin_bulk:
+            raise ValueError("read_floor needs pin_bulk")
         if self.lam == 0.0:
             raise ValueError("emit_dual needs a depth spread: at lam=0 every cell has the same "
                              "depth, so the pseudobulk and the per-cell mean cannot differ")
@@ -213,6 +216,8 @@ class PoissonEmitter:
         self.last_sharpened = None if scatter is None else int((scatter != 1.0).sum())
         self.last_shaped = True if shape else None
         band_kw = dict(pin_bulk=True, band=band) if pin_bulk else {}
+        if read_floor:
+            band_kw["floor_genes"] = depths.sum() * self._fraction(None, bulk=True) >= 1.0
 
         def start_for(bulk_profile, cell_profile=p_cell):
             """The fit's start (the template, or control cells re-rated to this pair), the per-gene dial applied."""
@@ -501,12 +506,14 @@ def clamp_to_band(probability: np.ndarray, bulk_probability: np.ndarray, z: np.n
 def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_probability: np.ndarray,
                        *, depths: np.ndarray, seed: int, iterations: int = 100,
                        tolerance: float = 2e-4, max_projection: float = 0.03,
-                       pin_bulk: bool = False, band: float = 0.01, report: dict | None = None) -> np.ndarray:
+                       pin_bulk: bool = False, band: float = 0.01, report: dict | None = None,
+                       floor_genes: np.ndarray | None = None) -> np.ndarray:
     """Integer cells whose per-cell mean composition is `probability` and pseudobulk is `bulk_probability`.
 
     The bulk is projected onto the depth envelope (z = depth / mean depth), each column tilted by `1 + t_g (z_i - m_g)`
     alternating with a column rescale to `tolerance` (L1), then rounded keeping depths and column totals (after
     kaipengm2, MIT). `pin_bulk`: `clamp_to_band` first, the bulk exact, the depths following; `report` says what moved.
+    `floor_genes` (a boolean mask, with `pin_bulk`): each of those genes keeps at least one count in the block.
     """
     template = np.asarray(template, dtype=np.float64)
     p = np.asarray(probability, dtype=np.float64)
@@ -527,6 +534,12 @@ def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_proba
         raise ValueError("moment probabilities must sum to one")
     if not isinstance(iterations, int) or iterations < 1 or not np.isfinite(tolerance) or tolerance <= 0:
         raise ValueError("invalid fitting iterations or tolerance")
+    if floor_genes is not None:
+        floor_genes = np.asarray(floor_genes)
+        if not pin_bulk:
+            raise ValueError("floor_genes needs pin_bulk")
+        if floor_genes.dtype != bool or floor_genes.shape != p.shape:
+            raise ValueError("floor_genes must be a boolean mask on the gene axis")
     depths = depths.astype(np.int64)
     x = template.copy()
     z = depths / depths.mean()
@@ -611,6 +624,20 @@ def dual_moment_counts(template: np.ndarray, probability: np.ndarray, bulk_proba
         if report is not None:
             report["depth_moved_max"] = float(np.abs(whole / depths - 1).max())
         depths = whole
+        if floor_genes is not None:
+            column = expected.sum(axis=0)
+            lift = floor_genes & (column < 1.0)
+            if lift.any():
+                share = np.divide(expected[:, lift], column[lift], out=np.full((n, int(lift.sum())), 1.0 / n),
+                                  where=column[lift] > 0)
+                raised = share * (1.0 + 1e-6)
+                added = (raised - expected[:, lift]).sum(axis=1)
+                rest = expected[:, ~lift]
+                rest *= (1.0 - added / rest.sum(axis=1))[:, None]
+                expected[:, ~lift] = rest
+                expected[:, lift] = raised
+            if report is not None:
+                report["genes_floored"] = int(lift.sum())
     integer = np.floor(expected).astype(np.int64)
     fractions = expected - integer
     rng = np.random.default_rng(seed)
