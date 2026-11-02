@@ -86,12 +86,12 @@ def test_a_meter_read_carries_the_shares():
 def test_largest_share_estimates_the_strength_without_it_and_warns_at_the_level():
     read = {"alpha_bulk": 2.0, "ratio_budget_over_claim": 0.88,
             "shares": [{"knockdown": "K", "share": 0.4, "ratio_without": 0.528}]}
-    big = knee.largest_share(read, ceiling=2.6)
+    big = knee.largest_share(read, ceiling=3.0)
     assert big["alpha_bulk_without"] == pytest.approx(2.0 * math.sqrt(0.88 / 0.528)) and big["warn"]
     assert knee.largest_share(read, ceiling=2.2)["alpha_bulk_without"] == 2.2              # never above the ceiling
     small = {**read, "shares": [{"knockdown": "K", "share": 0.05, "ratio_without": 0.836}]}
-    assert not knee.largest_share(small, ceiling=2.6)["warn"]
-    assert knee.largest_share(small, ceiling=2.6, warn=0.05)["warn"]
-    at_ceiling = {"alpha_bulk": 2.6, "ratio_budget_over_claim": 0.5,
+    assert not knee.largest_share(small, ceiling=3.0)["warn"]
+    assert knee.largest_share(small, ceiling=3.0, warn=0.05)["warn"]
+    at_ceiling = {"alpha_bulk": 3.0, "ratio_budget_over_claim": 0.5,
                   "shares": [{"knockdown": "K", "share": 0.4, "ratio_without": 0.3}]}
-    assert knee.largest_share(at_ceiling, ceiling=2.6)["alpha_bulk_without"] == 2.6
+    assert knee.largest_share(at_ceiling, ceiling=3.0)["alpha_bulk_without"] == 3.0

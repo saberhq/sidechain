@@ -17,7 +17,7 @@ G = 1000
 FIT = ce.dual_moment_counts
 
 
-L4_SHARE = 1.35 / 2.6        # L4's per-cell strength over its summed one
+CELL_SHARE = 0.45            # the per-cell strength over the summed one
 
 
 def _profile(rng, g=G, n_ctrl=600):
@@ -30,13 +30,13 @@ def _profile(rng, g=G, n_ctrl=600):
 
 
 def _request(rng, prof, times, moved=150):
-    """A summed request on `moved` genes of low share, and a per-cell one `times` L4's per-cell share of it."""
+    """A summed request on `moved` genes of low share, and a per-cell one `times` `CELL_SHARE` of it."""
     d_bulk = np.zeros(len(prof.fraction))
     low = np.flatnonzero(prof.fraction < 3 * np.median(prof.fraction))
     at = rng.choice(low, size=moved, replace=False)
     d_bulk[at] = rng.choice([-1.0, 1.0], size=moved) * rng.uniform(0.8, 1.9, size=moved)
     d_cell = d_bulk.copy()
-    d_cell[at] *= times * L4_SHARE
+    d_cell[at] *= times * CELL_SHARE
     return d_cell, d_bulk
 
 
