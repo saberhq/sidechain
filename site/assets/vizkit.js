@@ -21,6 +21,10 @@
   const swatch = c => `<i class="vk-sw" style="--c:${c}"></i>`;
   const fold = (label, html, open) => `<details class="vk-fold"${open ? ' open' : ''}><summary>${esc(label)}</summary><div>${html}</div></details>`;
   const button = (attr, text, title) => `<button type="button" class="vk-chip" ${attr}${title ? ` title="${esc(title)}"` : ''}>${text}</button>`;
+  // a button that wipes something asks twice: the first click arms it for three seconds, and a redraw keeps it armed
+  let ARMED = { k: '', t: 0 };
+  const armed = k => ARMED.k === k && Date.now() < ARMED.t;
+  const sureButton = (k, attr, text, title) => `<button type="button" class="vk-chip${armed(k) ? ' armed' : ''}" ${attr} data-vk-sure="${esc(k)}"${title ? ` title="${esc(title)}"` : ''}>${armed(k) ? 'sure? click again' : text}</button>`;
   // a drop-down: [data-vk-menu=key] opens and shuts it; state.menu names the open one, so it stays open across draws
   const menu = (key, st, label, on, body, cls) => `<details class="vk-menu"${st.menu === key ? ' open' : ''}><summary class="vk-chip${on ? ' on' : ''}" data-vk-menu="${esc(key)}">${label} ▾</summary><div class="vk-pop${cls ? ' ' + cls : ''}">${body}</div></details>`;
   const pinCell = (id, on, at = '') => `<td class="vk-pc${at ? ' vk-fz' : ''}"${at}><input type="checkbox" class="vk-pin" data-vk-pin="${esc(id)}"${on ? ' checked' : ''} title="${on ? 'let it scroll' : 'keep it at the top'}">`;
@@ -38,55 +42,74 @@
      data: {models: [{id, name, parent, change, task, dir, nights, first, date, st: {state, label, entry, board},
      readings: [{name, night, base_name, short}], edges: {<vs>: {<set>: {reading, base, base_name, vs_parent, vs_base,
      n, cells: {<column>: {d, bar}}}}}}], directions: [{key, name, colour}], sets: [{key, label}], columns: [...],
-     nights: [{n, name, title, date, base}], how: {<vs>: text}, notes: [text]}.
-     Models come in display order: depth first, siblings as they should stand. An open row dims every row but the
-     line back to its root and the row its numbers are measured against. */
-  const TREE = { set: '', vs: 'parent', night: '', dir: '', rest: 'dim', open: '', shut: [], pin: [] };
+     nights: [{n, name, title, date, base}], how: {<vs>: text}, notes: [text], ref_default, ref: {ref, set, pending,
+     models: {<id>: edge | {self} | {pending} | {none}}}}.
+     Models come in display order: depth first, siblings as they should stand. In `ref` mode every row is measured
+     against one model (data.ref, fetched by the host for state.ref); `show: 'sel'` draws only the selected rows, flat.
+     An open row dims every row but the line back to its root and the row its numbers are measured against. */
+  const TREE = { set: '', vs: 'parent', ref: '', show: 'all', night: '', dir: '', rest: 'dim', open: '', shut: [], pin: [], menu: '' };
+  // the state made whole: the gene set, and in `ref` mode the reference (the first selected row, else the data's default)
+  function treeRef(D, st) {
+    const M = D.models || [], by = Object.fromEntries(M.map(m => [m.id, m])), sets = D.sets || [];
+    if (!sets.some(s => s.key === st.set)) st.set = sets.length ? sets[0].key : '';
+    if (st.vs !== 'ref') return '';
+    if (!by[st.ref]) { const p = new Set(st.pin || []); st.ref = (M.find(m => p.has(m.id)) || by[D.ref_default] || M[0] || {}).id || '' }
+    return st.ref;
+  }
   function treeHTML(D, st) {
     const M = D.models || [], by = Object.fromEntries(M.map(m => [m.id, m])), dirs = Object.fromEntries((D.directions || []).map(d => [d.key, d]));
     const sets = D.sets || [], cols = D.columns || ['overall'];
-    if (!sets.some(s => s.key === st.set)) st.set = sets.length ? sets[0].key : '';
+    const ref = treeRef(D, st), R = ref && D.ref && D.ref.ref === ref && D.ref.set === st.set ? D.ref : null;
     const pins = new Set((st.pin || []).filter(id => by[id]));
+    const sel = st.show === 'sel';
     const nightBase = (D.nights || []).find(x => String(x.n) === String(st.night));
     const hit = m => (st.night === '' || (m.nights || []).map(String).includes(String(st.night)) || (nightBase && nightBase.base === m.id)) &&
       (!st.dir || m.dir === st.dir);
-    const filtered = st.night !== '' || !!st.dir;
-    const edge = m => ((m.edges || {})[st.vs] || {})[st.set];
-    let lin = null, cmp = '';
-    if (st.open && by[st.open]) {
+    const filtered = !sel && (st.night !== '' || !!st.dir);
+    const edge = m => ref ? (m.id === ref ? { self: true } : R ? R.models[m.id] || { none: 'not in the comparison' } : { pending: true }) : ((m.edges || {})[st.vs] || {})[st.set];
+    let lin = null, cmp = ref;
+    if (!sel && st.open && by[st.open]) {
       lin = new Set(); let x = by[st.open];
       while (x && !lin.has(x.id)) { lin.add(x.id); x = by[x.parent] }
-      const oe = edge(by[st.open]); if (oe && oe.base) { cmp = oe.base; lin.add(cmp) }
+      const oe = edge(by[st.open]); if (!ref && oe && oe.base) cmp = oe.base;
+      if (cmp) lin.add(cmp);
     }
     const keep = new Set();
-    M.forEach(m => { if (!filtered || st.rest !== 'hide' || hit(m) || pins.has(m.id) || (lin && lin.has(m.id))) { let x = m; while (x && !keep.has(x.id)) { keep.add(x.id); x = by[x.parent] } } });
+    M.forEach(m => { if (!filtered || st.rest !== 'hide' || hit(m) || pins.has(m.id) || (lin && lin.has(m.id)) || m.id === ref) { let x = m; while (x && !keep.has(x.id)) { keep.add(x.id); x = by[x.parent] } } });
     const shut = new Set(st.shut || []);
     const kids = {};
     M.forEach(m => { if (keep.has(m.id)) { const p = by[m.parent] ? m.parent : ''; (kids[p] = kids[p] || []).push(m.id) } });
     const rows = [];
-    const walk = (id, depth, lines) => {
-      const m = by[id], k = kids[id] || [], open = !shut.has(id);
-      rows.push({ m, depth, lines, nk: k.length, open });
-      if (open) k.forEach((c, i) => walk(c, depth + 1, [...lines, i < k.length - 1]));
-    };
-    (kids[''] || []).forEach(id => walk(id, 0, []));
+    if (sel) M.forEach(m => { if (pins.has(m.id) || m.id === ref) rows.push({ m, depth: 0, lines: [], nk: 0, open: true }) });
+    else {
+      const walk = (id, depth, lines) => {
+        const m = by[id], k = kids[id] || [], open = !shut.has(id);
+        rows.push({ m, depth, lines, nk: k.length, open });
+        if (open) k.forEach((c, i) => walk(c, depth + 1, [...lines, i < k.length - 1]));
+      };
+      (kids[''] || []).forEach(id => walk(id, 0, []));
+    }
     const nc = 5 + cols.length;
     const badge = s => !s || !s.label ? '' : `<span class="vk-b ${esc(s.state)}">${esc(s.label)}${(s.board || []).length ? ' · ' + esc(s.board.join(' · ')) : (s.entry || []).length ? ' · ' + esc(s.entry.join(' · ')) : ''}</span>`;
+    const blank = (t, title) => cols.map(() => `<td class="vk-d vk-na"${title ? ` title="${esc(title)}"` : ''}>${t}</td>`).join('');
     const trOf = (m, depth, lines, nk, open, tray) => {
       const e = edge(m);
-      const off = e && (st.vs === 'parent' ? !e.vs_parent : !e.vs_base);
-      const g = tray ? '' : lines.map((more, k) => k < depth - 1 ? (more ? `<i class="vk-v" style="--k:${k}"></i>` : '') : `<i class="${more ? 'vk-tee' : 'vk-elb'}" style="--k:${k}"></i>`).join('') +
+      const off = e && e.cells && !ref && (st.vs === 'parent' ? !e.vs_parent : !e.vs_base);
+      const g = tray || sel ? '' : lines.map((more, k) => k < depth - 1 ? (more ? `<i class="vk-v" style="--k:${k}"></i>` : '') : `<i class="${more ? 'vk-tee' : 'vk-elb'}" style="--k:${k}"></i>`).join('') +
         (nk && open ? `<i class="vk-kid" style="--k:${depth}"></i>` : '');
       const dir = dirs[m.dir], c = colour(dir && dir.colour);
       const dim = !tray && ((filtered && !hit(m)) || (lin && !lin.has(m.id)));
-      const kf = !tray && nk;
-      return `<tr class="vk-r${tray ? ' vk-tray' : ''}${dim ? ' vk-dim' : ''}${m.st && m.st.state === 'dropped' ? ' vk-drop' : ''}${!tray && st.open === m.id ? ' vk-on' : ''}" data-vk-row="${esc(m.id)}"${tray ? ` data-vk-jump="${esc(m.id)}"` : ''} style="--d:${tray ? 0 : depth};--c:${c}">` +
+      const kf = !tray && !sel && nk;
+      const mark = tray ? '' : ref && m.id === ref ? '<span class="vk-b vs">every row minus this</span>' : cmp === m.id && st.open ? '<span class="vk-b vs">the open row minus this</span>' : '';
+      const vs = !e ? '–' : e.self ? 'the reference' : e.cells ? esc(e.base_name || e.base_label) : ref ? esc((by[ref] || {}).name || ref) : '–';
+      return `<tr class="vk-r${tray ? ' vk-tray' : ''}${dim ? ' vk-dim' : ''}${m.st && m.st.state === 'dropped' ? ' vk-drop' : ''}${!tray && st.open === m.id ? ' vk-on' : ''}${ref && m.id === ref ? ' vk-ref' : ''}" data-vk-row="${esc(m.id)}"${tray ? ` data-vk-jump="${esc(m.id)}"` : ''} style="--d:${tray || sel ? 0 : depth};--c:${c}">` +
         pinCell(m.id, pins.has(m.id)) + '</td>' +
         `<td class="vk-m">${g}<span class="vk-dot${kf ? ' k' : ''}${kf && !open ? ' shut' : ''}"${kf ? ` data-vk-toggle="${esc(m.id)}" title="${open ? 'fold' : 'open'} its ${nk} branch${nk === 1 ? '' : 'es'}"` : ''}></span>` +
-        `<span class="vk-t"><b>${esc(m.name)}</b>${badge(m.st)}${!tray && cmp === m.id ? '<span class="vk-b vs">the open row minus this</span>' : ''}${kf && !open ? `<span class="vk-b">${nk} folded</span>` : ''}<small>${esc(m.change)}</small></span></td>` +
+        `<span class="vk-t"><b>${esc(m.name)}</b>${badge(m.st)}${mark}${kf && !open ? `<span class="vk-b">${nk} folded</span>` : ''}<small>${esc(m.change)}</small></span></td>` +
         `<td class="vk-tk">${esc(m.task || '')}</td><td class="vk-n" title="${esc(m.date || '')}">${m.first == null ? '–' : m.first === 0 ? 'anchor' : esc(m.first)}</td>` +
-        `<td class="vk-vs${off ? ' off' : ''}" title="${e ? esc(e.base_name || e.base_label) + ' · ' + esc(e.reading) : ''}">${e ? esc(e.base_name || e.base_label) : '–'}</td>` +
-        cols.map((k, i) => dcell(e && e.cells ? e.cells[k] : null, i === 0)).join('') + '</tr>';
+        `<td class="vk-vs${off ? ' off' : ''}" title="${e && e.cells ? esc(e.base_name || e.base_label) + ' · ' + esc(e.reading) : e && e.none ? esc(e.none) : ''}">${vs}</td>` +
+        (!e ? blank('–') : e.self ? blank('0') : e.pending ? blank('…', 'being worked out') : e.none ? blank('–', e.none) :
+          cols.map((k, i) => dcell(e.cells ? e.cells[k] : null, i === 0)).join('')) + '</tr>';
     };
     const body = rows.map(({ m, depth, lines, nk, open }) => {
       const tr = trOf(m, depth, lines, nk, open, false);
@@ -95,40 +118,51 @@
       const dir = dirs[m.dir], c = colour(dir && dir.colour);
       const rd = (m.readings || []).map(r => `<button type="button" class="vk-link" data-vk-link="reading" data-reading="${esc(r.name)}" data-night="${r.night == null ? '' : esc(r.night)}">${esc(r.short)}<small> − ${esc(r.base_name || r.base_label)}${r.night != null ? ' · ' + (r.night ? 'night ' + esc(r.night) : 'anchor') : ''}</small></button>`).join('');
       const ns = (m.nights || []).map(n => `<button type="button" class="vk-link" data-vk-link="night" data-night="${esc(n)}">${n ? 'night ' + esc(n) : 'anchor night'}</button>`).join('');
-      const other = ((m.edges || {})[st.vs === 'parent' ? 'base' : 'parent'] || {})[st.set];
+      const other = ref ? ((m.edges || {}).parent || {})[st.set] : ((m.edges || {})[st.vs === 'parent' ? 'base' : 'parent'] || {})[st.set];
       const ov = x => { const c = x && x.cells && x.cells[cols[0]]; return c && fin(c.d) ? `<b>${sgn(c.d)}${fin(c.bar) && Math.abs(c.d) > c.bar ? (c.d > 0 ? ' ▲' : ' ▼') : ''}</b>${fin(c.bar) ? ` ± ${c.bar.toFixed(3)}` : ''}` : '–' };
       return tr + `<tr class="vk-x"><td colspan="${nc}"><dl>` +
         (m.parent && by[m.parent] ? `<dt>parent</dt><dd>${esc(by[m.parent].name)}</dd>` : '') +
         `<dt>direction</dt><dd>${dir ? swatch(c) + esc(dir.name) : '–'}${m.task ? ' · ' + esc(m.task) : ''}</dd>` +
         `<dt>first read</dt><dd>${m.first == null ? '–' : m.first === 0 ? 'the anchor night' : 'night ' + esc(m.first)}${m.date ? ' · ' + esc(m.date) : ''}</dd>` +
-        (e ? `<dt>these numbers</dt><dd>${esc(m.name)} minus ${esc(e.base_name || e.base_label)}: ${esc(e.short)} <span class="vk-mi">${esc(e.reading)} · mean of ${esc(e.n)} cell types</span></dd>` : '') +
-        (other && (!e || other.reading !== e.reading) ? `<dt>minus ${esc(other.base_name || other.base_label)}</dt><dd>${esc(cols[0])} ${ov(other)} <span class="vk-mi">${esc(other.reading)} · mean of ${esc(other.n)} cell types</span></dd>` : '') +
+        (e && e.cells ? `<dt>these numbers</dt><dd>${esc(e.short)} <span class="vk-mi">${esc(e.reading)}${e.n ? ' · mean of ' + esc(e.n) + ' cell types' : ''}</span></dd>` : '') +
+        (other && other.cells && (!e || other.reading !== e.reading) ? `<dt>minus ${esc(other.base_name || other.base_label)}</dt><dd>${esc(cols[0])} ${ov(other)} <span class="vk-mi">${esc(other.reading)} · mean of ${esc(other.n)} cell types</span></dd>` : '') +
+        `<dt>compare</dt><dd>${ref === m.id ? '<span class="vk-mi">every row is measured against this one</span>' : `<button type="button" class="vk-link" data-vk-ref="${esc(m.id)}">measure every row against this one</button>`}</dd>` +
         `<dt>readings</dt><dd>${rd || '–'}</dd>${ns ? `<dt>open</dt><dd>${ns}</dd>` : ''}</dl></td></tr>`;
     }).join('');
-    const tray = M.filter(m => pins.has(m.id)).map(m => trOf(m, 0, [], 0, true, true)).join('');
+    const tray = sel ? '' : M.filter(m => pins.has(m.id)).map(m => trOf(m, 0, [], 0, true, true)).join('');
     const present = new Set(M.map(m => m.dir).filter(Boolean));
     const ds = (D.directions || []).filter(d => present.has(d.key));
     const nights = (D.nights || []).slice().sort((a, b) => a.n - b.n);
+    const refMenu = ref ? menu('ref', st, `minus <b>${esc((by[ref] || {}).name || ref)}</b>`, true,
+      M.map(m => `<button type="button" class="vk-opt vk-optb${m.id === ref ? ' on' : ''}" data-vk-ref="${esc(m.id)}">${esc(m.name)}${m.st && m.st.board && m.st.board.length ? ` <span class="vk-mi">${esc(m.st.board.join(' · '))}</span>` : ''}</button>`).join(''), 'vk-refs') : '';
+    const act = `<div class="vk-act">${pins.size ? sureButton('unpin-tree', 'data-vk-unpin="1"', `clear the selection · ${pins.size}`, 'untick every row') : ''}` +
+      sureButton('reset-tree', 'data-vk-reset="tree"', 'reset the view', 'every choice back to its default, the selection too') + '</div>';
     const ctl = `<div class="vk-ctl">` +
       chips('set', 'genes', sets.map(s => ({ v: s.key, t: s.label })), st.set) +
-      chips('vs', 'each row minus', [{ v: 'parent', t: 'its parent' }, { v: 'base', t: 'its night\'s base' }], st.vs) +
-      chips('night', 'night', [{ v: '', t: 'all' }, ...nights.map(x => ({ v: String(x.n), t: x.n ? String(x.n) : 'anchor', title: `${x.name}${x.date ? ' · ' + x.date : ''}${x.title ? ' · ' + x.title : ''}` }))], st.night) +
-      chips('dir', 'direction', [{ v: '', t: 'all' }, ...ds.map(d => ({ v: d.key, t: d.name, sw: swatch(colour(d.colour)) }))], st.dir) +
+      chips('vs', 'each row minus', [{ v: 'parent', t: 'its parent' }, { v: 'base', t: 'its night\'s base' }, { v: 'ref', t: 'one model', title: 'every row against the same model, whatever night each was built on' }], st.vs) + refMenu +
+      chips('show', 'show', [{ v: 'all', t: 'every row' }, { v: 'sel', t: `the selected · ${pins.size}`, title: 'only the rows ticked on the left, against one model' }], sel ? 'sel' : 'all') +
+      (sel ? '' : chips('night', 'night', [{ v: '', t: 'all' }, ...nights.map(x => ({ v: String(x.n), t: x.n ? String(x.n) : 'anchor', title: `${x.name}${x.date ? ' · ' + x.date : ''}${x.title ? ' · ' + x.title : ''}` }))], st.night) +
+        chips('dir', 'direction', [{ v: '', t: 'all' }, ...ds.map(d => ({ v: d.key, t: d.name, sw: swatch(colour(d.colour)) }))], st.dir)) +
       (filtered ? chips('rest', 'the rest', [{ v: 'dim', t: 'dimmed' }, { v: 'hide', t: 'hidden' }], st.rest) : '') +
-      ((st.shut || []).length ? button('data-vk-unfold="1"', 'open every branch') : '') +
-      (pins.size ? button('data-vk-unpin="1"', `unpin ${pins.size}`) : '') +
-      button('data-vk-reset="tree"', 'reset the view', 'every choice back to its default') + '</div>';
+      (!sel && (st.shut || []).length ? button('data-vk-unfold="1"', 'open every branch') : '') + '</div>';
     const th = `<thead><tr><th class="vk-pc"></th><th>model</th><th>task</th><th>night</th><th title="the model each row's numbers are measured against">minus</th>${cols.map(k => `<th class="r">${esc(k)}</th>`).join('')}</tr>${tray}</thead>`;
-    return ctl + (D.how && D.how[st.vs] ? `<div class="vk-lgd">${esc(D.how[st.vs])}</div>` : '') +
+    const how = D.how && D.how[ref ? 'ref' : st.vs];
+    const notes = [...(D.notes || [])];
+    if (ref && R && R.pending) notes.unshift(`working out ${R.pending} more comparison${R.pending === 1 ? '' : 's'} against ${(by[ref] || {}).name || ref}…`);
+    if (ref && R && R.error) notes.unshift(R.error);
+    if (sel && !pins.size) notes.unshift('tick the box on the left of the rows to compare, then show the selected');
+    return act + ctl + (how ? `<div class="vk-lgd">${esc(how)}</div>` : '') +
       `<div class="vk-scroll vk-box"><table class="vk-tree">${th}<tbody>${body}</tbody></table></div>` +
-      (D.notes || []).map(t => `<div class="vk-warn">${esc(t)}</div>`).join('');
+      notes.map(t => `<div class="vk-warn">${esc(t)}</div>`).join('');
   }
 
-  /* ── cuts: a filter typed under a column's name. Numbers: > 0.6, >= 3, < -1, 2..5, = 4, none, any (several at once
-     hold together); a percent column reads its numbers as percents. Words: each must appear, !word must not. Flags:
+  /* ── cuts: a filter typed under a column's name. Numbers: > 0.6, >= 3, < -1, 2..5 or 2 to 5, = 4, none, any (several
+     at once hold together: > 0.3 < 0.5, or joined by & or and); a percent column reads its numbers as percents. Words: each must appear, !word must not. Flags:
      yes or no. Returns a test, null for an empty box, or false for one it cannot read. ── */
   function cutOf(src, kind) {
-    const s = String(src || '').trim().toLowerCase().replace(/[−–]/g, '-').replace(/≥/g, '>=').replace(/≤/g, '<=');
+    const s = String(src || '').trim().toLowerCase().replace(/[−–]/g, '-').replace(/≥/g, '>=').replace(/≤/g, '<=')
+      .replace(/\bbetween\s+(-?\d*\.?\d+)\s+and\s+(-?\d*\.?\d+)/g, '$1..$2').replace(/(-?\d*\.?\d+)\s+to\s+(-?\d*\.?\d+)/g, '$1..$2')
+      .replace(/^(\d*\.?\d+)\s*-\s*(-?\d*\.?\d+)$/, '$1..$2').replace(/\s*(&|\band\b)\s*/g, ',').trim();
     if (!s) return null;
     if (kind === 'flag') return /^(y|yes|1|true|●)$/.test(s) ? v => !!v : /^(n|no|0|false)$/.test(s) ? v => !v : false;
     if (kind === 'num' || kind === 'pct') {
@@ -232,10 +266,10 @@
     const body = rows.map(r => rowHTML(r, false) + (st.open === r.id ? `<tr class="vk-x vk-cardrow"><td colspan="${nf}"><div class="vk-card" data-vk-card="${esc(r.id)}"><div class="vk-mi">loading…</div></div></td></tr>` : '')).join('');
     const tray = (D.rows || []).filter(r => pins.has(r.id)).map(r => rowHTML(r, true)).join('');
     const thc = (c, i, inner, sort) => { const z = fzAt(i); return `<th class="${isNum(c) ? 'r' : ''}${sort && st.sort === c.key ? ' on' : ''}${z.c ? ' ' + z.c : ''}"${z.s ? ` style="${z.s}"` : ''}${sort ? ` data-vk-sort="${esc(c.key)}" title="${esc(c.title || '')}"` : ''}>${inner}</th>` };
-    const th = `<thead><tr class="vk-hr"><th class="vk-pc vk-fz" style="left:0">${pins.size ? `<button type="button" class="vk-x0" data-vk-unpin="1" title="unpin every row">×</button>` : ''}</th>` +
+    const th = `<thead><tr class="vk-hr"><th class="vk-pc vk-fz" style="left:0"></th>` +
       vis.map((c, i) => thc(c, i, `<span class="vk-hl">${esc(c.label)}${st.sort === c.key ? (st.desc ? ' ↓' : ' ↑') : ''}</span>` +
         `<button type="button" class="vk-fzb${i === fz - 1 ? ' on' : ''}" data-vk-freeze="${i + 1}" title="${i === fz - 1 ? 'let these columns scroll' : 'keep the columns up to this one in view'}">⇤</button><span class="vk-rz" data-vk-rz="${esc(c.key)}" title="drag to widen"></span>`, true)).join('') + '</tr>' +
-      `<tr class="vk-cuts"><th class="vk-pc vk-fz" style="left:0"></th>${vis.map((c, i) => thc(c, i, `<input class="vk-cut" data-vk-cut="${esc(c.key)}" value="${esc(st.cut[c.key] || '')}" placeholder="${isNum(c) ? '> <' : c.kind === 'flag' ? 'yes' : 'word'}" title="${isNum(c) ? '> 0.6 · < -1 · >= 3 · 2..5 · none · any' : c.kind === 'flag' ? 'yes or no' : 'a word it holds; !word for one it does not'}" spellcheck="false" autocomplete="off">`, false)).join('')}</tr>` +
+      `<tr class="vk-cuts"><th class="vk-pc vk-fz" style="left:0"></th>${vis.map((c, i) => thc(c, i, `<input class="vk-cut" data-vk-cut="${esc(c.key)}" value="${esc(st.cut[c.key] || '')}" placeholder="${isNum(c) ? '> <' : c.kind === 'flag' ? 'yes' : 'word'}" title="${isNum(c) ? '> 0.6 · < -1 · >= 3 · 0.3..0.5 (between) · > 0.3 < 0.5 · none · any' : c.kind === 'flag' ? 'yes or no' : 'a word it holds; !word for one it does not'}" spellcheck="false" autocomplete="off">`, false)).join('')}</tr>` +
       tray + '</thead>';
     const ctl = `<div class="vk-ctl vk-c1">` + (D.filters || []).map(F => {
       if (!F.multi) return chips('f:' + F.key, F.label, F.options, f[F.key] ?? '');
@@ -244,8 +278,7 @@
         `<label class="vk-opt"><input type="checkbox" data-vk-fv="${esc(F.key)}" data-v=""${sel.length ? '' : ' checked'}> all</label>` +
         F.options.map(o => `<label class="vk-opt"><input type="checkbox" data-vk-fv="${esc(F.key)}" data-v="${esc(o.v)}"${sel.includes(String(o.v)) ? ' checked' : ''}> ${esc(o.t)}</label>`).join(''));
     }).join('') +
-      `<span class="vk-set"><span class="vk-mi">find</span><input type="search" class="vk-q" data-vk-q="1" value="${esc(st.q || '')}" placeholder="${esc(D.search || '')}" spellcheck="false" autocomplete="off"></span>` +
-      button('data-vk-unfilter="1"', 'clear the filters', 'the chips, the menus, the search and every column box') + '</div>';
+      `<span class="vk-set"><span class="vk-mi">find</span><input type="search" class="vk-q" data-vk-q="1" value="${esc(st.q || '')}" placeholder="${esc(D.search || '')}" spellcheck="false" autocomplete="off"></span>` + '</div>';
     const groups = (D.groups || []).concat([{ key: '', label: 'other' }]), shown = new Set(st.cols);
     const colMenu = menu('cols', st, `columns · ${vis.length} of ${cols.length}`, false, groups.map(g => {
       const cs = cols.filter(c => (c.group || '') === g.key); if (!cs.length) return '';
@@ -258,12 +291,15 @@
     const tools = `<div class="vk-ctl vk-c2">` + colMenu +
       `<span class="vk-set" data-vk-set="brush"><span class="vk-mi">paint</span>${Array.from({ length: PAINTS }, (_, k) => `<button type="button" class="vk-chip vk-brush${String(st.brush) === String(k + 1) ? ' on' : ''}" data-v="${k + 1}" title="brush ${k + 1}">${swatch(colour(k + 1))}${pc[k + 1] ? `<span>${pc[k + 1]}</span>` : ''}</button>`).join('')}</span>` +
       button('data-vk-paintall="1"', 'paint the shown', 'paint every row the filters leave with the brush') +
-      (np ? button('data-vk-unpaint="1"', 'clear the paint') : '') +
       (np ? chips('only', 'show', [{ v: '', t: 'all' }, { v: 'any', t: 'painted' }, ...Object.keys(pc).sort().map(n => ({ v: n, t: String(pc[n]), sw: swatch(colour(n)) }))], st.only || '') : '') +
       button('data-vk-copy="1"', `copy the shown ${esc(D.copy || 'ids')}`, 'one per line, in the order shown') +
-      button('data-vk-reset="list"', 'reset the view', 'filters, columns, widths, sort and kept rows back to their defaults; the paint stays') +
       `<span class="vk-mi vk-cnt" data-vk-count="1"></span></div>`;
-    return `<div class="vk-listv">` + ctl + tools + (D.how ? fold('how to read it', `<p class="vk-lgd">${esc(D.how)}</p>`) : '') +
+    const act = `<div class="vk-act">` + (pins.size ? sureButton('unpin-list', 'data-vk-unpin="1"', `clear the selection · ${pins.size}`, 'untick every row kept at the top') : '') +
+      (np ? sureButton('unpaint', 'data-vk-unpaint="1"', `clear the paint · ${np}`, 'take every colour off') : '') +
+      sureButton('unfilter', 'data-vk-unfilter="1"', 'clear the filters', 'the chips, the menus, the search and every column box') +
+      sureButton('reset-list', 'data-vk-reset="list"', 'reset the view', 'filters, columns, widths, sort and the selection back to their defaults; the paint stays') + '</div>';
+    const hint = `<div class="vk-hint">the box under a column: <code>&gt; 0.6</code> above · <code>&lt;= -1</code> at or below · <code>0.3..0.5</code> or <code>0.3 to 0.5</code> between, both ends kept · <code>&gt; 0.3 &lt; 0.5</code> both at once · <code>none</code> blank · <code>any</code> not blank · a word in a text column · <code>yes</code> or <code>no</code> for a flag; every box holds at once</div>`;
+    return `<div class="vk-listv">` + act + ctl + tools + hint + (D.how ? fold('how to read it', `<p class="vk-lgd">${esc(D.how)}</p>`) : '') +
       `<div class="vk-scroll vk-box vk-listwrap"><table class="vk-tree vk-list vk-fixed" style="width:${width}px"><colgroup><col style="width:${PINW}px">${vis.map(c => `<col data-k="${esc(c.key)}" style="width:${wOf(c)}px">`).join('')}</colgroup>${th}<tbody>${body}</tbody></table></div></div>`;
   }
   // typing in the search or a column box narrows the rows in place, so the box keeps its focus
@@ -307,6 +343,16 @@
     const t0 = e.target;
     const close = st.menu && !t0.closest('.vk-menu') ? { menu: '' } : null;
     const done = s => ({ set: Object.assign({}, close, s) });
+    const sure = t0.closest('[data-vk-sure]');
+    if (sure && !armed(sure.dataset.vkSure)) {
+      const k = sure.dataset.vkSure, was = sure.innerHTML;
+      ARMED = { k, t: Date.now() + 3000 }; sure.classList.add('armed'); sure.textContent = 'sure? click again';
+      setTimeout(() => { if (sure.isConnected && !armed(k)) { sure.classList.remove('armed'); sure.innerHTML = was } }, 3050);
+      return { keep: true };
+    }
+    if (sure) ARMED = { k: '', t: 0 };
+    const rf = t0.closest('[data-vk-ref]');
+    if (rf) return { set: { vs: 'ref', ref: rf.dataset.vkRef, menu: '' } };
     const mn = t0.closest('[data-vk-menu]');
     if (mn) { e.preventDefault(); const k = mn.dataset.vkMenu; return { set: { menu: st.menu === k ? '' : k } } }
     const fv = t0.closest('[data-vk-fv]');
@@ -329,16 +375,15 @@
     if (pt) { const id = pt.dataset.vkPaint, b = +st.brush || 1, P = Object.assign({}, st.paint); if (+P[id] === b) delete P[id]; else P[id] = b; return done({ paint: P }) }
     const shownIds = () => { const v = t0.closest('.vk-listv'); return v ? [...v.querySelectorAll('tbody tr[data-vk-row]:not([hidden])')].map(x => x.dataset.vkRow) : [] };
     if (t0.closest('[data-vk-paintall]')) { const b = +st.brush || 1, P = Object.assign({}, st.paint); shownIds().forEach(id => { P[id] = b }); return done({ paint: P }) }
-    const up = t0.closest('[data-vk-unpaint]');
-    if (up) { if (up.dataset.armed) return done({ paint: {}, only: '' });
-      up.dataset.armed = '1'; up.textContent = 'sure? click again'; setTimeout(() => { if (up.isConnected) { delete up.dataset.armed; up.textContent = 'clear the paint' } }, 3000); return { keep: true } }
+    if (t0.closest('[data-vk-unpaint]')) return done({ paint: {}, only: '' });
     if (t0.closest('[data-vk-copy]')) { const ids = shownIds(); return { copy: ids.join('\n'), n: ids.length } }
     if (t0.closest('[data-vk-unfilter]')) return done({ f: {}, cut: {}, q: '', only: '' });
     const fz = t0.closest('[data-vk-freeze]');
     if (fz) { const n = +fz.dataset.vkFreeze; return done({ freeze: +st.freeze === n ? 0 : n }) }
     const c = t0.closest('[data-vk-set] .vk-chip');
-    if (c) { const k = c.parentElement.dataset.vkSet;
-      return done(k.startsWith('f:') ? { f: Object.assign({}, st.f, { [k.slice(2)]: c.dataset.v }) } : { [k]: c.dataset.v }) }
+    if (c) { const k = c.parentElement.dataset.vkSet, v = c.dataset.v;
+      if (k === 'show' && v === 'sel' && st.vs !== 'ref') return done({ show: v, vs: 'ref', ref: '' });   // the selected, on one footing
+      return done(k.startsWith('f:') ? { f: Object.assign({}, st.f, { [k.slice(2)]: v }) } : { [k]: v }) }
     const so = t0.closest('[data-vk-sort]');
     if (so) { const k = so.dataset.vkSort; return done(st.sort === k ? { desc: st.desc ? '' : '1' } : { sort: k, desc: '1' }) }
     if (t0.closest('[data-vk-unfold]')) return done({ shut: [] });
@@ -372,5 +417,5 @@
   }
 
   root.VizKit = { esc, fin, fmt, sgn, minus, chips, swatch, fold, dcell, colour, click, md, cut: cutOf,
-    tree: { html: treeHTML, defaults: TREE }, list: { html: listHTML, filter: listFilter, bind: listBind, defaults: LIST }, card: { html: cardHTML } };
+    tree: { html: treeHTML, ref: treeRef, defaults: TREE }, list: { html: listHTML, filter: listFilter, bind: listBind, defaults: LIST }, card: { html: cardHTML } };
 })(typeof window !== 'undefined' ? window : this);
