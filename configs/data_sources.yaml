@@ -70,7 +70,7 @@ sources:
     record: "27993248.v1"
     dest: external/figshare-27993248
     derived: derived/depmap-24q4             # gene_effect_table.pt, common_essential.tsv + LINEAGE.json
-    budget_gb: 1.1
+    budget_gb: 1.3
     license: CC-BY-4.0
     files:
       # Gene effect: one row per screened model (`ACH-…`), one column per gene.
@@ -88,6 +88,12 @@ sources:
       - name: README.txt
       # Bulk RNA-seq per model, log2(TPM + 1), one column per protein-coding gene.
       - name: OmicsExpressionProteinCodingGenesTPMLogp1.csv
+      # Absolute copy number per gene per model (PureCN), one column per gene.
+      - name: OmicsAbsoluteCNGene.csv
+      # Relative copy ratio per genomic segment per sequencing profile.
+      - name: OmicsCNSegmentsProfile.csv
+      # The default sequencing profile of each model.
+      - name: OmicsDefaultModelProfiles.csv
 
   # ------------ POST-TRANSCRIPTIONAL layer: 3'UTR regulatory grammar ------------
   # Saber's differentiated edge. All directed onto the target gene.
