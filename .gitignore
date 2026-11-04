@@ -69,11 +69,12 @@ site/.hugo_build.lock
 # ---- machine-local ----
 .DS_Store
 .claude/settings.local.json
-# Skills and slash commands describe the structure of the private docs they
+# Skills, subagents and slash commands describe the structure of the private docs they
 # operate on, so they cannot live in the tracked part of .claude/. Note that
 # .claude/settings.json is deliberately NOT ignored -- shared harness config is
 # fine to publish; the procedures that read research/ are not.
 .claude/skills/
+.claude/agents/
 .claude/commands/
 .env
 .env.*

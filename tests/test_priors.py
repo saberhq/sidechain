@@ -206,7 +206,7 @@ def test_graph_builder_keeps_both_sources_of_a_shared_relation():
 # ------------------------------------------------------- the registry file --
 
 
-def test_the_registry_file_loads_as_the_2025_notebook_calls_it():
+def test_the_registry_file_loads_on_an_ensembl_gene_index():
     """`load_registry` on configs/data_sources.yaml: every enabled block names a registered loader."""
     from sidechain.data.registry import load_registry
 

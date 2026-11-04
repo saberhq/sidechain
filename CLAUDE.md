@@ -18,10 +18,9 @@ when you read a file in that folder: open it yourself before touching that tree.
 - `src/sidechain/` — the year-agnostic core: `data/ ingest/ priors/ models/ eval/ submit/ utils/ viz/`.
 - `challenges/vcc2025/`, `vcc2026/` — thin adapters: `config.yaml` + `CLAUDE.md`.
 - `configs/` — `datasets.yaml` (**the corpus registry**: datasets, `route`, `control_label`, budgets);
-  `data_sources.yaml` (the prior registry); `eval.yaml` and `model.yaml` (2025-era).
-- `tests/` — contract tests. `agents/` — the four role briefs (researcher, verifier, analyst, critic), each wired in
-  `.claude/agents/`. `scripts/` — `standings.py`, `lamin_*.py`, `brev_*.sh`, `boxkit/`.
-- `site/` — saberhq.com/sidechain, themeless Hugo (`site/README.md`). `notebooks/` — the 2025 loop.
+  `data_sources.yaml` (the prior registry); `eval.yaml` (2025-era).
+- `tests/` — contract tests. `scripts/` — `standings.py`, `lamin_*.py`, `brev_*.sh`, `boxkit/`.
+- `site/` — saberhq.com/sidechain, themeless Hugo (`site/README.md`).
 
 ## Data lives OUTSIDE the repo
 
@@ -30,7 +29,7 @@ Everything bulky is under `~/data/sidechain/`: `external/<host>-<record>/` is th
 expensive, back it up); plus `vcc2025/`, `vcc2026/`, `cache/`, `runs/`. **A streamed dataset's `external/` dir holds
 only `PROVENANCE.json`: correct, not a failed download.** `route:` and the stream gate: the `configs/datasets.yaml`
 header. **A file that should be there and is not** was archived, not lost: read `~/data/sidechain/README.md`
-§ Backups (Lamin nightly, MEDIA archive, the SSD) before rebuilding or re-downloading anything.
+§ Backups before rebuilding or re-downloading anything.
 
 ## House rules
 
@@ -52,13 +51,12 @@ header. **A file that should be there and is not** was archived, not lost: read 
   edges with `PriorSource.to_edge_index`, never two `to_positions` calls.
 - **Two gene-ID spaces**, declared per year in `challenges/<year>/config.yaml`: 2025 carries Ensembl in
   `var['gene_id']` (18,080 genes); 2026 is symbols only, `var` empty, 18,533 genes. `loaders.gene_index` is strict and
-  raises rather than falling back to `var_names` — that fallback once matched no prior and returned zero edges
-  silently.
+  raises rather than falling back to `var_names`.
 - **`gene_names.csv` differs by year** (2025 no header, 2026 has one): read names from the h5ad;
   `sidechain.data.profile` marks the read that matches.
-- **Read the methods for the control definition; never infer it from the labels.** `control_label` is a list: Feng
-  2026's arm is `[NonTarget, unassigned]`, 499,998 cells, not 48.
-- **Check the minimum before writing "every"** (median 48, minimum 22).
+- **Read the methods for the control definition; never infer it from the labels.** `control_label` is a list: a
+  corpus's control arm can span several labels, and the label that reads like a control may not be it.
+- **Check the minimum before writing "every"**: a median says nothing about the smallest case.
 - **A–F name the challenge's six anonymized contexts and nothing else:** never letter a cell line, fold, bundle or
   corpus. Name it — the fold by its directory (`loco_hek293t_ch272`), the line by its name plus the study where that
   is ambiguous (Jurkat from Nadig 2024). A two-arm comparison (`arm A` vs `arm B`) letters a contrast, not a context,
@@ -69,8 +67,7 @@ header. **A file that should be there and is not** was archived, not lost: read 
 ## Committing
 
 - **Stage by explicit path.** Never `git add -A`, `.`, `-u` or `commit -a`: other sessions' uncommitted work is always
-  in this tree (2026-08-22: one `add -A` swept 44 files of another session's work into a pushed commit). If
-  `git status` shows changes you did not make, leave them alone and say so.
+  in this tree. If `git status` shows changes you did not make, leave them alone and say so.
 - **Never rewrite pushed history.** Commit ids are cited across the project's records; a mistake is fixed in a new
   commit.
 - **Message:** one line, ``<scope>: <what the change does> (T<n>, session `<id>`)``. Never a finding, a measured number
@@ -95,4 +92,3 @@ the session that creates it (`scripts/lamin_register.py` ⇄ `lamin_pull.py`, ke
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | — |
 | a data download, disk, a new corpus, a licence | this file § Data · `configs/datasets.yaml` | — |
 | the website | `site/README.md` | — |
-| an agent's role | `agents/<role>.md` (researcher · verifier · analyst · critic) | its wrapper in `.claude/agents/`, which pins its model |
