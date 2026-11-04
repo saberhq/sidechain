@@ -37,8 +37,6 @@
       "overall": 0.0788,
       "rank": 2,
       "teams": 42,
-      "card": "Rung 1': per-gene log2FC pooled (inverse-variance) over K562 genome-wide + H1 2025 for the targets they cover, gene-wise positive-part shrinkage, re-anchored on each context's control profile; minimum-variance (even-spread) integer cells at control depth; 28 uncovered targets get the H1 mean shift.",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -75,8 +73,6 @@
       "overall": 0.073,
       "rank": 10,
       "teams": 95,
-      "card": "Same transferred log2FCs as SER-1 (K562 genome-wide + H1, inverse-variance pooled, gene-wise shrinkage, alpha=1), emitted as independent Poisson cells at control depth instead of minimum-variance cells. Controlled experiment on emission dispersion.",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -113,8 +109,6 @@
       "overall": 0.0822,
       "rank": 9,
       "teams": 97,
-      "card": "SER-1 with the transferred log2FCs left unshrunk (no gene-wise positive-part shrinkage); minimum-variance cells. Probe: does shrinkage remove small true signals that cosine-PDS needs?",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -151,8 +145,6 @@
       "overall": 0.0937,
       "rank": 25,
       "teams": 216,
-      "card": "SER-2 = cross-line delta transfer, model 2 (named before the knob letters; shrinkage off, as in SER-1n). Borrows each gene's knockdown effect from K562, H1 and the challenge-panel slice of two genome-wide screens in colon and kidney lines \u2014 the first entry to cover all 300 targets \u2014 and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
-      "card_retro": true,
       "class": ""
     },
     {
@@ -189,8 +181,6 @@
       "overall": 0.0963,
       "rank": 54,
       "teams": 301,
-      "card": "SER-3n = cross-line delta transfer, model 3 (n = no shrinkage). The same four sources as SER-2, with the two genome-wide screens read in full \u2014 every gene they measured rather than the challenge panel alone \u2014 re-anchored on the new line's resting state. All models: saberhq.com/sidechain/models/",
-      "card_retro": true,
       "class": ""
     },
     {
@@ -227,8 +217,6 @@
       "overall": 0.1034,
       "rank": 58,
       "teams": 362,
-      "card": "SER-3fn = cross-line delta transfer, model 3 (f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, trusts each source only as far as its cell counts justify, and re-anchors it on the new line's resting state. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -265,8 +253,6 @@
       "overall": 0.0992,
       "rank": 101,
       "teams": 476,
-      "card": "SER-3afgn = cross-line delta transfer, model 3 (a = amplified transfer, f = floored source weights, g = abundance-ratio transfer exponent, n = no shrinkage). SER-3afn with one setting changed: instead of carrying each gene's fold change over unchanged, the borrowed effect is bent toward the new line's own resting abundance of that gene. All models: saberhq.com/sidechain/models/",
-      "card_retro": true,
       "class": ""
     },
     {
@@ -303,8 +289,6 @@
       "overall": 0.1071,
       "rank": 86,
       "teams": 476,
-      "card": "SER-3afn = cross-line delta transfer, model 3 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -341,8 +325,6 @@
       "overall": 0.1078,
       "rank": 85,
       "teams": 481,
-      "card": "SER-4afn = cross-line delta transfer, model 4 (a = amplified transfer, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, and scales it up to reference strength, because those screens silenced their targets only partially. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -379,8 +361,6 @@
       "overall": 0.1075,
       "rank": 114,
       "teams": 533,
-      "card": "SER-5acfnt = weights each source's vote by how well it actually predicts a new cell line, not by how confident it sounds. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -417,8 +397,6 @@
       "overall": -0.9807,
       "rank": 746,
       "teams": null,
-      "card": "PHE-2 = a neural network trained on two cancer cell lines, asked to predict each knockdown's cells directly from an unseen line's untouched controls. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -455,8 +433,6 @@
       "overall": 0.1091,
       "rank": 245,
       "teams": 903,
-      "card": "SER-6aefn = cross-line delta transfer, model 6 (a = amplified transfer, e = emission dial at lambda 0.5, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, scales it to reference strength, and emits cells with half the Poisson spread instead of identical ones -- the one change from SER-4afn. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -493,8 +469,6 @@
       "overall": 0.1131,
       "rank": 314,
       "teams": 1022,
-      "card": "SER-7abefn = cross-line delta transfer, model 7 (a = amplified transfer, b = summed-profile strength set apart, e = emission dial at lambda 0.5, f = floored source weights, n = no shrinkage). Borrows each gene's knockdown response from K562, H1 and two genome-wide screens in colon and kidney lines, as SER-6aefn does; the emitted cells now carry that response at strength 1.5 in their summed profile and 1.35 cell by cell -- the one change from SER-6aefn. All models: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -531,8 +505,6 @@
       "overall": 0.1132,
       "rank": 486,
       "teams": 1225,
-      "card": "Tests whether a knockdown's predicted response improves when it is blended with the responses of the genes nearest to it in Tahoe-x1's gene embedding. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -569,8 +541,6 @@
       "overall": 0.1144,
       "rank": 478,
       "teams": 1224,
-      "card": "Tests whether a knockdown's predicted response improves when it is blended with the responses of its nearest genes in the STRING protein-interaction network. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -607,8 +577,6 @@
       "overall": 0.1353,
       "rank": 403,
       "teams": 1236,
-      "card": "Tests whether predictions improve when each knockdown's summed profile is built on the control profile the scorer itself uses, pooled across control cells so deeper cells count more, instead of an average over cells. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -645,8 +613,6 @@
       "overall": 0.136,
       "rank": 415,
       "teams": 1255,
-      "card": "Tests whether a knockdown's predicted response improves when it is blended with the responses of its nearest genes in the STRING protein-interaction network, on top of the pooled control profile the scorer uses. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -683,8 +649,6 @@
       "overall": 0.1438,
       "rank": 405,
       "teams": 1292,
-      "card": "Tests whether shrinking each borrowed gene change by its own measurement noise, so that a change no larger than its noise is dropped, improves predictions. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -721,8 +685,6 @@
       "overall": 0.136,
       "rank": 443,
       "teams": 1292,
-      "card": "Tests whether predictions improve when each knockdown's summed profile carries the same strength as its individual cells, instead of a stronger one. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -759,8 +721,6 @@
       "overall": 0.1626,
       "rank": 283,
       "teams": 1307,
-      "card": "Tests whether adaptive shrinkage improves predictions: each borrowed gene change is shrunk by how believable it is against all of that knockdown's genes together, instead of dropping changes below a fixed noise threshold. Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -797,8 +757,6 @@
       "overall": -0.0039,
       "rank": 917,
       "teams": 1377,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -835,8 +793,6 @@
       "overall": 0.1423,
       "rank": 471,
       "teams": 1403,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -873,8 +829,6 @@
       "overall": 0.1657,
       "rank": 344,
       "teams": 1408,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -911,8 +865,6 @@
       "overall": 0.1612,
       "rank": 453,
       "teams": 1571,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -949,8 +901,6 @@
       "overall": 0.1684,
       "rank": 426,
       "teams": 1573,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -987,8 +937,6 @@
       "overall": 0.1673,
       "rank": 430,
       "teams": 1589,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": "calibration"
     },
     {
@@ -1025,8 +973,6 @@
       "overall": 0.1757,
       "rank": 382,
       "teams": 1595,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -1063,8 +1009,6 @@
       "overall": 0.1875,
       "rank": 339,
       "teams": 1594,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -1101,8 +1045,6 @@
       "overall": 0.1875,
       "rank": 340,
       "teams": 1597,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     },
     {
@@ -1139,8 +1081,6 @@
       "overall": 0.2226,
       "rank": 221,
       "teams": 1638,
-      "card": "Details on this and every Sidechain model: saberhq.com/sidechain/models/",
-      "card_retro": false,
       "class": ""
     }
   ],

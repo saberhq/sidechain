@@ -113,8 +113,6 @@ def build(src: Path) -> dict[str, object]:
         "built": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "stage_built": str(man.get("built", ""))[:10], "stage_commit": str(man.get("commit", "")),
         "contexts": contexts, "metrics": {m: summ["metrics"][m] for m in metrics},
-        "targets": {"validation": [str(x) for x in summ["targets"].get("validation", [])],
-                    "final": [str(x) for x in summ["targets"].get("final", [])]},
         "palette": {"contexts": {c: {k: pal["contexts"][c][k] for k in ("light", "dark", "marker", "round")} for c in ctxs},
                     "sequential": list(pal["sequential"]), "diverging": {"lfc": pal["diverging"]["lfc"]},
                     "phase": pal["phase"], "clusters": list(pal["clusters"])},
@@ -140,7 +138,7 @@ def vocabulary(files: dict[str, object]) -> set[str]:
     words = set(FIXED_WORDS) | set(idx["metrics"].values())
     words |= {"genes", "context", "n", "metrics", "cat", "levels", "codes", "guide", "phase", "cluster", "cluster_resid",
               "rows", "n_perm", "hvg", "top20_share", "gene", "q", "pca_var", "pca_var_resid", "ctx_codes", "built",
-              "stage_built", "stage_commit", "contexts", "targets", "palette", "sequential", "diverging", "clusters",
+              "stage_built", "stage_commit", "contexts", "palette", "sequential", "diverging", "clusters",
               "marker", "round", "median", "phase_share", *SUMMARY_FIELDS, *GUIDE_FIELDS, *EMBEDDINGS, *GENE_FIELDS}
     words |= set(files["genes.json"]["genes"])
     return words

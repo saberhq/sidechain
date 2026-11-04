@@ -1,60 +1,27 @@
 # site/ — saberhq.com/sidechain
 
-Sidechain's public page: the scored submissions, what the project is, and the write-ups.
-A sibling of [saberhq.com](https://saberhq.com), not a twin — the same type and colours,
-its own wordmark and layout, built and deployed from this repo.
-
-**The layout is a two-column journal** (Saber, 2026-08-23): the work in the left column,
-the writing in a sticky right rail of page and post cards (`.sc-rail` stretches to the row so the cards can stick); no header nav (the hero buttons and footer
-carry the links). The work column is the hero and one section, "Where we stand", in this
-order (Saber, 2026-10-05): the plot (the ledger dashboard's sparkline of rank percentile over
-entries; calibration runs are not plotted; choosing a point shows its model card under the
-plot), two figures at the
-dashboard's sizes (Saber, 2026-10-23: Best with its gap to the score at rank 100, and Latest with the rank the
-leaderboard shows for it in the latest snapshot; the plot's axis counts every validation entry and says how many
-calibration runs it leaves out), the paragraph, a bar per submission, latest first, on an axis marked at every 0.1, whose name opens the rank it
-held when scored and a link to its section on the models page (Saber, 2026-10-23: the model card lives there, once), and the calibration runs in a strip of their own. The hero's line is
-Saber's own (2026-10-23): `tagline` in `content/_index.md`, markdown, while `description` there stays the search and
-link-preview text. The rail, headed "Latest", is one list of posts and standalone pages (Saber, 2026-10-23): any page with `rail: true`
-in its front matter gets a card (`layouts/_partials/page-card.html`, with its `date`, `description`, and optionally
-`card_title`, a one-word `badge` and `cta`). Every card's topline starts with the date and a chip for the kind, BLOG
-POST or INTERACTIVE PAGE, with PINNED at its right end; a `pinned: true` item heads the list, the rest follow
-newest first, five in all. The page ends
-with the posts' own "↑ Back to top".
-What the project is and where its name comes from live in the post "What Sidechain is", not on the
-landing page (Saber, 2026-10-04); since 2026-10-23 the pinned card is "Knobs N' Knockdowns".
-
-**The colour is carmine** (Saber, 2026-10-04): `--accent-2` in the tokens, `#A62B4D` light /
-`#DE5A78` dark, the colour that marks Sidechain on saberhq.com. `assets/site.css` re-points
-`--accent` at it once, so carmine does here what vermillion does on the personal site and
-blue does on its Vibes page — links, section numbers, the wordmark's full stop, the header
-crumb, the posts rail — and the token files stay verbatim copies. Three more colours are
-defined beside it, all measured: `--up`, the green of a figure that rose (`#00734F` /
-`#5DC290`; the figure keeps its sign, because green and carmine sit close for red-green
-colour-blind readers); `--mark`, carmine as a fill — the best bar and the plot's latest point —
-which is the light value in both themes, because the lifted dark carmine reads pink as a
-fill; and `--bar-rest`, the grey of every other bar. Inline code chips are `--chip`, `--mark` at
-half strength, with the theme's ink as text (7.1:1 light, 10:1 dark). Re-measure before substituting any of
-them: 4.5:1 for text on its ground, and the dataviz palette validator for marks.
+Sidechain's public page: the scored submissions, what the project is, and the write-ups. A sibling of
+[saberhq.com](https://saberhq.com): the same type and colours, its own wordmark and layout, built and deployed from
+this repo. Notes: `private/code-notes/site/README.md.md`.
 
 ## How it is built
 
-Themeless [Hugo](https://gohugo.io/). Every template is in `layouts/`; every colour, size
-and font comes from the four token files in `assets/tokens/`, which are **verbatim copies**
-of the personal site's (`~/code/saberhq.github.io/assets/tokens/`). `assets/site.css` builds
-on them: the `sq-` rules are the personal site's own chrome carried over, the `sc-` rules
-are Sidechain's additions.
+Themeless [Hugo](https://gohugo.io/). Every template is in `layouts/`; every colour, size and font comes from the
+four token files in `assets/tokens/`, verbatim copies of saberhq.com's (`scripts/brand_sync.py --check` says whether
+they still match). `assets/site.css` builds on them: the `sq-` rules are saberhq.com's chrome carried over, the `sc-`
+rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which `site.css` re-points
+`--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
 
 ```
 site/
 ├── hugo.toml              baseURL carries the /sidechain/ path
 ├── content/_index.md      landing page copy + the front matter the sections read
 ├── content/posts/         write-ups (markdown; see archetypes/posts.md)
+├── content/*.md           standalone pages: the models page, the control-cells page
 ├── data/                  submissions.json + coverage.json — generated, see below
 ├── layouts/               home, posts list, post, 404; partials, render hooks, shortcodes
-├── assets/                tokens/ (copied from saberhq.com), site.css, standing.js (the
-│                          plot's hover readout), data/field.json — generated, see below
-└── static/                favicon, social card — generated by scripts/wordmark.py
+├── assets/                tokens/, site.css, standing.js, controls.js; data/field.json — generated
+└── static/                favicon and social card (scripts/wordmark.py); data/controls/ — generated
 ```
 
 ## Working on it
@@ -72,10 +39,11 @@ uv run python scripts/brand_sync.py --check  # are the tokens still saberhq.com'
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
 
-### Where posts go
+The preview runs on port 1414 (also in `.claude/launch.json`) because saberhq.com's `hugo server` owns 1313.
 
-**`content/posts/`** — anything published there appears in the landing page's right-hand
-rail (the 5 newest) and on `/posts/` (all of them). Two shapes:
+## Posts and pages
+
+A post goes in `content/posts/`, as a plain file or as a page bundle with its images beside it:
 
 ```
 content/posts/my-post.md              # plain post
@@ -83,101 +51,53 @@ content/posts/my-post/index.md        # page bundle: put its images beside it
 content/posts/my-post/chart.png       #   and reference them as ![x](chart.png)
 ```
 
-`hugo new --source site posts/my-post.md` starts one from the archetype. Front matter:
-`title`, `date`, `description` (the card text and the search snippet — write it for a
-stranger), `draft`, optional `short`, `image`, `links`, and `lastmod` — set it when a
-published post is edited, and the post prints "updated <date>" linked to the file's history
-on GitHub. A ```mermaid fence renders as a
-diagram, and `{{</* corpus */>}}` drops in the corpus-coverage figure.
+Front matter: `title`, `date`, `description` (the card text and the search snippet), `draft`, optional `short`,
+`image`, `links`, and `lastmod` (set it when a published post is edited; the post then prints "updated <date>" linked
+to the file's history). A ```mermaid fence renders as a diagram, and `{{</* corpus */>}}` drops in the
+corpus-coverage figure. Any page with `rail: true` in its front matter gets a card in the landing page's rail
+(`layouts/_partials/page-card.html`: its `date`, `description`, and optionally `card_title`, `badge` and `cta`); a
+`pinned: true` item heads the list.
 
 Two ways a finished post stays invisible, both silent:
 
-- **`draft: true`** — deliberate; flip it to `false` to publish (`hugo server -D` previews).
-- **A `date` in the future (UTC!)** — Hugo drops future-dated content, and because the site
-  only rebuilds when something is pushed, the post stays missing until the *next push after
-  that date*. Late-evening US dates are already tomorrow in UTC. Use today's date or earlier.
+- **`draft: true`**: flip it to `false` to publish (`hugo server -D` previews).
+- **A `date` in the future (UTC)**: Hugo drops future-dated content, and the site only rebuilds on a push, so the
+  post stays missing until the next push after that date. Late-evening US dates are already tomorrow in UTC.
 
-Rough drafts that are not ready to be public belong in `private/site/drafts/` (private repo);
-publishing is a deliberate copy into `content/posts/`, not a sync. The `/post` skill
-(private repo) runs that whole pipeline — sources, voice, banner, publish checks.
+**The photo banner.** `image: cover.jpg` in the front matter, cut to a fixed 5:2 frame by `scripts/banner.py`, which
+also strips EXIF and writes `social.jpg`, the 1.91:1 crop for link previews (list it as `images: [social.jpg]`). The
+caption is the date the photo was taken (`caption: "2024-11-03"`).
 
-**The photo banner.** A post may open with one of Saber's photographs: `image: cover.jpg`
-in the front matter, cut to a fixed 5:2 frame by `scripts/banner.py` (which also strips
-EXIF and writes `social.jpg`, the 1.91:1 crop for link-preview cards — list it as
-`images: [social.jpg]` so LinkedIn picks it over the site-wide `og.png`). The caption is
-the date the photo was taken (`caption: "2024-11-03"`); the fixed frame and the quiet
-dated caption are the visual signature, so don't restyle them per post.
+**Links and images.** Write in-site links root-relative (`[posts](/posts/)`): the `/sidechain/` prefix is added at
+build time for markdown links and images, **not** for raw HTML `<a>`/`<img>`, which must spell out `/sidechain/…`.
 
-Links and images: write in-site links root-relative (`[posts](/posts/)`) — the `/sidechain/`
-prefix is added at build time for markdown links and images, **not** for raw HTML `<a>`/`<img>`,
-which must spell out `/sidechain/…` themselves. Put a post's images beside it in a page
-bundle (`posts/<slug>/index.md` + `cover.jpg`, referenced as `cover.jpg`) or under
-`site/static/images/` (referenced as `/images/x.png`).
+## What is generated
 
-**The standings are generated, never hand-edited.** `scripts/standings.py` derives the
-README table and `data/submissions.json` from `private/submissions/*.status.json` plus the
-board snapshots; `log_submission.py` runs it after recording an entry, so the flow per scored
-submission is: snapshot the board (`python -m sidechain.eval.leaderboard`), log the entry,
-commit, push — the push redeploys the page. Rank rule (Saber, 2026-08-23): the first snapshot
-that contains the entry; the board re-ranks continuously, so a later look is not the rank when
-scored. `--check` on either generator reports drift without writing.
+Never hand-edited; each generator's `--check` reports drift without writing.
 
-**The models page's table is generated too.** `{{</* board */>}}` (`layouts/shortcodes/board.html`)
-draws the leaderboard page's table for Sidechain alone from `data/submissions.json`'s `board`: every
-entry by overall, a calibration run marked with an asterisk, each member scaled over raw and washed
-green or red at the tint the script computed on the leaderboard's own scale (the per-column scale the
-script also computes is the board's S0's, not this page's); a column head sorts the rows. The legend under it says what a
-calibration run is and carries the `calibration-runs` id the landing page links to. The rules are in
-`scripts/standings.py`; the template only paints. `layouts/_markup/render-heading.html` adds "↑ back to top" beside each model heading on that
-page and leaves every other heading alone.
+- **`data/submissions.json` and the README's table**: `scripts/standings.py`, from our submission records and the
+  leaderboard snapshots (`python -m sidechain.eval.leaderboard`). An entry's rank is the one in the first snapshot
+  that contains it. The models page's table (`{{</* board */>}}`) paints the file's `board`; the rules are in the
+  script.
+- **`assets/data/field.json`**: the same script; the number of teams at every snapshot, the scores at ranks 20 and
+  100, and Sidechain's row in the latest one. Re-run the script before a push to bring it current.
+- **`data/coverage.json`**: `uv run python -m sidechain.data.coverage`, from the ingest caches.
+- **`static/data/controls/`**: `uv run python scripts/site_controls.py`, field by field, so nothing the control-cells
+  page does not draw reaches it, and a string outside the page's vocabulary stops the build. With no data on disk
+  the page says so and the build still passes.
 
-**The field is generated too.** The same script writes `assets/data/field.json`: the number of
-teams on the leaderboard at every snapshot we hold (since 2026-08-20; the whole field twice a
-day since 2026-09-15), the score at rank 20 and rank 100 where a snapshot reaches that far,
-and Sidechain's row in the latest whole-field snapshot. The gap to rank 100 and the latest entry's rank
-are read from it at build time (`layouts/_partials/standing.html`); the series itself is kept in
-the repo and drawn nowhere yet. It is a snapshot — the page only rebuilds on a push, and the
-validation board is frozen since the round closed — so `--check` compares it at its as-of time; re-run the script
-before a push to bring it current. The plot is drawn at build time and the rows are
-`<details>`, so the section reads and opens with scripts off; `assets/standing.js` adds the
-plot's readout, the card of a chosen point and the way back to the top.
-
-**Corpus coverage is a shortcode for posts**, not a landing-page section (Saber, 2026-08-23):
-drop `{{</* corpus */>}}` into a post to render the figure from `data/coverage.json`, which
-`uv run python -m sidechain.data.coverage` measures from the ingest caches — re-run it when an
-ingest changes a cache and commit the JSON. With no submission entries the standings section
-says so instead of failing the build.
-
-**The control-cells page is generated too.** `content/vcc2026-control-cells.md` with `layouts/controls.html`, at
-`/vcc2026-control-cells/`: the challenge's control cells, figures first, in the landing page's frame (Saber,
-2026-10-23): three stacked sections in the work column (the maps, UMAP, PCA or QC violins of the same cells, opening on
-all six coloured by cluster; the guides against the shuffles; the highest-expressed genes), the page's prose from the
-markdown body as a fourth, and a sticky rail of the six contexts' medians where the landing page has its posts, one
-quiet row each. A row shows its context in every section and leaves the page where it is; each section head carries
-"↑ back to top". Every visit opens on the same view; the chips are not kept between visits. Its data is written by
-`uv run python scripts/site_controls.py` into `static/data/controls/`, field by field from the private board's built
-`challenge` figure stage, so nothing the page does not draw reaches it, and a string outside the page's vocabulary
-stops the build (`--check` re-reads what is there). The cards are drawn at build time from that directory's
-`index.json`; `assets/controls.js` and `controls.css` load on this page only, with plotly.js from jsdelivr. With no data
-on disk the page says so and the build still passes.
+The plot and the rows are drawn at build time, so the page reads with scripts off; `assets/standing.js` adds the
+plot's readout.
 
 ## How it deploys
 
-`.github/workflows/site.yml` builds `site/` on every push to `main` that touches it and
-publishes with GitHub Pages. GitHub serves a project site under the account's custom
-domain when the user site has one, which is how `saberhq/sidechain` appears at
-`saberhq.com/sidechain` with no change to the personal site's repo. The one-time
-prerequisite is Pages enabled on this repo with *GitHub Actions* as the source — a repo
-setting the workflow token cannot flip itself:
+`.github/workflows/site.yml` builds `site/` on every push to `main` that touches it and publishes with GitHub Pages,
+which serves `saberhq/sidechain` at `saberhq.com/sidechain` under the account's custom domain. The one-time
+prerequisite is Pages enabled on this repo with *GitHub Actions* as the source, a setting the workflow token cannot
+flip itself:
 
 ```bash
 gh api -X POST repos/saberhq/sidechain/pages -f build_type=workflow
 ```
 
-(or Settings → Pages → Source: GitHub Actions). The deploy job fails until that is done.
-
-The preview runs on **port 1414** (also in `.claude/launch.json`) because the personal site's
-`hugo server` owns 1313 — with both running, the two previews sit side by side.
-
-Dark mode follows the personal site's: the `saberhq-theme` key in `localStorage`, which
-both pages share because they share an origin.
+Dark mode follows saberhq.com's: the `saberhq-theme` key in `localStorage`, shared because the two share an origin.

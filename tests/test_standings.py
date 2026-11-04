@@ -138,19 +138,18 @@ def test_pre_divergence_snapshot_without_total_uses_the_embed_count(tmp_path):
     assert (row["rank"], row["teams"]) == (4, 2)
 
 
-def test_a_cardless_entry_takes_the_sidecar_card_and_is_flagged_retro(tmp_path):
-    """A `.card.txt` beside the record supplies a missing card, flagged retro; a board card wins."""
+def test_no_row_carries_the_submit_description(tmp_path):
+    """The description typed at submit, or a `.card.txt` beside the record, never reaches a row."""
     subs, snaps = tmp_path / "subs", tmp_path / "snaps"
     subs.mkdir(); snaps.mkdir()
     snap(snaps, "20260824T2051Z", {"e1": 25, "e2": 26}, total=216)
     status(subs, "2026-08-24", "a_v1", "e1", "2026-08-24T20:10:41Z")
-    (subs / "2026-08-24_a_v1.card.txt").write_text("SER-9 = a retro card.\n")
+    (subs / "2026-08-24_a_v1.card.txt").write_text("SER-9 = a sidecar card.\n")
     status(subs, "2026-08-24", "b_v1", "e2", "2026-08-24T21:00:00Z",
-           description="SER-9 = a live board card.")
-    (subs / "2026-08-24_b_v1.card.txt").write_text("must never be read")
-    retro, live = standings.load_rows(subs, snaps)
-    assert (retro["card"], retro["card_retro"]) == ("SER-9 = a retro card.", True)
-    assert (live["card"], live["card_retro"]) == ("SER-9 = a live board card.", False)
+           description="SER-9 = a board card.")
+    rows = standings.load_rows(subs, snaps)
+    assert all("card" not in r and "card_retro" not in r for r in rows)
+    assert "card" not in json.dumps(rows)
 
 
 def test_a_calibration_run_is_marked_and_stays_in_the_outputs(tmp_path):
