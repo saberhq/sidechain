@@ -133,6 +133,7 @@ def build_transfer_prediction(
     alpha_bulk_target: float | None = None,
     alpha_bulk_floor: float | None = None,
     cell_lfc_map: Path | None = None,
+    emit_workers: int = 1,
 ) -> dict:
     """Predict every non-control perturbation of `real_path` from `sources`; returns the build record."""
     if dual_fallback not in ("template", "anchor", "shrink"):
@@ -182,6 +183,10 @@ def build_transfer_prediction(
 
     def dual(n, d_cell, d_bulk, label, scatter=None):   # called only inside the write loop, after `em` exists
         block = em.emit_dual(n, d_cell, d_bulk, on_fail=on_fail, scatter=scatter, shape=shaped, **pin_kw)
+        note(label, scatter)
+        return block
+
+    def note(label, scatter):
         how = getattr(em, "last_dual", "dual")
         if how in ("anchor", "template"):
             fell_back.setdefault(how, []).append([label, getattr(em, "last_dual_reason", None)])
@@ -195,7 +200,6 @@ def build_transfer_prediction(
             in_shape[label] = bool(em.last_shaped)
             if em.last_shaped and getattr(em, "last_shape_unmet", None) is not None:
                 shape_held[label], shape_unmet[label] = int(em.last_shape_held or 0), int(em.last_shape_unmet)
-        return block
 
     # backed: the control cells are the only rows brought into memory
     real = ad.read_h5ad(real_path, backed="r")
@@ -427,31 +431,47 @@ def build_transfer_prediction(
         out_h5 = open_anndata_h5(path, "w")
         writer = CsrWriter(out_h5, len(axis))
         obs_labels = []
-        for p in perts:
-            d, d0 = (ahead[p] if alpha_bulk_target is not None else ahead.pop(p)) if ahead is not None else predict(p)
-            if d is not None:
-                covered += 1
-            n = cells_per_pert or int((labels == p).sum())
-            if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
-                block = em.emit(n, d)
-            elif d is None:
-                # an uncovered target under the pooled anchor, or under either anchor with
-                # --emit-shape controls: control cells, bulk on the anchor
-                block = dual(n, None, None, p)
-            else:
-                d_bulk = bulk_of(p, d0, a_bulk)
-                if axes_v is not None and (deflated is None or p in deflated):
-                    d_bulk, ctrl_axes_per[p] = deflate_bulk(d_bulk, prof.bulk_fraction, axes_v, ctrl_axes_eta,
-                                                            held=held(p))
-                scatter = None
-                if scatter_of is not None and p in scatter_of:
-                    scatter = np.ones(len(axis))
-                    scatter[scatter_of[p][0]] = scatter_of[p][1]
-                block = dual(n, d, d_bulk, p, scatter)
+
+        def calls():
+            for p in perts:
+                d, d0 = ((ahead[p] if alpha_bulk_target is not None else ahead.pop(p)) if ahead is not None
+                         else predict(p))
+                n = cells_per_pert or int((labels == p).sum())
+                if not two_channel or (d is None and bulk_anchor == "mean_cpm" and not shaped):
+                    yield p, d is not None, ("emit", n, d)
+                elif d is None:
+                    # an uncovered target under the pooled anchor, or under either anchor with
+                    # --emit-shape controls: control cells, bulk on the anchor
+                    yield p, False, ("dual", n, None, None, {"scatter": None})
+                else:
+                    d_bulk = bulk_of(p, d0, a_bulk)
+                    if axes_v is not None and (deflated is None or p in deflated):
+                        d_bulk, ctrl_axes_per[p] = deflate_bulk(d_bulk, prof.bulk_fraction, axes_v, ctrl_axes_eta,
+                                                                held=held(p))
+                    scatter = None
+                    if scatter_of is not None and p in scatter_of:
+                        scatter = np.ones(len(axis))
+                        scatter[scatter_of[p][0]] = scatter_of[p][1]
+                    yield p, True, ("dual", n, d, d_bulk, {"scatter": scatter})
+
+        def emitted():
+            if pool is None:
+                for p, cov, c in calls():
+                    yield p, cov, c, (em.emit(c[1], c[2]) if c[0] == "emit"
+                                      else dual(c[1], c[2], c[3], p, c[4]["scatter"]))
+                return
+            listed = list(calls())
+            for (p, cov, c), block in zip(listed, pool.blocks([c for _, _, c in listed], em)):
+                if c[0] == "dual":
+                    note(p, c[4]["scatter"])
+                yield p, cov, c, block
+
+        for p, cov, c, block in emitted():
+            covered += cov
             writer.append_csr(block)
             if meter is not None:
                 meter.add(p, block)
-            obs_labels += [p] * n
+            obs_labels += [p] * c[1]
         n_rows = writer.close()
         assert n_rows == len(obs_labels), f"{n_rows} rows written, {len(obs_labels)} labels"
         write_frame(out_h5, "obs", np.array([f"pred_{i}" for i in range(n_rows)], dtype=object),
@@ -460,6 +480,10 @@ def build_transfer_prediction(
         out_h5.close()
         return n_rows, writer.nnz
 
+    pool = None
+    if emit_workers > 1 and two_channel:
+        from sidechain.models.emit_pool import EmitPool
+        pool = EmitPool(em, emit_workers, on_fail=on_fail, shape=shaped, **pin_kw).__enter__()
     knee_record = None
     if alpha_bulk_target is None:
         n_rows, nnz = emit_pass(out_path)
@@ -511,12 +535,15 @@ def build_transfer_prediction(
         if not knee_record["met"]:
             print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
                   f"written at alpha_bulk={a:.4f}", flush=True)
+    if pool is not None:
+        pool.__exit__(None, None, None)
     # the per-source shrink overrides sit beside `shrinkage`, aligned with the sources
     # (None: followed the global flag)
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
             "cells": int(n_rows), "genes": len(axis), "dispersion": em.dispersion,
             "nonzeros": int(nnz),
             "emit_lambda": em.lam,
+            **({"emit_workers": emit_workers} if pool is not None else {}),
             "shrinkage": shrinkage,
             # which shrinkage rule and where
             "shrink_k": shrink_k, "shrink_stage": shrink_stage, "shrink_rule": shrink_rule,
@@ -753,6 +780,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--delta-cache-jobs", type=int, default=1, metavar="N",
                     help="--delta-cache-build: processes that pool side by side (default 1)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--emit-workers", type=int, default=1, metavar="N",
+                    help="processes that emit a two-channel prediction's blocks side by side; the cells equal one process's (default 1)")
     ap.add_argument("--de-backend", default="pdex")
     ap.add_argument("--write-degenes", action="store_true", help="keep the scorer's per-gene DE tables under <out>/run/")
     args = ap.parse_args(argv)
@@ -870,6 +899,7 @@ def main(argv: list[str] | None = None) -> int:
                                      alpha_bulk_floor=args.alpha_bulk_floor,
                                      bulk_anchor=args.bulk_anchor,
                                      cells_per_pert=args.cells_per_pert, seed=args.seed,
+                                     emit_workers=args.emit_workers,
                                      min_libsize=args.min_libsize,
                                      log_bias_correct=args.log_bias_correct,
                                      neighbour_table=args.neighbour_table,
