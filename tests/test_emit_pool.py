@@ -6,6 +6,8 @@ Writes temporary files only. Notes: private/code-notes/tests/test_emit_pool.py.m
 """
 from __future__ import annotations
 
+import multiprocessing as mp
+
 import anndata as ad
 import numpy as np
 import pandas as pd
@@ -114,6 +116,53 @@ def test_the_pool_yields_the_serial_blocks_counters_and_stream():
         assert (w != a).nnz == 0 and (w != b).nnz == 0 and w.dtype == a.dtype
     assert {c: getattr(em, c, 0) for c in COUNTERS} == {c: getattr(serial, c, 0) for c in COUNTERS}
     assert em.rng.bit_generator.state == serial.rng.bit_generator.state
+
+
+@pytest.mark.parametrize("workers", [2, 5, 16])
+def test_the_blocks_do_not_depend_on_the_worker_count(workers):
+    rng = np.random.default_rng(4)
+    prof = _profile(rng)
+    calls = _calls(rng, len(prof.genes), k=9)
+    serial = PoissonEmitter(prof, seed=8, lam=0.5, bulk_anchor="pooled")
+    want = [serial.emit(c[1], c[2]) if c[0] == "emit" else serial.emit_dual(c[1], c[2], c[3], on_fail="anchor")
+            for c in calls]
+    with EmitPool(PoissonEmitter(prof, seed=8, lam=0.5, bulk_anchor="pooled"), workers, on_fail="anchor") as pool:
+        got = list(pool.blocks(calls))
+    assert len(got) == len(want) and all((w != g).nnz == 0 for w, g in zip(want, got))
+
+
+def test_a_changed_call_list_or_start_walks_again():
+    rng = np.random.default_rng(6)
+    prof = _profile(rng)
+    calls = _calls(rng, len(prof.genes), k=8)
+    moved = [c if k != 5 else (c[0], c[1], c[2] + 0.25, *c[3:]) for k, c in enumerate(calls)]
+
+    def serial(seed, cs):
+        em = PoissonEmitter(prof, seed=seed, lam=0.5, bulk_anchor="pooled")
+        return [em.emit(c[1], c[2]) if c[0] == "emit" else em.emit_dual(c[1], c[2], c[3], on_fail="anchor")
+                for c in cs]
+
+    with EmitPool(PoissonEmitter(prof, seed=9, lam=0.5, bulk_anchor="pooled"), 3, on_fail="anchor") as pool:
+        first = list(pool.blocks(calls))
+        key = pool._walk[0]
+        second = list(pool.blocks(moved, PoissonEmitter(prof, seed=9, lam=0.5, bulk_anchor="pooled")))
+        assert pool._walk[0] != key
+        third = list(pool.blocks(calls, PoissonEmitter(prof, seed=10, lam=0.5, bulk_anchor="pooled")))
+    for got, want in ((first, serial(9, calls)), (second, serial(9, moved)), (third, serial(10, calls))):
+        assert all((w != g).nnz == 0 for w, g in zip(want, got))
+
+
+def test_a_failed_emission_leaves_no_workers(fold, monkeypatch):
+    tmp, real, sources = fold
+
+    def boom(self, *a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(PoissonEmitter, "emit_dual", boom)
+    with pytest.raises(RuntimeError, match="boom"):
+        loco.build_transfer_prediction(real, sources, tmp / "x.h5ad", **KW, alpha_bulk=6.0, dual_fallback="anchor",
+                                       seed=3, emit_workers=3)
+    assert mp.active_children() == []
 
 
 def test_a_call_that_draws_off_the_walk_is_refused(monkeypatch):

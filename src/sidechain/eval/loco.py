@@ -484,59 +484,61 @@ def build_transfer_prediction(
     if emit_workers > 1 and two_channel:
         from sidechain.models.emit_pool import EmitPool
         pool = EmitPool(em, emit_workers, on_fail=on_fail, shape=shaped, **pin_kw).__enter__()
-    knee_record = None
-    if alpha_bulk_target is None:
-        n_rows, nnz = emit_pass(out_path)
-    else:
-        # the knee rule on this fold's emitted cells (as submit.build's choose_alpha_bulk): each read
-        # writes its file; the read that stops is renamed to the prediction and the others are removed
-        from sidechain.submit.build import KNEE_MAX_READS
-        from sidechain.submit.knee import (AIM_MARGIN, TARGET_SUM, UNDERSHOOT, KneeMeter, knee_keep, knee_next,
-                                           largest_share)
-
-        a, reads = alpha_bulk, []
-        floor = alpha if alpha_bulk_floor is None else alpha_bulk_floor
-        while True:
-            path = out_path.with_name(f"{out_path.stem}.knee{len(reads)}.h5ad")
-            meter = KneeMeter(perts, axis)
-            n_rows, nnz = emit_pass(path, a, meter, fresh=bool(reads))
-            r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0))}
-            reads.append(r)
-            ratio = r["ratio_budget_over_claim"]
-            print(f"  knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
-                  f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {alpha_bulk_target:g})", flush=True)
-            pairs = [(x["alpha_bulk"], x["ratio_budget_over_claim"]) for x in reads]
-            nxt = knee_next(pairs, alpha_bulk_target, floor, alpha_bulk, KNEE_MAX_READS)
-            if nxt is None:
-                break
-            a = nxt
-            path.unlink(missing_ok=True)           # a read that does not stop is not kept: one file on disk at a time
-        kept = knee_keep(pairs, alpha_bulk_target)     # an undershoot stepped back up may keep an earlier read
-        if kept == len(reads) - 1:
-            path.replace(out_path)
+    try:
+        knee_record = None
+        if alpha_bulk_target is None:
+            n_rows, nnz = emit_pass(out_path)
         else:
-            # the last read is over the target and an earlier one is under it: that read is emitted again (the same
-            # seed, so the same cells), so every record of the pass is its own
-            path.unlink(missing_ok=True)
-            n_rows, nnz = emit_pass(out_path, pairs[kept][0], None, fresh=True)
-        a, ratio = pairs[kept]
-        knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
-                       "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
-                       "undershoot": UNDERSHOOT,
-                       **({"alpha_bulk_floor": alpha_bulk_floor} if alpha_bulk_floor is not None else {}),
-                       "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
-                       "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads,
-                       "largest_share": largest_share(reads[kept], alpha_bulk),
-                       **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
-        big = knee_record["largest_share"]
-        if big["warn"]:
-            print(f"  WARNING: {big['knockdown']} carries {big['share']:.1%} of the budget at alpha_bulk={a:.4f}; "
-                  f"without its part the strength would be {big['alpha_bulk_without']:.4f}", flush=True)
-        if not knee_record["met"]:
-            print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
-                  f"written at alpha_bulk={a:.4f}", flush=True)
-    if pool is not None:
-        pool.__exit__(None, None, None)
+            # the knee rule on this fold's emitted cells (as submit.build's choose_alpha_bulk): each read
+            # writes its file; the read that stops is renamed to the prediction and the others are removed
+            from sidechain.submit.build import KNEE_MAX_READS
+            from sidechain.submit.knee import (AIM_MARGIN, TARGET_SUM, UNDERSHOOT, KneeMeter, knee_keep, knee_next,
+                                               largest_share)
+
+            a, reads = alpha_bulk, []
+            floor = alpha if alpha_bulk_floor is None else alpha_bulk_floor
+            while True:
+                path = out_path.with_name(f"{out_path.stem}.knee{len(reads)}.h5ad")
+                meter = KneeMeter(perts, axis)
+                n_rows, nnz = emit_pass(path, a, meter, fresh=bool(reads))
+                r = {"alpha_bulk": a, **meter.read(), "dual_fallbacks": int(getattr(em, "dual_fallbacks", 0))}
+                reads.append(r)
+                ratio = r["ratio_budget_over_claim"]
+                print(f"  knee read {len(reads)}: alpha_bulk={a:.4f} budget {r['budget']:.5f} claim "
+                      f"{r['claim_uncapped']:.5f} ratio {ratio:.4f} (target {alpha_bulk_target:g})", flush=True)
+                pairs = [(x["alpha_bulk"], x["ratio_budget_over_claim"]) for x in reads]
+                nxt = knee_next(pairs, alpha_bulk_target, floor, alpha_bulk, KNEE_MAX_READS)
+                if nxt is None:
+                    break
+                a = nxt
+                path.unlink(missing_ok=True)           # a read that does not stop is not kept: one file on disk at a time
+            kept = knee_keep(pairs, alpha_bulk_target)     # an undershoot stepped back up may keep an earlier read
+            if kept == len(reads) - 1:
+                path.replace(out_path)
+            else:
+                # the last read is over the target and an earlier one is under it: that read is emitted again (the same
+                # seed, so the same cells), so every record of the pass is its own
+                path.unlink(missing_ok=True)
+                n_rows, nnz = emit_pass(out_path, pairs[kept][0], None, fresh=True)
+            a, ratio = pairs[kept]
+            knee_record = {"alpha": alpha, "alpha_bulk_ceiling": alpha_bulk, "alpha_bulk_target": alpha_bulk_target,
+                           "max_reads": KNEE_MAX_READS, "target_sum": TARGET_SUM, "aim_margin": AIM_MARGIN,
+                           "undershoot": UNDERSHOOT,
+                           **({"alpha_bulk_floor": alpha_bulk_floor} if alpha_bulk_floor is not None else {}),
+                           "alpha_bulk": a, "met": bool(ratio <= alpha_bulk_target), "reads": len(reads),
+                           "at_floor": bool(a <= floor), "ratio_budget_over_claim": ratio, "tries": reads,
+                           "largest_share": largest_share(reads[kept], alpha_bulk),
+                           **({"kept_read": kept + 1} if kept != len(reads) - 1 else {})}
+            big = knee_record["largest_share"]
+            if big["warn"]:
+                print(f"  WARNING: {big['knockdown']} carries {big['share']:.1%} of the budget at alpha_bulk={a:.4f}; "
+                      f"without its part the strength would be {big['alpha_bulk_without']:.4f}", flush=True)
+            if not knee_record["met"]:
+                print(f"  WARNING: budget over claim {ratio:.4f} is above the target {alpha_bulk_target:g}; "
+                      f"written at alpha_bulk={a:.4f}", flush=True)
+    finally:
+        if pool is not None:
+            pool.__exit__(None, None, None)
     # the per-source shrink overrides sit beside `shrinkage`, aligned with the sources
     # (None: followed the global flag)
     return {"pred": str(out_path), "perturbations": len(perts), "covered_by_sources": covered,
