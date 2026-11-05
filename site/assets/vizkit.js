@@ -43,7 +43,8 @@
      readings: [{name, night, base_name, short}], edges: {<vs>: {<set>: {reading, base, base_name, vs_parent, vs_base,
      n, cells: {<column>: {d, bar}}, by: {<group>: {n, n_lines, folds, by_type, cells}}}}}}], directions: [{key, name,
      colour}], sets: [{key, label}], columns: [...], groups: [{key, label, title, count}], grp_default, nights: [{n, name,
-     title, date, base}], how: {<vs>: text}, notes: [text], ref_default, ref: {ref, set, pending,
+     title, date, base}], how: {<vs>: text}, notes: [text], ref_default, gain (a host that opens a pair's knockdowns),
+     ref: {ref, set, pending,
      models: {<id>: edge | {self} | {pending} | {none}}}}.
      Models come in display order: depth first, siblings as they should stand. In `ref` mode every row is measured
      against one model (data.ref, fetched by the host for state.ref); `show: 'sel'` draws only the selected rows, flat.
@@ -137,7 +138,8 @@
         `<dt>first read</dt><dd>${m.first == null ? '–' : m.first === 0 ? 'the anchor night' : 'night ' + esc(m.first)}${m.date ? ' · ' + esc(m.date) : ''}</dd>` +
         (e && e.cells ? `<dt>these numbers</dt><dd>${esc(e.short)} <span class="vk-mi">${esc(e.reading)}${e.n ? ` · mean of ${esc(e.n)} ${unit(e)}${e.folds ? ` over ${esc(e.folds.join(', '))}` : ''}` : ''}</span></dd>` : '') +
         (other && other.cells && (!e || other.reading !== e.reading) ? `<dt>minus ${esc(other.base_name || other.base_label)}</dt><dd>${esc(cols[0])} ${ov(other)} <span class="vk-mi">${esc(other.reading)} · mean of ${esc(other.n)} ${unit(other)}</span></dd>` : '') +
-        `<dt>compare</dt><dd>${ref === m.id ? '<span class="vk-mi">every row is measured against this one</span>' : `<button type="button" class="vk-link" data-vk-ref="${esc(m.id)}">measure every row against this one</button>`}</dd>` +
+        `<dt>compare</dt><dd>${ref === m.id ? '<span class="vk-mi">every row is measured against this one</span>' : `<button type="button" class="vk-link" data-vk-ref="${esc(m.id)}">measure every row against this one</button>`}` +
+        (D.gain && e && e.cells && e.base ? ` <button type="button" class="vk-link" data-vk-link="gain" data-a="${esc(m.id)}" data-b="${esc(e.base)}">where its difference from ${esc(e.base_name || e.base_label || e.base)} comes from, knockdown by knockdown</button>` : '') + '</dd>' +
         `<dt>readings</dt><dd>${rd || '–'}</dd>${ns ? `<dt>open</dt><dd>${ns}</dd>` : ''}</dl></td></tr>`;
     }).join('');
     const tray = sel ? '' : M.filter(m => pins.has(m.id)).map(m => trOf(m, 0, [], 0, true, true)).join('');
@@ -402,7 +404,7 @@
     const t = t0.closest('[data-vk-toggle]');
     if (t) { const id = t.dataset.vkToggle, s = new Set(st.shut || []); s.has(id) ? s.delete(id) : s.add(id); return done({ shut: [...s] }) }
     const l = t0.closest('[data-vk-link]');
-    if (l) return { link: { kind: l.dataset.vkLink, reading: l.dataset.reading || '', night: l.dataset.night || '', path: l.dataset.path || '' } };
+    if (l) return { link: { kind: l.dataset.vkLink, reading: l.dataset.reading || '', night: l.dataset.night || '', path: l.dataset.path || '', a: l.dataset.a || '', b: l.dataset.b || '' } };
     const j = t0.closest('[data-vk-jump]');
     if (j) return Object.assign(done({ open: j.dataset.vkJump }), { jump: j.dataset.vkJump });
     if (t0.closest('.vk-x')) return close ? { set: close } : null;
