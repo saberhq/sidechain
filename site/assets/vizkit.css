@@ -132,6 +132,9 @@
 .vk-b.vs { border-color: var(--ink-2, #45403A); color: var(--ink, #191613); background: var(--surface, #FFFFFF); }
 .vk-vs { font-size: 11.5px; color: var(--ink-3, #6F6A62); max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
 .vk-vs.off { color: var(--accent-strong, #B34F00); }
+.vk-ln { text-align: right; font-family: var(--font-mono, ui-monospace, Menlo, monospace); font-size: 11.5px; line-height: 18px; color: var(--ink-2, #4A453E); }
+.vk-ln small { display: block; font-size: 10px; line-height: 1.3; color: var(--ink-4, #9C968D); }
+.vk-ln.short { color: var(--accent-strong, #B34F00); font-weight: 600; }
 .vk-r.vk-on .vk-vs { color: var(--ink, #191613); }
 
 /* the buttons that wipe something: apart, in their own colour, and each asks twice */

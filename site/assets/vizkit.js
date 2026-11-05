@@ -41,17 +41,20 @@
   /* ── tree: rows with a parent, drawn as an indented family tree, numbers against the parent ──
      data: {models: [{id, name, parent, change, task, dir, nights, first, date, st: {state, label, entry, board},
      readings: [{name, night, base_name, short}], edges: {<vs>: {<set>: {reading, base, base_name, vs_parent, vs_base,
-     n, cells: {<column>: {d, bar}}}}}}], directions: [{key, name, colour}], sets: [{key, label}], columns: [...],
-     nights: [{n, name, title, date, base}], how: {<vs>: text}, notes: [text], ref_default, ref: {ref, set, pending,
+     n, cells: {<column>: {d, bar}}, by: {<group>: {n, n_lines, folds, by_type, cells}}}}}}], directions: [{key, name,
+     colour}], sets: [{key, label}], columns: [...], groups: [{key, label, title, count}], grp_default, nights: [{n, name,
+     title, date, base}], how: {<vs>: text}, notes: [text], ref_default, ref: {ref, set, pending,
      models: {<id>: edge | {self} | {pending} | {none}}}}.
      Models come in display order: depth first, siblings as they should stand. In `ref` mode every row is measured
      against one model (data.ref, fetched by the host for state.ref); `show: 'sel'` draws only the selected rows, flat.
      An open row dims every row but the line back to its root and the row its numbers are measured against. */
-  const TREE = { set: '', vs: 'parent', ref: '', show: 'all', night: '', dir: '', rest: 'dim', open: '', shut: [], pin: [], menu: '' };
+  const TREE = { set: '', vs: 'parent', ref: '', show: 'all', night: '', dir: '', grp: '', rest: 'dim', open: '', shut: [], pin: [], menu: '' };
   // the state made whole: the gene set, and in `ref` mode the reference (the first selected row, else the data's default)
   function treeRef(D, st) {
     const M = D.models || [], by = Object.fromEntries(M.map(m => [m.id, m])), sets = D.sets || [];
     if (!sets.some(s => s.key === st.set)) st.set = sets.length ? sets[0].key : '';
+    const gs = D.groups || [];
+    if (gs.length && !gs.some(g => g.key === st.grp)) st.grp = D.grp_default || gs[0].key;
     if (st.vs !== 'ref') return '';
     if (!by[st.ref]) { const p = new Set(st.pin || []); st.ref = (M.find(m => p.has(m.id)) || by[D.ref_default] || M[0] || {}).id || '' }
     return st.ref;
@@ -66,7 +69,9 @@
     const hit = m => (st.night === '' || (m.nights || []).map(String).includes(String(st.night)) || (nightBase && nightBase.base === m.id)) &&
       (!st.dir || m.dir === st.dir);
     const filtered = !sel && (st.night !== '' || !!st.dir);
-    const edge = m => ref ? (m.id === ref ? { self: true } : R ? R.models[m.id] || { none: 'not in the comparison' } : { pending: true }) : ((m.edges || {})[st.vs] || {})[st.set];
+    const grp = (D.groups || []).find(g => g.key === st.grp);
+    const inGrp = e => !e || !e.by || !grp ? e : e.by[grp.key] ? Object.assign({}, e, e.by[grp.key]) : { none: `not read on ${grp.label}` };
+    const edge = m => inGrp(ref ? (m.id === ref ? { self: true } : R ? R.models[m.id] || { none: 'not in the comparison' } : { pending: true }) : ((m.edges || {})[st.vs] || {})[st.set]);
     let lin = null, cmp = ref;
     if (!sel && st.open && by[st.open]) {
       lin = new Set(); let x = by[st.open];
@@ -89,7 +94,13 @@
       };
       (kids[''] || []).forEach(id => walk(id, 0, []));
     }
-    const nc = 5 + cols.length;
+    const ns = rows.map(({ m }) => edge(m)).filter(e => e && e.cells && fin(e.n)).map(e => e.n);
+    const most = ns.length ? Math.max(...ns) : 0;
+    const showN = !!grp && (!!grp.count || ns.some(n => n < most));
+    const unit = e => e.by_type === false ? 'lines' : 'cell types';
+    const nCell = e => !showN ? '' : !e || !e.cells || !fin(e.n_lines) ? `<td class="vk-ln vk-na">${e && e.pending ? '…' : e && e.self ? '' : '–'}</td>` :
+      `<td class="vk-ln${e.n < most ? ' short' : ''}" title="${esc((e.folds || []).join(', '))}${e.n < most ? ` · ${e.n} of the ${most} ${unit(e)} other rows have` : ''}">${e.n_lines}${e.by_type !== false ? `<small>${e.n} types</small>` : ''}</td>`;
+    const nc = 5 + cols.length + (showN ? 1 : 0);
     const badge = s => !s || !s.label ? '' : `<span class="vk-b ${esc(s.state)}">${esc(s.label)}${(s.board || []).length ? ' · ' + esc(s.board.join(' · ')) : (s.entry || []).length ? ' · ' + esc(s.entry.join(' · ')) : ''}</span>`;
     const blank = (t, title) => cols.map(() => `<td class="vk-d vk-na"${title ? ` title="${esc(title)}"` : ''}>${t}</td>`).join('');
     const trOf = (m, depth, lines, nk, open, tray) => {
@@ -108,7 +119,7 @@
         `<span class="vk-t"><b>${esc(m.name)}</b>${badge(m.st)}${mark}${kf && !open ? `<span class="vk-b">${nk} folded</span>` : ''}<small>${esc(m.change)}</small></span></td>` +
         `<td class="vk-tk">${esc(m.task || '')}</td><td class="vk-n" title="${esc(m.date || '')}">${m.first == null ? '–' : m.first === 0 ? 'anchor' : esc(m.first)}</td>` +
         `<td class="vk-vs${off ? ' off' : ''}" title="${e && e.cells ? esc(e.base_name || e.base_label) + ' · ' + esc(e.reading) : e && e.none ? esc(e.none) : ''}">${vs}</td>` +
-        (!e ? blank('–') : e.self ? blank('0') : e.pending ? blank('…', 'being worked out') : e.none ? blank('–', e.none) :
+        nCell(e) + (!e ? blank('–') : e.self ? blank('0') : e.pending ? blank('…', 'being worked out') : e.none ? blank('–', e.none) :
           cols.map((k, i) => dcell(e.cells ? e.cells[k] : null, i === 0)).join('')) + '</tr>';
     };
     const body = rows.map(({ m, depth, lines, nk, open }) => {
@@ -118,14 +129,14 @@
       const dir = dirs[m.dir], c = colour(dir && dir.colour);
       const rd = (m.readings || []).map(r => `<button type="button" class="vk-link" data-vk-link="reading" data-reading="${esc(r.name)}" data-night="${r.night == null ? '' : esc(r.night)}">${esc(r.short)}<small> − ${esc(r.base_name || r.base_label)}${r.night != null ? ' · ' + (r.night ? 'night ' + esc(r.night) : 'anchor') : ''}</small></button>`).join('');
       const ns = (m.nights || []).map(n => `<button type="button" class="vk-link" data-vk-link="night" data-night="${esc(n)}">${n ? 'night ' + esc(n) : 'anchor night'}</button>`).join('');
-      const other = ref ? ((m.edges || {}).parent || {})[st.set] : ((m.edges || {})[st.vs === 'parent' ? 'base' : 'parent'] || {})[st.set];
+      const other = inGrp(ref ? ((m.edges || {}).parent || {})[st.set] : ((m.edges || {})[st.vs === 'parent' ? 'base' : 'parent'] || {})[st.set]);
       const ov = x => { const c = x && x.cells && x.cells[cols[0]]; return c && fin(c.d) ? `<b>${sgn(c.d)}${fin(c.bar) && Math.abs(c.d) > c.bar ? (c.d > 0 ? ' ▲' : ' ▼') : ''}</b>${fin(c.bar) ? ` ± ${c.bar.toFixed(3)}` : ''}` : '–' };
       return tr + `<tr class="vk-x"><td colspan="${nc}"><dl>` +
         (m.parent && by[m.parent] ? `<dt>parent</dt><dd>${esc(by[m.parent].name)}</dd>` : '') +
         `<dt>direction</dt><dd>${dir ? swatch(c) + esc(dir.name) : '–'}${m.task ? ' · ' + esc(m.task) : ''}</dd>` +
         `<dt>first read</dt><dd>${m.first == null ? '–' : m.first === 0 ? 'the anchor night' : 'night ' + esc(m.first)}${m.date ? ' · ' + esc(m.date) : ''}</dd>` +
-        (e && e.cells ? `<dt>these numbers</dt><dd>${esc(e.short)} <span class="vk-mi">${esc(e.reading)}${e.n ? ' · mean of ' + esc(e.n) + ' cell types' : ''}</span></dd>` : '') +
-        (other && other.cells && (!e || other.reading !== e.reading) ? `<dt>minus ${esc(other.base_name || other.base_label)}</dt><dd>${esc(cols[0])} ${ov(other)} <span class="vk-mi">${esc(other.reading)} · mean of ${esc(other.n)} cell types</span></dd>` : '') +
+        (e && e.cells ? `<dt>these numbers</dt><dd>${esc(e.short)} <span class="vk-mi">${esc(e.reading)}${e.n ? ` · mean of ${esc(e.n)} ${unit(e)}${e.folds ? ` over ${esc(e.folds.join(', '))}` : ''}` : ''}</span></dd>` : '') +
+        (other && other.cells && (!e || other.reading !== e.reading) ? `<dt>minus ${esc(other.base_name || other.base_label)}</dt><dd>${esc(cols[0])} ${ov(other)} <span class="vk-mi">${esc(other.reading)} · mean of ${esc(other.n)} ${unit(other)}</span></dd>` : '') +
         `<dt>compare</dt><dd>${ref === m.id ? '<span class="vk-mi">every row is measured against this one</span>' : `<button type="button" class="vk-link" data-vk-ref="${esc(m.id)}">measure every row against this one</button>`}</dd>` +
         `<dt>readings</dt><dd>${rd || '–'}</dd>${ns ? `<dt>open</dt><dd>${ns}</dd>` : ''}</dl></td></tr>`;
     }).join('');
@@ -140,12 +151,13 @@
     const ctl = `<div class="vk-ctl">` +
       chips('set', 'genes', sets.map(s => ({ v: s.key, t: s.label })), st.set) +
       chips('vs', 'each row minus', [{ v: 'parent', t: 'its parent' }, { v: 'base', t: 'its night\'s base' }, { v: 'ref', t: 'one model', title: 'every row against the same model, whatever night each was built on' }], st.vs) + refMenu +
+      ((D.groups || []).length ? chips('grp', 'lines in the mean', D.groups.map(g => ({ v: g.key, t: g.label, title: g.title })), st.grp) : '') +
       chips('show', 'show', [{ v: 'all', t: 'every row' }, { v: 'sel', t: `the selected · ${pins.size}`, title: 'only the rows ticked on the left, against one model' }], sel ? 'sel' : 'all') +
       (sel ? '' : chips('night', 'night', [{ v: '', t: 'all' }, ...nights.map(x => ({ v: String(x.n), t: x.n ? String(x.n) : 'anchor', title: `${x.name}${x.date ? ' · ' + x.date : ''}${x.title ? ' · ' + x.title : ''}` }))], st.night) +
         chips('dir', 'direction', [{ v: '', t: 'all' }, ...ds.map(d => ({ v: d.key, t: d.name, sw: swatch(colour(d.colour)) }))], st.dir)) +
       (filtered ? chips('rest', 'the rest', [{ v: 'dim', t: 'dimmed' }, { v: 'hide', t: 'hidden' }], st.rest) : '') +
       (!sel && (st.shut || []).length ? button('data-vk-unfold="1"', 'open every branch') : '') + '</div>';
-    const th = `<thead><tr><th class="vk-pc"></th><th>model</th><th>task</th><th>night</th><th title="the model each row's numbers are measured against">minus</th>${cols.map(k => `<th class="r">${esc(k)}</th>`).join('')}</tr>${tray}</thead>`;
+    const th = `<thead><tr><th class="vk-pc"></th><th>model</th><th>task</th><th>night</th><th title="the model each row's numbers are measured against">minus</th>${showN ? '<th class="r" title="the held-out lines behind each row\'s mean; hover a cell for their names">lines</th>' : ''}${cols.map(k => `<th class="r">${esc(k)}</th>`).join('')}</tr>${tray}</thead>`;
     const how = D.how && D.how[ref ? 'ref' : st.vs];
     const notes = [...(D.notes || [])];
     if (ref && R && R.pending) notes.unshift(`working out ${R.pending} more comparison${R.pending === 1 ? '' : 's'} against ${(by[ref] || {}).name || ref}…`);
