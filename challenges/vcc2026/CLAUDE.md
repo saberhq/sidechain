@@ -1,20 +1,16 @@
 # CLAUDE.md — vcc2026 (live track)
 
 The competition we are entering. The spec landed **2026-08-20**; `config.yaml` beside this file
-carries the values, this file carries what will bite you. Verbatim sources:
-`private/research/reading/vcc-2026-spec.md`; the argument: `private/reports/05_vcc2026_kickoff_audit.md`.
-Notes (the numbers and reasoning behind items 4, 8, 9 and 12): `private/code-notes/challenges/vcc2026/CLAUDE.md.md`.
+carries the values, this file carries what will bite you.
+Notes: `private/code-notes/challenges/vcc2026/CLAUDE.md.md`.
 
 ## The shape
 
 - **Zero-shot, multi-context.** Six anonymized cell lines: A/B/C (validation; its board closed 2026-10-21),
   D/E/F (final, released 2026-10-22). **Only D/E/F decide the prizes.** Deadline Nov 5, 23:59 UTC.
-  **The final phase has its own plan, `private/FINAL-PHASE.md`** (T93): the steps from the bundle
-  landing to the last upload, the slot budget, and every "revisit on Oct 22" clause the ledgers
-  carry. Its rules, from Arc's rules page: only the **last** final entry counts, no final
-  leaderboard is shown before the winners and no final score returns to us either (vcc-cli 0.3.0), the final panel is a
-  **different** 300, two a day
-  (`private/research/reading/vcc-2026-final-phase-rules.md`).
+  The final phase's rules, from Arc's rules page: only the **last** final entry counts, no final
+  leaderboard is shown before the winners and no final score returns either (vcc-cli 0.3.0), the
+  final panel is a **different** 300, two a day.
 - Per context you get **18,400 non-targeting control cells** (46 guides × 400, guide in
   `obs['ntc_id']`) and a list of **300 genes to knock down**. For each knockdown you return
   **400 predicted cells, each a full 18,533-gene transcriptome**, raw counts — 360,000 cells
@@ -69,8 +65,8 @@ agent can delete the item; only you can mint or paste the key.
    six contexts and nothing else, so never letter one of our own cell lines, folds, bundles or
    corpora. Name those (`loco_jurkat_rule`, Jurkat from Nadig 2024); a two-arm `arm A`/`arm B`
    contrast is exempt. Inferring which real line a context resembles is a measurement we make,
-   never a licence to rename the context after it — context A stays "context A" even on the day
-   we are confident it is T-lymphoblast.
+   never a licence to rename the context after it: a context keeps its letter whatever line it
+   resembles.
 2. **D/E/F ≠ A/B/C.** The final bundle carries its own labels and its own `pert_counts.csv`;
    carrying validation labels into a final submission is rejected.
 3. **The gene axis is 18,533, not H1's 18,080.** Map the H1 corpus (and every ingested line)
@@ -106,7 +102,7 @@ agent can delete the item; only you can mint or paste the key.
     strips known headers either way; our own readers must check the row count against the h5ad
     (`sidechain.data.profile` prints both reads and marks the right one).
 12. **Panel coverage is per source.** Which corpora cover which of the 300 targets, and where the
-    builder's generic mean-shift fallback fires: the notes file above and `private/reports/06_vcc2026_controls_qc.md` §5.
+    builder's generic mean-shift fallback fires: the notes file above.
 
 ## Packaging and submitting
 
@@ -126,14 +122,8 @@ noise by design — pipeline testing only.
 uv run python -m sidechain.eval.leaderboard            # prints top 20, saves JSON
 ```
 
-Snapshots land in `~/data/sidechain/vcc2026/leaderboards/`. Day 0 (2026-08-20): six entries,
-leader 0.134 with a cross-line pooled delta-transfer model; `mse` was 0 for everyone.
-
-Two directories, on purpose. `leaderboards/` is the post-submit record: `log_submission.py` fills
-it right after one of our entries scores and `scripts/standings.py` reads it for rank-when-scored.
-`leaderboard_watch/` beside it is a twice-daily series from a launchd timer
-(`private/research/protocol/leaderboard_watch.py`: the page embed, the whole field from the page's
-own JSON endpoint, the raw HTML, and the final board once it opens) that `standings.py` never reads.
+Snapshots land in `~/data/sidechain/vcc2026/leaderboards/`, one right after each of our entries
+scores; `scripts/standings.py` reads them for rank-when-scored.
 
 ## Building and submitting a prediction
 
@@ -177,7 +167,7 @@ on Arc's own 0 = mean-response → 1 = replicate scale using cell-eval2's bundle
 ```bash
 # once per held-out line: extract a panel (controls relabelled `non-targeting` -- the competition
 # rule hashes the control label, so this is what makes the bundle rule-exact; the DE backend is
-# not part of the hash, the GPU box only makes it ~40x faster), then build its bundle
+# not part of the hash, the GPU box only makes it faster), then build its bundle
 uv run python -m sidechain.data.stream_subset <line>.h5ad --label-col perturbation --keep panel.csv \
     --control control --relabel-control non-targeting --max-per-label 400 --max-control 10000 --out real.h5ad
 uv run python -m sidechain.eval.mirror2026 bundle --real real.h5ad --out ~/data/sidechain/runs/mirror/<line> \

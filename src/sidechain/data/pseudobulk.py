@@ -3,7 +3,7 @@
     pb = pseudobulk(adata, group_by=["target_gene"], aggregate="sum", min_cells=25, n_bootstrap=0)
     delta = delta_vs_control(pb)          # (perturbations x genes) DataFrame
 
-`aggregate` is 'sum' | 'mean' | 'median'; the knobs mirror configs/model.yaml -> rung1_statistical.pseudobulk.
+`aggregate` is 'sum' | 'mean' | 'median'.
 Reads and writes nothing. Notes: private/code-notes/src/sidechain/data/pseudobulk.py.md
 """
 from __future__ import annotations
