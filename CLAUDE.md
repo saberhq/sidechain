@@ -19,7 +19,7 @@ when you read a file in that folder: open it yourself before touching that tree.
 - `challenges/vcc2025/`, `vcc2026/` — thin adapters: `config.yaml` + `CLAUDE.md`.
 - `configs/` — `datasets.yaml` (**the corpus registry**: datasets, `route`, `control_label`, budgets);
   `data_sources.yaml` (the prior registry); `eval.yaml` (2025-era).
-- `tests/` — contract tests. `scripts/` — `standings.py`, `lamin_*.py`, `brev_*.sh`, `boxkit/`.
+- `tests/` — contract tests. `scripts/` — `standings.py`, `lamin_*.py`, `brev_*.sh`.
 - `site/` — saberhq.com/sidechain, themeless Hugo (`site/README.md`).
 
 ## Data lives OUTSIDE the repo
@@ -86,7 +86,7 @@ the session that creates it (`scripts/lamin_register.py` ⇄ `lamin_pull.py`, ke
 | when the ask is … | read first | then |
 |---|---|---|
 | code: a module, a test, a config | this file + the module you are in | — |
-| score a prediction, build a bundle | `src/sidechain/eval/mirror2026.py` (docstring: `bundle` → `score`; Mac vs box) | `scripts/boxkit/README.md` |
+| score a prediction, build a bundle | `src/sidechain/eval/mirror2026.py` (docstring: `bundle` → `score`; Mac vs box) | — |
 | a challenge year's data, packaging, `vcc submit` | `challenges/<year>/CLAUDE.md` | — |
 | QC on our h5ads, the controls bundle | `challenges/<year>/CLAUDE.md` · `sidechain.data.profile` · `sidechain.ingest.checks` | — |
 | a generic single-cell method: QC, scVI, nf-core, instrument data | `/bio-research:single-cell-rna-qc`, `:scvi-tools`, `:nextflow-development`, `:instrument-data-to-allotrope` | — |
