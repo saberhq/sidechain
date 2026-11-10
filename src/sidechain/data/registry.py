@@ -13,28 +13,12 @@ from pathlib import Path
 import yaml
 
 from sidechain.priors.base import PriorSource
-from sidechain.priors.posttx_mirna import MiRNATargetSource
-from sidechain.priors.posttx_cisbp import CisBPRNASource
-from sidechain.priors.posttx_line_stability import LineStabilitySource
-from sidechain.priors.posttx_mirna_abundance import MiRNAAbundanceSource
-from sidechain.priors.posttx_polya import PolyASiteSource
-from sidechain.priors.posttx_rbp import RBPBindingSource, RBPKnockdownSource
-from sidechain.priors.posttx_stability import MRNAStabilitySource
 from sidechain.utils.paths import resolve_config
 
 logger = logging.getLogger(__name__)
 
 # name in YAML -> class. Register a new loader here (one line).
-LOADERS: dict[str, type[PriorSource]] = {
-    "MiRNATargetSource": MiRNATargetSource,
-    "MRNAStabilitySource": MRNAStabilitySource,
-    "CisBPRNASource": CisBPRNASource,
-    "PolyASiteSource": PolyASiteSource,
-    "LineStabilitySource": LineStabilitySource,
-    "MiRNAAbundanceSource": MiRNAAbundanceSource,
-    "RBPBindingSource": RBPBindingSource,
-    "RBPKnockdownSource": RBPKnockdownSource,
-}
+LOADERS: dict[str, type[PriorSource]] = {}
 
 
 @dataclass(frozen=True)

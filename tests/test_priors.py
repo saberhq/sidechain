@@ -229,19 +229,3 @@ def test_every_registry_block_declares_a_known_layer():
     for spec in cfg["sources"]:
         assert spec["layer"] in get_args(Layer), spec["name"]
         assert spec["kind"] in get_args(Kind), spec["name"]
-
-
-def test_depmap_block_is_pinned_shelved_and_fetchable_through_the_gate():
-    from sidechain.priors.posttx_mirna import spec_from_registry
-
-    spec = spec_from_registry("depmap_24q4_gene_effect")
-    assert spec["kind"] == "node_feature" and spec["layer"] == "phenotype"
-    assert spec["enabled"] is False
-    # a bare Figshare id follows "latest"; the `.v<n>` suffix is the pin
-    assert spec["host"] == "figshare" and spec["record"] == "27993248.v1"
-    assert spec["license"] == "CC-BY-4.0" and "allow_missing_checksum" not in spec
-    assert spec["dest"].startswith("external/") and spec["derived"].startswith("derived/")
-    names = [f["name"] for f in spec["files"]]
-    assert {"CRISPRGeneEffect.csv", "CRISPRInferredCommonEssentials.csv",
-            "AchillesCommonEssentialControls.csv", "Model.csv"} <= set(names)
-    assert len(names) == len(set(names))

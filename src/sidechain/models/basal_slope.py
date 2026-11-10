@@ -1,38 +1,9 @@
-"""Rhaister-O's one term for SER: a per-(target, gene) slope of the transferred log2FC on
-the source line's basal expression, read on the held-out line through its own controls (T77).
+"""A per-(target, gene) slope of the transferred log2FC on basal expression, applied as a modifier of the pooled delta.
 
-Rhaister (Svensson 2026) writes its zero-shot prediction for line ``c`` and treatment ``t`` as
-``d(c, t) = mu(t) + gamma(t) . z_c``: the pooled response plus a per-gene slope on the query
-line's basal centroid, the slope shrunk toward zero by empirical Bayes (private
-research/reading/svensson-2026-rhaister.md, socket S3). SER already carries ``mu`` --
-`submit.build.pooled_delta` is the inverse-variance mean of the source lines' log2FCs -- so this
-module adds the slope as a MODIFIER of that delta and nothing else moves. With ``K`` source lines
-measuring target ``p``,
+    fit = fit_basal_slopes(perts, sources, axis, var_floor="poisson")
+    mod = fit.modifier(target_basal(ctrl_cpm, axis, fit.common), mode="gene")
 
-    fc_c(p, g) = beta(p, g) + gamma(p, g) * (x_c(g) - xbar(p, g)) + noise,   Var = var_c(p, g)
-
-is fitted by weighted least squares with the pool's own weights (``1 / var``, the Poisson-floored
-delta-method variance of `_log2fc_with_var`), so the intercept at the weighted-mean basal IS the
-pooled delta, and the held-out line's prediction becomes
-
-    delta(p, g) = pooled(p, g) + gamma~(p, g) * (x_target(g) - xbar(p, g)).
-
-``gamma~ = gamma_hat * tau2_g / (tau2_g + se2)``. With three or four lines per fit the raw slope
-is mostly noise, and the per-gene prior variance ``tau2_g`` is estimated across every fitted
-target by the method of moments (the mean of ``gamma_hat^2 - se2``, floored at 0). A gene whose
-slopes are indistinguishable from their standard errors gets ``tau2 = 0`` and a modifier of
-exactly zero; ``mode="global"`` uses one ``tau2`` for every gene instead. ``mode="shared"`` is the
-lowest-capacity form: ONE slope per gene, pooled over every target (``sum_p sum_c`` in the
-normal equations), shrunk across genes -- "does gene g's response scale with the line's basal
-expression of g, whatever was knocked down".
-
-**Basal expression is comparable across lines on one normalisation only.** Each source publishes
-its control profile as mean per-cell CPM on ITS OWN gene axis (8,248 to 38,584 genes here), so
-one gene reads a different CPM in each line for no biological reason. The fit therefore rescales
-every line so that the genes ALL lines share carry 1e6 CPM in each of them, takes
-``x = log1p`` of that, and rescales the held-out line's controls the same way. A slope is fitted
-wherever at least two lines cover the gene; elsewhere the modifier is zero. Sources that publish
-no control profile (an `LfcTable`) take no part in the fit.
+Reads the sources through `submit.build`; writes nothing. Notes: private/code-notes/src/sidechain/models/basal_slope.py.md
 """
 from __future__ import annotations
 
