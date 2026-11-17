@@ -110,6 +110,9 @@ a.sq-menu-link:hover, .sq-menu-more > summary:hover { color: var(--ink); text-de
   :root { --sq-header-h: 93px; }
   .sq-siteheader-in { flex-wrap: wrap; padding-bottom: 0; padding-left: var(--space-4); padding-right: var(--space-4); }
   .sq-trail, .sq-siteheader-in > .sq-switch { height: 44px; line-height: 44px; }
+  /* A long trail shortens beside the switch rather than taking a row of its own */
+  .sq-trail { flex: 1 1 0%; }
+  .sq-siteheader-in > .sq-fill { display: none; }
   .sq-menu { order: 9; flex: 1 0 100%; flex-wrap: wrap; margin-left: -10px; }
   .sq-menu-more-links { right: auto; left: 0; }
 }
