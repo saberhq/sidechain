@@ -4,9 +4,7 @@
   {{ partial "head.html" . }}
 </head>
 <body class="sq-shell">
-  {{ block "header" . }}
-    {{ partial "site-header.html" (dict "page" . "crumb" "sidechain") }}
-  {{ end }}
+  {{ partial "saberhq/site-header.html" . }}
 
   <main>
     {{ block "main" . }}{{ end }}

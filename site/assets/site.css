@@ -1,11 +1,12 @@
 /* ================================================================
-   Sidechain site styles — built on the Saber HQ design tokens in assets/tokens/
-   (copied verbatim from saberhq.github.io; scripts/brand_sync.py keeps them current).
+   Sidechain site styles — built on the Saber HQ design tokens in assets/tokens/.
+   The header, the post page and the cards are the kit's (header.css, post.css,
+   post-card.css; copied from saberhq.github.io by scripts/kit-pull, never edited here).
 
    Two prefixes. `sq-` rules are the personal site's own, carried over so the two
-   pages share one chrome: header strip, buttons, section openers, cards, tags,
-   article type, footer. `sc-` rules are Sidechain's additions: the wordmark,
-   the standings (stat tiles, bars, tables), the empty states.
+   pages share one chrome: buttons, section openers, listing, footer. `sc-` rules are
+   Sidechain's additions: the wordmark, the standings (stat tiles, bars, tables),
+   the empty states.
 
    Brand rules that apply here: one accent, never a fill — carmine on this site (below);
    Geist for reading, Geist Mono for anything measured; hairline structure, no shadows
@@ -86,34 +87,11 @@ img { max-width: 100%; height: auto; }
   color: var(--ink-3);
 }
 .sq-kicker-accent { color: var(--accent); }
-/* "updated <date>" in a post's kicker: quiet like the rest of the line, a link on hover */
-a.sc-updated, a.sc-updated:visited { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
-a.sc-updated:hover { color: var(--ink); text-decoration-color: currentColor; }
-
-/* ---------- Site header strip ---------- */
-.sq-siteheader { border-bottom: var(--rule-w) solid var(--rule); }
-.sq-siteheader-in {
-  display: flex; align-items: center; flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  min-height: 56px; padding-top: var(--space-2); padding-bottom: var(--space-2);
+/* Text for screen readers only */
+.sq-sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-a.sq-mark, a.sq-mark:visited { font-family: var(--font-pixel); font-size: 18px; font-weight: 400; line-height: 1; color: var(--ink); }
-a.sq-mark:hover { color: var(--ink); }
-.sq-crumb, a.sq-crumb, a.sq-crumb:visited { font-family: var(--font-mono); font-size: var(--label-size); color: var(--ink-3); }
-/* "/ sidechain" wears the site's colour, as "/ vibes" does on the personal site */
-a.sq-crumb, a.sq-crumb:visited { color: var(--accent); }
-a.sq-crumb:hover { color: var(--ink); text-decoration: none; }
-.sq-nav { display: flex; flex-wrap: wrap; gap: var(--space-2) 20px; font-family: var(--font-mono); font-size: var(--label-size); }
-.sq-back { font-family: var(--font-mono); font-size: var(--label-size); }
-.sq-theme-toggle {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--meta-track);
-  background: none; border: var(--rule-w) solid var(--rule); border-radius: var(--radius-sm);
-  color: var(--ink-3); padding: 3px 8px; cursor: pointer;
-  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
-}
-.sq-theme-toggle:hover { border-color: var(--ink-4); color: var(--ink); }
-.sq-theme-toggle::after { content: "DARK"; }
-[data-theme="dark"] .sq-theme-toggle::after { content: "LIGHT"; }
 
 /* ---------- Buttons: primary = solid ink, secondary = hairline. Accent is never a fill. ---------- */
 .sq-btn {
@@ -162,37 +140,6 @@ a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 4
 .sq-glyph { font-family: var(--font-sans), system-ui, sans-serif; font-size: 1.3em; line-height: 1; vertical-align: -0.08em; }
 .sq-btn .sq-glyph { font-size: 1.1em; vertical-align: -0.02em; }
 .sq-glyph--accent { color: var(--accent); }
-
-/* ---------- Cards ---------- */
-.sq-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: 20px; }
-.sq-card {
-  display: block; border: var(--rule-w) solid var(--rule); border-radius: var(--radius);
-  background: var(--surface-card); padding: 14px 16px;
-  color: inherit; text-decoration: none;
-  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
-}
-a.sq-card, a.sq-card:visited { color: inherit; }
-a.sq-card:hover {
-  color: inherit; text-decoration: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-}
-.sq-card-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track); color: var(--ink-3); margin-bottom: 5px; }
-.sq-card-title { font-size: 15px; font-weight: 600; letter-spacing: var(--h3-track); margin-bottom: 4px; color: var(--ink); }
-.sq-card .sq-card-desc {
-  margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; letter-spacing: normal;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.sq-card .sq-card-read { margin: 10px 0 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: normal; color: var(--accent); }
-
-/* ---------- Tags (mono chips; at most one accent per group) ---------- */
-.sq-tag {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: var(--meta-track);
-  padding: 2px 7px; border-radius: var(--radius-sm); line-height: 1.6;
-  color: var(--ink-3); border: var(--rule-w) solid var(--rule); white-space: nowrap;
-}
-.sq-tag--accent { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 
 /* ---------- Where we stand: the plot, then the figures ----------
    Both follow the ledger dashboard's Standing card (Saber, 2026-10-05): its sparkline, and its
@@ -386,124 +333,20 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sq-sitefooter a, .sq-sitefooter a:visited { color: var(--ink-4); }
 .sq-sitefooter a:hover { color: var(--ink); text-decoration: none; }
 
-/* ---------- End-of-article actions ---------- */
-.sq-post-actions {
-  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-5);
-  border-top: var(--rule-w) solid var(--rule);
-  margin-top: var(--space-7); padding: var(--space-4) 0 var(--space-7);
-}
-.sq-action {
-  font-family: var(--font-mono); font-size: var(--label-size); letter-spacing: var(--meta-track);
-  color: var(--ink-3); background: none; border: none; padding: 0; cursor: pointer;
-  transition: color var(--dur) var(--ease);
-}
-.sq-action:hover { color: var(--accent); }
-/* The same action at the foot of the landing page, under both columns. */
+/* ---------- End-of-page action: the post page's back-to-top, at the foot of the landing page, under both columns ---------- */
 .sc-page-actions { grid-column: 1 / -1; margin-top: 0; }
 
-/* ---------- Article ---------- */
-/* The reading column widens with the window, a little under half of it (Saber, 2026-10-21: wider
-   than 720px, narrower than half the window); 800px keeps a line of 17px text near 85 characters. */
-.sq-article-wrap { max-width: clamp(720px, 46vw, 800px); margin: 0 auto; padding: var(--space-8) var(--space-6) 0; }
-.sq-article-title {
-  margin: 14px 0 0;
-  font-size: var(--h1-size); font-weight: 600;
-  letter-spacing: var(--h1-track); line-height: var(--h1-leading); text-wrap: pretty;
-}
-.sq-article-desc { margin: 12px 0 0; font-size: 18px; color: var(--ink-2); }
-.sq-byline { display: flex; align-items: baseline; gap: var(--space-2); margin: 22px 0 30px; font-family: var(--font-mono); font-size: 12px; }
-.sq-byline-author { color: var(--ink-3); }
-.sq-byline-rule { flex: 1; border-top: var(--rule-w) solid var(--rule); }
-.sq-cover { margin: 0 0 34px; }
-.sq-cover img { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: var(--radius); border: var(--rule-w) solid var(--rule); }
-/* The photo banner (scripts/banner.py): above the title, 5:2 frame, dated caption. */
-.sc-banner { margin: 0 0 30px; }
-.sc-banner img { height: auto; aspect-ratio: 5 / 2; }
-.sc-banner { position: relative; }
-.sc-banner .sc-banner-img--light { display: none; }
-:root:not([data-theme="dark"]) .sc-banner--themed .sc-banner-img { display: none; }
-:root:not([data-theme="dark"]) .sc-banner--themed .sc-banner-img--light { display: block; }
-/* The caption (where and when the photo was taken): small italic sans under the photo, right-aligned,
-   so it never reads as the post's mono date line below it. A themed banner shows the caption of
-   the photo in view. */
-.sc-banner-caption {
-  margin-top: 7px; font-family: var(--font-sans); font-style: italic; font-size: 12px; line-height: 1.4;
-  color: var(--ink-3); text-align: right;
-}
-.sc-banner .sc-cap--light { display: none; }
-:root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--dark { display: none; }
-:root:not([data-theme="dark"]) .sc-banner--themed .sc-cap--light { display: inline; }
 /* A card's topline: the date, a chip for the kind, then what follows; PINNED sits at the right end. */
 .sc-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .sc-kind { padding: 0 6px; font-size: 9.5px; line-height: 1.6; }
 .sc-pin { margin-left: auto; color: var(--accent); font-weight: 500; }
 
-/* ---------- Prose (markdown bodies) ---------- */
-/* ---------- Contents rail (posts) ---------- */
-/* After the board's Docs view: a quiet list of the post's sections beside the text, the one in view
-   marked in the accent; above the text as a fold when the window is too narrow for the rail. */
-.sq-article-wrap { position: relative; }
-.sc-toc-rail { display: none; }
-.sc-toc-h { font-family: var(--font-mono); font-size: var(--label-size); letter-spacing: var(--label-track);
-  text-transform: uppercase; color: var(--ink-3); margin: 0 0 10px; }
-.sc-toc-rail ul, .sc-toc-fold ul { list-style: none; margin: 0; padding: 0; }
-.sc-toc-rail a, .sc-toc-fold a { display: block; font-size: 13px; line-height: 1.35; color: var(--ink-3);
-  text-decoration: none; padding: 4px 0 4px 12px; border-left: 1.5px solid var(--rule); }
-.sc-toc-rail ul ul a, .sc-toc-fold ul ul a { padding-left: 24px; font-size: 12.5px; }
-.sc-toc-rail a:hover, .sc-toc-fold a:hover { color: var(--ink); }
-.sc-toc-rail a.on, .sc-toc-fold a.on { color: var(--accent); border-left-color: var(--accent); }
-.sc-toc-fold { margin: 0 0 28px; border: var(--rule-w) solid var(--rule); border-radius: var(--radius); padding: 8px 12px; }
-.sc-toc-fold > summary { cursor: pointer; font-family: var(--font-mono); font-size: var(--label-size);
-  letter-spacing: var(--label-track); text-transform: uppercase; color: var(--ink-3); }
-.sc-toc-fold[open] > summary { margin-bottom: 10px; }
-@media (min-width: 1280px) {
-  .sc-toc-fold { display: none; }
-  .sc-toc-rail { display: block; position: absolute; top: var(--space-8); bottom: 0; left: 100%; width: 210px; }
-  .sc-toc-inner { position: sticky; top: 96px; max-height: calc(100vh - 128px); overflow-y: auto; }
-}
-.sq-prose p { font-size: var(--body-size); line-height: var(--body-leading); letter-spacing: var(--body-track); text-wrap: pretty; margin: 0 0 18px; }
-.sq-prose h1 { font-size: var(--h1-size); font-weight: 600; letter-spacing: var(--h1-track); line-height: var(--h1-leading); margin: 0 0 10px; }
-.sq-prose h2 { font-size: var(--h2-size); font-weight: 600; letter-spacing: var(--h2-track); line-height: var(--h2-leading); margin: 40px 0 14px; }
-.sq-prose h3 { font-size: var(--h3-size); font-weight: 600; letter-spacing: var(--h3-track); line-height: var(--h3-leading); margin: 32px 0 10px; }
-.sq-prose ul, .sq-prose ol { margin: 0 0 18px; padding-left: 22px; }
-.sq-prose li { margin: 4px 0; }
-.sq-prose img { max-width: 100%; height: auto; border: var(--rule-w) solid var(--rule); border-radius: var(--radius); }
-.sq-prose figure { margin: 26px 0; }
-.sq-prose figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); margin-top: var(--space-2); line-height: 1.5; }
-/* `![...](img)` followed by `*Figure N. ...*` reads as the kit's mono caption */
-.sq-prose p:has(> img) + p:has(> em:only-child) {
-  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3);
-  letter-spacing: normal; line-height: 1.5; margin: -10px 0 26px;
-}
-.sq-prose p:has(> img) + p > em:only-child { font-style: normal; }
-.sq-prose code {
-  font-family: var(--font-mono); font-size: 0.92em;
-  background: var(--chip); color: var(--ink); padding: 1px 4px; border-radius: var(--radius-sm);
-}
-.sq-prose pre {
-  background: var(--surface-sunken); border: var(--rule-w) solid var(--rule);
-  border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; margin: 0 0 18px;
-}
-.sq-prose pre code { background: none; padding: 0; font-size: 14px; line-height: 1.55; }
-/* Chroma paints its own background per theme; the brand's sunken surface wins */
-.sq-prose .highlight pre, .sq-prose .chroma { background: var(--surface-sunken); }
+/* ---------- Prose: what the kit's post.css does not hold ---------- */
+/* inline code on the chip keeps the ink, also inside a link */
+.sq-prose code { color: var(--ink); }
 .sq-prose pre.mermaid { background: transparent; border: 0; padding: 0; text-align: center; }
-.sq-prose blockquote { margin: 0 0 18px; padding: 2px 0 2px 16px; border-left: 2px solid var(--rule-strong); color: var(--ink-2); }
-.sq-prose blockquote p:last-child { margin-bottom: 0; }
-.sq-prose hr { border: 0; border-top: var(--rule-w) solid var(--rule); margin: var(--space-6) 0; }
-.sq-prose table { border-collapse: collapse; margin: 0 0 18px; }
 .sq-prose .sc-table-wrap { margin: 0 0 18px; }
 .sq-prose .sc-table-wrap table { margin: 0; }
-.sq-prose th {
-  font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track);
-  font-weight: 500; text-align: left; padding: 6px 12px 6px 0;
-  border-bottom: var(--rule-w-strong) solid var(--rule-strong);
-}
-.sq-prose td { font-size: var(--small-size); padding: 6px 12px 6px 0; border-bottom: var(--rule-w) solid var(--rule); }
-.sq-prose details { margin: 0 0 18px; }
-.sq-prose summary { cursor: pointer; font-weight: 500; }
-/* The template renders the front-matter title; a post that repeats it as a leading H1 loses it */
-.sq-article .sq-prose > h1:first-child { display: none; }
 
 /* ---------- Listing ---------- */
 .sq-listing { padding-top: var(--space-8); padding-bottom: var(--space-8); }
@@ -515,11 +358,10 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 /* ---------- Journal layout (landing): the work left, the writing right ---------- */
 .sc-journal { display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: var(--space-8); align-items: start; }
 .sc-rail { align-self: stretch; padding-top: var(--space-9); }  /* the full row's height, so the cards inside can stick */
-.sc-rail-in { position: sticky; top: var(--space-5); }
+.sc-rail-in { position: sticky; top: calc(var(--sq-header-h, 0px) + var(--space-5)); }
 .sc-rail-head { border-top-color: var(--accent); }
 .sc-rail-head .sq-section-label { color: var(--accent); }
 .sc-rail-cards { display: flex; flex-direction: column; gap: var(--space-4); margin-top: 20px; }
-.sc-rail .sq-card-read, .sq-listing .sq-card-read { color: var(--accent); }
 .sc-rail-empty { margin-top: 20px; }
 .sq-kicker-accent2 { color: var(--accent); }
 
@@ -546,15 +388,11 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 @media (max-width: 900px) {
   .sq-wrap { padding-left: var(--space-4); padding-right: var(--space-4); }
   .sq-hero { padding-top: var(--space-7); padding-bottom: var(--space-7); }
-  .sq-card-grid { grid-template-columns: 1fr 1fr; }
-  .sq-article-wrap { padding-left: var(--space-4); padding-right: var(--space-4); }
   .sc-journal { grid-template-columns: minmax(0, 1fr); }
   .sc-rail { padding-top: 0; }
   .sc-rail-in { position: static; }
 }
 @media (max-width: 600px) {
-  .sq-card-grid { grid-template-columns: 1fr; }
-  .sq-cover img { height: 200px; }
   /* a section head with two asides is wider than a small phone: the asides take the next line */
   .sq-section-head { flex-wrap: wrap; row-gap: 2px; }
   .sc-stat-value { font-size: 17px; }
@@ -566,5 +404,4 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
   .sc-bars--named .sc-bar-row { grid-template-columns: max-content 1fr 56px; gap: 12px; }
   .sc-bars--named .sc-bars-axis .sc-bar-label { font-size: 11px; }
   .sc-entry-body { margin-left: 14px; }
-  .sq-siteheader-in .sq-nav { gap: var(--space-2) 14px; }
 }

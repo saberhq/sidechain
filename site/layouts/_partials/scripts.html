@@ -1,20 +1,5 @@
-{{- /* Theme toggle — any element with data-theme-toggle flips light/dark, persists the
-       choice under the key saberhq.com uses, and keeps the browser-chrome colour in
-       sync (values mirror --paper). */ -}}
-<script>
-document.addEventListener('click', function (e) {
-  var btn = e.target.closest('[data-theme-toggle]');
-  if (!btn) return;
-  var root = document.documentElement;
-  var toDark = root.getAttribute('data-theme') !== 'dark';
-  if (toDark) { root.setAttribute('data-theme', 'dark'); } else { root.removeAttribute('data-theme'); }
-  document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-    m.removeAttribute('media');
-    m.setAttribute('content', toDark ? '#16130F' : '#FAF9F7');
-  });
-  try { localStorage.setItem('saberhq-theme', toDark ? 'dark' : 'light'); } catch (err) {}
-});
-</script>
+{{- /* The theme switch and the header's Elsewhere menu: the kit's. */ -}}
+{{ partial "saberhq/site-scripts.html" . }}
 {{- /* Mermaid, only on pages that contain a ```mermaid fence (the code-block render hook
        sets the flag). Diagrams pick up the page theme at render time. */ -}}
 {{- if .Store.Get "hasMermaid" }}

@@ -7,10 +7,16 @@ this repo. Notes: `private/code-notes/site/README.md.md`.
 ## How it is built
 
 Themeless [Hugo](https://gohugo.io/). Every template is in `layouts/`; every colour, size and font comes from the
-four token files in `assets/tokens/`, verbatim copies of saberhq.com's (`scripts/brand_sync.py --check` says whether
-they still match). `assets/site.css` builds on them: the `sq-` rules are saberhq.com's chrome carried over, the `sc-`
-rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which `site.css` re-points
-`--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
+four token files in `assets/tokens/`. `assets/site.css` builds on them: the `sq-` rules are saberhq.com's chrome
+carried over, the `sc-` rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which
+`site.css` re-points `--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
+
+**The kit.** The header, the post page and the post card are saberhq.com's, shared word for word with it: the
+tokens, `assets/header.css`, `assets/post.css`, `assets/post-card.css`, `data/header.yaml`, `data/areas.yaml` and
+`layouts/_partials/saberhq/`. saberhq.com holds the originals; these are copies, never edited here.
+`../scripts/kit-pull` brings changes in from saberhq.com's `main`, and `../tests/test_site_kit.py` fails when a copy
+differs. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
+loads after it. The kit reads two settings in `hugo.toml`: `params.area` and `params.contentHistory`.
 
 ```
 site/
@@ -18,9 +24,9 @@ site/
 ├── content/_index.md      landing page copy + the front matter the sections read
 ├── content/posts/         write-ups (markdown; see archetypes/posts.md)
 ├── content/*.md           standalone pages: the models page, the control-cells page
-├── data/                  submissions.json + coverage.json — generated, see below
-├── layouts/               home, posts list, post, 404; partials, render hooks, shortcodes
-├── assets/                tokens/, site.css, standing.js, controls.js; data/field.json — generated
+├── data/                  submissions.json + coverage.json — generated, see below; header.yaml + areas.yaml — the kit
+├── layouts/               home, posts list, post, 404; partials (saberhq/ is the kit), render hooks, shortcodes
+├── assets/                tokens/ + header.css, post.css, post-card.css (the kit); site.css, standing.js, controls.js; data/field.json — generated
 └── static/                favicon and social card (scripts/wordmark.py); data/controls/ — generated
 ```
 
@@ -35,7 +41,7 @@ hugo new --source site posts/my-post.md          # a draft post from the archety
 hugo server -D --source site --port 1414         # preview drafts too
 uv run python scripts/wordmark.py            # README wordmark + favicon + social card
 uv run python scripts/banner.py photo.jpg --slug my-post   # post banner from a photo
-uv run python scripts/brand_sync.py --check  # are the tokens still saberhq.com's?
+scripts/kit-pull --check                     # is the kit still saberhq.com's? (without --check: copy it in)
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
 
@@ -52,8 +58,9 @@ content/posts/my-post/chart.png       #   and reference them as ![x](chart.png)
 ```
 
 Front matter: `title`, `date`, `description` (the card text and the search snippet), `draft`, optional `short`,
-`image`, `links`, and `lastmod` (set it when a published post is edited; the post then prints "updated <date>" linked
-to the file's history). A ```mermaid fence renders as a diagram, and `{{</* corpus */>}}` drops in the
+`image` (with `image_alt`, and `image_light`, `image_light_alt`, `caption_light` for a light-theme photo), `caption`,
+`links`, and `lastmod` (set it when a published post is edited; the post then prints "updated <date>" linked to the
+file's history). A ```mermaid fence renders as a diagram, and `{{</* corpus */>}}` drops in the
 corpus-coverage figure. Any page with `rail: true` in its front matter gets a card in the landing page's rail
 (`layouts/_partials/page-card.html`: its `date`, `description`, and optionally `card_title`, `badge` and `cta`); a
 `pinned: true` item heads the list.

@@ -52,7 +52,10 @@
   (resources.Get "tokens/spacing.css")
   (resources.Get "chroma-light.css")
   (resources.Get "chroma-dark.css")
+  (resources.Get "post-card.css")
+  (resources.Get "post.css")
   (resources.Get "site.css")
+  (resources.Get "header.css")
   | resources.Concat "css/sidechain.css" | resources.Minify | resources.Fingerprint "sha384" }}
 <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}" crossorigin="anonymous">
 

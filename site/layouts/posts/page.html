@@ -1,79 +1,12 @@
-{{ define "header" }}
-  {{ $posts := .CurrentSection }}
-  {{ partial "site-header.html" (dict "page" . "crumb" "sidechain" "crumb2" "posts" "back" (dict "href" $posts.RelPermalink "label" "← all posts")) }}
-{{ end }}
-
 {{ define "main" }}
 <article class="sq-article">
   <div class="sq-article-wrap">
-    {{- /* The banner: one of Saber's photographs, above the title on every post that has
-           one. Fixed 5:2 frame (scripts/banner.py cuts it). `image_light`, when a post has one,
-           replaces `image` in the light theme (Saber, 2026-10-21: a photo can suit one theme
-           only), with its own `caption_light`. The caption (where and when the photo was taken) is
-           italic and small under the photo, set apart from the post's own date line. */}}
-    {{ with .Params.image }}
-    {{ $src := . }}
-    {{ with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if strings.HasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
-    {{ $light := "" }}
-    {{ with $.Params.image_light }}{{ $light = . }}{{ with $.Resources.Get . }}{{ $light = .RelPermalink }}{{ end }}{{ end }}
-    {{ $alt := $.Params.image_alt | default $.Title }}
-    {{ $cap := $.Params.caption }}{{ $capLight := $.Params.caption_light }}
-    <figure class="sq-cover sc-banner{{ if $light }} sc-banner--themed{{ end }}">
-      <img class="sc-banner-img" src="{{ $src }}" alt="{{ $alt }}">
-      {{ with $light }}<img class="sc-banner-img sc-banner-img--light" src="{{ . }}" alt="{{ $.Params.image_light_alt | default $alt }}">{{ end }}
-      {{ if or $cap $capLight }}<figcaption class="sc-banner-caption">
-        {{- with $cap }}<span class="sc-cap{{ if and $light $capLight }} sc-cap--dark{{ end }}">{{ . }}</span>{{ end -}}
-        {{- if and $light $capLight }}<span class="sc-cap sc-cap--light">{{ $capLight }}</span>{{ end -}}
-      </figcaption>{{ end }}
-    </figure>
-    {{ end }}
-    {{- /* A post may be edited after it is published: `lastmod` in its front matter prints
-           the date here, linked to the file's history, which is the record of what changed. */}}
-    <div class="sq-kicker"><span class="sq-kicker-accent2">Post</span> · {{ .Date.Format "2006-01-02" }}
-      {{- if and .File (ne (.Lastmod.Format "2006-01-02") (.Date.Format "2006-01-02")) }} · <a class="sc-updated" href="{{ .Site.Params.repo }}/commits/main/site/content/{{ .File.Path }}" target="_blank" rel="noopener">updated {{ .Lastmod.Format "2006-01-02" }}</a>{{ end }} · {{ partial "reading-time.html" . }} min</div>
-    <h1 class="sq-article-title">{{ .Title }}</h1>
-    {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
-    <div class="sq-byline">
-      <span class="sq-byline-author">{{ .Params.author | default .Site.Params.author }}</span>
-      <span class="sq-byline-rule"></span>
-      {{ with .Params.links }}
-        <span class="sq-byline-links">
-          {{ range . }}<a href="{{ .url }}" target="_blank" rel="noopener">[{{ .label }}]</a> {{ end }}
-        </span>
-      {{ end }}
-    </div>
-    {{- /* Contents (Saber, 2026-10-21, after the board's Docs view): the post's sections in a rail to
-           the right of the text, sticky, the section in view marked; a fold above the text when the
-           window is too narrow for the rail. Only for a post with two or more sections. */}}
-    {{- $toc := .TableOfContents }}
-    {{- $n := len (findRE `<li>` $toc) }}
-    {{- if ge $n 2 }}
-    <details class="sc-toc-fold"><summary>Contents · {{ len (findRE `<li>\s*<a` $toc) }}</summary>{{ $toc }}</details>
-    {{- end }}
+    {{ partial "saberhq/post-head.html" . }}
+    {{ partial "saberhq/post-contents.html" . }}
     <div class="sq-prose">
       {{ .Content }}
     </div>
-    {{ partial "post-actions.html" . }}
-    {{- if ge $n 2 }}
-    <aside class="sc-toc-rail" aria-label="Contents"><div class="sc-toc-inner"><div class="sc-toc-h">Contents</div>{{ $toc }}</div></aside>
-    <script>
-    (function () {
-      var links = Array.prototype.slice.call(document.querySelectorAll('.sc-toc-rail a, .sc-toc-fold a'));
-      var ids = [], heads = [];
-      links.forEach(function (a) { var id = decodeURIComponent(a.hash.slice(1)); if (ids.indexOf(id) < 0) { ids.push(id); var h = document.getElementById(id); if (h) heads.push(h); } });
-      if (!heads.length) return;
-      var ticking = false;
-      function mark() {
-        ticking = false;
-        var line = window.innerHeight * 0.25, cur = null;
-        heads.forEach(function (h) { if (h.getBoundingClientRect().top <= line) cur = h; });
-        links.forEach(function (a) { a.classList.toggle('on', !!cur && decodeURIComponent(a.hash.slice(1)) === cur.id); });
-      }
-      window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(mark); } }, { passive: true });
-      mark();
-    })();
-    </script>
-    {{- end }}
+    {{ partial "saberhq/post-actions.html" . }}
   </div>
 </article>
 {{ end }}

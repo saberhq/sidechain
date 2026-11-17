@@ -1,8 +1,8 @@
 # Sidechain's page at saberhq.com/sidechain — a sibling of the personal site, not a twin.
 #
 # Themeless Hugo: every template is in layouts/, every visual value comes from the brand
-# tokens copied verbatim from saberhq.github.io (assets/tokens/, synced by
-# scripts/brand_sync.py). Served by GitHub Pages under the user site's custom domain,
+# tokens copied verbatim from saberhq.github.io (assets/tokens/, part of the kit that
+# scripts/kit-pull copies). Served by GitHub Pages under the user site's custom domain,
 # which is why baseURL carries the /sidechain/ path.
 #
 #   hugo server --source site         # http://localhost:1313/sidechain/
@@ -26,21 +26,8 @@ disableKinds = ["taxonomy", "term"]
   linkedin = "https://www.linkedin.com/in/saberhq"
   challenge = "https://virtualcellchallenge.org/"
   leaderboard = "https://virtualcellchallenge.org/leaderboard"
-
-# Header nav — every link leaves the page, so they open in a new tab.
-[menu]
-  [[menu.main]]
-    name = "GitHub"
-    url = "https://github.com/saberhq/sidechain"
-    weight = 10
-  [[menu.main]]
-    name = "LinkedIn"
-    url = "https://www.linkedin.com/in/saberhq"
-    weight = 20
-  [[menu.main]]
-    name = "Challenge"
-    url = "https://virtualcellchallenge.org/"
-    weight = 30
+  area = "sidechain"               # the kit's kicker word and card chip (data/areas.yaml)
+  contentHistory = "https://github.com/saberhq/sidechain/commits/main/site/content/"  # a post's "updated" link
 
 [markup]
   [markup.goldmark.renderer]
