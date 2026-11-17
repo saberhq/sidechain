@@ -1,0 +1,25 @@
+# The header's menu, left to right (accent: sidechain is carmine, vibes is blue hour),
+# then Elsewhere: Saber on other sites.
+menu:
+  - name: Sidechain
+    url: /sidechain/
+    accent: sidechain
+  - name: Saber Vibes
+    url: /vibes/
+    accent: vibes
+  - name: Blog
+    url: /blog/
+  - name: About
+    url: /about/
+
+elsewhere:
+  - name: GitHub
+    url: https://github.com/saberhq
+  - name: LinkedIn
+    url: https://www.linkedin.com/in/saberhq
+  - name: Scholar
+    url: https://scholar.google.com/citations?user=q2fsO2IAAAAJ&hl=en
+  - name: YouTube
+    url: https://www.youtube.com/@saberhq
+  - name: X
+    url: https://x.com/saberhq

@@ -1,0 +1,3 @@
+{{- /* Minutes to read a post's own text, shortcode calls left out, at 213 words a minute. Context: the page. */ -}}
+{{- $text := replaceRE `\{\{<[^>]*>\}\}` "" .RawContent -}}
+{{- return math.Max 1 (int (math.Ceil (div (float (countwords $text)) 213))) -}}

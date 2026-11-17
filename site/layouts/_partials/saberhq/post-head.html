@@ -1,0 +1,45 @@
+{{- /* The top of a post: cover and caption, kicker, title, description, byline. Context: the page. */ -}}
+{{- with .Params.image }}
+  {{- $src := . }}
+  {{- with $.Resources.Get . }}{{ $src = .RelPermalink }}{{ else }}{{ if hasPrefix $src "/" }}{{ $src = relURL (strings.TrimPrefix "/" $src) }}{{ end }}{{ end }}
+  {{- $light := "" }}
+  {{- with $.Params.image_light }}{{ $light = . }}{{ with $.Resources.Get . }}{{ $light = .RelPermalink }}{{ else }}{{ if hasPrefix $light "/" }}{{ $light = relURL (strings.TrimPrefix "/" $light) }}{{ end }}{{ end }}{{ end }}
+  {{- $alt := $.Params.image_alt | default $.Title }}
+  {{- $cap := $.Params.caption }}{{ $capLight := $.Params.caption_light }}
+<figure class="sq-cover{{ if $light }} sq-cover--themed{{ end }}">
+  <img class="sq-cover-img" src="{{ $src }}" alt="{{ $alt }}">
+  {{- with $light }}
+  <img class="sq-cover-img sq-cover-img--light" src="{{ . }}" alt="{{ $.Params.image_light_alt | default $alt }}">
+  {{- end }}
+  {{- if or $cap $capLight }}
+  <figcaption class="sq-cover-caption">
+    {{- with $cap }}<span class="sq-cover-cap{{ if and $light $capLight }} sq-cover-cap--dark{{ end }}">{{ . }}</span>{{ end -}}
+    {{- if and $light $capLight }}<span class="sq-cover-cap sq-cover-cap--light">{{ $capLight }}</span>{{ end -}}
+  </figcaption>
+  {{- end }}
+</figure>
+{{- end }}
+{{- $area := index site.Data.areas (.Params.area | default site.Params.area | default "") }}
+<div class="sq-kicker">
+  {{- with $area }}<span class="sq-kicker-accent{{ with .accent }} sq-kicker-accent--{{ . }}{{ end }}">{{ .label }}</span>{{ else }}<span class="sq-kicker-accent">Post</span>{{ end }}
+  {{- printf " · %s" (.Date.Format "2006-01-02") }}
+  {{- if and .File (ne (.Lastmod.Format "2006-01-02") (.Date.Format "2006-01-02")) }} · {{ with site.Params.contentHistory -}}
+    <a class="sq-updated" href="{{ . }}{{ $.File.Path }}" target="_blank" rel="noopener">updated {{ $.Lastmod.Format "2006-01-02" }}<span class="sq-sr-only"> (its history on GitHub, opens in a new tab)</span></a>
+  {{- else }}updated {{ .Lastmod.Format "2006-01-02" }}{{ end }}
+  {{- end }} · {{ partial "saberhq/reading-time" . }} min</div>
+<h1 class="sq-article-title">{{ .Title }}</h1>
+{{- with .Description }}
+<p class="sq-article-desc">{{ . }}</p>
+{{- end }}
+<div class="sq-byline">
+  <span class="sq-byline-author">{{ .Params.author | default site.Params.author }}</span>
+  <span class="sq-byline-rule"></span>
+  {{- with .Params.links }}
+  <span class="sq-byline-links">
+    {{- range . }}
+      {{- $new := partial "saberhq/new-tab" .url }}
+    <a href="{{ .url }}"{{ if $new }} target="_blank" rel="noopener"{{ end }}>[{{ .label }}]{{ if $new }}<span class="sq-sr-only"> (opens in a new tab)</span>{{ end }}</a>
+    {{- end }}
+  </span>
+  {{- end }}
+</div>

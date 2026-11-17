@@ -1,0 +1,44 @@
+{{/* Site header: the trail to this page on the left; the menu (data/header.yaml) and the theme switch on the right. Context: the page. */}}
+{{- $here := .RelPermalink }}
+<header class="sq-siteheader">
+  <div class="sq-siteheader-in">
+    <nav class="sq-trail" aria-label="You are here">
+      {{- if ne $here "/" }}
+      <a class="sq-mark" href="/">Saber H.</a>
+      {{- end }}
+      {{- if eq .Kind "404" }}
+      <span class="sq-trail-sep" aria-hidden="true">/</span><span class="sq-trail-here">404</span>
+      {{- else }}
+        {{- $path := "/" }}
+        {{- range split (strings.Trim $here "/") "/" }}{{ with . }}
+          {{- $path = printf "%s%s/" $path . }}
+      <span class="sq-trail-sep" aria-hidden="true">/</span><a class="sq-trail-link" href="{{ $path }}"{{ if eq $path $here }} aria-current="page"{{ end }}>{{ . }}</a>
+        {{- end }}{{ end }}
+      {{- end }}
+    </nav>
+    <span class="sq-fill"></span>
+    <nav class="sq-menu" aria-label="Sections">
+      {{- range site.Data.header.menu }}
+        {{- $cls := "sq-menu-link" }}
+        {{- with .accent }}{{ $cls = printf "%s sq-menu-link--%s" $cls . }}{{ end }}
+      <a class="{{ $cls }}" href="{{ .url }}">{{ .name }}</a>
+      {{- end }}
+      {{- with site.Data.header.elsewhere }}
+      <details class="sq-menu-more">
+        <summary>Elsewhere</summary>
+        <div class="sq-menu-more-links">
+          {{- range . }}
+          <a href="{{ .url }}" target="_blank" rel="noopener">{{ .name }}<span class="sq-sr-only"> (opens in a new tab)</span></a>
+          {{- end }}
+        </div>
+      </details>
+      {{- end }}
+    </nav>
+    <button class="sq-switch" type="button" role="switch" aria-checked="false" aria-label="Dark theme" title="Dark theme" data-theme-toggle>
+      <span class="sq-switch-track" aria-hidden="true"><span class="sq-switch-knob">
+        <svg class="sq-switch-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.8v1.5M8 12.7v1.5M1.8 8h1.5M12.7 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05"/></svg>
+        <svg class="sq-switch-moon" viewBox="0 0 16 16"><path d="M12.9 9.7A5.1 5.1 0 0 1 6.3 3.1a5.1 5.1 0 1 0 6.6 6.6z"/></svg>
+      </span></span>
+    </button>
+  </div>
+</header>

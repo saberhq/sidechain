@@ -5,8 +5,8 @@
   --font-sans: 'Geist', Helvetica, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* web scale (print/resume runs ~25% smaller; see readme). Sidechain reads about an eighth larger than
-     saberhq.com's tokens since 2026-10-20 (Saber: the post text read small; body 15 -> 17px). */
+  /* web scale (print/resume runs ~25% smaller; see readme). Body 17px on Sidechain since 2026-10-20 and on
+     saberhq.com since 2026-10-29 (Saber: the post text read small; body 15 -> 17px). */
   --display-size: 44px;  --display-track: -0.032em; --display-leading: 1.05; /* w600 */
   --h1-size: 33px;       --h1-track: -0.025em;      --h1-leading: 1.15;     /* w600 */
   --h2-size: 23px;       --h2-track: -0.018em;      --h2-leading: 1.25;     /* w600 */

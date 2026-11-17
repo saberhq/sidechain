@@ -1,0 +1,120 @@
+/* The post page: cover, kicker, title, byline, text, end-of-post actions */
+
+/* ---------- The article ---------- */
+/* The reading column widens with the window, a little under half of it */
+.sq-article-wrap { position: relative; max-width: clamp(720px, 46vw, 800px); margin: 0 auto; padding: var(--space-8) var(--space-6) 0; }
+.sq-article-title {
+  margin: 14px 0 0;
+  font-size: var(--h1-size); font-weight: 600;
+  letter-spacing: var(--h1-track); line-height: var(--h1-leading); text-wrap: pretty;
+}
+.sq-article-desc { margin: 12px 0 0; font-size: 18px; color: var(--ink-2); }
+.sq-byline { display: flex; align-items: baseline; gap: var(--space-2); margin: 22px 0 30px; font-family: var(--font-mono); font-size: 12px; }
+.sq-byline-author { color: var(--ink-3); }
+.sq-byline-rule { flex: 1; border-top: var(--rule-w) solid var(--rule); }
+
+/* ---------- The cover: a 5:2 frame, a caption, and a photo per theme when there are two ---------- */
+.sq-cover { margin: 0 0 30px; }
+.sq-cover img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 2; object-fit: cover; border-radius: var(--radius); border: var(--rule-w) solid var(--rule); }
+.sq-cover .sq-cover-img--light { display: none; }
+:root:not([data-theme="dark"]) .sq-cover--themed .sq-cover-img { display: none; }
+:root:not([data-theme="dark"]) .sq-cover--themed .sq-cover-img--light { display: block; }
+.sq-cover-caption {
+  margin-top: 7px; font-family: var(--font-sans); font-style: italic; font-size: 12px; line-height: 1.4;
+  color: var(--ink-3); text-align: right;
+}
+.sq-cover .sq-cover-cap--light { display: none; }
+:root:not([data-theme="dark"]) .sq-cover--themed .sq-cover-cap--dark { display: none; }
+:root:not([data-theme="dark"]) .sq-cover--themed .sq-cover-cap--light { display: inline; }
+
+/* ---------- The kicker: area, date, "updated", minutes ---------- */
+.sq-kicker .sq-kicker-accent--carmine { color: var(--accent-2); }
+a.sq-updated, a.sq-updated:visited { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+a.sq-updated:hover { color: var(--ink); text-decoration-color: currentColor; }
+
+/* ---------- Contents: a rail beside the text, a fold above it on narrower windows ---------- */
+.sq-toc-rail { display: none; }
+.sq-toc-h {
+  font-family: var(--font-mono); font-size: var(--label-size); letter-spacing: var(--label-track);
+  text-transform: uppercase; color: var(--ink-3); margin: 0 0 10px;
+}
+.sq-toc-rail ul, .sq-toc-fold ul { list-style: none; margin: 0; padding: 0; }
+.sq-toc-rail li, .sq-toc-fold li { margin: 0; }
+.sq-toc-rail a, .sq-toc-rail a:visited, .sq-toc-fold a, .sq-toc-fold a:visited {
+  display: block; font-size: 13px; line-height: 1.35; color: var(--ink-3);
+  text-decoration: none; padding: 4px 0 4px 12px; border-left: 1.5px solid var(--rule);
+}
+.sq-toc-rail ul ul a, .sq-toc-fold ul ul a { padding-left: 24px; font-size: 12.5px; }
+.sq-toc-rail a:hover, .sq-toc-fold a:hover { color: var(--ink); text-decoration: none; }
+.sq-toc-rail a.on, .sq-toc-fold a.on { color: var(--accent); border-left-color: var(--accent); }
+.sq-toc-fold { margin: 0 0 28px; border: var(--rule-w) solid var(--rule); border-radius: var(--radius); padding: 8px 12px; }
+.sq-toc-fold > summary {
+  cursor: pointer; font-family: var(--font-mono); font-size: var(--label-size);
+  letter-spacing: var(--label-track); text-transform: uppercase; color: var(--ink-3);
+}
+.sq-toc-fold[open] > summary { margin-bottom: 10px; }
+@media (min-width: 1280px) {
+  .sq-toc-fold { display: none; }
+  .sq-toc-rail { display: block; position: absolute; top: var(--space-8); bottom: 0; left: 100%; width: 210px; }
+  .sq-toc-inner { position: sticky; top: 96px; max-height: calc(100vh - 128px); overflow-y: auto; }
+}
+
+/* ---------- The text (also /blog/ and About) ---------- */
+.sq-prose p { font-size: var(--body-size); line-height: var(--body-leading); letter-spacing: var(--body-track); text-wrap: pretty; margin: 0 0 18px; }
+.sq-prose h1 { font-size: var(--h1-size); font-weight: 600; letter-spacing: var(--h1-track); line-height: var(--h1-leading); margin: 0 0 10px; }
+.sq-prose h2 { font-size: var(--h2-size); font-weight: 600; letter-spacing: var(--h2-track); line-height: var(--h2-leading); margin: 40px 0 14px; }
+.sq-prose h3 { font-size: var(--h3-size); font-weight: 600; letter-spacing: var(--h3-track); line-height: var(--h3-leading); margin: 32px 0 10px; }
+.sq-prose ul, .sq-prose ol { margin: 0 0 18px; padding-left: 22px; }
+.sq-prose li { margin: 4px 0; }
+.sq-prose img { max-width: 100%; height: auto; border: var(--rule-w) solid var(--rule); border-radius: var(--radius); }
+.sq-prose figure { margin: 26px 0; }
+.sq-prose figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); margin-top: var(--space-2); line-height: 1.5; }
+/* Posts caption figures as an emphasized paragraph right after the image
+   (`![...](img)` then `*Figure N. ...*`) — style that convention as the kit's mono caption */
+.sq-prose p:has(> img) + p:has(> em:only-child) {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3);
+  letter-spacing: normal; line-height: 1.5; margin: -10px 0 26px;
+}
+.sq-prose p:has(> img) + p > em:only-child { font-style: normal; }
+.sq-prose code {
+  font-family: var(--font-mono); font-size: 0.92em;
+  background: var(--chip, var(--accent-wash)); padding: 1px 4px; border-radius: var(--radius-sm);
+}
+.sq-prose pre {
+  background: var(--surface-sunken); border: var(--rule-w) solid var(--rule);
+  border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; margin: 0 0 18px;
+}
+.sq-prose pre code { background: none; padding: 0; font-size: 14px; line-height: 1.55; }
+.sq-prose .highlight pre, .sq-prose .chroma { background: var(--surface-sunken); }
+.sq-prose blockquote { margin: 0 0 18px; padding: 2px 0 2px 16px; border-left: 2px solid var(--rule-strong); color: var(--ink-2); }
+.sq-prose blockquote p:last-child { margin-bottom: 0; }
+.sq-prose hr { border: 0; border-top: var(--rule-w) solid var(--rule); margin: var(--space-6) 0; }
+.sq-prose table { border-collapse: collapse; margin: 0 0 18px; }
+.sq-prose th {
+  font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track);
+  font-weight: 500; text-align: left; padding: 6px 12px 6px 0;
+  border-bottom: var(--rule-w-strong) solid var(--rule-strong);
+}
+.sq-prose td { font-size: var(--small-size); padding: 6px 12px 6px 0; border-bottom: var(--rule-w) solid var(--rule); }
+.sq-prose details { margin: 0 0 18px; }
+.sq-prose summary { cursor: pointer; font-weight: 500; }
+
+/* The article template renders the front-matter title; posts repeat it as a leading H1 */
+.sq-article .sq-prose > h1:first-child { display: none; }
+
+/* ---------- End-of-article actions ---------- */
+.sq-post-actions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-5);
+  border-top: var(--rule-w) solid var(--rule);
+  margin-top: var(--space-7); padding: var(--space-4) 0 var(--space-7);
+}
+.sq-action {
+  font-family: var(--font-mono); font-size: var(--label-size); letter-spacing: var(--meta-track);
+  color: var(--ink-3); background: none; border: none; padding: 0; cursor: pointer;
+  transition: color var(--dur) var(--ease);
+}
+.sq-action:hover { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .sq-article-wrap { padding-left: var(--space-4); padding-right: var(--space-4); }
+}

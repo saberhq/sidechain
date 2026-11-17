@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Copy saberhq.com's shared site kit into site/, or check that the copies match.
+
+    scripts/kit-pull           # download every kit file to the same path under site/
+    scripts/kit-pull --check   # exit 1 if a copy differs from saberhq.com's main, 2 if unreachable
+
+Reads https://raw.githubusercontent.com/saberhq/saberhq.github.io/main/<path>; writes site/<path>.
+Notes: private/code-notes/scripts/kit-pull.md
+"""
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+SOURCE = "https://raw.githubusercontent.com/saberhq/saberhq.github.io/main/"
+SITE = Path(__file__).resolve().parent.parent / "site"
+PARTIALS = "layouts/_partials/saberhq/"
+KIT = (
+    "assets/tokens/fonts.css",
+    "assets/tokens/colors.css",
+    "assets/tokens/typography.css",
+    "assets/tokens/spacing.css",
+    "assets/header.css",
+    "assets/post.css",
+    "assets/post-card.css",
+    "data/header.yaml",
+    "data/areas.yaml",
+    PARTIALS + "site-header.html",
+    PARTIALS + "site-scripts.html",
+    PARTIALS + "post-head.html",
+    PARTIALS + "post-contents.html",
+    PARTIALS + "post-actions.html",
+    PARTIALS + "post-card.html",
+    PARTIALS + "reading-time.html",
+    PARTIALS + "new-tab.html",
+)
+
+
+def fetch(path: str, timeout: float = 20) -> str:
+    """One kit file's text on saberhq.com's main."""
+    with urllib.request.urlopen(SOURCE + path, timeout=timeout) as r:
+        return r.read().decode("utf-8")
+
+
+def drift(timeout: float = 20) -> dict[str, tuple[str, str]]:
+    """Each kit file whose copy differs from main: path -> (copy, main)."""
+    out = {}
+    for path in KIT:
+        dst = SITE / path
+        mine = dst.read_text() if dst.exists() else ""
+        theirs = fetch(path, timeout)
+        if mine != theirs:
+            out[path] = (mine, theirs)
+    return out
+
+
+def strays() -> list[str]:
+    """Files in the kit's partials folder that are not in the kit."""
+    folder = SITE / PARTIALS
+    kit = {p for p in KIT if p.startswith(PARTIALS)}
+    return sorted(str(f.relative_to(SITE)) for f in folder.glob("*") if str(f.relative_to(SITE)) not in kit)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--check", action="store_true", help="report copies that differ instead of downloading")
+    args = ap.parse_args()
+
+    try:
+        changed = drift()
+    except (urllib.error.URLError, TimeoutError) as e:
+        print(f"cannot reach {SOURCE}: {e}", file=sys.stderr)
+        return 2
+    for path in KIT:
+        if path not in changed:
+            print(f"same     {path}")
+            continue
+        mine, theirs = changed[path]
+        if args.check:
+            print(f"DIFFERS  {path}")
+            sys.stdout.writelines(difflib.unified_diff(
+                mine.splitlines(True), theirs.splitlines(True),
+                fromfile=f"site/{path}", tofile=f"saberhq.github.io@main/{path}",
+            ))
+        else:
+            dst = SITE / path
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_text(theirs)
+            print(f"updated  {path}")
+    for path in strays():
+        print(f"STRAY    site/{path} is not a kit file")
+    if args.check and (changed or strays()):
+        print("the kit differs from saberhq.com's main; run scripts/kit-pull")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,10 @@
+{{- /* True when a link opens in a new tab: links to other sites, and the saberhq.com pages listed in
+     params.newTab (config.toml). Every other saberhq.com page, Sidechain's included, opens in the same
+     tab. (saberhq.com is named too, for the local preview.) */ -}}
+{{- $u := urls.Parse . -}}
+{{- $host := strings.TrimPrefix "www." $u.Host -}}
+{{- $home := slice "saberhq.com" (strings.TrimPrefix "www." (urls.Parse site.BaseURL).Host) -}}
+{{- $onsite := or (eq $host "") (in $home $host) -}}
+{{- $path := printf "%s/" (strings.TrimSuffix "/" (strings.TrimSuffix "index.html" $u.Path)) -}}
+{{- $listed := and $onsite (ne $u.Path "") (in (site.Params.newTab | default slice) $path) -}}
+{{- return (or (not $onsite) $listed) -}}

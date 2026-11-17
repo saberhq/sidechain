@@ -1,0 +1,8 @@
+# The area chip on a post card: one `area:` per post, a key from this list.
+sidechain:
+  label: Sidechain
+  accent: carmine
+research:
+  label: Research
+ml:
+  label: ML notes

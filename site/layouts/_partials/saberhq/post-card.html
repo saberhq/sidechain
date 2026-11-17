@@ -1,0 +1,10 @@
+{{/* Blog post card. Context: a page; `area:` (or the site's params.area) is a key of data/areas.yaml; `external:` links off-site. */}}
+{{ $ext := .Params.external }}
+{{ $off := and $ext (partial "saberhq/new-tab" $ext) }}
+{{ $area := index site.Data.areas (.Params.area | default site.Params.area | default "") }}
+<a class="sq-card" href="{{ $ext | default .RelPermalink }}"{{ if $off }} target="_blank" rel="noopener"{{ end }}>
+  <div class="sq-card-meta sq-card-top"><span>{{ .Date.Format "2006-01-02" }}</span>{{ with $area }}<span class="sq-tag sq-area{{ with .accent }} sq-area--{{ . }}{{ end }}">{{ upper .label }}</span>{{ end }}</div>
+  <div class="sq-card-title">{{ .Title }}</div>
+  <p class="sq-card-desc">{{ .Params.description | default (.Summary | plainify | truncate 150) }}</p>
+  <p class="sq-card-read">Read more →{{ if $off }}<span class="sq-sr-only"> (opens in a new tab)</span>{{ end }}</p>
+</a>

@@ -1,0 +1,27 @@
+{{- /* A post's sections: a rail beside the text on wide windows, a fold above it on narrow ones; only with two or more. Context: the page. */ -}}
+{{- $toc := replace (string (.Fragments.ToHTML 2 3 false)) ` id="TableOfContents"` "" }}
+{{- if ge (len (findRE `<li>` $toc)) 2 }}
+<details class="sq-toc-fold"><summary>Contents · {{ len (findRE `<li>\s*<a` $toc) }}</summary>{{ $toc | safeHTML }}</details>
+<aside class="sq-toc-rail" aria-label="Contents"><div class="sq-toc-inner"><div class="sq-toc-h">Contents</div>{{ $toc | safeHTML }}</div></aside>
+<script>
+(function () {
+  function start() {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.sq-toc-rail a, .sq-toc-fold a'));
+    var ids = [], heads = [];
+    links.forEach(function (a) { var id = decodeURIComponent(a.hash.slice(1)); if (ids.indexOf(id) < 0) { ids.push(id); var h = document.getElementById(id); if (h) heads.push(h); } });
+    if (!heads.length) return;
+    var ticking = false;
+    function mark() {
+      ticking = false;
+      var line = window.innerHeight * 0.25, cur = null;
+      heads.forEach(function (h) { if (h.getBoundingClientRect().top <= line) cur = h; });
+      links.forEach(function (a) { a.classList.toggle('on', !!cur && decodeURIComponent(a.hash.slice(1)) === cur.id); });
+    }
+    window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(mark); } }, { passive: true });
+    window.addEventListener('load', mark);
+    mark();
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', start); } else { start(); }
+})();
+</script>
+{{- end }}
