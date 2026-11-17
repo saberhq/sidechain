@@ -18,6 +18,7 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/site.yml"
+      - "scripts/saberhq_rebuild.py"
   workflow_dispatch:
 
 permissions:
@@ -32,6 +33,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      posts: ${{ steps.posts.outputs.posts }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +46,10 @@ jobs:
 
       - name: Build
         run: hugo --source site --minify --cleanDestinationDir
+
+      - name: List the posts this build published
+        id: posts
+        run: echo "posts=$(python3 scripts/saberhq_rebuild.py --guids site/public/posts/index.xml)" >> "$GITHUB_OUTPUT"
 
       - name: Upload
         uses: actions/upload-pages-artifact@v3
@@ -59,3 +66,24 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Starts saberhq.com's rebuild once the live feed lists this build's posts, only when one has no card on
+  # saberhq.com/blog/ yet. Never fails this site's deploy.
+  saberhq-blog:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/saberhq_rebuild.py
+          sparse-checkout-cone-mode: false
+
+      - name: Start saberhq.com's rebuild if a post has no card on its blog yet
+        env:
+          GH_TOKEN: ${{ secrets.SABERHQ_SITE_DISPATCH }}
+          EXPECT: ${{ needs.build.outputs.posts }}
+        run: python3 scripts/saberhq_rebuild.py --expect "$EXPECT"
