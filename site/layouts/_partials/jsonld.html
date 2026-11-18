@@ -1,0 +1,72 @@
+{{- /* The page's JSON-LD: one schema.org @graph. Every page carries the author, saberhq.com, this site and
+       the code; then the page itself as a WebPage, CollectionPage or BlogPosting, a Dataset on the
+       control-cells page, and a breadcrumb trail below the home page. */ -}}
+{{- $base := site.BaseURL -}}
+{{- $pp := site.Params.person -}}
+{{- $person := dict "@type" "Person" "@id" $pp.id "name" $pp.name "url" $pp.url "sameAs" $pp.sameas -}}
+{{- $by := dict "@id" $pp.id -}}
+{{- $parent := dict "@type" "WebSite" "@id" site.Params.parent_id "url" site.Params.parent "name" "saberhq.com" -}}
+{{- $siteRef := dict "@id" (printf "%s#website" $base) -}}
+{{- $website := dict "@type" "WebSite" "@id" (printf "%s#website" $base) "url" $base "name" site.Title
+      "description" site.Params.description "inLanguage" site.LanguageCode "author" $by "publisher" $by
+      "isPartOf" (dict "@id" site.Params.parent_id) -}}
+{{- $challenge := dict "@type" "Thing" "name" "Virtual Cell Challenge 2026" "url" site.Params.challenge -}}
+{{- $codeRef := dict "@id" (printf "%s#code" $base) -}}
+{{- $code := dict "@type" "SoftwareSourceCode" "@id" (printf "%s#code" $base) "name" site.Title
+      "description" site.Params.description "url" $base "codeRepository" site.Params.repo
+      "programmingLanguage" "Python" "license" site.Params.license "author" $by "about" $challenge -}}
+{{- $graph := slice $person $parent $website $code -}}
+
+{{- $url := .Permalink -}}
+{{- $desc := or .Description site.Params.description -}}
+{{- $dates := dict -}}
+{{- if not .Date.IsZero }}{{ $dates = merge $dates (dict "datePublished" (.Date.Format "2006-01-02")) }}{{ end -}}
+{{- if not .Lastmod.IsZero }}{{ $dates = merge $dates (dict "dateModified" (.Lastmod.Format "2006-01-02")) }}{{ end -}}
+{{- $page := merge $dates (dict "@id" (printf "%s#webpage" $url) "url" $url "name" .Title "description" $desc
+      "inLanguage" site.LanguageCode "isPartOf" $siteRef "author" $by) -}}
+{{- $posts := site.GetPage "/posts" -}}
+{{- $blogRef := dict "@id" (printf "%s#blog" $posts.Permalink) -}}
+
+{{- if .IsHome -}}
+  {{- $graph = $graph | append (merge $page (dict "@type" "WebPage" "about" $codeRef)) -}}
+{{- else if and .IsSection (eq .Section "posts") -}}
+  {{- $items := slice -}}
+  {{- range .RegularPages -}}
+    {{- $items = $items | append (dict "@id" (printf "%s#article" .Permalink) "headline" .Title "url" .Permalink) -}}
+  {{- end -}}
+  {{- $blog := dict "@type" "Blog" "@id" (printf "%s#blog" .Permalink) "url" .Permalink "name" (printf "%s posts" site.Title)
+        "description" $desc "author" $by "publisher" $by "isPartOf" $siteRef "blogPost" $items -}}
+  {{- $graph = $graph | append (merge $page (dict "@type" "CollectionPage" "mainEntity" $blogRef)) $blog -}}
+{{- else if eq .Section "posts" -}}
+  {{- $images := slice -}}
+  {{- range .Params.images }}{{ with $.Resources.GetMatch . }}{{ $images = $images | append .Permalink }}{{ end }}{{ end -}}
+  {{- if not $images }}{{ $images = slice (absURL "og.png") }}{{ end -}}
+  {{- $article := merge $dates (dict "@type" "BlogPosting" "@id" (printf "%s#article" $url) "headline" .Title
+        "description" $desc "url" $url "mainEntityOfPage" (dict "@id" (printf "%s#webpage" $url)) "image" $images
+        "author" $by "publisher" $by "inLanguage" site.LanguageCode "wordCount" .WordCount "isPartOf" $blogRef
+        "about" $codeRef) -}}
+  {{- $graph = $graph | append (merge $page (dict "@type" "WebPage" "mainEntity" (dict "@id" (printf "%s#article" $url)))) $article -}}
+{{- else if eq .Layout "controls" -}}
+  {{- $arc := dict "@type" "Organization" "name" "Arc Institute" "url" "https://arcinstitute.org/" -}}
+  {{- $dataset := merge $dates (dict "@type" "Dataset" "@id" (printf "%s#dataset" $url)
+        "name" (or .Params.card_title .Title) "description" $desc "url" $url "creator" $by "isAccessibleForFree" true
+        "measurementTechnique" "single-cell RNA sequencing"
+        "variableMeasured" (slice "UMIs per cell" "genes detected per cell" "mitochondrial UMI share" "top-50 UMI share"
+          "library complexity" "S-phase score" "G2/M score" "interferon response score" "stress response score"
+          "non-targeting guide displacement")
+        "isBasedOn" (dict "@type" "Dataset" "name" "Virtual Cell Challenge 2026 control cells" "url" site.Params.challenge "creator" $arc)
+        "distribution" (slice (dict "@type" "DataDownload" "encodingFormat" "application/json" "contentUrl" (absURL "data/controls/index.json")))) -}}
+  {{- $graph = $graph | append (merge $page (dict "@type" "WebPage" "mainEntity" (dict "@id" (printf "%s#dataset" $url)))) $dataset -}}
+{{- else -}}
+  {{- $graph = $graph | append (merge $page (dict "@type" "CollectionPage" "about" $codeRef)) -}}
+{{- end -}}
+
+{{- if not .IsHome -}}
+  {{- $trail := slice (dict "@type" "ListItem" "position" 1 "name" site.Title "item" $base) -}}
+  {{- if and (eq .Section "posts") (not .IsSection) -}}
+    {{- $trail = $trail | append (dict "@type" "ListItem" "position" 2 "name" $posts.Title "item" $posts.Permalink) -}}
+  {{- end -}}
+  {{- $trail = $trail | append (dict "@type" "ListItem" "position" (add (len $trail) 1) "name" .Title "item" $url) -}}
+  {{- $graph = $graph | append (dict "@type" "BreadcrumbList" "@id" (printf "%s#breadcrumb" $url) "itemListElement" $trail) -}}
+{{- end }}
+<script type="application/ld+json">{{ dict "@context" "https://schema.org" "@graph" $graph | jsonify | safeJS }}</script>

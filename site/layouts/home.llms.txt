@@ -1,0 +1,25 @@
+{{- /* /sidechain/llms.txt, in the llmstxt.org format. */ -}}
+# {{ site.Title }}
+
+> {{ site.Params.description }}
+
+{{ site.Title }} is a solo entry to the Arc Institute's Virtual Cell Challenge 2026 ({{ site.Params.challenge }}) by {{ site.Params.author }} ({{ site.Params.parent }}), built in the open: its code, its models and its write-ups are public. Each link below is a page as Markdown; the web page is the same address without `index.md`.
+
+## Pages
+{{- range where site.RegularPages "Section" "" }}
+- [{{ or .Params.card_title .Title }}]({{ with .OutputFormats.Get "markdown" }}{{ .Permalink }}{{ end }}): {{ .Description }}
+{{- end }}
+
+## Posts
+{{- range (where site.RegularPages "Section" "posts").ByDate.Reverse }}
+- [{{ .Title }}]({{ with .OutputFormats.Get "markdown" }}{{ .Permalink }}{{ end }}): {{ .Description }} ({{ .Date.Format "2006-01-02" }})
+{{- end }}
+
+## Code
+- [{{ strings.TrimPrefix "https://" site.Params.repo }}]({{ site.Params.repo }}): the pipeline, its configs and tests, and this site's source; MIT licence.
+
+## Optional
+- [Home page]({{ site.BaseURL }}): the entry at a glance, with every scored submission.
+- [Posts feed]({{ with (site.GetPage "/posts").OutputFormats.Get "rss" }}{{ .Permalink }}{{ end }}): RSS.
+- [Control-cells data]({{ "data/controls/index.json" | absURL }}): the JSON behind the control-cells page's figures.
+- [{{ strings.TrimPrefix "https://" (strings.TrimSuffix "/" site.Params.parent) }}]({{ site.Params.parent }}): the author's site.

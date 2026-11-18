@@ -47,6 +47,14 @@ uv run python scripts/chroma_css.py          # code-block styles, after a Hugo u
 
 The preview runs on port 1414 (also in `.claude/launch.json`) because saberhq.com's `hugo server` owns 1313.
 
+## For search engines and agents
+
+Every page carries one JSON-LD block (`layouts/_partials/jsonld.html`): the author, the site, the code, and the page as
+a `WebPage`, `CollectionPage`, `BlogPosting` or, on the control-cells page, a `Dataset`. The build also writes
+`llms.txt` (`layouts/home.llms.txt`) and an `index.md` beside each page's `index.html` (`layouts/page.markdown.md`; a
+shortcode used in a page needs a `*.markdown.md` twin). After each deploy, `../scripts/indexnow.py` sends the page list
+to the IndexNow search engines. `../tests/test_site_seo.py` checks the built pages.
+
 ## Posts and pages
 
 A post goes in `content/posts/`, as a plain file or as a page bundle with its images beside it:

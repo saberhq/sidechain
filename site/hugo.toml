@@ -11,7 +11,7 @@
 baseURL = "https://saberhq.com/sidechain/"
 languageCode = "en-us"
 title = "Sidechain"
-enableRobotsTXT = true
+enableRobotsTXT = false
 timeZone = "UTC"
 
 # No tag/category pages: nothing to put on them yet, and each would be an empty page.
@@ -28,6 +28,15 @@ disableKinds = ["taxonomy", "term"]
   leaderboard = "https://virtualcellchallenge.org/leaderboard"
   area = "sidechain"               # the kit's kicker word and card chip (data/areas.yaml)
   contentHistory = "https://github.com/saberhq/sidechain/commits/main/site/content/"  # a post's "updated" link
+  license = "https://opensource.org/license/mit"
+  parent_id = "https://saberhq.com/#website"   # saberhq.com's WebSite node in the JSON-LD
+
+# The author in the JSON-LD; `id` is the Person node saberhq.com publishes.
+[params.person]
+  id = "https://saberhq.com/#person"
+  name = "Saber Hafezqorani"
+  url = "https://saberhq.com/"
+  sameas = ["https://github.com/saberhq", "https://www.linkedin.com/in/saberhq/", "https://orcid.org/0000-0003-0553-9227"]
 
 [markup]
   [markup.goldmark.renderer]
@@ -40,8 +49,23 @@ disableKinds = ["taxonomy", "term"]
     endLevel = 3
 
 [outputs]
-  home = ["HTML", "RSS"]
+  home = ["HTML", "RSS", "llms"]
   section = ["HTML", "RSS"]
+  page = ["HTML", "markdown"]
+
+# /sidechain/llms.txt: the site map for language-model agents (llmstxt.org).
+[outputFormats.llms]
+  mediaType = "text/plain"
+  baseName = "llms"
+  isPlainText = true
+  notAlternative = true
+
+# index.md beside each page's index.html: the page as Markdown.
+[outputFormats.markdown]
+  mediaType = "text/markdown"
+  baseName = "index"
+  isPlainText = true
+  rel = "alternate"
 
 [services.rss]
   limit = 20

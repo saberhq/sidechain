@@ -4,7 +4,7 @@ date: 2026-08-31
 lastmod: 2026-10-05
 draft: false
 description: "A solo entry to the Virtual Cell Challenge 2026 that runs like a small research group: one human, a handful of AI agents, and a ladder of models climbed one scored rung at a time."
-short: "sidechain"
+short: "what sidechain is"
 image: cover.jpg
 images: [social.jpg]
 ---
