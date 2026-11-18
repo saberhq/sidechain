@@ -19,6 +19,7 @@ on:
       - "site/**"
       - ".github/workflows/site.yml"
       - "scripts/saberhq_rebuild.py"
+      - "scripts/indexnow.py"
   workflow_dispatch:
 
 permissions:
@@ -35,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       posts: ${{ steps.posts.outputs.posts }}
+      urls: ${{ steps.urls.outputs.urls }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +52,10 @@ jobs:
       - name: List the posts this build published
         id: posts
         run: echo "posts=$(python3 scripts/saberhq_rebuild.py --guids site/public/posts/index.xml)" >> "$GITHUB_OUTPUT"
+
+      - name: List the pages this build published
+        id: urls
+        run: echo "urls=$(python3 scripts/indexnow.py --urls site/public/sitemap.xml)" >> "$GITHUB_OUTPUT"
 
       - name: Upload
         uses: actions/upload-pages-artifact@v3
@@ -87,3 +93,25 @@ jobs:
           GH_TOKEN: ${{ secrets.SABERHQ_SITE_DISPATCH }}
           EXPECT: ${{ needs.build.outputs.posts }}
         run: python3 scripts/saberhq_rebuild.py --expect "$EXPECT"
+
+  # Tells the IndexNow search engines (Bing, Yandex and others) which pages this deploy published. Never fails
+  # this site's deploy.
+  indexnow:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/indexnow.py
+            site/static/*.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Submit this deploy's pages to IndexNow
+        env:
+          URLS: ${{ needs.build.outputs.urls }}
+        run: python3 scripts/indexnow.py --submit "$URLS" --wait 600
