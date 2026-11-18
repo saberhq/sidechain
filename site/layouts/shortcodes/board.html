@@ -1,12 +1,10 @@
-{{- /* The `board` shortcode — the leaderboard page's table, listing Sidechain alone (Saber,
-       2026-10-08, T79): every scored entry by overall score, calibration runs marked with an
-       asterisk; `#` the entry's place among ours; the six members as the scaled score the board
-       ranks on over the raw value, each cell washed green or red on the leaderboard page's own
-       scale (green 0..1, red 0..the member's floor), the tint computed by scripts/standings.py and
-       carried on the cell (`--pf`). The script also computes a per-column scale set by our own
-       entries (`tint_own`); the board's S0 offers it behind a chip, this page does not (Saber,
-       2026-10-08: a second scale would confuse a visitor). A column head sorts the rows by that column and a second
-       click turns it round (the small script below; the build order, by overall, is what a
+{{- /* The `board` shortcode — the leaderboard page's table, listing Sidechain alone: every
+       scored entry by overall score, calibration runs marked with an asterisk; `#` the entry's
+       place among ours; the six members as the scaled score the board ranks on over the raw
+       value, each cell washed green or red on the leaderboard page's own scale (green 0..1,
+       red 0..the member's floor), the tint computed by scripts/standings.py and carried on the
+       cell (`--pf`). The script's per-column scale set by our own entries (`tint_own`) is not
+       used here. A column head sorts the rows by that column and a second click turns it round (the small script below; the build order, by overall, is what a
        reader without scripts gets). Rendered at build time from data/submissions.json's `board`;
        the rules live in the script, never here. Never hand-edited. A model's name links to its
        section on this page, whose heading is `<name> — submitted <date>` with ` · calibration

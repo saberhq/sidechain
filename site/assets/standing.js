@@ -1,4 +1,4 @@
-/* The landing page: the way back to the top, the two countdowns, and the plot's readout.
+/* The landing page: the way back to the top, and the plot's readout.
    Everything here is an enhancement. The figures, the plot and its links are drawn at build
    time (layouts/_partials/standing.html), the rows open with no script (they are <details>),
    and with scripts off a point is a plain link to its row. */
@@ -9,24 +9,6 @@
   document.querySelectorAll('[data-scroll-top]').forEach(function (btn) {
     btn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); });
   });
-
-  /* Days to a date, counted in the visitor's own calendar days. A date already past keeps
-     the build-time fallback, which prints the date itself. Once a count is showing, the line
-     under it (hidden until then) gives the dates. */
-  var MS_DAY = 86400000, counted = false;
-  document.querySelectorAll('[data-days-to]').forEach(function (el) {
-    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(el.getAttribute('data-days-to') || '');
-    if (!m) return;
-    var now = new Date();
-    var days = Math.round((Date.UTC(+m[1], m[2] - 1, +m[3]) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / MS_DAY);
-    if (days < 0) return;
-    el.textContent = String(days);
-    var unit = document.createElement('small');
-    unit.textContent = 'd';
-    el.appendChild(unit);
-    counted = true;
-  });
-  if (counted) document.querySelectorAll('[data-days-sub]').forEach(function (el) { el.hidden = false; });
 
   var fig = document.querySelector('[data-standing]');
   var plot = fig && fig.querySelector('[data-plot]');

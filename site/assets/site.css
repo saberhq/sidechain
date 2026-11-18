@@ -142,8 +142,7 @@ a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 4
 .sq-glyph--accent { color: var(--accent); }
 
 /* ---------- Where we stand: the plot, then the figures ----------
-   Both follow the ledger dashboard's Standing card (Saber, 2026-10-05): its sparkline, and its
-   stat block at its own sizes -- 11px labels, 22px figures, 12px sub-lines. */
+   A sparkline, then a stat block: 11px labels, 22px figures, 12px sub-lines. */
 .sc-intro { margin-top: var(--space-5); max-width: 60ch; }
 .sc-intro p { margin: 0; color: var(--ink-2); }
 
@@ -260,7 +259,7 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 
 /* ---------- Tables ---------- */
 .sc-table-wrap { overflow-x: auto; margin-top: var(--space-5); }
-/* The models page's table: the leaderboard page's table for Sidechain alone (T79, 2026-10-08), nine columns kept
+/* The models page's table: the leaderboard page's table for Sidechain alone, nine columns kept
    to the prose column's width (Saber's note: no date, no rank, calibration as an asterisk). A member cell is the
    scaled score over the raw value; its wash is --wash-up or --wash-dn at --pf (the leaderboard's scale) of full
    strength, which the `board` shortcode sets per cell from the tint scripts/standings.py computed.

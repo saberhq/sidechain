@@ -1,23 +1,20 @@
-{{- /* "Where we stand", its first two items: the plot, then the figures. Both are the ledger
-       dashboard's Standing card brought to the page (Saber, 2026-10-05), and both are rendered
-       at build time from generated files that are never hand-edited (scripts/standings.py):
+{{- /* "Where we stand", its first two items: the plot, then the figures, rendered at build time
+       from generated files that are never hand-edited (scripts/standings.py):
 
        - data/submissions.json -- our scored entries, each with the rank it held and the size
          of the field the day it was scored. The plot and the two figures read it.
        - assets/data/field.json -- the leaderboard over time; from its head come the score at
          rank 100 and the row the leaderboard shows for Sidechain in the latest whole-field
-         snapshot (the validation board, frozen since the round closed).
+         snapshot.
 
-       Two figures since 2026-10-23 (Saber): Best, with its gap to the score at rank 100, and
-       Latest, with the rank the leaderboard shows for it in the latest snapshot rather than the
-       rank it held when scored. The gap to rank 20 and the countdowns to the final test set
-       and the deadline are gone.
+       Two figures: Best, with its gap to the score at rank 100, and Latest, with the rank the
+       leaderboard shows for it in the latest snapshot rather than the rank it held when scored.
 
        The plot is one point per ranked entry in submission order, at its rank as a share of
        the field when scored. An entry with no field size (no snapshot was taken when it
        scored) has no share and is not plotted; neither is an entry of the final round, which
        is ranked on another board, nor a calibration run, which the bars keep in a strip of
-       its own (Saber, 2026-10-07). The larger mark is the last point plotted. Every point
+       its own. The larger mark is the last point plotted. Every point
        links to its row in the bars below; with scripts on, choosing a point shows that
        row's model card under the plot instead. */ -}}
 {{ $d := .Site.Data.submissions }}

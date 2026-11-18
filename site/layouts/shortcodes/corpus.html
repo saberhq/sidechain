@@ -1,6 +1,6 @@
 {{- /* The `corpus` shortcode — the corpus-coverage figure for a post: rendered at build
        time from data/coverage.json, which `uv run python -m sidechain.data.coverage`
-       measures from the ingest caches. Committed JSON, no hand-typed numbers (ADR 0006). */ -}}
+       measures from the ingest caches. Committed JSON, no hand-typed numbers. */ -}}
 {{ $c := site.Data.coverage }}
 {{ $priors := where $c.sources "role" "prior" }}
 {{ $bench := where $c.sources "role" "bench" }}
