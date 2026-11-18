@@ -5,8 +5,8 @@ description: Every model Sidechain has put on the Virtual Cell Challenge 2026 bo
 
 All but one come from the SER series, which predicts what silencing a gene (a knockdown) does to a cell line it has never
 seen by borrowing what silencing the same gene did in large public screens of other cell lines, the sources. The one
-exception, PHE-2, is a neural network that predicts the knockdowns directly. Every entry so far was scored on the
-challenge's three validation cell lines; the three lines that decide the final ranking arrive on October 22.
+exception, PHE-2, is a neural network that predicts the knockdowns directly. Every entry on this page was scored on the
+challenge's three validation cell lines; the final ranking is decided on three other lines, released on October 22.
 
 A name reads in three parts. In `SER-28abefhkrswx`, `SER` is the series, `28` the model number, and each lowercase letter
 a knob moved off the series' plain recipe, ten of them here. A letter keeps one meaning in every series, and it says that a
@@ -24,7 +24,7 @@ The leaderboard's table with only Sidechain's entries on it, by overall score, c
 the scaled score the board ranks on over the raw value, coloured as the leaderboard colours it, and a model's name opens
 its section below.
 
-Wondering where SER-22 to SER-26 went? The validation board closes on Oct 22 and we had more models lined up than days
+Wondering where SER-22 to SER-26 went? The validation board closed on Oct 22 with more of our models lined up than days
 left to score them, so we skipped ahead to SER-27abefhkrswx; the missing numbers are the models that never made it to the
 start line.
 

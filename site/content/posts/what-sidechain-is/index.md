@@ -1,7 +1,7 @@
 ---
 title: "What Sidechain is"
 date: 2026-08-31
-lastmod: 2026-10-05
+lastmod: 2026-11-18
 draft: false
 description: "A solo entry to the Virtual Cell Challenge 2026 that runs like a small research group: one human, a handful of AI agents, and a ladder of models climbed one scored rung at a time."
 short: "what sidechain is"
@@ -82,4 +82,4 @@ The numbers on this site keep the same discipline as the ledgers: the standings 
 
 ## Where to read more
 
-The code and the agent briefs are on [GitHub](https://github.com/saberhq/sidechain). The [landing page](/) carries the scored submissions; the longer write-ups land here as [posts](/posts/), and progress notes go out on [LinkedIn](https://www.linkedin.com/in/saberhq). The final three cell lines arrive on October 22 and the deadline is November 5 — until then, everything is a rehearsal with a scoreboard.
+The code and the agent briefs are on [GitHub](https://github.com/saberhq/sidechain). The [landing page](/) carries the scored submissions; the longer write-ups land here as [posts](/posts/), and progress notes go out on [LinkedIn](https://www.linkedin.com/in/saberhq). The validation phase was a rehearsal with a scoreboard: its three cell lines are not the ones that decide the prizes, which Arc released on October 22.

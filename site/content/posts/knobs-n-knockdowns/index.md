@@ -1,6 +1,7 @@
 ---
 title: "Knobs N' Knockdowns"
 date: 2026-10-21
+lastmod: 2026-11-18
 draft: false
 pinned: true
 description: "How Sidechain's entries to Arc's Virtual Cell Challenge 2026 were built one setting at a time: what each setting does to a predicted cell, why it was tried, and what the leaderboard said back."
@@ -126,4 +127,4 @@ On `pds` we have covered three quarters of the distance from the baseline to a r
 
 {{< svg src="fig-members.svg" caption="Each of the six scaled metrics for our 24 normal entries, one panel per metric on its own axis, the latest in carmine; mse sits at zero until SER-14aefksw. The calibration runs are left off: SER-15aefkrsw's fid of −1.138 would flatten every other point." >}}
 
-Every entry was built by a Claude session and sent only on my go, which a coming post on how we run the project describes, and the live table is the [standings](/#standings). On October 22 Arc releases the three cell lines that decide the prizes, and there is no leaderboard for final entries until the winners are announced. The record of the final phase starts after the November 5 deadline, and it will get a post of its own.
+Every entry was built by a Claude session and sent only on my go, and the table of every entry is the [standings](/#standings). This post covers the validation phase: the prizes are decided on three other cell lines, released on October 22, and no public leaderboard scores final entries before the winners are announced.
