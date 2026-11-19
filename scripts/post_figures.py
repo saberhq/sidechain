@@ -3,8 +3,8 @@
 
     python scripts/post_figures.py --out <dir> --post knobs|corpus|board
 
-Reads site/data/submissions.json and site/data/coverage.json (and `SCREENS`, published cell counts, each with
-its paper); writes one SVG per figure into --out, styled with the site's CSS variables. A post includes one
+Reads site/data/submissions.json and ~/data/sidechain/derived/coverage/coverage.json (and `SCREENS`, published
+cell counts, each with its paper); writes one SVG per figure into --out, styled with the site's CSS variables. A post includes one
 with `{{< svg src="fig-overall.svg" caption="…" >}}`.
 Notes: private/code-notes/scripts/post_figures.py.md
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SUBMISSIONS = ROOT / "site" / "data" / "submissions.json"
-COVERAGE = ROOT / "site" / "data" / "coverage.json"
+COVERAGE = Path.home() / "data" / "sidechain" / "derived" / "coverage" / "coverage.json"
 
 # --- tokens -------------------------------------------------------------------------
 INK = "var(--ink, #191613)"
@@ -271,9 +271,9 @@ def fig_callset(entries):
 
 
 # --- the corpus post ----------------------------------------------------------------
-def fig_cells_per_target(coverage_path=COVERAGE):
+def fig_cells_per_target(coverage_path=None):
     """Cells per covered panel target, min – median – max, per source that holds cells."""
-    c = json.loads(Path(coverage_path).read_text())
+    c = json.loads(Path(coverage_path or COVERAGE).read_text())
     rows = [s for s in c["sources"] if s.get("cells_per_covered_target")]
     W = 680
     RH = 26

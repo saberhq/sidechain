@@ -1,9 +1,9 @@
-"""Write site/data/coverage.json: what each held corpus covers of the 2026 target panel.
+"""Write coverage.json: what each held corpus covers of the 2026 target panel.
 
-    uv run python -m sidechain.data.coverage [--check]
+    uv run python -m sidechain.data.coverage [--check] [--out PATH]
 
 Reads the pseudobulk caches under ~/data/sidechain/ and the active round's `pert_counts.csv`; writes
-site/data/coverage.json, or with --check compares against it.
+~/data/sidechain/derived/coverage/coverage.json (or --out), or with --check compares against it.
 Notes: private/code-notes/src/sidechain/data/coverage.py.md
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ CACHE = DATA / "cache" / "vcc2026"
 ROOT = Path(__file__).resolve().parents[3]
 # The panel is the active round's (`phase:` in the challenge config).
 CONFIG = ROOT / "challenges" / "vcc2026" / "config.yaml"
-OUT = ROOT / "site" / "data" / "coverage.json"
+OUT = DATA / "derived" / "coverage" / "coverage.json"
 
 # `role`: "prior" feeds the model's per-gene effects; "eval" is a local mirror panel; "bench" is held but not
 # pooled. `cache:` is relative to cache/vcc2026/, `path:` to ~/data/sidechain/.
@@ -117,7 +117,8 @@ def panel_file(cfg: dict) -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--check", action="store_true", help="exit 1 if site/data/coverage.json is out of date")
+    ap.add_argument("--check", action="store_true", help="exit 1 if the output file is out of date")
+    ap.add_argument("--out", type=Path, default=OUT, help="the JSON file to write or check")
     ap.add_argument("--challenge-config", type=Path, default=CONFIG)
     args = ap.parse_args()
 
@@ -129,22 +130,23 @@ def main() -> int:
     payload = {"phase": challenge_phase(cfg), **measure(panel)}
 
     if args.check:
-        if not OUT.exists():
-            print("site/data/coverage.json missing")
+        if not args.out.exists():
+            print(f"{args.out} missing")
             return 1
-        old = json.loads(OUT.read_text())
+        old = json.loads(args.out.read_text())
         new = {k: v for k, v in payload.items() if k != "generated_utc"}
         old.pop("generated_utc", None)
         same = old == new
         print("coverage.json " + ("current" if same else "OUT OF DATE — re-run without --check"))
         return 0 if same else 1
 
-    OUT.write_text(json.dumps(payload, indent=2) + "\n")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(payload, indent=2) + "\n")
     for s in payload["sources"]:
         d = s["cells_per_covered_target"]
         depth = f"cells/target min {d['min']} · med {d['median']}" if d else "—"
         print(f"{s['line']:7s} {s['name']:28s} {s['role']:5s} panel {s['panel_covered']:3d}/300  {depth}")
-    print(f"prior union {payload['prior_covered']}/300, uncovered {payload['uncovered']} -> {OUT.relative_to(OUT.parents[2])}")
+    print(f"prior union {payload['prior_covered']}/300, uncovered {payload['uncovered']} -> {args.out}")
     return 0
 
 

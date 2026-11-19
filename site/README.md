@@ -24,7 +24,7 @@ site/
 ├── content/_index.md      landing page copy + the front matter the sections read
 ├── content/posts/         write-ups (markdown; see archetypes/posts.md)
 ├── content/*.md           standalone pages: the models page, the control-cells page
-├── data/                  submissions.json + coverage.json — generated, see below; header.yaml + areas.yaml — the kit
+├── data/                  submissions.json — generated, see below; header.yaml + areas.yaml — the kit
 ├── layouts/               home, posts list, post, 404; partials (saberhq/ is the kit), render hooks, shortcodes
 ├── assets/                tokens/ + header.css, post.css, post-card.css (the kit); site.css, standing.js, controls.js; data/field.json — generated
 └── static/                favicon and social card (scripts/wordmark.py); data/controls/ — generated
@@ -94,9 +94,10 @@ Never hand-edited; each generator's `--check` reports drift without writing.
   leaderboard snapshots (`python -m sidechain.eval.leaderboard`). An entry's rank is the one in the first snapshot
   that contains it. The models page's table (`{{</* board */>}}`) paints the file's `board`; the rules are in the
   script.
-- **`assets/data/field.json`**: the same script; the number of teams at every snapshot, the scores at ranks 20 and
-  100, and Sidechain's row in the latest one. Re-run the script before a push to bring it current.
-- **`data/coverage.json`**: `uv run python -m sidechain.data.coverage`, from the ingest caches.
+- **`assets/data/field.json`**: the same script; the latest whole-field snapshot: the number of teams, the score at
+  rank 100 and Sidechain's row.
+- **`data/coverage.json`** (not in the tree; the `corpus` shortcode reads it):
+  `uv run python -m sidechain.data.coverage --out site/data/coverage.json`, from the ingest caches.
 - **`static/data/controls/`**: `uv run python scripts/site_controls.py`, field by field, so nothing the control-cells
   page does not draw reaches it, and a string outside the page's vocabulary stops the build. With no data on disk
   the page says so and the build still passes.

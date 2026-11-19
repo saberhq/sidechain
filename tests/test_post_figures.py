@@ -14,7 +14,24 @@ pf = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(pf)
 
 ENTRIES = json.loads((ROOT / "site" / "data" / "submissions.json").read_text())["entries"]
-COVERAGE = json.loads((ROOT / "site" / "data" / "coverage.json").read_text())
+COVERAGE = {
+    "panel_size": 300,
+    "sources": [
+        {"name": "screen one", "line": "line one", "role": "prior", "panel_covered": 300,
+         "cells_per_covered_target": {"min": 12, "median": 140, "max": 2300}},
+        {"name": "screen two", "line": "line two", "role": "bench", "panel_covered": 40,
+         "cells_per_covered_target": {"min": 30, "median": 55, "max": 410}},
+        {"name": "panel three", "line": "line three", "role": "eval", "panel_covered": 0,
+         "cells_per_covered_target": None},
+    ],
+}
+
+
+@pytest.fixture(autouse=True)
+def coverage_file(tmp_path, monkeypatch):
+    path = tmp_path / "coverage.json"
+    path.write_text(json.dumps(COVERAGE))
+    monkeypatch.setattr(pf, "COVERAGE", path)
 
 
 def texts(svg: str):

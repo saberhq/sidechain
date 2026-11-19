@@ -325,6 +325,10 @@ def test_the_field_file_is_the_series_headed_by_the_latest_whole_field_snapshot(
     assert by_t["2026-08-26T14:56:00Z"]["source"] == "wayback" and by_t["2026-08-26T14:56:00Z"]["rank_100"] == 0.0514
     # no team's row passes through: a point is five finished numbers and nothing else
     assert all(set(p) == {"t", "teams", "rank_20", "rank_100", "source"} for p in f["series"])
+    # the site's file is the head alone
+    head = standings.field_head(f)
+    assert set(head) == {"_about", "as_of", "teams", "rank_100", "ours"}
+    assert (head["as_of"], head["teams"], head["rank_100"], head["ours"]) == (f["as_of"], 1314, 0.2259, f["ours"])
 
 
 def test_the_field_file_cut_at_its_own_as_of_ignores_newer_snapshots(tmp_path):
