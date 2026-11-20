@@ -79,8 +79,11 @@ def test_posts_are_articles_and_the_controls_page_a_dataset(built):
             a = g["BlogPosting"]
             assert a["headline"] and a["datePublished"] and a["author"] == {"@id": PERSON}, url
             assert all(i.startswith("https://") for i in a["image"]), url
+            for k in ("datePublished", "dateModified"):
+                assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", a.get(k, "")), (url, k)
     d = {n["@type"]: n for n in _graph(_html(built, f"{BASE}vcc2026-control-cells/"))}["Dataset"]
     assert len(d["description"]) >= 50 and d["distribution"] and d["creator"] == {"@id": PERSON}
+    assert len(d["isBasedOn"]["description"]) >= 50
 
 
 def test_llms_txt_lists_every_page_as_markdown(built):
@@ -103,6 +106,18 @@ def test_markdown_copies_are_whole_and_absolute(built):
         assert text.startswith("# "), f
         assert "{{<" not in text and "{{%" not in text, f"{f}: an unrendered shortcode"
         assert not re.search(r"\]\(/", text), f"{f}: a root-relative link"
+
+
+def test_controls_copy_gives_its_figures_as_text(built):
+    data = REPO / "site" / "static" / "data" / "controls"
+    if not (data / "tables.json").exists():
+        pytest.skip("the site's control-cells data is not built here")
+    text = (built / "vcc2026-control-cells" / "index.md").read_text()
+    assert "## The figures, in numbers" in text
+    assert "&lt;" not in text and "{{" not in text
+    for c, s in json.loads((data / "index.json").read_text())["contexts"].items():
+        assert f"| {c} | {s['round']} |" in text, c
+        assert f"| {c} | own |" in text and f"| {c} | regressed |" in text, c
 
 
 def test_no_robots_file_below_the_root(built):

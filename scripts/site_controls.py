@@ -3,7 +3,7 @@
 usage (cwd ~/code/sidechain): .venv/bin/python scripts/site_controls.py [--src DIR] [--out DIR] [--check]
 Reads  ~/data/sidechain/derived/figures/challenge/ (summary, cells_<X>, guides_<X>, genes_<X>, joint, gene_index, manifest).
 Writes site/static/data/controls/: index.json, cells_<X>.json, emb_<X>.json, guides_<X>.json, genes_<X>.json,
-       joint.json, genes.json. Every field is copied by name; anything not named here never reaches the site, and a
+       joint.json, genes.json, tables.json (the cluster tables). Every field is copied by name; anything not named here never reaches the site, and a
        string outside the page's vocabulary (context letters, metric names, guide ids, gene symbols, colours) stops
        the build. --check re-reads an existing output directory with the same vocabulary test and writes nothing.
 Pointer: private/tasks/T107.md.
@@ -38,6 +38,8 @@ GUIDE_FIELDS = ("guide", "dist_z", "dist_q", "dist_z_resid", "dist_q_resid", "ch
                 "top_cluster_share_resid", "top_cluster_expected_resid", "median_umi", "median_pct_mt", "share_G2M")
 EMBEDDINGS = ("umap", "pca", "umap_resid", "pca_resid")
 GENE_FIELDS = ("mean_count", "detect", "mean_cp10k")
+TABLE_METRICS = ("total_umi", "n_genes", "pct_mt")
+TABLE_FIELDS = ("cells", "share", "guides", "top_guide", "joint", "by_context")
 
 GUIDE_ID = re.compile(r"^non-targeting-\d+$")
 OK_PATTERNS = (re.compile(r"^#[0-9a-fA-F]{6}$"), re.compile(r"^\d{4}-\d{2}-\d{2}(T[\d:+-]+)?$"),
@@ -66,6 +68,39 @@ def codes(block: dict) -> dict:
 
 def load(src: Path, name: str):
     return json.loads((src / name).read_text())
+
+
+def _median(values, ix) -> float | None:
+    v = float(np.nanmedian(np.asarray(values, dtype=np.float64)[ix]))
+    return round(v, 3) if np.isfinite(v) else None
+
+
+def cluster_table(cells: dict, key: str) -> list[dict]:
+    """The page's cluster table for one context's map (`cluster` or `cluster_resid`), one row per cluster."""
+    cat, n = cells["cat"], int(cells["n"])
+    cl, guide, phase = (np.asarray(cat[k]["codes"]) for k in (key, "guide", "phase"))
+    levels = cat["phase"]["levels"]
+    rows = []
+    for k, label in enumerate(cat[key]["levels"]):
+        ix = cl == k
+        size = int(ix.sum())
+        if size == 0:
+            continue
+        per_guide = np.bincount(guide[ix])
+        row = {"cluster": label, "cells": size, "share": round(size / n, 4)}
+        row |= {m: _median(cells["metrics"][m], ix) for m in TABLE_METRICS if m in cells["metrics"]}
+        row |= {p: round(float((phase[ix] == levels.index(p)).mean()), 4) if p in levels else 0.0 for p in PHASES}
+        row |= {"guides": int((per_guide > 0).sum()), "top_guide": round(float(per_guide.max() / size), 4)}
+        rows.append(row)
+    return rows
+
+
+def joint_table(joint: dict) -> list[dict]:
+    """The joint map's clusters, each with its cells per context in `contexts` order."""
+    cl, ctx = np.asarray(joint["cluster"]), np.asarray(joint["ctx_codes"])
+    return [{"cluster": str(k), "cells": int((cl == k).sum()),
+             "by_context": np.bincount(ctx[cl == k], minlength=len(joint["contexts"])).astype(int).tolist()}
+            for k in np.unique(cl)]
 
 
 def build(src: Path) -> dict[str, object]:
@@ -108,6 +143,9 @@ def build(src: Path) -> dict[str, object]:
     out["joint.json"] = {"contexts": ctxs, "ctx_codes": [int(x) for x in j["ctx_codes"]],
                          "umap": [fixed(col, 2) for col in j["umap"]], "pca": [fixed(col, 1) for col in j["pca"]],
                          "pca_var": compact(np.asarray(j["pca_var"]), 4), "cluster": [int(x) for x in j["cluster"]]}
+    out["tables.json"] = {"contexts": {c: {k: cluster_table(out[f"cells_{c}.json"], k) for k in ("cluster", "cluster_resid")}
+                                       for c in ctxs},
+                          "joint": joint_table(out["joint.json"])}
     pal = palette.PALETTE
     out["index.json"] = {
         "built": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -139,7 +177,8 @@ def vocabulary(files: dict[str, object]) -> set[str]:
     words |= {"genes", "context", "n", "metrics", "cat", "levels", "codes", "guide", "phase", "cluster", "cluster_resid",
               "rows", "n_perm", "hvg", "top20_share", "gene", "q", "pca_var", "pca_var_resid", "ctx_codes", "built",
               "stage_built", "stage_commit", "contexts", "palette", "sequential", "diverging", "clusters",
-              "marker", "round", "median", "phase_share", *SUMMARY_FIELDS, *GUIDE_FIELDS, *EMBEDDINGS, *GENE_FIELDS}
+              "marker", "round", "median", "phase_share", *SUMMARY_FIELDS, *GUIDE_FIELDS, *EMBEDDINGS, *GENE_FIELDS,
+              *TABLE_FIELDS}
     words |= set(files["genes.json"]["genes"])
     return words
 

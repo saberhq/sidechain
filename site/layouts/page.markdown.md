@@ -10,3 +10,6 @@ The figures are interactive on the web page; the data behind them: {{ "data/cont
 {{- end }}
 
 {{ replaceRE `\]\(/` (printf "](%s" site.BaseURL) .RenderShortcodes }}
+{{- if eq .Layout "controls" }}
+{{ partial "controls-text.md" . }}
+{{- end }}

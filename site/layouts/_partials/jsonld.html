@@ -20,8 +20,8 @@
 {{- $url := .Permalink -}}
 {{- $desc := or .Description site.Params.description -}}
 {{- $dates := dict -}}
-{{- if not .Date.IsZero }}{{ $dates = merge $dates (dict "datePublished" (.Date.Format "2006-01-02")) }}{{ end -}}
-{{- if not .Lastmod.IsZero }}{{ $dates = merge $dates (dict "dateModified" (.Lastmod.Format "2006-01-02")) }}{{ end -}}
+{{- if not .Date.IsZero }}{{ $dates = merge $dates (dict "datePublished" (.Date.Format "2006-01-02T15:04:05-07:00")) }}{{ end -}}
+{{- if not .Lastmod.IsZero }}{{ $dates = merge $dates (dict "dateModified" (.Lastmod.Format "2006-01-02T15:04:05-07:00")) }}{{ end -}}
 {{- $page := merge $dates (dict "@id" (printf "%s#webpage" $url) "url" $url "name" .Title "description" $desc
       "inLanguage" site.LanguageCode "isPartOf" $siteRef "author" $by) -}}
 {{- $posts := site.GetPage "/posts" -}}
@@ -54,7 +54,8 @@
         "variableMeasured" (slice "UMIs per cell" "genes detected per cell" "mitochondrial UMI share" "top-50 UMI share"
           "library complexity" "S-phase score" "G2/M score" "interferon response score" "stress response score"
           "non-targeting guide displacement")
-        "isBasedOn" (dict "@type" "Dataset" "name" "Virtual Cell Challenge 2026 control cells" "url" site.Params.challenge "creator" $arc)
+        "isBasedOn" (dict "@type" "Dataset" "name" "Virtual Cell Challenge 2026 control cells" "url" site.Params.challenge "creator" $arc
+          "description" "The control cells Arc Institute released for each of the six cell lines in the Virtual Cell Challenge 2026: cells carrying a guide designed to silence nothing, as raw counts.")
         "distribution" (slice (dict "@type" "DataDownload" "encodingFormat" "application/json" "contentUrl" (absURL "data/controls/index.json")))) -}}
   {{- $graph = $graph | append (merge $page (dict "@type" "WebPage" "mainEntity" (dict "@id" (printf "%s#dataset" $url)))) $dataset -}}
 {{- else -}}

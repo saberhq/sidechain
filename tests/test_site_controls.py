@@ -68,7 +68,8 @@ def test_nothing_unnamed_reaches_the_site(tmp_path):
     for field in ("unlisted_note", "unlisted_list", "private_note", "label", "dispersion_norm", "notes", "mean_log"):
         assert f'"{field}"' not in text, field
     assert sc.check(files) == []
-    assert set(files) == {"index.json", "genes.json", "joint.json", *(f"{k}_{c}.json" for k in ("cells", "emb", "guides", "genes")
+    assert set(files) == {"index.json", "genes.json", "joint.json", "tables.json",
+                          *(f"{k}_{c}.json" for k in ("cells", "emb", "guides", "genes")
                                                                        for c in ("A", "D"))}
     assert "pct_ribo" not in files["index.json"]["metrics"]          # absent in every context: not on the page
     assert files["index.json"]["contexts"]["D"]["round"] == "test"
@@ -89,6 +90,18 @@ def test_check_mode_reads_a_written_directory(tmp_path):
     g["rows"]["guide"][1] = LEAK
     p.write_text(json.dumps(g))
     assert sc.main(["--check", "--out", str(out)]) == 1
+
+
+def test_cluster_tables_count_what_the_page_counts(tmp_path):
+    files = sc.build(_stage(tmp_path))
+    rows = files["tables.json"]["contexts"]["A"]["cluster"]
+    assert [r["cluster"] for r in rows] == ["0", "1"]
+    r = rows[0]
+    assert (r["cells"], r["share"], r["guides"], r["top_guide"]) == (6, 0.5, 3, round(2 / 6, 4))
+    assert (r["G1"], r["S"], r["G2M"]) == (round(2 / 6, 4),) * 3
+    cells = files["cells_A.json"]["metrics"]["total_umi"]
+    assert r["total_umi"] == round(float(np.median(cells[0::2])), 3)
+    assert files["tables.json"]["joint"] == [{"cluster": "0", "cells": 24, "by_context": [12, 12]}]
 
 
 def test_coordinates_and_counts_are_slimmed(tmp_path):
