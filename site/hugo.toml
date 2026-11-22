@@ -27,6 +27,7 @@ disableKinds = ["taxonomy", "term"]
   challenge = "https://virtualcellchallenge.org/"
   leaderboard = "https://virtualcellchallenge.org/leaderboard"
   area = "sidechain"               # the kit's kicker word and card chip (data/areas.yaml)
+  newTab = ["/resume/"]            # saberhq.com pages that open in a new tab (the kit's new-tab)
   contentHistory = "https://github.com/saberhq/sidechain/commits/main/site/content/"  # a post's "updated" link
   license = "https://opensource.org/license/mit"
   parent_id = "https://saberhq.com/#website"   # saberhq.com's WebSite node in the JSON-LD
@@ -69,3 +70,9 @@ disableKinds = ["taxonomy", "term"]
 
 [services.rss]
   limit = 20
+
+# The kit footer's Email link reads the first mailto: here.
+[[menus.after]]
+  name = "Contact me"
+  url = "mailto:saber.hafezqorani@gmail.com"
+  weight = 10

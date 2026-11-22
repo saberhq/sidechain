@@ -46,6 +46,9 @@ KIT = (
     PARTIALS + "post-card.html",
     PARTIALS + "reading-time.html",
     PARTIALS + "new-tab.html",
+    "assets/footer.css",
+    PARTIALS + "site-footer.html",
+    PARTIALS + "mailto.html",
 )
 # Every file directly in these folders on saberhq.com is in KIT, THEIRS or HELD; anything else is reported as new.
 SHARED_DIRS = ("assets/", "assets/tokens/", "data/", PARTIALS)
@@ -60,11 +63,7 @@ THEIRS = (
     "data/vibes*.json",
 )
 # Shared files not copied here yet; each moves to KIT or THEIRS.
-HELD = (
-    "assets/footer.css",
-    PARTIALS + "site-footer.html",
-    PARTIALS + "mailto.html",
-)
+HELD: tuple[str, ...] = ()
 
 
 def _get(url: str, timeout: float, accept: str | None = None) -> bytes:

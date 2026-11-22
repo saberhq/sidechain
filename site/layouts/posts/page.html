@@ -11,6 +11,3 @@
 </article>
 {{ end }}
 
-{{ define "footer" }}
-  {{ partial "site-footer.html" (dict "page" . "crumb" (dict "label" "POSTS" "href" .CurrentSection.RelPermalink)) }}
-{{ end }}

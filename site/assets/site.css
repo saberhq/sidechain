@@ -320,18 +320,6 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 }
 .sc-empty p { margin: 0; }
 
-/* ---------- Site footer strip ---------- */
-.sq-sitefooter { border-top: var(--rule-w) solid var(--rule); margin-top: var(--space-6); }
-.sq-sitefooter-in {
-  display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
-  padding-top: var(--space-4); padding-bottom: var(--space-4);
-  font-family: var(--font-mono); font-size: var(--micro-size); letter-spacing: var(--micro-track);
-  color: var(--ink-4);
-}
-.sq-dash { color: var(--rule); }
-.sq-sitefooter a, .sq-sitefooter a:visited { color: var(--ink-4); }
-.sq-sitefooter a:hover { color: var(--ink); text-decoration: none; }
-
 /* ---------- End-of-page action: the post page's back-to-top, at the foot of the landing page, under both columns ---------- */
 .sc-page-actions { grid-column: 1 / -1; margin-top: 0; }
 

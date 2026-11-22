@@ -11,13 +11,14 @@ four token files in `assets/tokens/`. `assets/site.css` builds on them: the `sq-
 carried over, the `sc-` rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which
 `site.css` re-points `--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
 
-**The kit.** The header, the post page and the post card are saberhq.com's, shared word for word with it: the
-tokens, `assets/header.css`, `assets/post.css`, `assets/post-card.css`, `data/header.yaml`, `data/areas.yaml` and
-`layouts/_partials/saberhq/`. saberhq.com holds the originals; these are copies, never edited here.
+**The kit.** The header, the footer, the post page and the post card are saberhq.com's, shared word for word with
+it: the tokens, `assets/header.css`, `assets/footer.css`, `assets/post.css`, `assets/post-card.css`,
+`data/header.yaml`, `data/areas.yaml` and `layouts/_partials/saberhq/`. saberhq.com holds the originals; these are copies, never edited here.
 `../scripts/kit-pull` copies them from saberhq.com's latest release and records it in `kit.lock.json`; it refuses
 while a file in saberhq.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
 differs from that release or from the lock. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
-loads after it. The kit reads two settings in `hugo.toml`: `params.area` and `params.contentHistory`.
+loads after it. The kit reads `params.area`, `params.contentHistory`, `params.newTab` and the `menus.after` mailto line in
+`hugo.toml`; the build sets `params.version` to the kit's release from `kit.lock.json`.
 
 ```
 site/

@@ -47,7 +47,9 @@ jobs:
           extended: true
 
       - name: Build
-        run: hugo --source site --minify --cleanDestinationDir
+        run: |
+          export HUGO_PARAMS_VERSION="$(python3 -c 'import json; print(json.load(open("site/kit.lock.json"))["ref"])')"
+          hugo --source site --minify --cleanDestinationDir
 
       - name: List the posts this build published
         id: posts

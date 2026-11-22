@@ -62,6 +62,7 @@
   (resources.Get "post.css")
   (resources.Get "site.css")
   (resources.Get "header.css")
+  (resources.Get "footer.css")
   | resources.Concat "css/sidechain.css" | resources.Minify | resources.Fingerprint "sha384" }}
 <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}" crossorigin="anonymous">
 

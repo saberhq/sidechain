@@ -69,8 +69,11 @@ def built(tmp_path_factory) -> Path:
 
 
 @pytest.mark.parametrize("page", PAGES)
-def test_header_on_every_page(built, page):
+def test_header_and_footer_on_every_page(built, page):
     html = (built / page / "index.html").read_text()
     assert len(re.findall(r'<header class="?sq-siteheader"?>', html)) == 1
     assert re.search(r'class="?sq-tab sq-tab--sidechain"? href="?/sidechain/"? aria-current=', html), "Sidechain tab"
     assert bool(re.search(r'<nav class="?sq-subheader"?', html)) == (page != ""), "path strip"
+    assert len(re.findall(r'<footer class="?sq-sitefooter"?>', html)) == 1
+    assert re.search(r'href="?mailto:[^" >]+"?>Email<', html), "footer email"
+    assert re.search(r'href="?/resume/"?[^>]*>Résumé', html), "footer résumé"

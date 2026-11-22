@@ -3,6 +3,7 @@
   "ref": "v1.10.0",
   "commit": "6ce4e1aadf310337d984d5735b1d59cd3c170b71",
   "files": {
+    "assets/footer.css": "4f7cd8c099f5ccef510e5e8c8eed9ab7c8792d003f48eaa8d3fe37f1068cd88f",
     "assets/header.css": "ec64fa0b1fbb029f7e44517391d646d5fed385966ed75c8e4d295082d764814e",
     "assets/post-card.css": "44780145b85ec0865328948b4153c016d6f7e4d546bf99f9500b7d86cdbe2e20",
     "assets/post.css": "253e3c81f9e59a94544d0ad8c45ebb16562fa097e7a12acb97d40017f5990a26",
@@ -12,12 +13,14 @@
     "assets/tokens/typography.css": "3b7c7058d807856aae60a2e8970ea51e6d3671e70f1d2578747c2da7de3ae942",
     "data/areas.yaml": "c314f2f816d243997942e036402a376a8ec68490eb205cc9101fda8a9d9e029f",
     "data/header.yaml": "405d0ac57cea2ef329cba52f0f63b341034cc769db9951834871850265e67f78",
+    "layouts/_partials/saberhq/mailto.html": "99d5aa2e95a96245c66f2dc23c23aa3c1987d277c916fd6a7cfe008bab043ef5",
     "layouts/_partials/saberhq/new-tab.html": "ff63a23943017f937dc2602ab3c120d32f39633bb0022d35c3b1bf018268b711",
     "layouts/_partials/saberhq/post-actions.html": "b77dfc6751d785a14ce80de56d00d63037030d85d2ab3d5f987c39889aa97653",
     "layouts/_partials/saberhq/post-card.html": "13cac52b26c26b2c9e368bbe3e7010b1c1278360b9598608a2c1f12e363fb52b",
     "layouts/_partials/saberhq/post-contents.html": "0f5b36e981fb6ea473984c677ac5fa7416292e1522ce66225475e87fce1515f6",
     "layouts/_partials/saberhq/post-head.html": "af66a8678f6ae23669250fa46c8f9914fdd6061d950610eb6a3e6b45f4004a20",
     "layouts/_partials/saberhq/reading-time.html": "35a2928ca413676a19c411195136a000ca113e66ef7dbe9e2d29a5f5fd941845",
+    "layouts/_partials/saberhq/site-footer.html": "bb098010a4ee95bce5d1144edcbf2e3c586bbd1527da91c7e45e4d5574aff204",
     "layouts/_partials/saberhq/site-header.html": "ca2c33bfcaf500d026a2c203f5efa46f015454a8ba7ce39974a95b0c2abf47c5",
     "layouts/_partials/saberhq/site-scripts.html": "58e8305ad2c6b23f9047945677638c2e161ea1b385e18e145e49adf1b1e13a92"
   }

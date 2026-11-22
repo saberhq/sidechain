@@ -1,0 +1,6 @@
+{{- /* Returns the first mailto: address in config.toml's menu.after ("Contact me"), or "". */ -}}
+{{- $mailto := "" }}
+{{- range site.Menus.after }}
+  {{- if and (not $mailto) (hasPrefix .URL "mailto:") }}{{ $mailto = .URL }}{{ end }}
+{{- end }}
+{{- return $mailto }}
