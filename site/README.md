@@ -14,8 +14,9 @@ carried over, the `sc-` rules are Sidechain's additions. The accent is carmine, 
 **The kit.** The header, the post page and the post card are saberhq.com's, shared word for word with it: the
 tokens, `assets/header.css`, `assets/post.css`, `assets/post-card.css`, `data/header.yaml`, `data/areas.yaml` and
 `layouts/_partials/saberhq/`. saberhq.com holds the originals; these are copies, never edited here.
-`../scripts/kit-pull` brings changes in from saberhq.com's `main`, and `../tests/test_site_kit.py` fails when a copy
-differs. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
+`../scripts/kit-pull` copies them from saberhq.com's latest release and records it in `kit.lock.json`; it refuses
+while a file in saberhq.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
+differs from that release or from the lock. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
 loads after it. The kit reads two settings in `hugo.toml`: `params.area` and `params.contentHistory`.
 
 ```

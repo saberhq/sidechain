@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
-"""Copy saberhq.com's shared site kit into site/, or check that the copies match.
+"""Copy saberhq.com's shared site kit into site/ at its latest release, or check that the copies match.
 
-    scripts/kit-pull           # download every kit file to the same path under site/
-    scripts/kit-pull --check   # exit 1 if a copy differs from saberhq.com's main, 2 if unreachable
+    scripts/kit-pull                # copy the kit at saberhq.com's latest release; write site/kit.lock.json
+    scripts/kit-pull --check        # exit 1 if a copy differs or a shared file is unlisted or gone; 2 if unreachable
+    scripts/kit-pull --ref main     # a branch, tag or commit instead of the latest release
 
-Reads https://raw.githubusercontent.com/saberhq/saberhq.github.io/main/<path>; writes site/<path>.
+Reads api.github.com and raw.githubusercontent.com for saberhq/saberhq.github.io, all files at one commit;
+writes site/<path> and site/kit.lock.json.
 Notes: private/code-notes/scripts/kit-pull.md
 """
 from __future__ import annotations
 
 import argparse
 import difflib
+import fnmatch
+import hashlib
+import json
+import os
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-SOURCE = "https://raw.githubusercontent.com/saberhq/saberhq.github.io/main/"
+REPO = "saberhq/saberhq.github.io"
+API = f"https://api.github.com/repos/{REPO}/"
+RAW = f"https://raw.githubusercontent.com/{REPO}/"
 SITE = Path(__file__).resolve().parent.parent / "site"
+LOCK = SITE / "kit.lock.json"
 PARTIALS = "layouts/_partials/saberhq/"
 KIT = (
     "assets/tokens/fonts.css",
@@ -38,21 +47,81 @@ KIT = (
     PARTIALS + "reading-time.html",
     PARTIALS + "new-tab.html",
 )
+# Every file directly in these folders on saberhq.com is in KIT, THEIRS or HELD; anything else is reported as new.
+SHARED_DIRS = ("assets/", "assets/tokens/", "data/", PARTIALS)
+# saberhq.com's own files in those folders, never copied (glob patterns).
+THEIRS = (
+    "assets/albumarts.css",
+    "assets/blog.css",
+    "assets/custom.css",
+    "assets/manifest.json",
+    "assets/vibes.css",
+    "data/albumarts.json",
+    "data/vibes*.json",
+)
+# Shared files not copied here yet; each moves to KIT or THEIRS.
+HELD = (
+    "assets/footer.css",
+    PARTIALS + "site-footer.html",
+    PARTIALS + "mailto.html",
+)
 
 
-def fetch(path: str, timeout: float = 20) -> str:
-    """One kit file's text on saberhq.com's main."""
-    with urllib.request.urlopen(SOURCE + path, timeout=timeout) as r:
-        return r.read().decode("utf-8")
+def _get(url: str, timeout: float, accept: str | None = None) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "kit-pull"})
+    if accept:
+        req.add_header("Accept", accept)
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token and url.startswith(API):
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
 
 
-def drift(timeout: float = 20) -> dict[str, tuple[str, str]]:
-    """Each kit file whose copy differs from main: path -> (copy, main)."""
+def resolve(ref: str | None = None, timeout: float = 20) -> tuple[str, str]:
+    """(name, commit) for ref, or for saberhq.com's latest release when ref is None."""
+    if ref is None:
+        ref = json.loads(_get(API + "releases/latest", timeout))["tag_name"]
+    return ref, _get(API + f"commits/{ref}", timeout, accept="application/vnd.github.sha").decode().strip()
+
+
+def listing(commit: str, timeout: float = 20) -> set[str]:
+    """Every file path in saberhq.com's tree at commit."""
+    tree = json.loads(_get(API + f"git/trees/{commit}?recursive=1", timeout))
+    if tree.get("truncated"):
+        raise RuntimeError(f"the tree listing at {commit} is truncated")
+    return {t["path"] for t in tree["tree"] if t["type"] == "blob"}
+
+
+def sort_shared(paths: set[str]) -> tuple[list[str], list[str], list[str]]:
+    """(new, gone, held): shared-folder files in no list, kit files missing at the source, held files present."""
+    shared = [p for p in paths if p.rsplit("/", 1)[0] + "/" in SHARED_DIRS]
+    listed = set(KIT) | set(HELD)
+    new = sorted(p for p in shared if p not in listed and not any(fnmatch.fnmatch(p, g) for g in THEIRS))
+    gone = sorted(p for p in KIT if p not in paths)
+    held = sorted(p for p in HELD if p in paths)
+    return new, gone, held
+
+
+def fetch(path: str, commit: str, timeout: float = 20) -> str:
+    """One kit file's text at commit."""
+    return _get(RAW + f"{commit}/{path}", timeout).decode("utf-8")
+
+
+def survey(ref: str | None = None, timeout: float = 20) -> dict:
+    """The source at ref: name, commit, new, gone, held, and each present kit file's text."""
+    name, commit = resolve(ref, timeout)
+    new, gone, held = sort_shared(listing(commit, timeout))
+    texts = {p: fetch(p, commit, timeout) for p in KIT if p not in gone}
+    return {"name": name, "commit": commit, "new": new, "gone": gone, "held": held, "texts": texts}
+
+
+def drift(texts: dict[str, str]) -> dict[str, tuple[str, str]]:
+    """Each kit file whose copy differs from texts: path -> (copy, theirs)."""
     out = {}
-    for path in KIT:
+    for path, theirs in texts.items():
         dst = SITE / path
         mine = dst.read_text() if dst.exists() else ""
-        theirs = fetch(path, timeout)
         if mine != theirs:
             out[path] = (mine, theirs)
     return out
@@ -65,37 +134,88 @@ def strays() -> list[str]:
     return sorted(str(f.relative_to(SITE)) for f in folder.glob("*") if str(f.relative_to(SITE)) not in kit)
 
 
+def digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def read_lock() -> dict | None:
+    return json.loads(LOCK.read_text()) if LOCK.exists() else None
+
+
+def unlocked() -> list[str]:
+    """Kit files whose copy does not match kit.lock.json, or that the lock does not list exactly."""
+    lock = read_lock()
+    if lock is None:
+        return list(KIT)
+    files = lock.get("files", {})
+    bad = sorted(set(files) ^ set(KIT))
+    for path in KIT:
+        dst = SITE / path
+        if path in files and (not dst.exists() or digest(dst.read_text()) != files[path]):
+            bad.append(path)
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--check", action="store_true", help="report copies that differ instead of downloading")
+    ap.add_argument("--check", action="store_true", help="report what differs instead of copying")
+    ap.add_argument("--ref", help="branch, tag or commit on saberhq.com (default: its latest release)")
     args = ap.parse_args()
 
     try:
-        changed = drift()
-    except (urllib.error.URLError, TimeoutError) as e:
-        print(f"cannot reach {SOURCE}: {e}", file=sys.stderr)
+        src = survey(args.ref)
+    except (urllib.error.URLError, TimeoutError, RuntimeError, KeyError) as e:
+        print(f"cannot read {REPO}: {e}", file=sys.stderr)
         return 2
+    lock = read_lock() or {}
+    print(f"saberhq.com {src['name']} ({src['commit'][:7]}); the kit here is {lock.get('ref', 'unlocked')}")
+    changed = drift(src["texts"])
     for path in KIT:
-        if path not in changed:
+        if path in src["gone"]:
+            print(f"GONE     {path} is not on saberhq.com at {src['name']}")
+        elif path not in changed:
             print(f"same     {path}")
-            continue
-        mine, theirs = changed[path]
-        if args.check:
+        elif args.check:
+            mine, theirs = changed[path]
             print(f"DIFFERS  {path}")
             sys.stdout.writelines(difflib.unified_diff(
                 mine.splitlines(True), theirs.splitlines(True),
-                fromfile=f"site/{path}", tofile=f"saberhq.github.io@main/{path}",
+                fromfile=f"site/{path}", tofile=f"saberhq.github.io@{src['name']}/{path}",
             ))
-        else:
-            dst = SITE / path
+    for path in src["new"]:
+        print(f"NEW      {path} is on saberhq.com and in no list: add it to KIT, THEIRS or HELD")
+    for path in src["held"]:
+        print(f"HELD     {path} is on saberhq.com and not copied here")
+    for path in strays():
+        print(f"STRAY    site/{path} is not a kit file")
+    edited = [p for p in unlocked() if p not in changed]
+
+    if args.check:
+        for path in edited:
+            print(f"EDITED   site/{path} does not match kit.lock.json")
+        if changed or src["new"] or src["gone"] or strays() or edited:
+            print(f"the kit differs from saberhq.com's {src['name']}; run scripts/kit-pull")
+            return 1
+        return 0
+
+    if src["new"] or src["gone"]:
+        print("nothing copied: every shared file must be listed and every kit file present first", file=sys.stderr)
+        return 1
+    for path, theirs in src["texts"].items():
+        dst = SITE / path
+        if path in changed:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(theirs)
             print(f"updated  {path}")
-    for path in strays():
-        print(f"STRAY    site/{path} is not a kit file")
-    if args.check and (changed or strays()):
-        print("the kit differs from saberhq.com's main; run scripts/kit-pull")
-        return 1
+    for path in sorted(set(lock.get("files", {})) - set(KIT)):
+        if (SITE / path).exists():
+            (SITE / path).unlink()
+            print(f"removed  {path}")
+    LOCK.write_text(json.dumps({
+        "source": REPO, "ref": src["name"], "commit": src["commit"],
+        "files": {p: digest(t) for p, t in sorted(src["texts"].items())},
+    }, indent=2) + "\n")
+    print(f"wrote    site/kit.lock.json ({src['name']})")
     return 0
 
 
