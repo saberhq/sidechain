@@ -17,8 +17,8 @@ it: the tokens, `assets/header.css`, `assets/footer.css`, `assets/post.css`, `as
 `../scripts/kit-pull` copies them from saberhq.com's latest release and records it in `kit.lock.json`; it refuses
 while a file in saberhq.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
 differs from that release or from the lock. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
-loads after it. The kit reads `params.area`, `params.contentHistory`, `params.newTab` and the `menus.after` mailto line in
-`hugo.toml`; the build sets `params.version` to the kit's release from `kit.lock.json`.
+loads after it. The kit reads `params.area`, `params.contentHistory`, `params.newTab`, `params.contentLicense` and the
+`menus.after` mailto line in `hugo.toml`; the build sets `params.version` to the kit's release from `kit.lock.json`.
 
 ```
 site/

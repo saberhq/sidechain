@@ -77,3 +77,11 @@ def test_header_and_footer_on_every_page(built, page):
     assert len(re.findall(r'<footer class="?sq-sitefooter"?>', html)) == 1
     assert re.search(r'href="?mailto:[^" >]+"?>Email<', html), "footer email"
     assert re.search(r'href="?/resume/"?[^>]*>Résumé', html), "footer résumé"
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_footer_names_this_sites_licence(built, page):
+    if "contentLicense" not in (kit.SITE / kit.PARTIALS / "site-footer.html").read_text():
+        pytest.skip("this kit's footer names one licence for both sites")
+    footer = re.search(r'<footer class="?sq-sitefooter"?>.*?</footer>', (built / page / "index.html").read_text(), re.S)
+    assert re.search(r'href="?https://github\.com/saberhq/sidechain/blob/main/LICENSE"?[^>]*>MIT<', footer.group(0))
