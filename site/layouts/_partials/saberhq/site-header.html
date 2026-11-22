@@ -1,39 +1,46 @@
-{{/* Site header: the trail to this page on the left; the menu (data/header.yaml) and the theme switch on the right. Context: the page. */}}
+{{/* Site header: the mark, the sides of the site, this side's tabs (data/header.yaml), Elsewhere and the theme switch; under it, the trail on a page inside a tab. Context: the page. */}}
 {{- $here := .RelPermalink }}
+{{- $h := site.Data.header }}
+{{- $side := index $h.sides 0 }}
+{{- $open := "" }}
+{{- range $s := $h.sides }}{{ range $s.tabs }}
+  {{- if strings.HasPrefix $here (index $h.tabs .).url }}{{ $side = $s }}{{ $open = . }}{{ end }}
+{{- end }}{{ end }}
+{{- $trail := and (ne $here "/") (ne .Kind "404") }}
+{{- with $open }}
+  {{- $tab := index $h.tabs . }}
+  {{- if or (eq $tab.url $here) (eq $tab.trail false) }}{{ $trail = false }}{{ end }}
+{{- end }}
 <header class="sq-siteheader">
   <div class="sq-siteheader-in">
-    <nav class="sq-trail" aria-label="You are here">
-      {{- if ne $here "/" }}
-      <a class="sq-mark" href="/">Saber H.</a>
-      {{- end }}
-      {{- if eq .Kind "404" }}
-      <span class="sq-trail-sep" aria-hidden="true">/</span><span class="sq-trail-here">404</span>
-      {{- else }}
-        {{- $path := "/" }}
-        {{- range split (strings.Trim $here "/") "/" }}{{ with . }}
-          {{- $path = printf "%s%s/" $path . }}
-      <span class="sq-trail-sep" aria-hidden="true">/</span><a class="sq-trail-link" href="{{ $path }}"{{ if eq $path $here }} aria-current="page"{{ end }}>{{ . }}</a>
-        {{- end }}{{ end }}
+    {{- if ne $here "/" }}
+    <a class="sq-mark" href="/">Saber H.</a>
+    {{- end }}
+    {{- if gt (len $h.sides) 1 }}
+    <nav class="sq-sides" aria-label="Sides of the site">
+      {{- range $h.sides }}
+      <a class="sq-side" href="{{ .url }}"{{ if eq .id $side.id }} aria-current="true"{{ end }}>{{ .name }}</a>
       {{- end }}
     </nav>
+    {{- end }}
     <span class="sq-fill"></span>
-    <nav class="sq-menu" aria-label="Sections">
-      {{- range site.Data.header.menu }}
-        {{- $cls := "sq-menu-link" }}
-        {{- with .accent }}{{ $cls = printf "%s sq-menu-link--%s" $cls . }}{{ end }}
-      <a class="{{ $cls }}" href="{{ .url }}">{{ .name }}</a>
-      {{- end }}
-      {{- with site.Data.header.elsewhere }}
-      <details class="sq-menu-more">
-        <summary>Elsewhere</summary>
-        <div class="sq-menu-more-links">
-          {{- range . }}
-          <a href="{{ .url }}" target="_blank" rel="noopener">{{ .name }}<span class="sq-sr-only"> (opens in a new tab)</span></a>
-          {{- end }}
-        </div>
-      </details>
+    <nav class="sq-tabs" aria-label="Sections">
+      {{- range $side.tabs }}
+        {{- $tab := index $h.tabs . }}
+      <a class="sq-tab{{ with $tab.accent }} sq-tab--{{ . }}{{ end }}" href="{{ $tab.url }}"{{ if eq . $open }} aria-current="{{ if eq $tab.url $here }}page{{ else }}true{{ end }}"{{ end }}>{{ $tab.name }}</a>
       {{- end }}
     </nav>
+    <details class="sq-menu-more">
+      <summary title="Elsewhere"><span class="sq-sr-only">Elsewhere</span></summary>
+      <div class="sq-menu-more-links">
+        {{- range $h.fold }}{{ if not (or (in $side.tabs .) (eq . $open)) }}
+        <a class="sq-menu-more-page" href="{{ (index $h.tabs .).url }}">{{ (index $h.tabs .).name }}</a>
+        {{- end }}{{ end }}
+        {{- range $h.elsewhere }}
+        <a href="{{ .url }}" target="_blank" rel="noopener">{{ .name }}<span class="sq-menu-more-out" aria-hidden="true">↗</span><span class="sq-sr-only"> (opens in a new tab)</span></a>
+        {{- end }}
+      </div>
+    </details>
     <button class="sq-switch" type="button" role="switch" aria-checked="false" aria-label="Dark theme" title="Dark theme" data-theme-toggle>
       <span class="sq-switch-track" aria-hidden="true"><span class="sq-switch-knob">
         <svg class="sq-switch-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.8v1.5M8 12.7v1.5M1.8 8h1.5M12.7 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05"/></svg>
@@ -42,3 +49,14 @@
     </button>
   </div>
 </header>
+{{- if $trail }}
+<nav class="sq-subheader" aria-label="You are here">
+  <div class="sq-trail">
+    {{- $path := "/" }}
+    {{- range $i, $folder := split (strings.Trim $here "/") "/" }}
+      {{- $path = printf "%s%s/" $path $folder }}
+    {{ if $i }}<span class="sq-trail-sep" aria-hidden="true">/</span>{{ end }}<a class="sq-trail-link" href="{{ $path }}"{{ if eq $path $here }} aria-current="page"{{ end }}>{{ $folder }}</a>
+    {{- end }}
+  </div>
+</nav>
+{{- end }}

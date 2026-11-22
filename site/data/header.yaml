@@ -1,17 +1,27 @@
-# The header's menu, left to right (accent: sidechain is carmine, vibes is blue hour),
-# then Elsewhere: Saber on other sites.
-menu:
-  - name: Sidechain
-    url: /sidechain/
-    accent: sidechain
-  - name: Saber Vibes
+# The header. sides: the halves of the site, each with its tabs, left to right; url is where its switch leads.
+sides:
+  - id: professional
+    name: Professional
+    url: /
+    tabs: [sidechain, blog, about]
+  - id: personal
+    name: Personal
     url: /vibes/
-    accent: vibes
-  - name: Blog
-    url: /blog/
-  - name: About
-    url: /about/
+    tabs: [vibes]
 
+# tabs: every place a tab can name (accent: sidechain is carmine, vibes is blue hour).
+# trail: false means the pages inside it show no trail under the header.
+tabs:
+  sidechain: {name: Sidechain, url: /sidechain/, accent: sidechain}
+  blog: {name: Blog, url: /blog/}
+  about: {name: About, url: /about/}
+  vibes: {name: Saber Vibes, url: /vibes/, accent: vibes, trail: false}
+
+# fold: tabs listed first inside Elsewhere on the side that doesn't show them.
+fold:
+  - about
+
+# Elsewhere: Saber on other sites.
 elsewhere:
   - name: GitHub
     url: https://github.com/saberhq

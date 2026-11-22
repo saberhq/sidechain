@@ -15,62 +15,76 @@ html { scroll-padding-top: calc(var(--sq-header-h) + var(--space-3)); }
 }
 /* The same width on every page, whatever the page below does with its own */
 .sq-siteheader-in {
-  max-width: var(--page-max); margin: 0 auto; padding-left: var(--space-6); padding-right: var(--space-6);
+  max-width: var(--page-max); margin: 0 auto; padding: 0 var(--space-6);
   display: flex; align-items: center; gap: 0 var(--space-4);
-  min-height: calc(var(--sq-header-h) - var(--rule-w));
-  padding-top: var(--space-2); padding-bottom: var(--space-2);
+  height: calc(var(--sq-header-h) - var(--rule-w));
 }
 .sq-siteheader-in > * { flex-shrink: 0; }
 
-/* One voice for every word in the bar, the mark included: Geist Mono 13px, uppercase, tracked */
-.sq-trail, a.sq-mark, a.sq-menu-link, .sq-menu-more > summary, .sq-menu-more-links a {
-  font-family: var(--font-mono); font-size: 13px; font-weight: 400;
-  letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
+/* The mark: the instrument panel's capitals, a weight up */
+a.sq-mark, a.sq-mark:visited, a.sq-mark:hover {
+  line-height: 40px; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink); text-decoration: none;
 }
 
-/* The trail: Saber H. / section / page; the words are links, the slashes are not */
-.sq-trail {
-  display: flex; align-items: baseline; min-width: 0; overflow: hidden;
-  flex-shrink: 1; line-height: 40px;
+/* The sides of the site: a two-way switch; each half is a link */
+.sq-sides {
+  display: flex; gap: 2px; padding: 2px; border-radius: 999px;
+  border: var(--rule-w) solid color-mix(in srgb, var(--ink-4) 40%, transparent);
 }
-.sq-trail > * { flex-shrink: 0; }
-a.sq-mark, a.sq-mark:visited { color: var(--ink); text-decoration: none; }
-a.sq-mark:hover { color: var(--ink); text-decoration: none; }
-.sq-trail-sep { padding: 0 0.6em 0 0.5em; color: var(--ink-4); }
-a.sq-trail-link, a.sq-trail-link:visited { color: var(--ink-3); text-decoration: none; }
-a.sq-trail-link[aria-current], .sq-trail-here { color: var(--link); }
-a.sq-trail-link:hover { color: var(--ink); text-decoration: none; }
-.sq-trail > :last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-
-/* The menu */
-.sq-menu { display: flex; align-items: center; gap: 2px; }
-a.sq-menu-link, a.sq-menu-link:visited,
-.sq-menu-more > summary {
-  display: block; height: 40px; padding: 0 10px; line-height: 40px;
-  color: var(--ink-3); text-decoration: none; cursor: pointer;
+a.sq-side, a.sq-side:visited {
+  height: 24px; padding: 0 11px; border-radius: 999px; line-height: 24px; white-space: nowrap;
+  font-family: var(--font-sans); font-size: 13px; font-weight: 400; letter-spacing: 0;
+  color: var(--ink-3); text-decoration: none;
   transition: color var(--dur) var(--ease);
 }
-a.sq-menu-link--sidechain, a.sq-menu-link--sidechain:visited { color: var(--accent-2); }
-a.sq-menu-link--vibes, a.sq-menu-link--vibes:visited { color: var(--accent-3); }
-a.sq-menu-link:hover, .sq-menu-more > summary:hover { color: var(--ink); text-decoration: none; }
+a.sq-side:hover { color: var(--ink); text-decoration: none; }
+a.sq-side[aria-current] {
+  background: var(--surface-sunken); color: var(--ink);
+  box-shadow: 0 0 0 var(--rule-w) var(--rule);
+}
 
-/* Elsewhere: the links to other sites, folded into one entry */
-.sq-menu-more { position: relative; }
-.sq-menu-more > summary { list-style: none; }
+/* The tabs: this side's sections; the open one wears its colour, with a rule under it */
+.sq-tabs { align-self: stretch; display: flex; gap: 2px; margin-bottom: calc(-1 * var(--rule-w)); }
+a.sq-tab, a.sq-tab:visited {
+  display: flex; align-items: center; padding: 0 14px var(--rule-w); white-space: nowrap;
+  font-family: var(--font-sans); font-size: var(--small-size); font-weight: 400; letter-spacing: 0;
+  color: var(--ink-2); text-decoration: none;
+  transition: color var(--dur) var(--ease);
+}
+a.sq-tab:hover { color: var(--ink); text-decoration: none; }
+a.sq-tab[aria-current] { color: var(--link); box-shadow: inset 0 -2px 0 currentColor; }
+a.sq-tab--sidechain[aria-current] { color: var(--accent-2); }
+a.sq-tab--vibes[aria-current] { color: var(--accent-3); }
+
+/* Elsewhere, shown as a plus sign: the tabs this side leaves out, then the links to other sites */
+.sq-menu-more { position: relative; margin-left: -10px; }
+.sq-menu-more > summary {
+  display: grid; place-items: center; width: 40px; height: 40px;
+  font-family: var(--font-sans); font-size: 20px; font-weight: 300; line-height: 1;
+  color: var(--ink-2); cursor: pointer; list-style: none;
+  transition: color var(--dur) var(--ease);
+}
 .sq-menu-more > summary::-webkit-details-marker { display: none; }
-.sq-menu-more > summary::after { content: " +"; }
-.sq-menu-more[open] > summary { color: var(--ink); }
-.sq-menu-more[open] > summary::after { content: " –"; }
+.sq-menu-more > summary::after { content: "+"; }
+.sq-menu-more > summary:hover, .sq-menu-more[open] > summary { color: var(--ink); }
+.sq-menu-more[open] > summary::after { content: "\2212"; }
 .sq-menu-more-links {
   position: absolute; top: calc(100% + var(--space-1)); right: 0; z-index: 10;
-  display: grid; min-width: 12em; padding: var(--space-2) 0;
+  display: grid; min-width: 11em; padding: var(--space-2) 0;
   background: var(--surface-card); border: var(--rule-w) solid var(--rule); border-radius: var(--radius);
   box-shadow: 0 8px 18px -10px var(--sq-header-shadow);
 }
 .sq-menu-more-links a, .sq-menu-more-links a:visited {
-  padding: 6px var(--space-4); line-height: 20px; color: var(--ink-2); text-decoration: none;
+  display: flex; justify-content: space-between; gap: var(--space-4);
+  padding: 6px var(--space-4); line-height: 20px; white-space: nowrap;
+  font-family: var(--font-sans); font-size: var(--small-size); letter-spacing: 0;
+  color: var(--ink-2); text-decoration: none;
 }
 .sq-menu-more-links a:hover { color: var(--link); background: var(--surface-sunken); text-decoration: none; }
+.sq-menu-more-out { font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+.sq-menu-more-links a.sq-menu-more-page { margin-bottom: var(--space-1); padding-bottom: 10px; border-bottom: var(--rule-w) solid var(--rule); }
 
 /* The theme switch */
 .sq-switch {
@@ -105,22 +119,39 @@ a.sq-menu-link:hover, .sq-menu-more > summary:hover { color: var(--ink); text-de
 [data-theme="dark"] .sq-switch-sun { opacity: 0; }
 [data-theme="dark"] .sq-switch-moon { opacity: 1; }
 
-/* Tablets and phones: the trail and the switch on top, the menu on a row of its own */
-@media (max-width: 900px) {
-  :root { --sq-header-h: 93px; }
-  .sq-siteheader-in { flex-wrap: wrap; padding-bottom: 0; padding-left: var(--space-4); padding-right: var(--space-4); }
-  .sq-trail, .sq-siteheader-in > .sq-switch { height: 44px; line-height: 44px; }
-  /* A long trail shortens beside the switch rather than taking a row of its own */
-  .sq-trail { flex: 1 1 0%; }
-  .sq-siteheader-in > .sq-fill { display: none; }
-  .sq-menu { order: 9; flex: 1 0 100%; flex-wrap: wrap; margin-left: -10px; }
-  .sq-menu-more-links { right: auto; left: 0; }
+/* Under the bar: the path to this page, section / page; the words are links, the slashes are not */
+.sq-subheader { background: var(--paper); border-bottom: var(--rule-w) solid var(--rule); }
+.sq-trail {
+  max-width: var(--page-max); margin: 0 auto; padding: 0 var(--space-6);
+  display: flex; align-items: baseline; overflow: hidden; line-height: 36px; white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--meta-size); font-weight: 400; letter-spacing: var(--meta-track);
 }
-/* Phones: tighter words; the bar scrolls away with the page */
-@media (max-width: 700px) {
+.sq-trail > * { flex-shrink: 0; }
+.sq-trail-sep { padding: 0 0.7em; color: var(--ink-4); }
+a.sq-trail-link, a.sq-trail-link:visited { color: var(--ink-3); text-decoration: none; }
+a.sq-trail-link[aria-current] { color: var(--ink); }
+a.sq-trail-link:hover { color: var(--ink); text-decoration: none; }
+a.sq-trail-link:focus-visible { outline-offset: -6px; }
+.sq-trail > :last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tablets and phones: the page's narrower gutters */
+@media (max-width: 900px) {
+  .sq-siteheader-in, .sq-trail { padding-left: var(--space-4); padding-right: var(--space-4); }
+}
+/* Phones and narrow tablets: the mark and the two switches on top, the tabs on a row of their own; the bar scrolls away with the page */
+@media (max-width: 760px) {
   :root { --sq-header-h: 0px; }
   .sq-siteheader { position: static; }
-  .sq-trail, a.sq-menu-link, .sq-menu-more > summary { letter-spacing: 0.06em; }
-  a.sq-menu-link, a.sq-menu-link:visited, .sq-menu-more > summary { padding: 0 5px; height: 36px; line-height: 36px; }
-  .sq-menu { margin-left: -5px; padding-bottom: var(--space-1); }
+  .sq-siteheader-in { flex-wrap: wrap; height: auto; gap: 0 10px; }
+  a.sq-mark, .sq-sides { margin-top: var(--space-2); margin-bottom: var(--space-1); }
+  a.sq-side, a.sq-side:visited { padding: 0 9px; font-size: 12.5px; }
+  .sq-siteheader-in > .sq-switch { order: 1; margin: var(--space-2) 0 var(--space-1) auto; }
+  .sq-siteheader-in > .sq-fill { order: 2; flex: 0 0 100%; height: 0; }
+  .sq-tabs { order: 3; height: 41px; margin-left: -10px; }
+  a.sq-tab, a.sq-tab:visited { padding-left: 10px; padding-right: 10px; }
+  .sq-menu-more { order: 4; margin-left: auto; margin-right: -14px; }
+}
+
+@media print {
+  .sq-siteheader, .sq-subheader { display: none; }
 }
