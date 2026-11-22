@@ -1,5 +1,6 @@
 ---
 title: Models
+date: 2026-08-27
 description: Every model Sidechain has put on the Virtual Cell Challenge 2026 board — the idea each one tested, what it scored, and what its name means.
 ---
 
