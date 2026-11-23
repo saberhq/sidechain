@@ -136,6 +136,12 @@ a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 4
 .sc-wordmark-mark { color: var(--accent); }
 .sq-tagline { margin: 18px 0 0; font-size: 17px; line-height: 1.55; color: var(--ink-2); max-width: 52ch; text-wrap: pretty; }
 .sq-hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: 28px; }
+/* The final round's rank under the tagline: one line, a pill linking to the figures. */
+.sc-result { margin: 20px 0 0; font-family: var(--font-mono); font-size: 13px; color: var(--ink-2); }
+.sc-result a, .sc-result a:visited { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 7px 14px; border: var(--rule-w) solid var(--rule); border-radius: 999px; color: inherit; text-decoration: none; }
+.sc-result a:hover { border-color: var(--accent); }
+.sc-result-k { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.sc-result b { font-weight: 600; color: var(--ink); }
 /* Arrow glyphs are missing from Geist Mono; render them in the sans stack at label size */
 .sq-glyph { font-family: var(--font-sans), system-ui, sans-serif; font-size: 1.3em; line-height: 1; vertical-align: -0.08em; }
 .sq-btn .sq-glyph { font-size: 1.1em; vertical-align: -0.02em; }
@@ -198,6 +204,12 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-stat-value { margin-top: 2px; font-family: var(--font-mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); }
 .sc-stat-value small { margin-left: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
 .sc-stat-sep { margin: 0 3px; font-weight: 400; color: var(--ink-4); }
+/* With a final-round entry, its figure leads and the validation round's follows smaller. */
+.sc-stand--final { grid-template-columns: 3fr 2fr; align-items: end; }
+.sc-stat--lead .sc-stat-value { font-size: 34px; }
+.sc-stat--minor .sc-stat-value { font-size: 18px; }
+.sc-stand-note { grid-column: 1 / -1; margin: 2px 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.sc-bars--final + .sc-bars--val { margin-top: var(--space-4); padding-top: 10px; border-top: 1px dashed var(--rule); }
 /* The change since the entry before. Green only when it rose, and the sign says so too. */
 .sc-delta { margin-left: 8px; color: var(--ink-3); white-space: nowrap; }
 .sc-delta--up { color: var(--up); }
@@ -383,6 +395,9 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
   /* a section head with two asides is wider than a small phone: the asides take the next line */
   .sq-section-head { flex-wrap: wrap; row-gap: 2px; }
   .sc-stat-value { font-size: 17px; }
+  .sc-stand--final { grid-template-columns: 1fr; }
+  .sc-stat--lead .sc-stat-value { font-size: 28px; }
+  .sc-stat--minor .sc-stat-value { font-size: 16px; }
   .sc-spark-readout .sc-wide { display: none; }
   /* a label that wraps must not drop its figure below its neighbour's */
   .sc-stand-row .sc-stat-label { min-height: 3.2em; }

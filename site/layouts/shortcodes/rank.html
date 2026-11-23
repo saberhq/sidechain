@@ -1,0 +1,16 @@
+{{- /* The `rank` shortcode: "rank N of M teams" from the generated standings, never typed by hand.
+       {{< rank final >}} -- the final round's entry on the final leaderboard.
+       {{< rank val >}}   -- the validation round's best: the rank the leaderboard shows for it in the latest
+                             whole-field snapshot when that row is ours, else the rank it held when scored. */ -}}
+{{- $round := .Get 0 | default "final" -}}
+{{- $entries := site.Data.submissions.entries -}}
+{{- $rank := 0 }}{{ $teams := 0 -}}
+{{- if eq $round "final" -}}
+  {{- with where $entries "partition" "final" }}{{ $f := index . (sub (len .) 1) }}{{ $rank = $f.rank }}{{ $teams = $f.teams }}{{ end -}}
+{{- else -}}
+  {{- $best := dict -}}
+  {{- range where (where $entries "partition" "val") "class" "!=" "calibration" }}{{ if or (not $best) (ge .overall $best.overall) }}{{ $best = . }}{{ end }}{{ end -}}
+  {{- with $best }}{{ $rank = .rank }}{{ $teams = .teams }}{{ end -}}
+  {{- with resources.Get "data/field.json" }}{{ $field := . | transform.Unmarshal }}{{ with $field.ours }}{{ if eq .name $best.name }}{{ $rank = .rank }}{{ $teams = $field.teams }}{{ end }}{{ end }}{{ end -}}
+{{- end -}}
+{{- with $rank }}rank {{ . }}{{ with $teams }} of {{ lang.FormatNumber 0 . }} teams{{ end }}{{ else }}rank not yet listed{{ end -}}

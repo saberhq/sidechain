@@ -31,13 +31,18 @@
 {{ $entries := $d.entries }}
 {{ if $entries }}
 {{ $models := .Site.GetPage "/models" }}
-{{ $rest := where $entries "class" "!=" "calibration" }}
-{{ $calibration := where $entries "class" "calibration" }}
+{{- /* The final round's entries sit in a strip of their own above the validation round's. */ -}}
+{{ $final := where $entries "partition" "final" }}
+{{ $val := where $entries "partition" "!=" "final" }}
+{{ $rest := where $val "class" "!=" "calibration" }}
+{{ $calibration := where $val "class" "calibration" }}
 {{- /* A board of nothing but calibration runs has nothing to set the axis by; fall back. */ -}}
-{{ $scale := cond (gt (len $rest) 0) $rest $entries }}
+{{ $scale := cond (gt (len $rest) 0) $rest $val }}
 {{ $best := index $scale 0 }}
 {{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
 {{ range $scale }}{{ if ge .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
+{{ $top := $best.overall }}
+{{ range $final }}{{ if gt .overall $top }}{{ $top = .overall }}{{ end }}{{ end }}
 
 {{- /* Bars: one per submission, scale 0 → a round ceiling above the best (0.1 steps), which
        is 0.2 for as long as no entry passes it. */ -}}
@@ -46,14 +51,24 @@
 {{ $lch := 0 }}
 {{ range $entries }}{{ if gt (len .name) $lch }}{{ $lch = len .name }}{{ end }}{{ end }}
 {{ $lch = add $lch 2 }}
-{{ $ceil := math.Ceil (mul $best.overall 10) }}
+{{ $ceil := math.Ceil (mul $top 10) }}
 {{ $ceil = div $ceil 10.0 }}
 {{ if lt $ceil 0.1 }}{{ $ceil = 0.1 }}{{ end }}
-<figure class="sc-bars sc-bars--named" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission; a name opens its rank and a link to what the model is">
-  <figcaption class="sc-bars-title">Overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
-  {{- /* the axis is labelled at every 0.1, where each row's dashed lines fall */}}
-  {{ $steps := int (math.Round (mul $ceil 10)) }}
-  <div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track sc-bars-axis-ticks">{{ range seq 0 $steps }}<span style="left: {{ printf "%.3f" (mul (div (float .) (float $steps)) 100) }}%">{{ if eq . 0 }}0{{ else }}{{ printf "%.1f" (div (float .) 10.0) }}{{ end }}</span>{{ end }}</span><span></span></div>
+{{ $steps := int (math.Round (mul $ceil 10)) }}
+{{- /* the axis is labelled at every 0.1, where each row's dashed lines fall */}}
+{{ $axis := printf `<div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track sc-bars-axis-ticks">%s</span><span></span></div>` (partial "inline/bar-ticks.html" $steps) | safeHTML }}
+{{ with $final }}
+<figure class="sc-bars sc-bars--named sc-bars--final" style="--label-ch: {{ $lch }}" aria-label="The final round: overall score on the final leaderboard; a name opens its rank and a link to what the model is">
+  <figcaption class="sc-bars-title">Final round · overall score on the three test cell lines · only a team's last upload is scored</figcaption>
+  {{ $axis }}
+  {{ range collections.Reverse . }}
+  {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" true) }}
+  {{ end }}
+</figure>
+{{ end }}
+<figure class="sc-bars sc-bars--named{{ if $final }} sc-bars--val{{ end }}" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission{{ if $final }} in the validation round{{ end }}; a name opens its rank and a link to what the model is">
+  <figcaption class="sc-bars-title">{{ if $final }}Validation round · overall score{{ else }}Overall score{{ end }} · 0 = the context mean, 1 = a biological replicate</figcaption>
+  {{ $axis }}
   {{ range collections.Reverse $rest }}
   {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" (eq .name $best.name)) }}
   {{ end }}
@@ -70,3 +85,8 @@
 </figure>
 {{ end }}
 {{ end }}
+
+{{- define "_partials/inline/bar-ticks.html" -}}
+{{- $steps := . -}}
+{{- range seq 0 $steps }}<span style="left: {{ printf "%.3f" (mul (div (float .) (float $steps)) 100) }}%">{{ if eq . 0 }}0{{ else }}{{ printf "%.1f" (div (float .) 10.0) }}{{ end }}</span>{{ end -}}
+{{- end -}}

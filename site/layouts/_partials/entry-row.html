@@ -37,6 +37,6 @@
     {{- /* No board snapshot was taken while the entry was still inside the page's ~50-row
            embed, so the field size is unknown. Print the rank alone rather than a dangling
            "of" — scripts/standings.py's rank_label does the same for the README. */}}
-    <div class="sc-entry-meta">{{ if $e.rank }}#{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }} when scored · {{ end }}{{ with $href }}<a href="{{ . }}">what this model is →</a>{{ end }}</div>
+    <div class="sc-entry-meta">{{ if $e.rank }}#{{ $e.rank }}{{ with $e.teams }} of {{ . }}{{ end }} {{ if eq $e.partition "final" }}on the final leaderboard{{ else }}when scored{{ end }} · {{ end }}{{ with $href }}<a href="{{ . }}">what this model is →</a>{{ end }}</div>
   </div>
 </details>

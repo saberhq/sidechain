@@ -1,5 +1,14 @@
-{{- $b := site.Data.submissions.board -}}
-{{- if and $b $b.rows }}
+{{- $final := eq (.Get "round") "final" -}}
+{{- $b := cond $final site.Data.submissions.board_final site.Data.submissions.board -}}
+{{- if and $final $b $b.rows }}
+| rank | model | overall |{{ range $b.columns }} {{ . }} |{{ end }}
+|--:|---|--:|{{ range $b.columns }}--:|{{ end }}
+{{- range $b.rows }}
+| {{ .rank_when_scored }}{{ with .teams }} of {{ . }}{{ end }} | {{ .name }} | {{ printf "%.4f" .overall }} |{{ range .cells }} {{ if eq (printf "%v" .scaled) "<nil>" }}—{{ else }}{{ printf "%.3f" .scaled }}{{ end }} |{{ end }}
+{{- end }}
+
+Each score is the scaled score the final leaderboard ranks on.
+{{ else if and $b $b.rows }}
 | # | model | overall |{{ range $b.columns }} {{ . }} |{{ end }}
 |--:|---|--:|{{ range $b.columns }}--:|{{ end }}
 {{- range $b.rows }}

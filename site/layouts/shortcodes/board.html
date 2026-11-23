@@ -10,8 +10,30 @@
        section on this page, whose heading is `<name> — submitted <date>` with ` · calibration
        run` on a calibration run. The legend's paragraph carries the id `calibration-runs`, which
        the landing page links to. */ -}}
-{{ $b := site.Data.submissions.board }}
-{{ if and $b $b.rows }}
+{{- /* {{< board round="final" >}} draws the final round's entries instead (`board_final`): their rank on
+       the final leaderboard in place of `#`, no sorting and no legend, which the validation table carries. */ -}}
+{{ $final := eq (.Get "round") "final" }}
+{{ $b := cond $final site.Data.submissions.board_final site.Data.submissions.board }}
+{{ if and $final $b $b.rows }}
+<div class="sc-table-wrap sc-board-wrap" tabindex="0">
+<table class="sc-board sc-board--final">
+<thead><tr><th class="r">rank</th><th>model</th><th class="r">overall</th>{{ range $b.columns }}<th class="r">{{ . }}</th>{{ end }}</tr></thead>
+<tbody>
+{{ range $b.rows }}
+<tr>
+<td class="r">{{ with .rank_when_scored }}{{ . }}{{ else }}—{{ end }}{{ with .teams }}<small> of {{ lang.FormatNumber 0 . }}</small>{{ end }}</td>
+<td class="sc-board-name"><a href="#{{ anchorize (printf "%s — submitted %s" .name .date) }}">{{ .name }}</a></td>
+<td class="r sc-board-overall">{{ replace (printf "%.4f" .overall) "-" "−" }}</td>
+{{- range .cells }}
+{{- $t := .tint }}
+<td class="r sc-board-cell{{ if $t }}{{ if gt $t 0.0 }} up{{ else }} dn{{ end }}{{ end }}"{{ if $t }} style="--pf: {{ printf "%.0f" (mul (math.Abs $t) 100) }}%"{{ end }}><b>{{ if eq (printf "%v" .scaled) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .scaled) "-" "−" }}{{ end }}</b><small>{{ if eq (printf "%v" .raw) "<nil>" }}—{{ else }}{{ replace (printf "%.3f" .raw) "-" "−" }}{{ end }}</small></td>
+{{- end }}
+</tr>
+{{ end }}
+</tbody>
+</table>
+</div>
+{{ else if and (not $final) $b $b.rows }}
 <div class="sc-table-wrap sc-board-wrap" tabindex="0">
 <table class="sc-board">
 <thead><tr><th class="r on" data-sort="n" data-dir="1" title="the entry's place among Sidechain's entries by overall">#</th><th data-sort="name">model</th><th class="r" data-sort="overall">overall</th>{{ range $b.columns }}<th class="r" data-sort="{{ . }}">{{ . }}</th>{{ end }}</tr></thead>

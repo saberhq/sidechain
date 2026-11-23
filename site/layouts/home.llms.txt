@@ -5,6 +5,9 @@
 
 {{ site.Title }} is a solo entry to the Arc Institute's Virtual Cell Challenge 2026 ({{ site.Params.challenge }}) by {{ site.Params.author }} ({{ site.Params.parent }}), built in the open: its code, its models and its write-ups are public. Each link below is a page as Markdown; the web page is the same address without `index.md`.
 
+{{ with where site.Data.submissions.entries "partition" "final" }}{{ $f := index . (sub (len .) 1) }}
+Final result: {{ $f.name }} at rank {{ $f.rank }} of {{ $f.teams }} teams on the challenge's final leaderboard, overall {{ printf "%.4f" $f.overall }} (one mean over the three test cell lines).{{ end }}
+
 ## Pages
 {{- range where site.RegularPages "Section" "" }}
 - [{{ or .Params.card_title .Title }}]({{ with .OutputFormats.Get "markdown" }}{{ .Permalink }}{{ end }}): {{ .Description }}

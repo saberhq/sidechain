@@ -1,25 +1,129 @@
 ---
 title: Models
 date: 2026-08-27
-description: Every model Sidechain has put on the Virtual Cell Challenge 2026 board — the idea each one tested, what it scored, and what its name means.
+lastmod: 2026-11-23
+description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means.
 ---
 
-All but one come from the SER series, which predicts what silencing a gene (a knockdown) does to a cell line it has never
-seen by borrowing what silencing the same gene did in large public screens of other cell lines, the sources. The one
-exception, PHE-2, is a neural network that predicts the knockdowns directly. Every entry on this page was scored on the
-challenge's three validation cell lines; the final ranking is decided on three other lines, released on October 22.
+Sidechain put two series of models on the challenge's leaderboards. Both predict what silencing a gene (a knockdown) does
+to a cell line they have never seen by borrowing what silencing the same gene did in large public screens of other cell
+lines, the sources. The SER series did this through the validation round. The CYS series, in the final round, starts from
+the last SER recipe; its later entries add a small model, learned on those screens, that sets how far and which way each
+gene moves.
+One validation entry, PHE-2, is a neural network that predicts the knockdowns directly.
 
-A name reads in three parts. In `SER-28abefhkrswx`, `SER` is the series, `28` the model number, and each lowercase letter
-a knob moved off the series' plain recipe, ten of them here. A letter keeps one meaning in every series, and it says that a
-knob is on, not where it is set: setting the same knob differently takes a new model number.
+The page has three parts:
+
+- [The final round](#the-final-round): our last upload, CYS-6, finished at {{< rank final >}} on the final leaderboard,
+  and the five entries before it, which the board never scored.
+- [Judging an entry with no score to look at](#judging-an-entry-with-no-score-to-look-at): how we chose the final
+  entries when nothing came back from the board.
+- [The validation round](#the-validation-round): every entry the board scored, with our best, SER-29abefhkrswx, at
+  {{< rank val >}} on the validation leaderboard.
+
+A SER name reads in three parts. In `SER-28abefhkrswx`, `SER` is the series, `28` the model number, and each lowercase
+letter a knob moved off the series' plain recipe, ten of them here. A letter keeps one meaning in every series, and it says
+that a knob is on, not where it is set: setting the same knob differently takes a new model number. A CYS name carries no
+letters: each entry is described in words.
 
 Each section says what its model set out to test and how it scored, and leaves out where its knobs were set: how strong,
 how many, how far. What each knob does is explained once, at the end of the page, under [The knobs](#the-knobs), and what
 each of the board's six scores reads is under [The six scores](#the-six-scores). "Our own held-out tests" are public
-screens of other cell lines, kept from the model and scored the way the board scores. The story behind these models, the reasoning
-at each fork and what did not work, is told in [Knobs N' Knockdowns](/posts/knobs-n-knockdowns/).
+screens of other cell lines, kept from the model and scored the way the board scores. The story behind the validation
+models, the reasoning at each fork and what did not work, is told in [Knobs N' Knockdowns](/posts/knobs-n-knockdowns/).
 
-## Every entry on one board
+## The final round
+
+The final round opened on October 22 with three new cell lines and a new list of 300 genes to silence, and closed on
+November 5. Only a team's last upload counted, and no score came back until the round had closed, so each entry below was
+chosen on our own held-out tests. Each builds on an earlier one.
+
+Our last upload, CYS-6, is the one the final leaderboard scored: 0.2563 overall, {{< rank final >}}. The overall score is
+one mean over the three new lines; the board does not split it by line. CYS-1 to CYS-5 have no score.
+
+{{< board round="final" >}}
+
+### CYS-6 — submitted 2026-11-04
+
+CYS-5 with one rule added to its learned model. On 37 to 48 % of the gene changes it predicts, that model points the
+change the opposite way from the plain pool of screens. On our own held-out tests these reversals were right on every line when the
+model's predicted change was large, and close to a coin toss on four lines of seven when it was small. CYS-6 keeps a
+reversal only where the predicted change is large, and sends every smaller one back to the pool's direction, with its
+size kept.
+
+On our own held-out tests it read a little above CYS-5 on the final round's 300 genes and level with it on the validation
+round's. It was our last upload, so it is the entry the final leaderboard scored: 0.2563 overall, {{< rank final >}}.
+Telling knockdowns apart (pds) scored 0.750, distance (mse) 0.271, size of change (nmae) 0.263, reach 0.165, direction
+(fid) 0.083 and overlap (jac) 0.006.
+
+### CYS-5 — submitted 2026-11-02
+
+CYS-4 with one part replaced and one rule added. CYS-4 sets the size of each gene's change in a predicted cell from a
+table: the typical real size of a called gene for the size we predicted, read off other lines' screens. CYS-5 replaces
+that table with a small learned model. For each knockdown and gene it reads how far the nine source screens agree (their
+average, how many have data, how many point the same way, how spread they are) and how much the new line's untreated cells
+express the gene, and predicts the gene's change with its direction; it was trained on our held-out lines, each left out
+in turn. The summed profile, which the scores for telling knockdowns apart and for distance read, is held exactly where
+CYS-4 puts it, so the model moves only what the single cells carry. The added rule: a gene the untreated cells express is
+never dropped to zero reads in a predicted cell.
+
+On our own held-out tests it read above CYS-4 on the mean of four cell types, through size of change (nmae) and reach,
+and paid a little in overlap (jac) and direction (fid); the two summed-profile scores did not move.
+
+### CYS-4 — submitted 2026-10-26
+
+CYS-2's file, byte for byte, sent again so that our last upload at the time was the recipe our held-out tests ranked
+first. Nothing in the model changed.
+
+### CYS-3 — submitted 2026-10-25
+
+CYS-1 with the size map alone. CYS-1 gives every gene the same per-cell strength, so a gene predicted to barely move and
+one predicted to move far are scaled alike. CYS-3 passes each gene's per-cell change through a map read off other lines'
+screens: the typical real change of a gene the real cells call, for the size we predicted, so small predictions are raised
+and large ones lowered.
+
+On our own held-out tests it read above CYS-1 on the mean of four cell types, with size of change (nmae) and overlap
+(jac) carrying the gain.
+
+### CYS-2 — submitted 2026-10-25
+
+CYS-1 with the size map of CYS-3 and a changed list of callable genes: the genes each knockdown's cells are made to call
+are chosen by the size of the predicted change rather than by how visible the change is to the scorer's test, and the list
+is ordered so the surest calls come first.
+
+On our own held-out tests it read level with CYS-3 overall, with reach above it on every line and overlap (jac) below.
+
+### CYS-1 — submitted 2026-10-22
+
+SER-29abefhkrswx's recipe, unchanged, built on the three final lines: the nine-source pool, each source read from its
+whole screen, the summed profile's strength set per line short of the point where distance (mse) stops paying, and its
+list of callable genes. It made sure a final entry existed on the first day.
+
+## Judging an entry with no score to look at
+
+In the validation round the board scored every upload, so an idea could be checked against it the same day. In the final
+round nothing came back until the round had closed, so every final entry was chosen on our own held-out tests alone.
+Three things let us trust them.
+
+- **The tests were checked against the board first.** All through the validation round we scored each candidate on our
+  own held-out tests, with the challenge's own open-source scorer, before uploading it. Each validation score then told
+  us whether those tests had ranked our entries the way the board did.
+- **What carries to a new line was learned on other lines.** Nothing in a final entry was tuned on the final lines'
+  answers, which nobody had. The learned model in CYS-5 and CYS-6 was trained on public screens with one line held out at
+  a time and judged on the line it had not seen, then carried to the three new lines. What each new line supplied was its
+  untreated cells, on which every prediction for that line is built.
+- **Each comparison had its rule before its run.** Before a batch of runs we wrote down which entry a candidate had to
+  beat, on which held-out lines, and by more than the scatter two halves of the same data show. Candidates were read on
+  both rounds' lists of genes, so a gain had to hold on the knockdowns the final round asks for as well as on those the
+  validation round asked for.
+
+## The validation round
+
+The validation round ran on the challenge's three validation cell lines until October 21, and the board scored every
+upload. Our best, SER-29abefhkrswx, stands at {{< rank val >}} on the validation leaderboard today. Each section below
+gives its entry's score.
+
+### Every entry on one board
 
 The leaderboard's table with only Sidechain's entries on it, by overall score, calibration runs included. Each cell holds
 the scaled score the board ranks on over the raw value, coloured as the leaderboard colours it, and a model's name opens
@@ -31,7 +135,7 @@ start line.
 
 {{< board >}}
 
-## SER-29abefhkrswx — submitted 2026-10-21
+### SER-29abefhkrswx — submitted 2026-10-21
 
 SER-27abefhkrswx with two changes and no new knob. The pool of sources grows from four public screens to nine. The five
 added are a screen in CD4 T cells, a second screen in H1 stem cells, a pooled screen across stem-cell lines, a screen in a
@@ -44,7 +148,7 @@ It scored 0.2226 against SER-27abefhkrswx's 0.1875, and all six scores rose. Dis
 0.299; telling knockdowns apart (pds) went from 0.729 to 0.757, and size of change (nmae) from 0.094 to 0.126. Direction
 (fid), reach and overlap (jac) also rose: from −0.013 to 0.012, from 0.105 to 0.139, and from −0.002 to 0.002.
 
-## SER-28abefhkrswx — submitted 2026-10-20
+### SER-28abefhkrswx — submitted 2026-10-20
 
 SER-27abefhkrswx with one change: which genes go on its list of callable genes (`h`). For the knockdowns whose predicted
 change is largest, the list now takes the genes predicted to move most; for the rest it keeps, as before, the genes whose
@@ -53,7 +157,7 @@ predicted move the scorer's test can see most clearly.
 It scored 0.1875, level with SER-27abefhkrswx. Direction (fid) and size of change (nmae) rose a little, overlap (jac) fell
 by about as much, and the other three scores held.
 
-## SER-27abefhkrswx — submitted 2026-10-20
+### SER-27abefhkrswx — submitted 2026-10-20
 
 SER-21aefhkrswx with `b` back on, so the summed profile of a knockdown's cells carries the borrowed response more strongly
 than each single cell does: the idea SER-7abefn first tried, now on top of everything added since. It went after the
@@ -62,7 +166,7 @@ distance score (mse), which had barely moved since SER-14aefksw.
 It scored 0.1875 against SER-21aefhkrswx's 0.1757. Nearly all of the gain is in distance (mse), which rose from 0.143 to
 0.212; the other five scores held.
 
-## SER-21aefhkrswx — submitted 2026-10-19
+### SER-21aefhkrswx — submitted 2026-10-19
 
 SER-19aefhkrsw with one new knob, `x`. Untreated cells of one line already differ from each other along a few main
 directions, such as how deeply each cell was sequenced and where it is in the cell cycle, and many knockdowns push cells
@@ -73,7 +177,7 @@ were.
 It scored 0.1757 against SER-19aefhkrsw's 0.1684. Telling knockdowns apart (pds) rose from 0.678 to 0.728, distance (mse)
 fell a little, and the four test-based scores held.
 
-## SER-20aefhkrsw — submitted 2026-10-19 · calibration run
+### SER-20aefhkrsw — submitted 2026-10-19 · calibration run
 
 SER-19aefhkrsw with its list of callable genes (`h`) taken to the far end: every gene that can be made callable in a
 knockdown goes on the list. A calibration run, to see on the board what the longest possible list scores beside the
@@ -82,7 +186,7 @@ shorter ones SER-16aefhkrsw to SER-19aefhkrsw tried.
 It scored 0.1673 against SER-19aefhkrsw's 0.1684. Reach fell from 0.104 to 0.088, overlap (jac) rose a little, and the
 other four scores held.
 
-## SER-19aefhkrsw — submitted 2026-10-16
+### SER-19aefhkrsw — submitted 2026-10-16
 
 SER-17aefhkrsw with a longer list of callable genes (`h`): in each knockdown, more of the genes whose predicted change
 stands out most are made callable.
@@ -90,7 +194,7 @@ stands out most are made callable.
 It scored 0.1684 against SER-17aefhkrsw's 0.1657. Direction (fid) and overlap (jac) rose, reach fell a little, and the
 other three scores held.
 
-## SER-18aefksvw — submitted 2026-10-16 · calibration run
+### SER-18aefksvw — submitted 2026-10-16 · calibration run
 
 SER-14aefksw with one new knob, `v`. When the effects borrowed from the sources are pooled, a source's vote counts for
 more where its measurement is less noisy. Until here that noise was read from each knockdown's own cells; here it is read
@@ -101,7 +205,7 @@ the challenge's cell lines.
 It scored 0.1612 against SER-14aefksw's 0.1626. Telling knockdowns apart (pds) fell; distance (mse) and reach rose; size
 of change (nmae) and direction (fid) fell a little, and overlap (jac) held.
 
-## SER-17aefhkrsw — submitted 2026-10-08
+### SER-17aefhkrsw — submitted 2026-10-08
 
 SER-16aefhkrsw with a longer list of callable genes (`h`): the second point on the question of how long that list should
 be.
@@ -110,7 +214,7 @@ It scored 0.1657 against SER-16aefhkrsw's 0.1423 and SER-14aefksw's 0.1626. Agai
 direction (fid); overlap (jac) rose a little and reach fell a little. Against SER-14aefksw, telling knockdowns apart
 (pds), distance (mse) and reach are higher, and direction (fid) is lower by about as much as reach gained.
 
-## SER-16aefhkrsw — submitted 2026-10-08 · calibration run
+### SER-16aefhkrsw — submitted 2026-10-08 · calibration run
 
 SER-15aefkrsw with one new knob, `h`. In SER-15aefkrsw the predicted cells kept all the cell-to-cell variety real cells
 have, and that variety hid most predicted changes from the scorer's test: it called only a handful of genes changed in a
@@ -121,7 +225,7 @@ to see what a short list scores on the challenge's cell lines.
 It scored 0.1423 against SER-15aefkrsw's −0.0039 and SER-14aefksw's 0.1626. Direction (fid) won back most of what
 SER-15aefkrsw had lost on it and stayed below SER-14aefksw's; overlap (jac) fell below both, and reach fell a little.
 
-## SER-15aefkrsw — submitted 2026-10-07 · calibration run
+### SER-15aefkrsw — submitted 2026-10-07 · calibration run
 
 SER-14aefksw with one new knob, `r`, in how each knockdown's 400 cells are written. In SER-14aefksw all 400 were drawn
 around one profile: the line's control profile, moved by the predicted change. Here each one starts as a real control
@@ -133,7 +237,7 @@ It scored −0.0039 against SER-14aefksw's 0.1626. One score, direction (fid), f
 five rose or held. On four of our own held-out tests, from three cell lines, it had scored above SER-14aefksw's recipe on
 every one.
 
-## SER-14aefksw — submitted 2026-10-03
+### SER-14aefksw — submitted 2026-10-03
 
 SER-12aefkw with a new shrinkage rule (`s`). Borrowed gene changes are noisy, so each one is pulled toward zero by how far
 it can be trusted. Until here each change was shrunk by its own measurement noise in every source, and a change no bigger
@@ -144,7 +248,7 @@ It scored 0.1626 against SER-12aefkw's 0.1438. Distance (mse) moved off zero for
 gain; telling knockdowns apart (pds) rose a little, size of change (nmae) fell, and reach fell a little. On our own
 held-out tests the rule had read as a trade between those same scores.
 
-## SER-13aefknw — submitted 2026-10-02
+### SER-13aefknw — submitted 2026-10-02
 
 SER-11abefknw with `b` turned off, so the summed profile carries the borrowed response at the same strength as each cell.
 Sent beside SER-12aefkw, which also turned `n` off, so that the two together read the shrinkage setting on its own.
@@ -152,7 +256,7 @@ Sent beside SER-12aefkw, which also turned `n` off, so that the two together rea
 It scored 0.1360, level with SER-11abefknw. Telling knockdowns apart (pds) rose a little and reach fell a little. On our
 own held-out tests the change had read as a small gain on three cell lines.
 
-## SER-12aefkw — submitted 2026-10-02
+### SER-12aefkw — submitted 2026-10-02
 
 SER-11abefknw with two knobs turned off. Without `b`, the summed profile carries the borrowed response at the same
 strength as each cell; without `n`, shrinkage is back on, so each borrowed gene change is pulled toward zero by its own
@@ -161,7 +265,7 @@ measurement noise, and a change no bigger than its noise is dropped.
 It scored 0.1438 against SER-11abefknw's 0.1360. Telling knockdowns apart (pds) and size of change (nmae) rose; reach
 fell. On our own held-out tests the two changes had read as a small gain for the first and a trade for the second.
 
-## SER-11abefknw — submitted 2026-09-30
+### SER-11abefknw — submitted 2026-09-30
 
 SER-10abefnw with the neighbour knob (`k`) SER-9abefkn tried: each knockdown's borrowed response is nudged toward the
 average response of the genes nearest to it in the STRING protein-interaction network, a map that places genes whose
@@ -171,7 +275,7 @@ keeps its size.
 It scored 0.1360 against SER-10abefnw's 0.1353. Reach rose; size of change (nmae) and telling knockdowns apart (pds) each
 fell a little. On our own held-out tests, from three cell lines, the gain had been about ten times as large.
 
-## SER-10abefnw — submitted 2026-09-30
+### SER-10abefnw — submitted 2026-09-30
 
 SER-7abefn with one new knob, `w`. Each knockdown's predicted cells are built on a profile of the line's control cells.
 Until here that profile was the average of each control cell's own make-up, every cell counting once. The scorer, though,
@@ -183,7 +287,7 @@ it was.
 It scored 0.1353 against SER-7abefn's 0.1131, nearly all of it in telling knockdowns apart (pds), which rose from 0.485 to
 0.612; the four test-based scores held. On our own held-out tests the gain had been about the same size.
 
-## SER-9abefkn — submitted 2026-09-29
+### SER-9abefkn — submitted 2026-09-29
 
 SER-7abefn with the neighbour knob (`k`) as SER-8abefkn tried it, on a different gene map: the STRING protein-interaction
 network, which places genes whose proteins work together close to each other. Each knockdown's borrowed response is
@@ -194,7 +298,7 @@ It scored 0.1144 against SER-7abefn's 0.1131. Telling knockdowns apart (pds) ros
 (nmae) fell by about half of what those two gained. On the held-out tests its settings were picked on, the gain had been
 about six times as large.
 
-## SER-8abefkn — submitted 2026-09-29 · calibration run
+### SER-8abefkn — submitted 2026-09-29 · calibration run
 
 SER-7abefn with one new knob, `k`. Each knockdown's borrowed response is nudged toward the average response of the genes
 nearest to it in Tahoe-x1's gene embedding, a map of genes learned from single-cell data. The nudge turns the part of the
@@ -204,7 +308,7 @@ held-out tests carries over to the challenge's cell lines.
 It scored 0.1132, level with SER-7abefn's 0.1131. Telling knockdowns apart (pds) rose, and two of the test-based scores
 together fell by most of that gain. On our own held-out tests, the one that fell most had risen on every one.
 
-## SER-7abefn — submitted 2026-09-17
+### SER-7abefn — submitted 2026-09-17
 
 SER-6aefn with one new knob, `b`. The scorer reads a knockdown's 400 predicted cells twice: once added up into one summed
 profile, and once cell by cell. Until here both readings carried the borrowed response at the same strength. `b` lets the
@@ -214,7 +318,7 @@ changing any cell's depth.
 It scored 0.1131 against SER-6aefn's 0.1091. Telling knockdowns apart (pds) rose and the four test-based scores held, the
 pattern our own held-out tests on three cell lines had shown; the gain on the board is smaller.
 
-## SER-6aefn — submitted 2026-09-12
+### SER-6aefn — submitted 2026-09-12
 
 SER-4afn with one new knob, `e`, the emission dial: how much cell-to-cell noise the 400 predicted cells carry. Until here
 every predicted cell sat evenly at the line's depth, with as little noise as possible; `e` sets the noise somewhere
@@ -225,7 +329,7 @@ It scored 0.1091 against SER-4afn's 0.1078, and the gain landed where our own he
 and size of change (nmae) paid a little for it. The dial moved the same way on all six held-out cell lines it was tried
 on.
 
-## PHE-2 — submitted 2026-09-07 · calibration run
+### PHE-2 — submitted 2026-09-07 · calibration run
 
 **The first entry from a different family, and the first sent in expecting to fail.** Every
 `SER` model borrows a measured knockdown effect from a screen that saw that gene silenced
@@ -245,7 +349,7 @@ fold-changes are to the real ones, and it bottoms out at −6; PHE-2 put it ther
 metric averaged with five flat ones is −0.98. The cells it emits carry about half the number
 of expressed genes a real cell does, which is the first place to look.
 
-## SER-5acfnt — submitted 2026-09-01
+### SER-5acfnt — submitted 2026-09-01
 
 SER-4afn with two new knobs on how the sources vote on a gene. `c` lets a source's weight for one gene know how much
 evidence stands behind that gene in that screen, not only how large the screen was overall. `t` adds each source's
@@ -256,7 +360,7 @@ It scored 0.1075, a hair below SER-4afn's 0.1078. `t` has since been retired: sh
 which source scored as well as assigning them correctly, so the knob was flattening the vote rather than informing it.
 `c` was not tested on its own here.
 
-## SER-4afn — submitted 2026-08-31
+### SER-4afn — submitted 2026-08-31
 
 SER-3afn with the amplification (`a`) set again: stepped back from the strength our own held-out tests liked best to the
 strength that the measured knockdown depth of the screens we borrow from points to. A new setting of a knob takes a new
@@ -264,7 +368,7 @@ model number, so this is model 4.
 
 It scored 0.1078 against SER-3afn's 0.1071. Size of change (nmae) rose and telling knockdowns apart (pds) fell.
 
-## SER-3afn — submitted 2026-08-30
+### SER-3afn — submitted 2026-08-30
 
 SER-3fn with one new knob, `a`: the borrowed effects scaled up toward the size of a full knockdown. The screens we borrow
 from silenced their genes only partly, so the effects they measured are smaller than what a complete knockdown produces.
@@ -273,7 +377,7 @@ before it was scored.
 
 It scored 0.1071 against SER-3fn's 0.1034. Telling knockdowns apart (pds) and reach rose; size of change (nmae) fell.
 
-## SER-3afgn — submitted 2026-08-30
+### SER-3afgn — submitted 2026-08-30
 
 SER-3afn plus one deliberate probe, `g`: instead of carrying each gene's fold change over unchanged, bend the borrowed
 effect toward how abundant that gene is at rest in the new line. Our own held-out tests said the plain fold change was
@@ -281,7 +385,7 @@ already the best rule; this entry tested that verdict on the real board, and it 
 
 It scored 0.0992 against SER-3afn's 0.1071.
 
-## SER-3fn — submitted 2026-08-27
+### SER-3fn — submitted 2026-08-27
 
 SER-3n with one new knob, `f`. When the sources are pooled per gene, each one's vote is now capped by how well it could
 have measured that gene with the cells it had: a source that happened to see no spread no longer counts as infinitely
@@ -289,14 +393,14 @@ certain, and a source that saw a knockdown only once sits it out.
 
 It scored 0.1034 against SER-3n's 0.0963. Size of change (nmae) and telling knockdowns apart (pds) rose; reach fell.
 
-## SER-3n — submitted 2026-08-27
+### SER-3n — submitted 2026-08-27
 
 SER-2's four sources with the two genome-wide screens read in full, every gene they measured rather than the challenge's
 panel alone, so each gene's vote rests on a much wider view of expression.
 
 It scored 0.0963 against SER-2's 0.0937.
 
-## SER-2 — submitted 2026-08-24
+### SER-2 — submitted 2026-08-24
 
 Named before the knob letters existed; shrinkage is off, as in SER-1n. The sources grow from two to four: the K562
 genome-wide screen and H1, plus the challenge-panel part of two genome-wide CRISPRi screens in colon and kidney lines. It
@@ -304,14 +408,14 @@ is the first entry to cover all 300 target genes with a measured effect instead 
 
 It scored 0.0937 against SER-1n's 0.0822.
 
-## SER-1n — submitted 2026-08-22
+### SER-1n — submitted 2026-08-22
 
 SER-1 with the shrinkage of borrowed effects switched off (`n`): the many small, noisy per-gene effects that shrinkage
 silenced turn out to carry the direction signal that telling knockdowns apart reads.
 
 It scored 0.0822 against SER-1's 0.0788.
 
-## SER-1p — submitted 2026-08-21
+### SER-1p — submitted 2026-08-21
 
 SER-1 with its predicted cells carrying the full noise of random counting (`p`, Poisson cells) instead of sitting evenly at
 the line's depth: a one-knob test of how cell-to-cell noise prices into the test-based scores. Evenly spread cells won,
@@ -319,7 +423,7 @@ and stayed.
 
 It scored 0.0730 against SER-1's 0.0788.
 
-## SER-1 — submitted 2026-08-21
+### SER-1 — submitted 2026-08-21
 
 The first entry, and the series' plain recipe. Each target gene's knockdown effect is borrowed from the screen where it was
 measured, the K562 genome-wide screen (272 of the 300 targets) or H1 (25), pooled per gene by how confidently each source

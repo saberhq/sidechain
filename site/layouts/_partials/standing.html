@@ -7,8 +7,8 @@
          rank 100 and the row the leaderboard shows for Sidechain in the latest whole-field
          snapshot.
 
-       Two figures: Best, with its gap to the score at rank 100, and Latest, with the rank the
-       leaderboard shows for it in the latest snapshot rather than the rank it held when scored.
+       Two figures: the final round's entry, at its rank on the final leaderboard, and the validation
+       round's best, at the rank the leaderboard shows for it in the latest snapshot.
 
        The plot is one point per ranked entry in submission order, at its rank as a share of
        the field when scored. An entry with no field size (no snapshot was taken when it
@@ -20,14 +20,6 @@
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
-{{ $n := len $entries }}
-{{ $rest := where $entries "class" "!=" "calibration" }}
-{{- /* A board of nothing but calibration runs has no other entry to call best; fall back. */ -}}
-{{ $scale := cond (gt (len $rest) 0) $rest $entries }}
-{{ $best := index $scale 0 }}
-{{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
-{{ range $scale }}{{ if ge .overall $best.overall }}{{ $best = . }}{{ end }}{{ end }}
-{{ $latest := index $entries (sub $n 1) }}
 {{ $field := dict }}
 {{ $fieldFile := resources.Get "data/field.json" }}
 {{ with $fieldFile }}{{ $field = . | transform.Unmarshal }}{{ end }}
@@ -60,7 +52,7 @@
 {{ end }}
 {{ $refY := sub 100 (mul 100 (div 0.1 $max)) }}
 <figure class="sc-spark" data-standing aria-label="Each ranked entry's rank as a share of the field when it was scored, in submission order, calibration runs left out; lower is better. Every point links to its row below.">
-  <figcaption class="sc-spark-title">Chasing top 10% for the fun of it ;)</figcaption>
+  <figcaption class="sc-spark-title">Validation round · chasing top 10% for the fun of it ;)</figcaption>
   <div class="sc-plot" data-plot>
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
       <path class="sc-ref" d="M0,{{ printf "%.2f" $refY }} L100,{{ printf "%.2f" $refY }}"/>
@@ -83,25 +75,32 @@
 {{ end }}
 
 {{- /* ---- the figures ---- */ -}}
-<div class="sc-stand">
-  <div class="sc-stat">
-    {{- $g100 := 0.0 }}
-    {{- if $field.rank_100 }}{{ $g100 = sub $field.rank_100 $best.overall }}{{ end }}
-    <div class="sc-stat-label">Best{{ if $field.rank_100 }} · gap to top 100{{ end }}</div>
-    <div class="sc-stat-value">{{ printf "%.4f" $best.overall }}{{ if $field.rank_100 }}<span class="sc-stat-sep">·</span><wbr>{{ if gt $g100 0.0 }}{{ printf "%.4f" $g100 }}{{ else }}in{{ end }}{{ end }}</div>
-    <div class="sc-stat-sub"><b>{{ $best.name }}</b>{{ with $field.rank_100 }} · <span>rank 100 at {{ printf "%.4f" . }}</span>{{ end }}</div>
+{{- /* The final round's entry leads with its rank on the final leaderboard; the validation round's best
+       follows smaller, with the rank the leaderboard shows for it now when that row is ours. */ -}}
+{{ $final := where $entries "partition" "final" }}
+{{ $valRest := where $val "class" "!=" "calibration" }}
+{{ $vbest := dict }}
+{{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
+{{ with $valRest }}{{ $vbest = index . 0 }}{{ range . }}{{ if ge .overall $vbest.overall }}{{ $vbest = . }}{{ end }}{{ end }}{{ end }}
+<div class="sc-stand{{ if $final }} sc-stand--final{{ end }}">
+  {{ with $final }}
+  {{ $f := index . (sub (len .) 1) }}
+  <div class="sc-stat sc-stat--lead">
+    <div class="sc-stat-label">Final leaderboard</div>
+    <div class="sc-stat-value">#{{ $f.rank }}<small> of {{ lang.FormatNumber 0 $f.teams }} teams</small></div>
+    <div class="sc-stat-sub"><b>{{ $f.name }}</b> · <span>{{ printf "%.4f" $f.overall }}</span> · <span>top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span></div>
   </div>
-  <div class="sc-stat">
-    {{- /* The rank the leaderboard shows for the latest entry now, when its row is ours; else the rank when scored. */}}
-    {{- $rank := $latest.rank }}{{ $teams := $latest.teams }}
-    {{- if and $ours (eq $ours.name $latest.name) }}{{ $rank = $ours.rank }}{{ $teams = $field.teams }}{{ end }}
-    <div class="sc-stat-label">Latest</div>
-    <div class="sc-stat-value">{{ replace (printf "%.4f" $latest.overall) "-" "−" }}
-      {{- if gt $n 1 }}{{ $delta := sub $latest.overall (index $entries (sub $n 2)).overall }}
-      <span class="sc-delta{{ if gt $delta 0.00005 }} sc-delta--up{{ end }}" title="against the entry before it">{{ replace (printf "%+.4f" $delta) "-" "−" }}</span>
-      {{- end }}</div>
-    <div class="sc-stat-sub"><b>{{ $latest.name }}</b>{{ with $rank }} · <span>#{{ . }}{{ with $teams }} of {{ . }}{{ end }}</span>{{ end }}{{ if eq $latest.class "calibration" }}{{ with site.GetPage "/models" }} · <a href="{{ .RelPermalink }}#calibration-runs">calibration run</a>{{ end }}{{ end }}</div>
+  {{ end }}
+  {{ with $vbest }}
+  {{- $rank := .rank }}{{ $teams := .teams }}
+  {{- if and $ours (eq $ours.name .name) }}{{ $rank = $ours.rank }}{{ $teams = $field.teams }}{{ end }}
+  <div class="sc-stat{{ if $final }} sc-stat--minor{{ end }}">
+    <div class="sc-stat-label">Validation leaderboard · best</div>
+    <div class="sc-stat-value">{{ with $rank }}#{{ . }}<small>{{ with $teams }} of {{ lang.FormatNumber 0 . }} teams{{ end }}</small>{{ end }}</div>
+    <div class="sc-stat-sub"><b>{{ .name }}</b> · <span>{{ printf "%.4f" .overall }}</span>{{ if and $rank $teams }} · <span>top {{ printf "%.1f" (mul 100 (div (float $rank) (float $teams))) }}%</span>{{ end }}</div>
   </div>
+  {{ end }}
+  {{ with $field.as_of }}<p class="sc-stand-note">Ranks as the leaderboards list them on {{ (time.AsTime .).Format "January 2, 2006" }}.{{ with $final }} The final score is one mean over the three test cell lines.{{ end }}</p>{{ end }}
 </div>
 {{ else }}
 <div class="sc-empty">
