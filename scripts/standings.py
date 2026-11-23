@@ -26,9 +26,11 @@ FIELD_SERIES_JSON = Path.home() / "data" / "sidechain" / "derived" / "standings"
 TICKS_JSON = Path.home() / "data" / "sidechain" / "runs" / "leaderboard_watch" / "ticks.json"
 OUR_BOARD_PREFIX = "Sidechain "     # the team's board names read "Sidechain SER-14aefksw"
 BEGIN, END = "<!-- standings:begin -->", "<!-- standings:end -->"
-# A record's `partition` (Arc's word: `val` for the validation round, `final` for the final one)
-# names the board it was ranked on. Unknown partitions read the live board and say so in the row.
-BOARD_OF = {"val": "live", "final": "final"}
+# A record's `partition` names the board it was ranked on: Arc writes `val` for the validation round and
+# `test` for the final one. Rows carry the round as `val` or `final`; an unknown partition reads the live
+# board and says so in the row.
+BOARD_OF = {"val": "live", "test": "final", "final": "final"}
+ROUND_OF = {"test": "final"}
 
 # Board names predating the ADR 0005 naming scheme, keyed by build stem. Entries are
 # never renamed on the board, so this map only ever grows.
@@ -89,7 +91,9 @@ ABOUT = (
     "on class: it decides only that such an entry is drawn apart in the bars and left out of "
     "the rank plot. members are the six cell-eval2 members in the leaderboard's column order, "
     "scaled (what the leaderboard ranks on) over raw; board is the Sidechain-only leaderboard "
-    "built from the same entries (its own _about)."
+    "built from the same entries (its own _about). partition is the round: 'val' for the validation round, "
+    "'final' for the final one, where only a team's last upload is scored and rank is its place on the final "
+    "leaderboard; board holds the validation round's entries and board_final the final round's."
 )
 
 
@@ -224,6 +228,7 @@ def load_rows(subs_dir: Path, snaps_dir: Path) -> list[dict]:
         stem = f.name.split("_", 1)[1].removesuffix(".status.json")
         partition = str(s.get("partition") or "val")
         board = BOARD_OF.get(partition, "live")
+        partition = ROUND_OF.get(partition, partition)
         rank = teams = None
         for snap in snapshots:
             b = snap["boards"].get(board)
@@ -325,19 +330,29 @@ def rank_label(rank, teams) -> str:
     return (f"#{rank} of {teams}" if teams else f"#{rank}") if rank else "—"
 
 
-def readme_block(rows: list[dict]) -> str:
+def _readme_table(rows: list[dict], rank_head: str) -> list[str]:
     # Only calibration runs are marked -- there is no opposite label to write.
-    out = ["| date (UTC) | submission | overall | rank when scored |", "|---|---|---|---|"]
+    out = [f"| date (UTC) | submission | overall | {rank_head} |", "|---|---|---|---|"]
     for r in rows:
         cell = f"`{r['board_name']}`"
         if r["name"] not in r["board_name"]:
             cell += f" (`{r['name']}`)"
         if r["class"] == CALIBRATION:
             cell += " · **calibration**"
-        if r["partition"] != "val":          # the rounds are not comparable; the final one says so
+        if r["partition"] not in ("val", "final"):     # an unknown round says so in its row
             cell += f" · **{r['partition']}**"
         out.append(f"| {r['date']} | {cell} | {r['overall']:.4f} | {rank_label(r['rank'], r['teams'])} |")
-    return "\n".join(out)
+    return out
+
+
+def readme_block(rows: list[dict]) -> str:
+    """The README's table; with a final-round entry, a final table first and the validation table under it."""
+    final = [r for r in rows if r["partition"] == "final"]
+    rest = [r for r in rows if r["partition"] != "final"]
+    if not final:
+        return "\n".join(_readme_table(rest, "rank when scored"))
+    return "\n".join(["**Final round**", "", *_readme_table(final, "rank on the final leaderboard"), "",
+                      "**Validation round**", "", *_readme_table(rest, "rank when scored")])
 
 
 def render(rows: list[dict]) -> tuple[str, str]:
@@ -353,7 +368,10 @@ def render(rows: list[dict]) -> tuple[str, str]:
         k: v for k, v in (json.loads(SITE_JSON.read_text()) if SITE_JSON.exists() else {}).items()
         if k in DEFAULTS
     }
-    payload = {"_about": ABOUT, **keep, "entries": rows, "board": board(rows)}
+    final = [r for r in rows if r["partition"] == "final"]
+    payload = {"_about": ABOUT, **keep, "entries": rows,
+               "board": board([r for r in rows if r["partition"] != "final"] or rows),
+               **({"board_final": board(final)} if final else {})}
     return readme, json.dumps(payload, indent=2) + "\n"
 
 

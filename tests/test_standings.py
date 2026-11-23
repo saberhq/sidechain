@@ -271,8 +271,26 @@ def test_a_final_entry_is_ranked_on_the_final_board_never_the_live_one(tmp_path)
     rows = {r["name"]: r for r in standings.load_rows(subs, snaps)}
     assert rows["SER-7"]["rank"] == 314 and rows["SER-7"]["teams"] == 1022 and rows["SER-7"]["partition"] == "val"
     assert rows["SER-8"]["rank"] == 41 and rows["SER-8"]["teams"] == 650 and rows["SER-8"]["partition"] == "final"
-    block = standings.readme_block(list(rows.values()))
-    assert "· **final**" in block.splitlines()[-1] and "**final**" not in block.splitlines()[-2]
+    block = standings.readme_block(list(rows.values())).splitlines()
+    assert block[0] == "**Final round**" and "SER-8" in block[4] and "#41 of 650" in block[4]
+    assert "**Validation round**" in block and "SER-7" in block[-1] and "**final**" not in block[-1]
+
+
+def test_arcs_test_partition_is_the_final_round(tmp_path):
+    """Arc's record says `test` for the final round: ranked on the final board, carried as `final`, kept apart."""
+    subs, snaps = tmp_path / "s", tmp_path / "l"
+    subs.mkdir(); snaps.mkdir()
+    status(subs, "2026-10-01", "xyz-1_v1", "VAL1", "2026-10-01T15:30:00", partition="val",
+           model_name="Sidechain XYZ-1", score_avg=0.2)
+    status(subs, "2026-11-01", "xyz-2_v1", "FIN1", "2026-11-01T18:00:00", partition="test",
+           model_name="Sidechain XYZ-2", score_avg=0.3)
+    snap(snaps, "20261001T1600Z", {"VAL1": 20}, 400)
+    snap(snaps, "20261120T0100Z", {"VAL1": 15}, 380, final={"FIN1": 7}, final_total=200)
+    rows = {r["name"]: r for r in standings.load_rows(subs, snaps)}
+    assert (rows["XYZ-2"]["partition"], rows["XYZ-2"]["rank"], rows["XYZ-2"]["teams"]) == ("final", 7, 200)
+    assert (rows["XYZ-1"]["rank"], rows["XYZ-1"]["teams"]) == (20, 400)
+    b = standings.board([rows["XYZ-1"]]), standings.board([rows["XYZ-2"]])
+    assert [r["name"] for r in b[0]["rows"]] == ["XYZ-1"] and [r["name"] for r in b[1]["rows"]] == ["XYZ-2"]
 
 
 def test_a_final_entry_below_the_embed_takes_the_final_boards_field_size(tmp_path):

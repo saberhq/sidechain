@@ -33,14 +33,24 @@ the chemistry behind the pun, Compound Interest's
 
 ## Where we stand
 
-Every submission, as Arc scored it — the ones that worked and the ones that did not. The
-[live board](https://virtualcellchallenge.org/leaderboard) shows only a team's latest entry
-and re-ranks as others submit, so the rank shown below is the one each entry held when it was
-scored — its first appearance in our board snapshots. An entry marked **calibration** is one
+Every submission, as Arc scored it — the ones that worked and the ones that did not. The final
+round scored only a team's last upload, so its table has one row, at its rank on the final
+leaderboard. In the validation round the
+[live board](https://virtualcellchallenge.org/leaderboard) showed only a team's latest entry
+and re-ranked as others submitted, so the rank shown there is the one each entry held when it
+was scored — its first appearance in our board snapshots. An entry marked **calibration** is one
 sent purely to test a new method and its performance on the official board
 ([what that means](https://saberhq.com/sidechain/models/#calibration-runs)).
 
 <!-- standings:begin -->
+**Final round**
+
+| date (UTC) | submission | overall | rank on the final leaderboard |
+|---|---|---|---|
+| 2026-11-04 | `Sidechain CYS-6` | 0.2563 | #44 of 807 |
+
+**Validation round**
+
 | date (UTC) | submission | overall | rank when scored |
 |---|---|---|---|
 | 2026-08-21 | `sidechain r1-delta-even v1` (`SER-1`) | 0.0788 | #2 of 42 |
