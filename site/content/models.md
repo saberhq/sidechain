@@ -2,6 +2,8 @@
 title: Models
 date: 2026-08-27
 lastmod: 2026-11-23
+# Opens on the final-result chip and a "Read next" box (layouts/page.html).
+pagehead: true
 description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means.
 ---
 
@@ -38,8 +40,9 @@ The final round opened on October 22 with three new cell lines and a new list of
 November 5. Only a team's last upload counted, and no score came back until the round had closed, so each entry below was
 chosen on our own held-out tests. Each builds on an earlier one.
 
-Our last upload, CYS-6, is the one the final leaderboard scored: 0.2563 overall, {{< rank final >}}. The overall score is
-one mean over the three new lines; the board does not split it by line. CYS-1 to CYS-5 have no score.
+Our last upload, CYS-6, is the one the final leaderboard scored: 0.2563 overall, {{< rank final >}}, as the leaderboard
+lists it on {{< rank asof >}}. The overall score is one mean over the three new lines; the board does not split it by line.
+CYS-1 to CYS-5 have no score.
 
 {{< board round="final" >}}
 
@@ -120,8 +123,9 @@ Three things let us trust them.
 ## The validation round
 
 The validation round ran on the challenge's three validation cell lines until October 21, and the board scored every
-upload. Our best, SER-29abefhkrswx, stands at {{< rank val >}} on the validation leaderboard today. Each section below
-gives its entry's score.
+upload. Our best, SER-29abefhkrswx, stands at {{< rank val >}} on the validation leaderboard as it lists it on
+{{< rank asof >}}. The board has re-ranked since the round closed, so the bars on the [home page](/#standings) give each
+entry's rank when it was scored. Each section below gives its entry's score.
 
 ### Every entry on one board
 

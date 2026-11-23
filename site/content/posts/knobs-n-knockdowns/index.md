@@ -5,6 +5,7 @@ lastmod: 2026-11-18
 draft: false
 pinned: true
 description: "How Sidechain's entries to Arc's Virtual Cell Challenge 2026 were built one setting at a time: what each setting does to a predicted cell, why it was tried, and what the leaderboard said back."
+teaser: "what each setting does to a predicted cell, and why it was tried"
 short: "knobs n' knockdowns"
 image: cover.jpg
 caption: "November 8, 2025"

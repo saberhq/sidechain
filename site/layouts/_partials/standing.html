@@ -1,22 +1,11 @@
-{{- /* "Where we stand", its first two items: the plot, then the figures, rendered at build time
-       from generated files that are never hand-edited (scripts/standings.py):
-
-       - data/submissions.json -- our scored entries, each with the rank it held and the size
-         of the field the day it was scored. The plot and the two figures read it.
-       - assets/data/field.json -- the leaderboard over time; from its head come the score at
-         rank 100 and the row the leaderboard shows for Sidechain in the latest whole-field
-         snapshot.
+{{- /* "Where we stand", its figures, rendered at build time from generated files that are never
+       hand-edited (scripts/standings.py): data/submissions.json, our scored entries with the rank each
+       held, and assets/data/field.json, the latest whole-field snapshot of the validation leaderboard.
 
        Two figures: the final round's entry, at its rank on the final leaderboard, and the validation
-       round's best, at the rank the leaderboard shows for it in the latest snapshot.
-
-       The plot is one point per ranked entry in submission order, at its rank as a share of
-       the field when scored. An entry with no field size (no snapshot was taken when it
-       scored) has no share and is not plotted; neither is an entry of the final round, which
-       is ranked on another board, nor a calibration run, which the bars keep in a strip of
-       its own. The larger mark is the last point plotted. Every point
-       links to its row in the bars below; with scripts on, choosing a point shows that
-       row's model card under the plot instead. */ -}}
+       round's best, at the rank the leaderboard shows for it in the latest snapshot. Each label's
+       asterisk links to the models page's section that says how that rank is read. The validation
+       round's plot is _partials/standing-plot.html, drawn with the validation bars. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
@@ -25,59 +14,12 @@
 {{ with $fieldFile }}{{ $field = . | transform.Unmarshal }}{{ end }}
 {{ $ours := $field.ours }}
 {{ $val := where $entries "partition" "val" }}
-{{ $nCal := len (where $val "class" "calibration") }}
-
-{{- /* ---- the plot ---- */ -}}
-{{ $ranked := slice }}
-{{ range $entries }}{{ if and .rank .teams (eq .partition "val") (ne .class "calibration") }}{{ $ranked = $ranked | append . }}{{ end }}{{ end }}
-{{ $m := len $ranked }}
-{{ if gt $m 1 }}
-{{ $last := (index $ranked (sub $m 1)).name }}
-{{- /* share axis: 0 at the bottom, up to the largest share any entry held (at least 25%) */ -}}
-{{ $max := 0.25 }}
-{{ $bestShare := 2.0 }}{{ $bestName := "" }}
-{{ range $ranked }}
-  {{ $s := div (float .rank) (float .teams) }}
-  {{ if gt $s $max }}{{ $max = $s }}{{ end }}
-  {{ if lt $s $bestShare }}{{ $bestShare = $s }}{{ $bestName = .name }}{{ end }}
-{{ end }}
-{{ $line := "" }}
-{{ $pts := slice }}
-{{ range $i, $e := $ranked }}
-  {{ $share := div (float $e.rank) (float $e.teams) }}
-  {{ $x := mul 100 (div (float $i) (float (sub $m 1))) }}
-  {{ $y := sub 100 (mul 100 (div $share $max)) }}
-  {{ $line = printf "%s %.2f,%.2f" $line $x $y }}
-  {{ $pts = $pts | append (dict "x" $x "y" $y "share" (mul 100 $share) "e" $e) }}
-{{ end }}
-{{ $refY := sub 100 (mul 100 (div 0.1 $max)) }}
-<figure class="sc-spark" data-standing aria-label="Each ranked entry's rank as a share of the field when it was scored, in submission order, calibration runs left out; lower is better. Every point links to its row below.">
-  <figcaption class="sc-spark-title">Validation round · chasing top 10% for the fun of it ;)</figcaption>
-  <div class="sc-plot" data-plot>
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <path class="sc-ref" d="M0,{{ printf "%.2f" $refY }} L100,{{ printf "%.2f" $refY }}"/>
-      <polyline class="sc-line" points="{{ strings.TrimSpace $line }}"/>
-    </svg>
-    <span class="sc-ref-label" style="top: {{ printf "%.2f" $refY }}%">top 10%</span>
-    {{ range $pts }}
-    {{ $e := .e }}
-    <a class="sc-pt{{ if eq $e.name $last }} sc-pt--latest{{ else if eq $e.name $bestName }} sc-pt--best{{ end }}" href="#m-{{ $e.name | urlize }}" style="left: {{ printf "%.2f" .x }}%; top: {{ printf "%.2f" .y }}%"
-       data-name="{{ $e.name }}" data-date="{{ $e.date }}" data-overall="{{ printf "%.4f" $e.overall }}" data-rank="#{{ $e.rank }} of {{ $e.teams }}" data-share="top {{ printf "%.1f" .share }}%"
-       title="{{ $e.name }} {{ $e.date }} · #{{ $e.rank }} of {{ $e.teams }}"
-       aria-label="{{ $e.name }}, {{ $e.date }}: overall {{ printf "%.4f" $e.overall }}, rank {{ $e.rank }} of {{ $e.teams }}, top {{ printf "%.1f" .share }} percent"></a>
-    {{ end }}
-  </div>
-  {{- /* While a point is hovered, focused or chosen, standing.js swaps this line for that
-         entry's readout; a chosen point's model card goes in the block under it. */}}
-  <div class="sc-spark-axis" data-axis><span aria-hidden="true">{{ (index $ranked 0).date }}</span><span aria-hidden="true">{{ len $val }} entries{{ with $nCal }} · {{ . }} calibration runs not plotted{{ end }}</span><span aria-hidden="true">{{ (index $ranked (sub $m 1)).date }}</span><span class="sc-spark-readout" data-readout hidden></span></div>
-  <div class="sc-spark-card" data-card aria-live="polite" hidden></div>
-</figure>
-{{ end }}
 
 {{- /* ---- the figures ---- */ -}}
 {{- /* The final round's entry leads with its rank on the final leaderboard; the validation round's best
        follows smaller, with the rank the leaderboard shows for it now when that row is ours. */ -}}
 {{ $final := where $entries "partition" "final" }}
+{{ $models := site.GetPage "/models" }}
 {{ $valRest := where $val "class" "!=" "calibration" }}
 {{ $vbest := dict }}
 {{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
@@ -86,7 +28,7 @@
   {{ with $final }}
   {{ $f := index . (sub (len .) 1) }}
   <div class="sc-stat sc-stat--lead">
-    <div class="sc-stat-label">Final leaderboard</div>
+    <div class="sc-stat-label">Final leaderboard{{ with $models }}<sup class="sc-note"><a href="{{ .RelPermalink }}#the-final-round" title="how the final score and rank are read">*</a></sup>{{ end }}</div>
     <div class="sc-stat-value">#{{ $f.rank }}<small> of {{ lang.FormatNumber 0 $f.teams }} teams</small></div>
     <div class="sc-stat-sub"><b>{{ $f.name }}</b> · <span>{{ printf "%.4f" $f.overall }}</span> · <span>top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span></div>
   </div>
@@ -95,12 +37,11 @@
   {{- $rank := .rank }}{{ $teams := .teams }}
   {{- if and $ours (eq $ours.name .name) }}{{ $rank = $ours.rank }}{{ $teams = $field.teams }}{{ end }}
   <div class="sc-stat{{ if $final }} sc-stat--minor{{ end }}">
-    <div class="sc-stat-label">Validation leaderboard · best</div>
+    <div class="sc-stat-label">Validation leaderboard · best{{ with $models }}<sup class="sc-note"><a href="{{ .RelPermalink }}#the-validation-round" title="how the validation rank is read">*</a></sup>{{ end }}</div>
     <div class="sc-stat-value">{{ with $rank }}#{{ . }}<small>{{ with $teams }} of {{ lang.FormatNumber 0 . }} teams{{ end }}</small>{{ end }}</div>
     <div class="sc-stat-sub"><b>{{ .name }}</b> · <span>{{ printf "%.4f" .overall }}</span>{{ if and $rank $teams }} · <span>top {{ printf "%.1f" (mul 100 (div (float $rank) (float $teams))) }}%</span>{{ end }}</div>
   </div>
   {{ end }}
-  {{ with $field.as_of }}<p class="sc-stand-note">Ranks as the leaderboards list them on {{ (time.AsTime .).Format "January 2, 2006" }}.{{ with $final }} The final score is one mean over the three test cell lines.{{ end }}</p>{{ end }}
 </div>
 {{ else }}
 <div class="sc-empty">

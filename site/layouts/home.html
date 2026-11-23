@@ -6,10 +6,7 @@
       <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
       <h1 class="sc-wordmark"><span>Sidechain</span><span class="sc-wordmark-mark">.</span></h1>
       <p class="sq-tagline">{{ with .Params.tagline }}{{ $.RenderString . }}{{ else }}{{ .Site.Params.description }}{{ end }}</p>
-      {{- /* The final round's rank, one line, linking to the figures (generated: data/submissions.json). */}}
-      {{ with where .Site.Data.submissions.entries "partition" "final" }}{{ $f := index . (sub (len .) 1) }}{{ if and $f.rank $f.teams }}
-      <p class="sc-result"><a href="#standings"><span class="sc-result-k">Final result</span><span>rank <b>{{ $f.rank }}</b> of {{ lang.FormatNumber 0 $f.teams }} teams · top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span><span class="sq-glyph" aria-hidden="true">↓</span></a></p>
-      {{ end }}{{ end }}
+      {{ partial "result-chip.html" (dict "href" "#standings" "glyph" "↓") }}
       <div class="sq-hero-actions">
         <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
         <a class="sq-btn sq-btn--secondary" href="{{ (.Site.GetPage "/models").RelPermalink }}">The models <span class="sq-glyph">→</span></a>
@@ -22,10 +19,11 @@
       {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "asides" (slice
           (dict "href" $models.RelPermalink "label" "what each model is →")
           (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true))) }}
-      {{- /* In this order (Saber, 2026-10-05): the plot, the figures, the paragraph, the bars. */}}
+      {{- /* In this order (Saber, 2026-11-23): the figures, the paragraph, the final round's bar, then the
+             validation round: its plot and its bars. */}}
       {{ partial "standing.html" . }}
       <div class="sc-intro">
-        <p>Every submission, as Arc scored it. The final round scored only a team's last upload, so it has one bar, which opens its rank on the final leaderboard; in the validation round a name opens the rank that entry held when it was scored. The <a href="{{ $models.RelPermalink }}">models page</a> says what each model tried and what its name means.</p>
+        <p>Every submission, as Arc scored it, round by round. A name opens its rank and a link to its section on the <a href="{{ $models.RelPermalink }}">models page</a>, which says what each model tried and what its name means.</p>
       </div>
       {{ partial "entries.html" . }}
     </section>

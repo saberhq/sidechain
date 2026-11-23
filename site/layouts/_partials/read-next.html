@@ -1,0 +1,27 @@
+{{- /* "Read next": the landing page's rail in brief -- pinned items first, then the newest posts and pages
+       with `rail: true` -- three of them, each its kind, its title and its `teaser` line; then the links
+       that lead off the page. Context: the page it sits on, which is left out of the list. */ -}}
+{{ $posts := where site.RegularPages "Section" "posts" }}
+{{ $items := union $posts (where (where site.RegularPages "Params.rail" true) "Section" "!=" "posts") }}
+{{ $items = where $items "RelPermalink" "!=" .RelPermalink }}
+{{ $pinned := where $items "Params.pinned" true }}
+{{ $list := first 3 (union $pinned.ByDate.Reverse (where $items "Params.pinned" "!=" true).ByDate.Reverse) }}
+{{ with $list }}
+<nav class="sc-next" aria-labelledby="sc-next-label">
+  <div class="sc-next-head"><span class="sc-next-label" id="sc-next-label">Read next</span></div>
+  <ul class="sc-next-list">
+    {{ range . }}
+    <li><a class="sc-next-item" href="{{ .RelPermalink }}">
+      <span class="sq-tag sc-kind">{{ if eq .Section "posts" }}BLOG POST{{ else }}{{ with .Params.badge }}{{ upper . }} {{ end }}PAGE{{ end }}</span>
+      <span class="sc-next-text"><span class="sc-next-title">{{ .Params.card_title | default .Title }}</span>{{ with .Params.teaser }}<span class="sc-next-teaser">{{ . }}</span>{{ end }}</span>
+      <span class="sq-glyph" aria-hidden="true">→</span>
+    </a></li>
+    {{ end }}
+  </ul>
+  <div class="sc-next-links">
+    <a href="{{ site.Home.RelPermalink }}#standings">where we stand →</a>
+    <a href="{{ (site.GetPage "posts").RelPermalink }}">all posts →</a>
+    <a href="{{ site.Params.repo }}" target="_blank" rel="noopener">code on GitHub ↗</a>
+  </div>
+</nav>
+{{ end }}

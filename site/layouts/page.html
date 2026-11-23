@@ -1,4 +1,6 @@
-{{- /* A plain page outside posts/ (none yet): same article chrome, no byline or actions. */ -}}
+{{- /* A plain page outside posts/: same article chrome, no byline. A page with `pagehead: true` opens on the
+       final-result chip and a "Read next" box (_partials/read-next.html); every plain page ends on the post
+       actions (back to top, share, copy link). */ -}}
 {{ define "main" }}
 <article class="sq-article">
   <div class="sq-article-wrap">
@@ -7,9 +9,16 @@
     {{ with .Description }}<p class="sq-article-desc">{{ . }}</p>{{ end }}
     {{- /* The post byline's rule without its byline, so the subtitle reads as one (Saber, 2026-10-20). */}}
     <div class="sq-byline"><span class="sq-byline-rule"></span></div>
+    {{ if .Params.pagehead }}
+    <div class="sc-pagehead">
+      {{ partial "result-chip.html" (dict "href" (printf "%s#standings" site.Home.RelPermalink) "glyph" "→") }}
+      {{ partial "read-next.html" . }}
+    </div>
+    {{ end }}
     <div class="sq-prose">
       {{ .Content }}
     </div>
+    {{ partial "saberhq/post-actions.html" . }}
   </div>
 </article>
 {{ end }}

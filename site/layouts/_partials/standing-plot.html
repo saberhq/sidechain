@@ -1,0 +1,55 @@
+{{- /* The validation round's plot, drawn at the head of the validation bars (_partials/entries.html): one
+       point per ranked validation entry in submission order, at its rank as a share of the field when
+       scored. An entry with no field size (no snapshot was taken when it scored) has no share and is not
+       plotted; neither is a calibration run, which the bars keep in a strip of their own. The larger mark
+       is the last point plotted. Every point links to its row in the bars below; with scripts on, choosing
+       a point shows that row's model card under the plot instead (assets/standing.js). */ -}}
+{{ $entries := site.Data.submissions.entries }}
+{{ $val := where $entries "partition" "val" }}
+{{ $nCal := len (where $val "class" "calibration") }}
+{{ $ranked := slice }}
+{{ range $entries }}{{ if and .rank .teams (eq .partition "val") (ne .class "calibration") }}{{ $ranked = $ranked | append . }}{{ end }}{{ end }}
+{{ $m := len $ranked }}
+{{ if gt $m 1 }}
+{{ $last := (index $ranked (sub $m 1)).name }}
+{{- /* share axis: 0 at the bottom, up to the largest share any entry held (at least 25%) */ -}}
+{{ $max := 0.25 }}
+{{ $bestShare := 2.0 }}{{ $bestName := "" }}
+{{ range $ranked }}
+  {{ $s := div (float .rank) (float .teams) }}
+  {{ if gt $s $max }}{{ $max = $s }}{{ end }}
+  {{ if lt $s $bestShare }}{{ $bestShare = $s }}{{ $bestName = .name }}{{ end }}
+{{ end }}
+{{ $line := "" }}
+{{ $pts := slice }}
+{{ range $i, $e := $ranked }}
+  {{ $share := div (float $e.rank) (float $e.teams) }}
+  {{ $x := mul 100 (div (float $i) (float (sub $m 1))) }}
+  {{ $y := sub 100 (mul 100 (div $share $max)) }}
+  {{ $line = printf "%s %.2f,%.2f" $line $x $y }}
+  {{ $pts = $pts | append (dict "x" $x "y" $y "share" (mul 100 $share) "e" $e) }}
+{{ end }}
+{{ $refY := sub 100 (mul 100 (div 0.1 $max)) }}
+<figure class="sc-spark" data-standing aria-label="Each ranked entry's rank as a share of the field when it was scored, in submission order, calibration runs left out; lower is better. Every point links to its row below.">
+  <figcaption class="sc-spark-title">Validation round · chasing top 10% for the fun of it ;)</figcaption>
+  <div class="sc-plot" data-plot>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <path class="sc-ref" d="M0,{{ printf "%.2f" $refY }} L100,{{ printf "%.2f" $refY }}"/>
+      <polyline class="sc-line" points="{{ strings.TrimSpace $line }}"/>
+    </svg>
+    <span class="sc-ref-label" style="top: {{ printf "%.2f" $refY }}%">top 10%</span>
+    {{ range $pts }}
+    {{ $e := .e }}
+    <a class="sc-pt{{ if eq $e.name $last }} sc-pt--latest{{ else if eq $e.name $bestName }} sc-pt--best{{ end }}" href="#m-{{ $e.name | urlize }}" style="left: {{ printf "%.2f" .x }}%; top: {{ printf "%.2f" .y }}%"
+       data-name="{{ $e.name }}" data-date="{{ $e.date }}" data-overall="{{ printf "%.4f" $e.overall }}" data-rank="#{{ $e.rank }} of {{ $e.teams }}" data-share="top {{ printf "%.1f" .share }}%"
+       title="{{ $e.name }} {{ $e.date }} · #{{ $e.rank }} of {{ $e.teams }}"
+       aria-label="{{ $e.name }}, {{ $e.date }}: overall {{ printf "%.4f" $e.overall }}, rank {{ $e.rank }} of {{ $e.teams }}, top {{ printf "%.1f" .share }} percent"></a>
+    {{ end }}
+  </div>
+  {{- /* While a point is hovered, focused or chosen, standing.js swaps this line for that
+         entry's readout; a chosen point's model card goes in the block under it. */}}
+  <div class="sc-spark-axis" data-axis><span aria-hidden="true">{{ (index $ranked 0).date }}</span><span aria-hidden="true">{{ len $val }} entries{{ with $nCal }} · {{ . }} calibration runs not plotted{{ end }}</span><span aria-hidden="true">{{ (index $ranked (sub $m 1)).date }}</span><span class="sc-spark-readout" data-readout hidden></span></div>
+  <div class="sc-spark-card" data-card aria-live="polite" hidden></div>
+</figure>
+{{ end }}
+
