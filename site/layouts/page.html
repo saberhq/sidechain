@@ -1,5 +1,5 @@
 {{- /* A plain page outside posts/: same article chrome, no byline. A page with `pagehead: true` opens on the
-       final-result chip. Like a post, its sections are listed in a contents rail (a fold on narrow windows), and
+       final-result chip. Like a post, its sections are listed in a contents rail (a fold on narrow windows), with short labels (_partials/contents.html), and
        it ends on the post actions (back to top, share, copy link). */ -}}
 {{ define "main" }}
 <article class="sq-article">
@@ -14,7 +14,7 @@
       {{ partial "result-chip.html" (dict "href" (printf "%s#standings" site.Home.RelPermalink)) }}
     </div>
     {{ end }}
-    {{ partial "saberhq/post-contents.html" . }}
+    {{ partial "contents.html" . }}
     <div class="sq-prose">
       {{ .Content }}
     </div>

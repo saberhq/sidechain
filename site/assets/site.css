@@ -211,6 +211,8 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-stage--val { margin-top: var(--space-5); padding-top: 4px; border-top: 1px dashed var(--rule); }
 .sc-stage--val .sc-bars { margin-top: var(--space-4); }
 
+/* A plain page's contents rail keeps each label to one line. */
+.sc-toc a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The models page's head: the final-result chip. */
 .sc-pagehead { margin: var(--space-5) 0 var(--space-5); }
 .sc-pagehead .sc-result { margin-top: 0; }

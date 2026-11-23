@@ -4,7 +4,11 @@ date: 2026-08-27
 lastmod: 2026-11-23
 # Opens on the final-result chip (layouts/page.html).
 pagehead: true
-description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means.
+# Shorter labels in the contents rail (layouts/_partials/contents.html).
+toc_labels:
+  - from: "Judging an entry with no score to look at"
+    to: "Judging without a score"
+description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means. The last upload, CYS-6, ranked 44th of 807 teams on the final leaderboard.
 ---
 
 Sidechain put two main series of models on the challenge's leaderboards. Both predict what silencing a gene (a knockdown) does
