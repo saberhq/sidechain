@@ -7,7 +7,7 @@ pagehead: true
 description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means.
 ---
 
-Sidechain put two series of models on the challenge's leaderboards. Both predict what silencing a gene (a knockdown) does
+Sidechain put two main series of models on the challenge's leaderboards. Both predict what silencing a gene (a knockdown) does
 to a cell line they have never seen by borrowing what silencing the same gene did in large public screens of other cell
 lines, the sources. The SER series did this through the validation round. The CYS series, in the final round, starts from
 the last SER recipe; its later entries add a small model, learned on those screens, that sets how far and which way each
@@ -17,10 +17,10 @@ One validation entry, PHE-2, is a neural network that predicts the knockdowns di
 The page has three parts:
 
 - [The final round](#the-final-round): our last upload, CYS-6, finished at {{< rank final >}} on the final leaderboard,
-  and the five entries before it, which the board never scored.
+  and the five entries before it, for which no score was shown.
 - [Judging an entry with no score to look at](#judging-an-entry-with-no-score-to-look-at): how we chose the final
   entries when nothing came back from the board.
-- [The validation round](#the-validation-round): every entry the board scored, with our best, SER-29abefhkrswx, at
+- [The validation round](#the-validation-round): every entry the board scored, with our last validation entry, SER-29abefhkrswx, at
   {{< rank val >}} on the validation leaderboard.
 
 A SER name reads in three parts. In `SER-28abefhkrswx`, `SER` is the series, `28` the model number, and each lowercase
@@ -48,84 +48,84 @@ CYS-1 to CYS-5 have no score.
 
 ### CYS-6 — submitted 2026-11-04
 
-CYS-5 with one rule added to its learned model. On 37 to 48 % of the gene changes it predicts, that model points the
-change the opposite way from the plain pool of screens. On our own held-out tests these reversals were right on every line when the
-model's predicted change was large, and close to a coin toss on four lines of seven when it was small. CYS-6 keeps a
-reversal only where the predicted change is large, and sends every smaller one back to the pool's direction, with its
-size kept.
+CYS-5 with one rule added to its learned model. On 37 to 48 % of the gene changes it predicts on our held-out lines, that
+model points the change the opposite way from the plain pool of screens. Its largest reversals were right more often than
+wrong on all seven of those lines, 51 to 76 % of the time; its smallest were right 33 to 58 % of the time, about a coin
+toss or worse. CYS-6 keeps a reversal only where the predicted change passes a floor, and sends every smaller one back to
+the pool's direction, with its size kept.
 
 On our own held-out tests it read a little above CYS-5 on the final round's 300 genes and level with it on the validation
-round's. It was our last upload, so it is the entry the final leaderboard scored: 0.2563 overall, {{< rank final >}}.
-Telling knockdowns apart (pds) scored 0.750, distance (mse) 0.271, size of change (nmae) 0.263, reach 0.165, direction
-(fid) 0.083 and overlap (jac) 0.006.
+round's. By the rule we had written down before the run, that was not quite enough: on one of the gene lists we read it
+on, it missed its bar by 0.0001, so the rule said CYS-5 should stay. We uploaded CYS-6 on our own judgment, as our last
+upload, so it is the entry the final leaderboard scored: 0.2563 overall, {{< rank final >}}. Telling knockdowns apart
+(pds) scored 0.750, distance (mse) 0.271, size of change (nmae) 0.263, reach 0.165, direction (fid) 0.083 and overlap
+(jac) 0.006.
 
 ### CYS-5 — submitted 2026-11-02
 
 CYS-4 with one part replaced and one rule added. CYS-4 sets the size of each gene's change in a predicted cell from a
-table: the typical real size of a called gene for the size we predicted, read off other lines' screens. CYS-5 replaces
-that table with a small learned model. For each knockdown and gene it reads how far the nine source screens agree (their
-average, how many have data, how many point the same way, how spread they are) and how much the new line's untreated cells
-express the gene, and predicts the gene's change with its direction; it was trained on our held-out lines, each left out
-in turn. The summed profile, which the scores for telling knockdowns apart and for distance read, is held exactly where
-CYS-4 puts it, so the model moves only what the single cells carry. The added rule: a gene the untreated cells express is
-never dropped to zero reads in a predicted cell.
+table: the typical real size, for the size we predicted, of a gene the scorer's test calls changed, read off other lines'
+screens. CYS-5 replaces that table with a small learned model. For each knockdown and gene it reads how far the nine
+source screens agree and how much the new line's untreated cells express the gene, and predicts the gene's change with its
+direction; it was trained on our held-out lines. It changes what the single cells carry and leaves the summed profile as
+CYS-4 builds it. The added rule: a gene the untreated cells express keeps at least one read across a knockdown's predicted
+cells.
 
-On our own held-out tests it read above CYS-4 on the mean of four cell types, through size of change (nmae) and reach,
-and paid a little in overlap (jac) and direction (fid); the two summed-profile scores did not move.
+On our own held-out tests it read above CYS-4 on the mean over our held-out cell types, through size of change (nmae) and
+reach, and paid a little in overlap (jac) and direction (fid); the two summed-profile scores did not move.
 
 ### CYS-4 — submitted 2026-10-26
 
-CYS-2's file, byte for byte, sent again so that our last upload at the time was the recipe our held-out tests ranked
-first. Nothing in the model changed.
+CYS-2's file, byte for byte, sent again so that our last upload at the time was CYS-2's recipe rather than CYS-3's.
+Nothing in the model changed.
 
 ### CYS-3 — submitted 2026-10-25
 
 CYS-1 with the size map alone. CYS-1 gives every gene the same per-cell strength, so a gene predicted to barely move and
 one predicted to move far are scaled alike. CYS-3 passes each gene's per-cell change through a map read off other lines'
-screens: the typical real change of a gene the real cells call, for the size we predicted, so small predictions are raised
-and large ones lowered.
+screens: the typical real change, for the size we predicted, of a gene the scorer's test calls changed, so small
+predictions are raised and large ones lowered.
 
-On our own held-out tests it read above CYS-1 on the mean of four cell types, with size of change (nmae) and overlap
-(jac) carrying the gain.
+On our own held-out tests it read above CYS-1 on the mean over our held-out cell types, with overlap (jac) and direction
+(fid) carrying the gain.
 
 ### CYS-2 — submitted 2026-10-25
 
-CYS-1 with the size map of CYS-3 and a changed list of callable genes: the genes each knockdown's cells are made to call
-are chosen by the size of the predicted change rather than by how visible the change is to the scorer's test, and the list
-is ordered so the surest calls come first.
+CYS-1 with the size map of CYS-3 and a changed list of callable genes, chosen by the size of the predicted change and
+ordered so the surest come first.
 
 On our own held-out tests it read level with CYS-3 overall, with reach above it on every line and overlap (jac) below.
 
 ### CYS-1 — submitted 2026-10-22
 
 SER-29abefhkrswx's recipe, unchanged, built on the three final lines: the nine-source pool, each source read from its
-whole screen, the summed profile's strength set per line short of the point where distance (mse) stops paying, and its
-list of callable genes. It made sure a final entry existed on the first day.
+whole screen, the summed profile's strength set for each line on its own, and its list of callable genes. It made sure a
+final entry existed on the first day.
 
 ## Judging an entry with no score to look at
 
 In the validation round the board scored every upload, so an idea could be checked against it the same day. In the final
 round nothing came back until the round had closed, so every final entry was chosen on our own held-out tests alone.
-Three things let us trust them.
+Three things stood behind those choices.
 
 - **The tests were checked against the board first.** All through the validation round we scored each candidate on our
-  own held-out tests, with the challenge's own open-source scorer, before uploading it. Each validation score then told
-  us whether those tests had ranked our entries the way the board did.
+  own held-out tests, with the challenge's own open-source scorer, before uploading it. Each validation score then showed
+  us where those tests held and where they did not.
 - **What carries to a new line was learned on other lines.** Nothing in a final entry was tuned on the final lines'
-  answers, which nobody had. The learned model in CYS-5 and CYS-6 was trained on public screens with one line held out at
-  a time and judged on the line it had not seen, then carried to the three new lines. What each new line supplied was its
-  untreated cells, on which every prediction for that line is built.
+  answers, which we never saw. The learned model in CYS-5 and CYS-6 was trained with one cell type held out at a time and
+  judged on the one it had not seen; for the new lines it was trained again on all of them. What each new line supplied
+  was its untreated cells, on which every prediction for that line is built.
 - **Each comparison had its rule before its run.** Before a batch of runs we wrote down which entry a candidate had to
-  beat, on which held-out lines, and by more than the scatter two halves of the same data show. Candidates were read on
-  both rounds' lists of genes, so a gain had to hold on the knockdowns the final round asks for as well as on those the
-  validation round asked for.
+  beat, on which held-out lines, and by more than the scatter two halves of the same data show, and we read candidates on
+  both rounds' lists of genes. Where a gain fell inside that scatter, or the lists disagreed, the choice was ours, as it
+  was for CYS-6.
 
 ## The validation round
 
 The validation round ran on the challenge's three validation cell lines until October 21, and the board scored every
-upload. Our best, SER-29abefhkrswx, stands at {{< rank val >}} on the validation leaderboard as it lists it on
-{{< rank asof >}}. The board has re-ranked since the round closed, so the bars on the [home page](/#standings) give each
-entry's rank when it was scored. Each section below gives its entry's score.
+upload. Our last validation entry, SER-29abefhkrswx, stands at {{< rank val >}} on the validation leaderboard as it lists
+it on {{< rank asof >}}. The board has re-ranked since the round closed, so the bars on the [home page](/#standings) give
+each entry's rank when it was scored. Each section below gives its entry's score.
 
 ### Every entry on one board
 
