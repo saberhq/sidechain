@@ -3,9 +3,9 @@
        held, and assets/data/field.json, the latest whole-field snapshot of the validation leaderboard.
 
        Two figures: the final round's entry, at its rank on the final leaderboard, and the validation
-       round's best, at the rank the leaderboard shows for it in the latest snapshot. Each label's
-       asterisk links to the models page's section that says how that rank is read. The validation
-       round's plot is _partials/standing-plot.html, drawn with the validation bars. */ -}}
+       round's best, at the rank the leaderboard shows for it in the latest snapshot; the two alike
+       (Saber, 2026-11-23). The validation round's plot is _partials/standing-plot.html, drawn with
+       the validation bars; the line saying when the ranks were read closes _partials/entries.html. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
@@ -16,10 +16,9 @@
 {{ $val := where $entries "partition" "val" }}
 
 {{- /* ---- the figures ---- */ -}}
-{{- /* The final round's entry leads with its rank on the final leaderboard; the validation round's best
-       follows smaller, with the rank the leaderboard shows for it now when that row is ours. */ -}}
+{{- /* The final round's entry first, at its rank on the final leaderboard; then the validation round's best,
+       at the rank the leaderboard shows for it now when that row is ours. */ -}}
 {{ $final := where $entries "partition" "final" }}
-{{ $models := site.GetPage "/models" }}
 {{ $valRest := where $val "class" "!=" "calibration" }}
 {{ $vbest := dict }}
 {{- /* A tie goes to the later entry: the list is in submission order (Saber, 2026-10-20). */ -}}
@@ -27,19 +26,19 @@
 <div class="sc-stand{{ if $final }} sc-stand--final{{ end }}">
   {{ with $final }}
   {{ $f := index . (sub (len .) 1) }}
-  <div class="sc-stat sc-stat--lead">
-    <div class="sc-stat-label">Final leaderboard{{ with $models }}<sup class="sc-note"><a href="{{ .RelPermalink }}#the-final-round" title="how the final score and rank are read">*</a></sup>{{ end }}</div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Final leaderboard</div>
     <div class="sc-stat-value">#{{ $f.rank }}<small> of {{ lang.FormatNumber 0 $f.teams }} teams</small></div>
-    <div class="sc-stat-sub"><b>{{ $f.name }}</b> · <span>{{ printf "%.4f" $f.overall }}</span> · <span>top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span></div>
+    <div class="sc-stat-sub"><b>{{ $f.name }}</b><span> · {{ printf "%.4f" $f.overall }}</span><span> · top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span></div>
   </div>
   {{ end }}
   {{ with $vbest }}
   {{- $rank := .rank }}{{ $teams := .teams }}
   {{- if and $ours (eq $ours.name .name) }}{{ $rank = $ours.rank }}{{ $teams = $field.teams }}{{ end }}
-  <div class="sc-stat{{ if $final }} sc-stat--minor{{ end }}">
-    <div class="sc-stat-label">Validation leaderboard · best{{ with $models }}<sup class="sc-note"><a href="{{ .RelPermalink }}#the-validation-round" title="how the validation rank is read">*</a></sup>{{ end }}</div>
+  <div class="sc-stat">
+    <div class="sc-stat-label">Validation leaderboard</div>
     <div class="sc-stat-value">{{ with $rank }}#{{ . }}<small>{{ with $teams }} of {{ lang.FormatNumber 0 . }} teams{{ end }}</small>{{ end }}</div>
-    <div class="sc-stat-sub"><b>{{ .name }}</b> · <span>{{ printf "%.4f" .overall }}</span>{{ if and $rank $teams }} · <span>top {{ printf "%.1f" (mul 100 (div (float $rank) (float $teams))) }}%</span>{{ end }}</div>
+    <div class="sc-stat-sub"><b>{{ .name }}</b><span> · {{ printf "%.4f" .overall }}</span>{{ if and $rank $teams }}<span> · top {{ printf "%.1f" (mul 100 (div (float $rank) (float $teams))) }}%</span>{{ end }}</div>
   </div>
   {{ end }}
 </div>

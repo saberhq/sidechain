@@ -2,7 +2,7 @@
 title: Models
 date: 2026-08-27
 lastmod: 2026-11-23
-# Opens on the final-result chip and a "Read next" box (layouts/page.html).
+# Opens on the final-result chip (layouts/page.html).
 pagehead: true
 description: Every model Sidechain put on the Virtual Cell Challenge 2026 leaderboards, in the final round and the validation round — the idea each one tested, what it scored, and what its name means.
 ---

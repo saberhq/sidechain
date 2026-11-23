@@ -1,7 +1,6 @@
 ---
 title: Control cells
 description: Quality checks on the untreated control cells Arc released for each of the six cell lines in the Virtual Cell Challenge 2026.
-teaser: "quality checks on the untreated cells of all six cell lines"
 layout: controls
 date: 2026-10-23
 # a card in the landing page's rail (layouts/_partials/page-card.html)

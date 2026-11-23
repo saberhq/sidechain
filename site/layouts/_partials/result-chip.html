@@ -1,6 +1,6 @@
 {{- /* The final round's rank as one chip: "Final result · rank N of M teams · top P%", from data/submissions.json
-       (generated). Context: dict "href" (where the chip leads) "glyph" (the arrow after it). Nothing before a
+       (generated). Context: dict "href" (where the chip leads). Nothing before a
        final-round entry is scored. */ -}}
 {{ with where site.Data.submissions.entries "partition" "final" }}{{ $f := index . (sub (len .) 1) }}{{ if and $f.rank $f.teams }}
-<p class="sc-result"><a href="{{ $.href }}"><span class="sc-result-k">Final result</span><span>rank <b>{{ $f.rank }}</b> of {{ lang.FormatNumber 0 $f.teams }} teams · top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span><span class="sq-glyph" aria-hidden="true">{{ $.glyph }}</span></a></p>
+<p class="sc-result"><a href="{{ $.href }}"><span class="sc-result-k">Final result</span><span>rank <b>{{ $f.rank }}</b> of {{ lang.FormatNumber 0 $f.teams }} teams · top {{ printf "%.1f" (mul 100 (div (float $f.rank) (float $f.teams))) }}%</span></a></p>
 {{ end }}{{ end }}

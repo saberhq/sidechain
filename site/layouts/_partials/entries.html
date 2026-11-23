@@ -87,6 +87,9 @@
 </figure>
 {{ end }}
 </div>
+{{ with resources.Get "data/field.json" }}{{ with (. | transform.Unmarshal).as_of }}
+<p class="sc-stand-note">Ranks as the leaderboards list them on {{ (time.AsTime .).Format "January 2, 2006" }}.{{ if $final }} The final score is one mean over the three test cell lines.{{ end }}</p>
+{{ end }}{{ end }}
 {{ end }}
 
 {{- define "_partials/inline/bar-ticks.html" -}}

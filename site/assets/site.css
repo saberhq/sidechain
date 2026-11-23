@@ -204,34 +204,16 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-stat-value { margin-top: 2px; font-family: var(--font-mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); }
 .sc-stat-value small { margin-left: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
 .sc-stat-sep { margin: 0 3px; font-weight: 400; color: var(--ink-4); }
-/* With a final-round entry, its figure leads and the validation round's follows smaller. */
-.sc-stand--final { grid-template-columns: 3fr 2fr; align-items: end; }
-.sc-stat--lead .sc-stat-value { font-size: 34px; }
-.sc-stat--minor .sc-stat-value { font-size: 18px; }
-/* A figure's asterisk: a link to the models page's section on how that rank is read. */
-.sc-note { margin-left: 2px; font-size: 0.95em; letter-spacing: 0; }
-.sc-note a, .sc-note a:visited { color: var(--accent); text-decoration: none; }
-.sc-note a:hover { text-decoration: underline; }
+.sc-stand-note { margin: var(--space-4) 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+/* With a final-round entry the two figures read alike, a size up. */
+.sc-stand--final .sc-stat-value { font-size: 28px; }
 /* The validation round, under the final round's bar: its plot, then its bars, a dashed rule above. */
 .sc-stage--val { margin-top: var(--space-5); padding-top: 4px; border-top: 1px dashed var(--rule); }
 .sc-stage--val .sc-bars { margin-top: var(--space-4); }
 
-/* The models page's head: the final-result chip, then "Read next". */
-.sc-pagehead { margin: var(--space-5) 0 var(--space-6); }
+/* The models page's head: the final-result chip. */
+.sc-pagehead { margin: var(--space-5) 0 var(--space-5); }
 .sc-pagehead .sc-result { margin-top: 0; }
-.sc-next { margin-top: var(--space-4); border: var(--rule-w) solid var(--rule); border-radius: var(--radius); padding: 12px 16px 10px; }
-.sc-next-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
-.sc-next-list { list-style: none; margin: 8px 0 0; padding: 0; }
-.sc-next-list li { border-top: var(--rule-w) solid var(--rule); }
-.sc-next-item, .sc-next-item:visited { display: grid; grid-template-columns: 9.5em 1fr auto; align-items: baseline; gap: 12px; padding: 9px 0; color: inherit; text-decoration: none; }
-.sc-next-item .sc-kind { justify-self: start; }
-.sc-next-text { min-width: 0; }
-.sc-next-title { font-weight: 500; color: var(--ink); }
-.sc-next-teaser { display: block; margin-top: 1px; font-size: var(--small-size); color: var(--ink-3); }
-.sc-next-item:hover .sc-next-title, .sc-next-item:hover .sq-glyph { color: var(--accent); }
-.sc-next-links { display: flex; flex-wrap: wrap; gap: 4px 18px; padding-top: 9px; border-top: var(--rule-w) solid var(--rule); font-family: var(--font-mono); font-size: 11.5px; }
-.sc-next-links a, .sc-next-links a:visited { color: var(--accent); text-decoration: none; }
-.sc-next-links a:hover { text-decoration: underline; }
 /* The change since the entry before. Green only when it rose, and the sign says so too. */
 .sc-delta { margin-left: 8px; color: var(--ink-3); white-space: nowrap; }
 .sc-delta--up { color: var(--up); }
@@ -327,8 +309,8 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sq-prose .sc-board-legend { margin: 8px 0 0; font-size: var(--meta-size); line-height: 1.5; color: var(--ink-3); }
 .sq-prose .sc-board-legend b { font-weight: 500; color: var(--ink-2); }
 /* the "↑ back to top" beside each model heading on the models page (render-heading.html) */
-.sq-prose h2 .sc-top { margin-left: 10px; font-family: var(--font-mono); font-size: 11px; font-weight: 400; letter-spacing: var(--meta-track); color: var(--ink-4); text-decoration: none; vertical-align: middle; white-space: nowrap; }
-.sq-prose h2 .sc-top:hover { color: var(--accent); }
+.sq-prose :is(h2, h3) .sc-top { margin-left: 10px; font-family: var(--font-mono); font-size: 11px; font-weight: 400; letter-spacing: var(--meta-track); color: var(--ink-4); text-decoration: none; vertical-align: middle; white-space: nowrap; }
+.sq-prose :is(h2, h3) .sc-top:hover { color: var(--accent); }
 .sc-table { width: 100%; border-collapse: collapse; margin: var(--space-5) 0 0; }
 .sc-table-wrap .sc-table { margin-top: 0; }
 .sc-table th {
@@ -418,10 +400,6 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
   .sq-section-head { flex-wrap: wrap; row-gap: 2px; }
   .sc-stat-value { font-size: 17px; }
   .sc-stand--final { grid-template-columns: 1fr; }
-  .sc-stat--lead .sc-stat-value { font-size: 28px; }
-  .sc-stat--minor .sc-stat-value { font-size: 16px; }
-  .sc-next-item { grid-template-columns: 1fr auto; row-gap: 4px; }
-  .sc-next-item .sc-kind { grid-column: 1 / -1; }
   .sc-spark-readout .sc-wide { display: none; }
   /* a label that wraps must not drop its figure below its neighbour's */
   .sc-stand-row .sc-stat-label { min-height: 3.2em; }

@@ -6,7 +6,7 @@
       <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
       <h1 class="sc-wordmark"><span>Sidechain</span><span class="sc-wordmark-mark">.</span></h1>
       <p class="sq-tagline">{{ with .Params.tagline }}{{ $.RenderString . }}{{ else }}{{ .Site.Params.description }}{{ end }}</p>
-      {{ partial "result-chip.html" (dict "href" "#standings" "glyph" "↓") }}
+      {{ partial "result-chip.html" (dict "href" "#standings") }}
       <div class="sq-hero-actions">
         <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
         <a class="sq-btn sq-btn--secondary" href="{{ (.Site.GetPage "/models").RelPermalink }}">The models <span class="sq-glyph">→</span></a>
@@ -19,12 +19,9 @@
       {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "asides" (slice
           (dict "href" $models.RelPermalink "label" "what each model is →")
           (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true))) }}
-      {{- /* In this order (Saber, 2026-11-23): the figures, the paragraph, the final round's bar, then the
-             validation round: its plot and its bars. */}}
+      {{- /* In this order (Saber, 2026-11-23): the figures, the final round's bar, then the validation round:
+             its plot and its bars; one line under them says when the ranks were read. */}}
       {{ partial "standing.html" . }}
-      <div class="sc-intro">
-        <p>Every submission, as Arc scored it, round by round. A name opens its rank and a link to its section on the <a href="{{ $models.RelPermalink }}">models page</a>, which says what each model tried and what its name means.</p>
-      </div>
       {{ partial "entries.html" . }}
     </section>
 
