@@ -1,9 +1,9 @@
-{{- /* Tab titles, in the personal site's pattern ("saberhq.com - x"):
-       home: "saberhq.com - sidechain"; everything else: "sidechain - x" where x is the
+{{- /* Tab titles, in the personal site's pattern ("saberh.com - x"):
+       home: "saberh.com - sidechain"; everything else: "sidechain - x" where x is the
        page's `short` front-matter param when set, else the title (lowercased for
        section pages, kept as-is for posts). */ -}}
 {{- if .IsHome -}}
-saberhq.com - sidechain
+saberh.com - sidechain
 {{- else if .Params.short -}}
 sidechain - {{ .Params.short }}
 {{- else if eq .Kind "page" -}}

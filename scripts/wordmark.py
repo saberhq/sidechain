@@ -2,7 +2,7 @@
 
     uv run python scripts/wordmark.py
 
-Sets "Sidechain" in Geist Pixel over a Geist Mono kicker in the saberhq.com tokens, every glyph rebuilt as squares
+Sets "Sidechain" in Geist Pixel over a Geist Mono kicker in the saberh.com tokens, every glyph rebuilt as squares
 from Geist Pixel's 38-unit grid, so the SVG carries no font. Fetches Geist (SIL OFL) from Google Fonts into a temp
 dir; writes ``assets/wordmark-<variant>.svg``, ``site/static/favicon.svg`` + ``.png``, ``apple-touch-icon.png`` and
 ``site/static/og.png`` (1200x630). Notes: private/code-notes/scripts/wordmark.py.md
@@ -25,7 +25,7 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "assets"
 SITE_STATIC = Path(__file__).resolve().parent.parent / "site" / "static"
 CACHE = Path(tempfile.gettempdir()) / "sidechain-fonts"
 
-# saberhq.com tokens (assets/tokens/colors.css there): ink, ink-3, and carmine -- --accent-2,
+# saberh.com tokens (assets/tokens/colors.css there): ink, ink-3, and carmine -- --accent-2,
 # the colour that marks Sidechain, which is this site's accent (site/assets/site.css).
 PALETTES = {
     "light": {"ink": "#191613", "muted": "#6F6A62", "accent": "#A62B4D"},

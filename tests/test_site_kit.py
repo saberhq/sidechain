@@ -2,7 +2,7 @@
 
     .venv/bin/python -m pytest -q tests/test_site_kit.py
 
-Reads site/, saberhq.com's latest release over HTTPS (skips when unreachable), and a Hugo build of site/ in a
+Reads site/, saberh.com's latest release over HTTPS (skips when unreachable), and a Hugo build of site/ in a
 temporary directory (skips without Hugo). Writes nothing in the repo.
 Notes: private/code-notes/tests/test_site_kit.py.md
 """
@@ -52,11 +52,11 @@ def test_kit_matches_latest_release():
     try:
         src = kit.survey(timeout=10)
     except (urllib.error.URLError, TimeoutError, RuntimeError) as e:
-        pytest.skip(f"saberhq.com unreachable: {e}")
-    assert not src["new"], f"on saberhq.com {src['name']} and in no list: {src['new']}"
-    assert not src["gone"], f"kit files not on saberhq.com {src['name']}: {src['gone']}"
+        pytest.skip(f"saberh.com unreachable: {e}")
+    assert not src["new"], f"on saberh.com {src['name']} and in no list: {src['new']}"
+    assert not src["gone"], f"kit files not on saberh.com {src['name']}: {src['gone']}"
     changed = kit.drift(src["texts"])
-    assert not changed, f"differ from saberhq.com {src['name']}: {', '.join(changed)}; run scripts/kit-pull"
+    assert not changed, f"differ from saberh.com {src['name']}: {', '.join(changed)}; run scripts/kit-pull"
 
 
 @pytest.fixture(scope="module")

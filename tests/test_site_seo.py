@@ -17,8 +17,8 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-BASE = "https://saberhq.com/sidechain/"
-PERSON = "https://saberhq.com/#person"
+BASE = "https://saberh.com/sidechain/"
+PERSON = "https://saberh.com/#person"
 
 _spec = importlib.util.spec_from_file_location("indexnow", REPO / "scripts" / "indexnow.py")
 indexnow = importlib.util.module_from_spec(_spec)

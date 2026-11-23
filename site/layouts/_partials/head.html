@@ -1,5 +1,5 @@
 {{- /* Document head. The brand tokens are the only source of colour/type/spacing values;
-       site.css builds on them. Same load order and pipeline as saberhq.com. */ -}}
+       site.css builds on them. Same load order and pipeline as saberh.com. */ -}}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
@@ -29,7 +29,7 @@
 {{ template "_internal/twitter_cards.html" . }}
 
 {{- /* Saber HQ theme: set data-theme before first paint so there is no flash of the wrong
-       theme. The localStorage key is the one saberhq.com uses; both sites share the
+       theme. The localStorage key is the one saberh.com uses; both sites share the
        origin, so a choice made on either page holds on the other. */}}
 <script>
 (function () {

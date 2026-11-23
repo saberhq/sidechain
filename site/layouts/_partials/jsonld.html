@@ -1,11 +1,11 @@
-{{- /* The page's JSON-LD: one schema.org @graph. Every page carries the author, saberhq.com, this site and
+{{- /* The page's JSON-LD: one schema.org @graph. Every page carries the author, saberh.com, this site and
        the code; then the page itself as a WebPage, CollectionPage or BlogPosting, a Dataset on the
        control-cells page, and a breadcrumb trail below the home page. */ -}}
 {{- $base := site.BaseURL -}}
 {{- $pp := site.Params.person -}}
 {{- $person := dict "@type" "Person" "@id" $pp.id "name" $pp.name "url" $pp.url "sameAs" $pp.sameas -}}
 {{- $by := dict "@id" $pp.id -}}
-{{- $parent := dict "@type" "WebSite" "@id" site.Params.parent_id "url" site.Params.parent "name" "saberhq.com" -}}
+{{- $parent := dict "@type" "WebSite" "@id" site.Params.parent_id "url" site.Params.parent "name" "saberh.com" -}}
 {{- $siteRef := dict "@id" (printf "%s#website" $base) -}}
 {{- $website := dict "@type" "WebSite" "@id" (printf "%s#website" $base) "url" $base "name" site.Title
       "description" site.Params.description "inLanguage" site.LanguageCode "author" $by "publisher" $by

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Copy saberhq.com's shared site kit into site/ at its latest release, or check that the copies match.
+"""Copy saberh.com's shared site kit into site/ at its latest release, or check that the copies match.
 
-    scripts/kit-pull                # copy the kit at saberhq.com's latest release; write site/kit.lock.json
+    scripts/kit-pull                # copy the kit at saberh.com's latest release; write site/kit.lock.json
     scripts/kit-pull --check        # exit 1 if a copy differs or a shared file is unlisted or gone; 2 if unreachable
     scripts/kit-pull --ref main     # a branch, tag or commit instead of the latest release
 
@@ -50,9 +50,9 @@ KIT = (
     PARTIALS + "site-footer.html",
     PARTIALS + "mailto.html",
 )
-# Every file directly in these folders on saberhq.com is in KIT, THEIRS or HELD; anything else is reported as new.
+# Every file directly in these folders on saberh.com is in KIT, THEIRS or HELD; anything else is reported as new.
 SHARED_DIRS = ("assets/", "assets/tokens/", "data/", PARTIALS)
-# saberhq.com's own files in those folders, never copied (glob patterns).
+# saberh.com's own files in those folders, never copied (glob patterns).
 THEIRS = (
     "assets/albumarts.css",
     "assets/blog.css",
@@ -78,14 +78,14 @@ def _get(url: str, timeout: float, accept: str | None = None) -> bytes:
 
 
 def resolve(ref: str | None = None, timeout: float = 20) -> tuple[str, str]:
-    """(name, commit) for ref, or for saberhq.com's latest release when ref is None."""
+    """(name, commit) for ref, or for saberh.com's latest release when ref is None."""
     if ref is None:
         ref = json.loads(_get(API + "releases/latest", timeout))["tag_name"]
     return ref, _get(API + f"commits/{ref}", timeout, accept="application/vnd.github.sha").decode().strip()
 
 
 def listing(commit: str, timeout: float = 20) -> set[str]:
-    """Every file path in saberhq.com's tree at commit."""
+    """Every file path in saberh.com's tree at commit."""
     tree = json.loads(_get(API + f"git/trees/{commit}?recursive=1", timeout))
     if tree.get("truncated"):
         raise RuntimeError(f"the tree listing at {commit} is truncated")
@@ -158,7 +158,7 @@ def unlocked() -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="report what differs instead of copying")
-    ap.add_argument("--ref", help="branch, tag or commit on saberhq.com (default: its latest release)")
+    ap.add_argument("--ref", help="branch, tag or commit on saberh.com (default: its latest release)")
     args = ap.parse_args()
 
     try:
@@ -167,11 +167,11 @@ def main() -> int:
         print(f"cannot read {REPO}: {e}", file=sys.stderr)
         return 2
     lock = read_lock() or {}
-    print(f"saberhq.com {src['name']} ({src['commit'][:7]}); the kit here is {lock.get('ref', 'unlocked')}")
+    print(f"saberh.com {src['name']} ({src['commit'][:7]}); the kit here is {lock.get('ref', 'unlocked')}")
     changed = drift(src["texts"])
     for path in KIT:
         if path in src["gone"]:
-            print(f"GONE     {path} is not on saberhq.com at {src['name']}")
+            print(f"GONE     {path} is not on saberh.com at {src['name']}")
         elif path not in changed:
             print(f"same     {path}")
         elif args.check:
@@ -182,9 +182,9 @@ def main() -> int:
                 fromfile=f"site/{path}", tofile=f"saberhq.github.io@{src['name']}/{path}",
             ))
     for path in src["new"]:
-        print(f"NEW      {path} is on saberhq.com and in no list: add it to KIT, THEIRS or HELD")
+        print(f"NEW      {path} is on saberh.com and in no list: add it to KIT, THEIRS or HELD")
     for path in src["held"]:
-        print(f"HELD     {path} is on saberhq.com and not copied here")
+        print(f"HELD     {path} is on saberh.com and not copied here")
     for path in strays():
         print(f"STRAY    site/{path} is not a kit file")
     edited = [p for p in unlocked() if p not in changed]
@@ -193,7 +193,7 @@ def main() -> int:
         for path in edited:
             print(f"EDITED   site/{path} does not match kit.lock.json")
         if changed or src["new"] or src["gone"] or strays() or edited:
-            print(f"the kit differs from saberhq.com's {src['name']}; run scripts/kit-pull")
+            print(f"the kit differs from saberh.com's {src['name']}; run scripts/kit-pull")
             return 1
         return 0
 

@@ -1,21 +1,21 @@
-# site/ — saberhq.com/sidechain
+# site/ — saberh.com/sidechain
 
 Sidechain's public page: the scored submissions, what the project is, and the write-ups. A sibling of
-[saberhq.com](https://saberhq.com): the same type and colours, its own wordmark and layout, built and deployed from
+[saberh.com](https://saberh.com): the same type and colours, its own wordmark and layout, built and deployed from
 this repo. Notes: `private/code-notes/site/README.md.md`.
 
 ## How it is built
 
 Themeless [Hugo](https://gohugo.io/). Every template is in `layouts/`; every colour, size and font comes from the
-four token files in `assets/tokens/`. `assets/site.css` builds on them: the `sq-` rules are saberhq.com's chrome
+four token files in `assets/tokens/`. `assets/site.css` builds on them: the `sq-` rules are saberh.com's chrome
 carried over, the `sc-` rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which
 `site.css` re-points `--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
 
-**The kit.** The header, the footer, the post page and the post card are saberhq.com's, shared word for word with
+**The kit.** The header, the footer, the post page and the post card are saberh.com's, shared word for word with
 it: the tokens, `assets/header.css`, `assets/footer.css`, `assets/post.css`, `assets/post-card.css`,
-`data/header.yaml`, `data/areas.yaml` and `layouts/_partials/saberhq/`. saberhq.com holds the originals; these are copies, never edited here.
-`../scripts/kit-pull` copies them from saberhq.com's latest release and records it in `kit.lock.json`; it refuses
-while a file in saberhq.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
+`data/header.yaml`, `data/areas.yaml` and `layouts/_partials/saberhq/`. saberh.com holds the originals; these are copies, never edited here.
+`../scripts/kit-pull` copies them from saberh.com's latest release and records it in `kit.lock.json`; it refuses
+while a file in saberh.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
 differs from that release or from the lock. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
 loads after it. The kit reads `params.area`, `params.contentHistory`, `params.newTab`, `params.contentLicense` and the
 `menus.after` mailto line in `hugo.toml`; the build sets `params.version` to the kit's release from `kit.lock.json`.
@@ -43,11 +43,11 @@ hugo new --source site posts/my-post.md          # a draft post from the archety
 hugo server -D --source site --port 1414         # preview drafts too
 uv run python scripts/wordmark.py            # README wordmark + favicon + social card
 uv run python scripts/banner.py photo.jpg --slug my-post   # post banner from a photo
-scripts/kit-pull --check                     # is the kit still saberhq.com's? (without --check: copy it in)
+scripts/kit-pull --check                     # is the kit still saberh.com's? (without --check: copy it in)
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
 
-The preview runs on port 1414 (also in `.claude/launch.json`) because saberhq.com's `hugo server` owns 1313.
+The preview runs on port 1414 (also in `.claude/launch.json`) because saberh.com's `hugo server` owns 1313.
 
 ## For search engines and agents
 
@@ -110,7 +110,7 @@ plot's readout.
 ## How it deploys
 
 `.github/workflows/site.yml` builds `site/` on every push to `main` that touches it and publishes with GitHub Pages,
-which serves `saberhq/sidechain` at `saberhq.com/sidechain` under the account's custom domain. The one-time
+which serves `saberhq/sidechain` at `saberh.com/sidechain` under the account's custom domain. The one-time
 prerequisite is Pages enabled on this repo with *GitHub Actions* as the source, a setting the workflow token cannot
 flip itself:
 
@@ -118,4 +118,4 @@ flip itself:
 gh api -X POST repos/saberhq/sidechain/pages -f build_type=workflow
 ```
 
-Dark mode follows saberhq.com's: the `saberhq-theme` key in `localStorage`, shared because the two share an origin.
+Dark mode follows saberh.com's: the `saberhq-theme` key in `localStorage`, shared because the two share an origin.

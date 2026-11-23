@@ -6,7 +6,7 @@
 *Predicting how a cell's transcriptome shifts when a gene is silenced — a solo entry to the
 [Virtual Cell Challenge 2026](https://virtualcellchallenge.org/), built in the open.*
 
-Created by [Saber Hafezqorani](https://saberhq.com)
+Created by [Saber Hafezqorani](https://saberh.com)
 
 ---
 
@@ -15,7 +15,7 @@ Created by [Saber Hafezqorani](https://saberhq.com)
 **What it is.** Sidechain is a multi-agentic research workflow that tries to decode one of biology's hardest problems – understanding how a cell's biology changes when a gene is silenced. The idea is to climb a ladder of models from the simplest
 baseline up and keep only what the metric pays for.
 
-**How it's shared.** Code, configs and tests land here, and I'll share the journey with the broader scPerturbSeq research community through [LinkedIn](https://www.linkedin.com/in/saberhq) and [blog](https://saberhq.com/blog/) posts. Let's catch up along the way.
+**How it's shared.** Code, configs and tests land here, and I'll share the journey with the broader scPerturbSeq research community through [LinkedIn](https://www.linkedin.com/in/saberhq) and [blog](https://saberh.com/blog/) posts. Let's catch up along the way.
 
 ## Why "Sidechain", and how the models are named
 
@@ -27,7 +27,7 @@ transfer), `CYS` (bridges chains: context-aware models), `HIS/LYS/ARG` (long-ran
 graph and prior heads), `PHE/TYR/TRP` (the aromatic heavyweights: deep generative models),
 `PRO` (bends the backbone: fusion). A letter suffix marks a one-knob variant — `SER-1p` is
 `SER-1` with Poisson cells. Every model that has reached the board, with what each name means
-and what it borrows, is on the **[models page](https://saberhq.com/sidechain/models/)**. For
+and what it borrows, is on the **[models page](https://saberh.com/sidechain/models/)**. For
 the chemistry behind the pun, Compound Interest's
 [20 common amino acids](https://www.compoundchem.com/2014/09/16/aminoacids/) poster.
 
@@ -40,7 +40,7 @@ leaderboard. In the validation round the
 and re-ranked as others submitted, so the rank shown there is the one each entry held when it
 was scored — its first appearance in our board snapshots. An entry marked **calibration** is one
 sent purely to test a new method and its performance on the official board
-([what that means](https://saberhq.com/sidechain/models/#calibration-runs)).
+([what that means](https://saberh.com/sidechain/models/#calibration-runs)).
 
 <!-- standings:begin -->
 **Final round**
@@ -85,4 +85,4 @@ sent purely to test a new method and its performance on the official board
 | 2026-10-21 | `Sidechain SER-29abefhkrswx` | 0.2226 | #221 of 1638 |
 <!-- standings:end -->
 
-What each model is, and what its name means: [saberhq.com/sidechain/models](https://saberhq.com/sidechain/models/).
+What each model is, and what its name means: [saberh.com/sidechain/models](https://saberh.com/sidechain/models/).

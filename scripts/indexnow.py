@@ -20,7 +20,7 @@ import urllib.request
 from pathlib import Path
 
 STATIC = Path(__file__).resolve().parent.parent / "site" / "static"
-BASE = "https://saberhq.com/sidechain/"
+BASE = "https://saberh.com/sidechain/"
 ENDPOINT = "https://api.indexnow.org/indexnow"
 
 
@@ -39,7 +39,7 @@ def key(static: Path = STATIC) -> str | None:
 
 def payload(urls: list[str], k: str) -> dict:
     """The IndexNow request body for URLs under BASE."""
-    return {"host": "saberhq.com", "key": k, "keyLocation": f"{BASE}{k}.txt",
+    return {"host": "saberh.com", "key": k, "keyLocation": f"{BASE}{k}.txt",
             "urlList": [u for u in urls if u.startswith(BASE)]}
 
 

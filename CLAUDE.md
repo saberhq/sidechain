@@ -20,7 +20,7 @@ when you read a file in that folder: open it yourself before touching that tree.
 - `configs/` — `datasets.yaml` (**the corpus registry**: datasets, `route`, `control_label`, budgets);
   `data_sources.yaml` (the prior registry); `eval.yaml` (2025-era).
 - `tests/` — contract tests. `scripts/` — `standings.py`, `lamin_*.py`, `brev_*.sh`.
-- `site/` — saberhq.com/sidechain, themeless Hugo (`site/README.md`).
+- `site/` — saberh.com/sidechain, themeless Hugo (`site/README.md`).
 
 ## Data lives OUTSIDE the repo
 

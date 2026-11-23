@@ -1,7 +1,7 @@
 # Builds site/ with Hugo and publishes it with GitHub Pages.
 #
-# Where it lands: https://saberhq.com/sidechain/ — GitHub serves every project site of an
-# account under the user site's custom domain (saberhq.github.io carries saberhq.com), so
+# Where it lands: https://saberh.com/sidechain/ — GitHub serves every project site of an
+# account under the user site's custom domain (saberhq.github.io carries saberh.com), so
 # nothing in the personal site's repo has to change. Hugo's baseURL already carries the
 # /sidechain/ path (site/hugo.toml).
 #
@@ -10,7 +10,7 @@
 #   gh api -X POST repos/saberhq/sidechain/pages -f build_type=workflow
 # or Settings → Pages → Source: GitHub Actions. Until then the deploy job fails.
 
-name: Publish site to saberhq.com/sidechain
+name: Publish site to saberh.com/sidechain
 
 on:
   push:
@@ -75,8 +75,8 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Starts saberhq.com's rebuild once the live feed lists this build's posts, only when one has no card on
-  # saberhq.com/blog/ yet. Never fails this site's deploy.
+  # Starts saberh.com's rebuild once the live feed lists this build's posts, only when one has no card on
+  # saberh.com/blog/ yet. Never fails this site's deploy.
   saberhq-blog:
     needs: [build, deploy]
     runs-on: ubuntu-latest
@@ -90,7 +90,7 @@ jobs:
           sparse-checkout: scripts/saberhq_rebuild.py
           sparse-checkout-cone-mode: false
 
-      - name: Start saberhq.com's rebuild if a post has no card on its blog yet
+      - name: Start saberh.com's rebuild if a post has no card on its blog yet
         env:
           GH_TOKEN: ${{ secrets.SABERHQ_SITE_DISPATCH }}
           EXPECT: ${{ needs.build.outputs.posts }}

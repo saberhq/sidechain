@@ -1,9 +1,9 @@
-"""Start saberhq.com's rebuild when a post in this site's live feed has no card on saberhq.com/blog/ yet.
+"""Start saberh.com's rebuild when a post in this site's live feed has no card on saberh.com/blog/ yet.
 
     python3 scripts/saberhq_rebuild.py --guids site/public/posts/index.xml   # print a built feed's post URLs
     python3 scripts/saberhq_rebuild.py [--expect "URL ..."] [--dry-run]      # wait, compare, start if needed
 
-Reads the live feed and saberhq.com/blog/ over HTTPS; with --expect, waits until the feed lists those URLs. Starts
+Reads the live feed and saberh.com/blog/ over HTTPS; with --expect, waits until the feed lists those URLs. Starts
 `gh workflow run` on saberhq/saberhq.github.io with GH_TOKEN. Writes nothing; always exits 0.
 Notes: private/code-notes/scripts/saberhq_rebuild.py.md
 """
@@ -17,8 +17,8 @@ import sys
 import time
 import urllib.request
 
-FEED = "https://saberhq.com/sidechain/posts/index.xml"
-BLOG = "https://saberhq.com/blog/"
+FEED = "https://saberh.com/sidechain/posts/index.xml"
+BLOG = "https://saberh.com/blog/"
 REPO = "saberhq/saberhq.github.io"
 WORKFLOW = "hugo.yml"
 AGENT = "sidechain-site-deploy"
@@ -95,21 +95,21 @@ def main() -> int:
     if not new:
         print("no new post, nothing to start")
         return 0
-    print("not on saberhq.com/blog/ yet: " + " ".join(new))
+    print("not on saberh.com/blog/ yet: " + " ".join(new))
     cmd = ["gh", "workflow", "run", WORKFLOW, "--repo", REPO, "--ref", "main"]
     if args.dry_run:
         print("dry run, would start: " + " ".join(cmd))
         return 0
     if not os.environ.get("GH_TOKEN"):
-        say("GH_TOKEN is not set (the SABERHQ_SITE_DISPATCH secret); saberhq.com's rebuild not started", warn=True)
+        say("GH_TOKEN is not set (the SABERHQ_SITE_DISPATCH secret); saberh.com's rebuild not started", warn=True)
         return 0
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
-        say(f"starting saberhq.com's rebuild failed: {e}", warn=True)
+        say(f"starting saberh.com's rebuild failed: {e}", warn=True)
         return 0
     if r.returncode != 0:
-        say(f"starting saberhq.com's rebuild failed: {(r.stderr or r.stdout).strip()}", warn=True)
+        say(f"starting saberh.com's rebuild failed: {(r.stderr or r.stdout).strip()}", warn=True)
         return 0
     print(f"started {WORKFLOW} on {REPO}")
     return 0
