@@ -2,10 +2,10 @@
        hand-edited (scripts/standings.py): data/submissions.json, our scored entries with the rank each
        held, and assets/data/field.json, the latest whole-field snapshot of the validation leaderboard.
 
-       Two figures: the final round's entry, at its rank on the final leaderboard, and the validation
-       round's best, at the rank the leaderboard shows for it in the latest snapshot; the two alike
-       (Saber, 2026-11-23). The validation round's plot is _partials/standing-plot.html, drawn with
-       the validation bars; the line saying when the ranks were read closes _partials/entries.html. */ -}}
+       Two figures: the final round's entry, at its rank on the final leaderboard, leads; beside it, a
+       size down, the validation round's best, at the rank the leaderboard shows for it in the latest
+       snapshot. The validation round's plot is _partials/standing-plot.html; the line saying when
+       the ranks were read closes _partials/entries.html. */ -}}
 {{ $d := .Site.Data.submissions }}
 {{ $entries := $d.entries }}
 {{ if $entries }}
@@ -35,7 +35,7 @@
   {{ with $vbest }}
   {{- $rank := .rank }}{{ $teams := .teams }}
   {{- if and $ours (eq $ours.name .name) }}{{ $rank = $ours.rank }}{{ $teams = $field.teams }}{{ end }}
-  <div class="sc-stat">
+  <div class="sc-stat{{ if $final }} sc-stat--minor{{ end }}">
     <div class="sc-stat-label">Validation leaderboard</div>
     <div class="sc-stat-value">{{ with $rank }}#{{ . }}<small>{{ with $teams }} of {{ lang.FormatNumber 0 . }} teams{{ end }}</small>{{ end }}</div>
     <div class="sc-stat-sub"><b>{{ .name }}</b><span> · {{ printf "%.4f" .overall }}</span>{{ if and $rank $teams }}<span> · top {{ printf "%.1f" (mul 100 (div (float $rank) (float $teams))) }}%</span>{{ end }}</div>

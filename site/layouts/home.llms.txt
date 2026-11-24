@@ -8,6 +8,13 @@
 {{- with where site.Data.submissions.entries "partition" "final" }}{{ $f := index . (sub (len .) 1) }}
 
 Final result: {{ $f.name }} at rank {{ $f.rank }} of {{ $f.teams }} teams on the challenge's final leaderboard, overall {{ printf "%.4f" $f.overall }} (one mean over the three test cell lines).{{ end }}
+{{- with site.Home.Params.recipe }}
+
+How it works: {{ replace .lede "](/" (printf "](%s" site.BaseURL) }}
+{{ range $i, $s := .steps }}
+{{ add $i 1 }}. {{ $s.name }}: {{ $s.text }}
+{{- end }}
+{{- end }}
 
 ## Pages
 {{- range where site.RegularPages "Section" "" }}

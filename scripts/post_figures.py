@@ -2,10 +2,11 @@
 """Draw the write-up figures as inline SVG, from the site's generated data.
 
     python scripts/post_figures.py --out <dir> --post knobs|corpus|board
+    python scripts/post_figures.py --out site/assets/figures --post home
 
 Reads site/data/submissions.json and ~/data/sidechain/derived/coverage/coverage.json (and `SCREENS`, published
 cell counts, each with its paper); writes one SVG per figure into --out, styled with the site's CSS variables. A post includes one
-with `{{< svg src="fig-overall.svg" caption="…" >}}`.
+with `{{< svg src="fig-overall.svg" caption="…" >}}`; the landing page inlines `site/assets/figures/recipe.svg`.
 Notes: private/code-notes/scripts/post_figures.py.md
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ INK3 = "var(--ink-3, #6F6A62)"
 RULE = "var(--rule, #E3E0DA)"
 RULE_STRONG = "var(--rule-strong, #191613)"
 MARK = "var(--mark, #A62B4D)"
+ACCENT = "var(--accent, #A62B4D)"
 GREY = "var(--viz-8, #999999)"
 BLUE = "var(--viz-2, #0072B2)"
 MONO = "var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)"
@@ -440,6 +442,34 @@ def fig_recipe(recipe=RECIPE):
     return svg(W, H, body, "The SER recipe: borrow, pool, adjust, emit; the knob letters placed on the stage each one turns")
 
 
+def fig_recipe_steps(recipe=RECIPE):
+    """The recipe's four steps as numbered boxes, what goes in and what comes out; no knob letters."""
+    W, H = 652, 78
+    n = len(recipe)
+    BW, BH, GAP = 112, 44, 24
+    y0 = 30
+    cy = y0 + BH / 2
+    body = [ARROW_DEF]
+    body.append(text(1, 12, "public screens", 10, INK3, "start"))
+    body += _arrow(BW / 2, y0 - 12, BW / 2, y0 - 2)
+    xe = (n - 1) * (BW + GAP)
+    body.append(text(xe + BW, 12, "the new line's 18,400 control cells", 10, INK3, "end"))
+    body += _arrow(xe + BW / 2, y0 - 12, xe + BW / 2, y0 - 2)
+    for i, (verb, _sub, _knobs) in enumerate(recipe):
+        x = i * (BW + GAP) + 0.5
+        body.append(f'<rect x="{x:.1f}" y="{y0:.1f}" width="{BW - 1:.1f}" height="{BH:.1f}" rx="3" '
+                    f'fill="var(--surface, #FFFFFF)" stroke="{INK2}" stroke-width="1"/>')
+        body.append(f'<text x="{x + BW / 2:.1f}" y="{cy:.1f}" dy="0.35em" font-family="{MONO}" font-size="12" '
+                    f'text-anchor="middle" font-weight="500" fill="{INK}">'
+                    f'<tspan fill="{ACCENT}" font-weight="400">{i + 1}</tspan><tspan dx="8">{esc(verb)}</tspan></text>')
+        if i < n - 1:
+            body += _arrow(x + BW + 2, cy, x + BW + GAP - 3, cy)
+    body += _arrow(xe + BW + 3, cy, xe + BW + GAP - 2, cy)
+    body.append(text(xe + BW + GAP + 4, cy, "predicted cells", 10, INK3, "start", dy="0.35em"))
+    return svg(W, H, body, "The recipe in four steps: public screens go into Borrow, then Pool, then Adjust, "
+                           "then Emit, which also takes the new line's 18,400 control cells and gives the predicted cells")
+
+
 LOOP = [
     ("a session", "ends its turn with a\nthree-line STATUS block"),
     ("the Stop hook", "status_hook.py reads the\nblock, refuses one that\nnames another session"),
@@ -485,6 +515,7 @@ FIGS = {
                "fig-screens.svg": lambda: fig_screens()},
     "board": {"fig-tabs.svg": lambda: fig_tabs(),
               "fig-loop.svg": lambda: fig_loop()},
+    "home": {"recipe.svg": lambda: fig_recipe_steps()},
 }
 
 

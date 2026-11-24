@@ -1,4 +1,4 @@
-/* The landing page: the way back to the top, and the plot's readout.
+/* The landing page: the way back to the top, the bars' fold, and the plot's readout.
    Everything here is an enhancement. The figures, the plot and its links are drawn at build
    time (layouts/_partials/standing.html), the rows open with no script (they are <details>),
    and with scripts off a point is a plain link to its row. */
@@ -9,6 +9,16 @@
   document.querySelectorAll('[data-scroll-top]').forEach(function (btn) {
     btn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); });
   });
+
+  /* A link to the bars, or to a row among them, opens their fold. */
+  function unfold() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var el = id && document.getElementById(id);
+    var fold = el && el.closest && el.closest('details.sc-fold');
+    if (fold && !fold.open) { fold.open = true; el.scrollIntoView(); }
+  }
+  unfold();
+  window.addEventListener('hashchange', unfold);
 
   var fig = document.querySelector('[data-standing]');
   var plot = fig && fig.querySelector('[data-plot]');

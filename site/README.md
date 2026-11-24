@@ -100,6 +100,8 @@ Never hand-edited; each generator's `--check` reports drift without writing.
   rank 100 and Sidechain's row.
 - **`data/coverage.json`** (not in the tree; the `corpus` shortcode reads it):
   `uv run python -m sidechain.data.coverage --out site/data/coverage.json`, from the ingest caches.
+- **`assets/figures/recipe.svg`**: `uv run python scripts/post_figures.py --out site/assets/figures --post home`; the
+  landing page's "How it works" inlines it, and its text is `recipe:` in `content/_index.md`.
 - **`static/data/controls/`**: `uv run python scripts/site_controls.py`, field by field, so nothing the control-cells
   page does not draw reaches it, and a string outside the page's vocabulary stops the build. With no data on disk
   the page says so and the build still passes.

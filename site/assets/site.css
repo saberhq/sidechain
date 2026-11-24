@@ -135,11 +135,15 @@ a.sq-section-aside, a.sq-section-aside:visited { font-size: 10px; font-weight: 4
 }
 .sc-wordmark-mark { color: var(--accent); }
 .sq-tagline { margin: 18px 0 0; font-size: 17px; line-height: 1.55; color: var(--ink-2); max-width: 52ch; text-wrap: pretty; }
+/* The author's name, signing the paragraph. */
+.sc-signoff { margin: 10px 0 0; font-size: 16px; font-weight: 500; color: var(--ink-3); }
+.sc-signoff a, .sc-signoff a:visited { color: var(--ink); text-decoration: none; }
+.sc-signoff a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .sq-hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: 28px; }
 /* The final round's rank under the tagline: one line, a pill linking to the figures. */
 .sc-result { margin: 20px 0 0; font-family: var(--font-mono); font-size: 13px; color: var(--ink-2); }
-.sc-result a, .sc-result a:visited { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 7px 14px; border: var(--rule-w) solid var(--rule); border-radius: 999px; color: inherit; text-decoration: none; }
-.sc-result a:hover { border-color: var(--accent); }
+.sc-result a, .sc-result a:visited { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 7px 14px; border: var(--rule-w) solid var(--accent); border-radius: 20px; color: inherit; text-decoration: none; transition: background var(--dur) var(--ease); }
+.sc-result a:hover { background: var(--accent-wash); }
 .sc-result-k { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
 .sc-result b { font-weight: 600; color: var(--ink); }
 /* Arrow glyphs are missing from Geist Mono; render them in the sans stack at label size */
@@ -205,11 +209,35 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
 .sc-stat-value small { margin-left: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
 .sc-stat-sep { margin: 0 3px; font-weight: 400; color: var(--ink-4); }
 .sc-stand-note { margin: var(--space-4) 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
-/* With a final-round entry the two figures read alike, a size up. */
-.sc-stand--final .sc-stat-value { font-size: 28px; }
-/* The validation round, under the final round's bar: its plot, then its bars, a dashed rule above. */
-.sc-stage--val { margin-top: var(--space-5); padding-top: 4px; border-top: 1px dashed var(--rule); }
+/* With a final-round entry its rank leads; the validation rank sits beside it, a size down and all in grey. */
+.sc-stand--final { grid-template-columns: auto 1fr; column-gap: var(--space-8); align-items: end; }
+.sc-stand--final .sc-stat-value { font-size: 36px; }
+.sc-stand--final .sc-stat-value small { font-size: 13px; }
+.sc-stand--final .sc-stat--minor .sc-stat-value { font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--ink-2); }
+.sc-stand--final .sc-stat--minor .sc-stat-value small { font-size: 12px; }
+.sc-stat--minor .sc-stat-sub b { color: inherit; }
+/* The plot, under the figures. */
+.sc-stand + .sc-spark { margin-top: var(--space-6); }
+/* Every entry's bar, behind one fold: the summary is a mono line with the rows' own plus. */
+.sc-fold { margin-top: var(--space-5); border-top: var(--rule-w) solid var(--rule); scroll-margin-top: calc(var(--sq-header-h, 0px) + var(--space-4)); }
+.sc-fold > summary { display: block; list-style: none; cursor: pointer; padding: 10px 0 0; font-family: var(--font-mono); font-size: var(--meta-size); letter-spacing: var(--meta-track); color: var(--ink-2); }
+.sc-fold > summary::-webkit-details-marker { display: none; }
+.sc-fold > summary::before { content: "+\00a0"; color: var(--accent); }
+.sc-fold[open] > summary::before { content: "\2212\00a0"; }
+.sc-fold > summary:hover .sc-fold-label { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.sc-fold > .sc-bars:first-of-type { margin-top: var(--space-4); }
+/* The validation round's bars, under the final round's: a dashed rule above. */
+.sc-stage--val { margin-top: var(--space-4); padding-top: 4px; border-top: 1px dashed var(--rule); }
 .sc-stage--val .sc-bars { margin-top: var(--space-4); }
+
+/* ---------- How it works: the recipe's steps as rows, a name and a sentence ---------- */
+.sc-recipe-lede { margin: var(--space-4) 0 0; max-width: 60ch; font-size: var(--small-size); line-height: 1.55; color: var(--ink-2); text-wrap: pretty; }
+.sc-recipe-fig { margin: var(--space-5) 0 0; }
+.sc-recipe { list-style: none; margin: var(--space-4) 0 0; padding: 0; counter-reset: step; border-top: var(--rule-w) solid var(--rule); }
+.sc-recipe li { counter-increment: step; display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: var(--space-4); align-items: baseline; padding: 9px 0; border-bottom: var(--rule-w) solid var(--rule); }
+.sc-recipe-k { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+.sc-recipe-k::before { content: counter(step) "\00a0\00a0"; color: var(--accent); }
+.sc-recipe-v { font-size: var(--small-size); line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
 
 /* A plain page's contents rail keeps each label to one line. */
 .sc-toc a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -402,6 +430,10 @@ a.sc-pt.is-chosen { background: var(--ink); box-shadow: 0 0 0 2px var(--paper), 
   .sq-section-head { flex-wrap: wrap; row-gap: 2px; }
   .sc-stat-value { font-size: 17px; }
   .sc-stand--final { grid-template-columns: 1fr; }
+  .sc-stand--final .sc-stat-value { font-size: 30px; }
+  .sc-recipe li { grid-template-columns: 1fr; row-gap: 2px; }
+  /* narrow screens: the rows stand in for the figure */
+  .sc-recipe-fig { display: none; }
   .sc-spark-readout .sc-wide { display: none; }
   /* a label that wraps must not drop its figure below its neighbour's */
   .sc-stand-row .sc-stat-label { min-height: 3.2em; }

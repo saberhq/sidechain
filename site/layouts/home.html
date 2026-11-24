@@ -6,24 +6,40 @@
       <div class="sq-kicker">Virtual Cell Challenge · 2026</div>
       <h1 class="sc-wordmark"><span>Sidechain</span><span class="sc-wordmark-mark">.</span></h1>
       <p class="sq-tagline">{{ with .Params.tagline }}{{ $.RenderString . }}{{ else }}{{ .Site.Params.description }}{{ end }}</p>
+      {{- /* The author's name under the paragraph, linked to the About page of the site this one lives inside. */}}
+      {{ with .Site.Params.author }}
+      <p class="sc-signoff"><span aria-hidden="true">— </span><a href="{{ strings.TrimSuffix "/" $.Site.Params.parent }}{{ (index $.Site.Data.header.tabs "about").url }}" rel="author">{{ . }}</a></p>
+      {{ end }}
       {{ partial "result-chip.html" (dict "href" "#standings") }}
       <div class="sq-hero-actions">
         <a class="sq-btn" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">Code on GitHub <span class="sq-glyph">↗</span></a>
         <a class="sq-btn sq-btn--secondary" href="{{ (.Site.GetPage "/models").RelPermalink }}">The models <span class="sq-glyph">→</span></a>
-        <a class="sq-btn sq-btn--secondary" href="{{ .Site.Params.challenge }}" target="_blank" rel="noopener">The challenge <span class="sq-glyph">↗</span><span class="sq-sr-only"> (opens in a new tab)</span></a>
+        <a class="sq-btn sq-btn--secondary" href="{{ .Site.Params.leaderboard }}" target="_blank" rel="noopener">Official leaderboard <span class="sq-glyph">↗</span><span class="sq-sr-only"> (opens in a new tab)</span></a>
       </div>
     </section>
 
     <section class="sq-section" id="standings">
-      {{ $models := .Site.GetPage "/models" }}
-      {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand" "asides" (slice
-          (dict "href" $models.RelPermalink "label" "what each model is →")
-          (dict "href" .Site.Params.leaderboard "label" "live leaderboard ↗" "external" true))) }}
-      {{- /* In this order (Saber, 2026-11-23): the figures, the final round's bar, then the validation round:
-             its plot and its bars; one line under them says when the ranks were read. */}}
+      {{ partial "section-head.html" (dict "num" "01" "label" "Where we stand") }}
+      {{- /* The figures, the validation round's plot, then every entry's bar behind a fold. */}}
       {{ partial "standing.html" . }}
+      {{ partial "standing-plot.html" . }}
       {{ partial "entries.html" . }}
     </section>
+
+    {{- /* The recipe: `recipe` in content/_index.md (a Markdown lede and the steps) around its figure
+           (assets/figures/recipe.svg, drawn by scripts/post_figures.py --post home). */}}
+    {{ with .Params.recipe }}
+    <section class="sq-section" id="recipe">
+      {{ partial "section-head.html" (dict "num" "02" "label" "How it works") }}
+      {{ with .lede }}<p class="sc-recipe-lede">{{ $.RenderString . }}</p>{{ end }}
+      {{ with resources.Get "figures/recipe.svg" }}<figure class="sc-recipe-fig">{{ .Content | safeHTML }}</figure>{{ end }}
+      <ol class="sc-recipe">
+        {{ range .steps }}
+        <li><span class="sc-recipe-k">{{ .name }}</span><span class="sc-recipe-v">{{ .text }}</span></li>
+        {{ end }}
+      </ol>
+    </section>
+    {{ end }}
 
   </div>
 

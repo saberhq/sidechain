@@ -1,4 +1,5 @@
-{{- /* "Where we stand", its last item: a bar per scored submission, latest first, and under
+{{- /* "Where we stand", its last item, behind one fold (<details id="entries">, closed): a bar
+       per scored submission, latest first, and under
        it the calibration runs in a strip of their own. Each row is a fold-out: the model's
        name opens the rank it held when scored and a link to its section on the models page
        (_partials/entry-row.html), so the bars are the one list of models on the page. They
@@ -57,9 +58,11 @@
 {{ $steps := int (math.Round (mul $ceil 10)) }}
 {{- /* the axis is labelled at every 0.1, where each row's dashed lines fall */}}
 {{ $axis := printf `<div class="sc-bar-row sc-bars-axis"><span class="sc-bar-label"></span><span class="sc-bars-axis-track sc-bars-axis-ticks">%s</span><span></span></div>` (partial "inline/bar-ticks.html" $steps) | safeHTML }}
+<details class="sc-fold" id="entries">
+<summary><span class="sc-fold-label">All {{ len $entries }} scored entries</span></summary>
 {{ with $final }}
 <figure class="sc-bars sc-bars--named sc-bars--final" style="--label-ch: {{ $lch }}" aria-label="The final round: overall score on the final leaderboard; a name opens its rank and a link to what the model is">
-  <figcaption class="sc-bars-title">Final round · overall score · 0 = the context mean, 1 = a biological replicate</figcaption>
+  <figcaption class="sc-bars-title">Final round · overall score</figcaption>
   {{ $axis }}
   {{ range collections.Reverse . }}
   {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" true) }}
@@ -67,9 +70,8 @@
 </figure>
 {{ end }}
 <div class="sc-stage{{ if $final }} sc-stage--val{{ end }}">
-{{ partial "standing-plot.html" . }}
 <figure class="sc-bars sc-bars--named{{ if $final }} sc-bars--val{{ end }}" style="--label-ch: {{ $lch }}" aria-label="Overall score per scored submission{{ if $final }} in the validation round{{ end }}; a name opens its rank and a link to what the model is">
-  <figcaption class="sc-bars-title">{{ if $final }}Every validation entry · overall score{{ else }}Overall score · 0 = the context mean, 1 = a biological replicate{{ end }}</figcaption>
+  <figcaption class="sc-bars-title">{{ if $final }}Validation round · overall score{{ else }}Overall score{{ end }}</figcaption>
   {{ $axis }}
   {{ range collections.Reverse $rest }}
   {{ partial "entry-row.html" (dict "e" . "ceil" $ceil "best" (eq .name $best.name)) }}
@@ -88,8 +90,9 @@
 {{ end }}
 </div>
 {{ with resources.Get "data/field.json" }}{{ with (. | transform.Unmarshal).as_of }}
-<p class="sc-stand-note">Ranks as the leaderboards list them on {{ (time.AsTime .).Format "January 2, 2006" }}.{{ if $final }} The final score is one mean over the three test cell lines.{{ end }}</p>
+<p class="sc-stand-note">The two ranks above the plot are as the leaderboards list them on {{ (time.AsTime .).Format "January 2, 2006" }}.</p>
 {{ end }}{{ end }}
+</details>
 {{ end }}
 
 {{- define "_partials/inline/bar-ticks.html" -}}

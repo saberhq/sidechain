@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 78" width="100%" style="max-width:652px;height:auto;display:block" role="img" aria-label="The recipe in four steps: public screens go into Borrow, then Pool, then Adjust, then Emit, which also takes the new line's 18,400 control cells and gives the predicted cells">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink-2, #45403A)"/></marker></defs>
+<text x="1.0" y="12.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--ink-3, #6F6A62)" text-anchor="start" font-weight="400">public screens</text>
+<line x1="56.0" y1="18.0" x2="56.0" y2="28.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<text x="520.0" y="12.0" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--ink-3, #6F6A62)" text-anchor="end" font-weight="400">the new line's 18,400 control cells</text>
+<line x1="464.0" y1="18.0" x2="464.0" y2="28.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="0.5" y="30.0" width="111.0" height="44.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="56.5" y="52.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="12" text-anchor="middle" font-weight="500" fill="var(--ink, #191613)"><tspan fill="var(--accent, #A62B4D)" font-weight="400">1</tspan><tspan dx="8">Borrow</tspan></text>
+<line x1="114.5" y1="52.0" x2="133.5" y2="52.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="136.5" y="30.0" width="111.0" height="44.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="192.5" y="52.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="12" text-anchor="middle" font-weight="500" fill="var(--ink, #191613)"><tspan fill="var(--accent, #A62B4D)" font-weight="400">2</tspan><tspan dx="8">Pool</tspan></text>
+<line x1="250.5" y1="52.0" x2="269.5" y2="52.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="272.5" y="30.0" width="111.0" height="44.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="328.5" y="52.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="12" text-anchor="middle" font-weight="500" fill="var(--ink, #191613)"><tspan fill="var(--accent, #A62B4D)" font-weight="400">3</tspan><tspan dx="8">Adjust</tspan></text>
+<line x1="386.5" y1="52.0" x2="405.5" y2="52.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="408.5" y="30.0" width="111.0" height="44.0" rx="3" fill="var(--surface, #FFFFFF)" stroke="var(--ink-2, #45403A)" stroke-width="1"/>
+<text x="464.5" y="52.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="12" text-anchor="middle" font-weight="500" fill="var(--ink, #191613)"><tspan fill="var(--accent, #A62B4D)" font-weight="400">4</tspan><tspan dx="8">Emit</tspan></text>
+<line x1="523.0" y1="52.0" x2="542.0" y2="52.0" stroke="var(--ink-2, #45403A)" stroke-width="1.1" marker-end="url(#arr)"/>
+<text x="548.0" y="52.0" dy="0.35em" font-family="var(--font-mono, 'Geist Mono', ui-monospace, Menlo, monospace)" font-size="10" fill="var(--ink-3, #6F6A62)" text-anchor="start" font-weight="400">predicted cells</text>
+</svg>

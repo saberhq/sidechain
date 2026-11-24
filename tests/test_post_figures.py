@@ -123,3 +123,12 @@ def test_tick_labels_print_every_step_distinctly():
     assert pf.tick_nd([0.1, 0.15, 0.2]) == 2
     labels = texts(pf.fig_members(ENTRIES))
     assert "0.01" not in labels or "0.005" not in labels
+
+
+def test_recipe_steps_names_the_four_steps_and_no_knob():
+    root = ET.fromstring(pf.fig_recipe_steps())
+    labels = ["".join(t.itertext()) for t in root.iter("{http://www.w3.org/2000/svg}text")]
+    for i, (verb, _sub, knobs) in enumerate(pf.RECIPE, 1):
+        assert f"{i}{verb}" in labels, verb
+        for letter, gloss in knobs:
+            assert letter not in labels and gloss not in labels, (verb, letter)
