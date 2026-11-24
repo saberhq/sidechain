@@ -120,7 +120,7 @@ a.sq-tab--vibes[aria-current] { color: var(--accent-3); }
 [data-theme="dark"] .sq-switch-moon { opacity: 1; }
 
 /* Under the bar: the path to this page, section / page; the words are links, the slashes are not */
-.sq-subheader { background: var(--paper); border-bottom: var(--rule-w) solid var(--rule); }
+.sq-subheader { background: var(--paper); }
 .sq-trail {
   max-width: var(--page-max); margin: 0 auto; padding: 0 var(--space-6);
   display: flex; align-items: baseline; overflow: hidden; line-height: 36px; white-space: nowrap;
