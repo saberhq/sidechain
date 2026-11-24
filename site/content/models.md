@@ -1,7 +1,7 @@
 ---
 title: Models
 date: 2026-08-27
-lastmod: 2026-11-23
+lastmod: 2026-11-24
 # Opens on the final-result chip (layouts/page.html).
 pagehead: true
 # Shorter labels in the contents rail (layouts/_partials/contents.html).
@@ -12,8 +12,8 @@ description: Every model Sidechain put on the Virtual Cell Challenge 2026 leader
 ---
 
 Sidechain put two main series of models on the challenge's leaderboards. Both predict what silencing a gene (a knockdown) does
-to a cell line they have never seen by borrowing what silencing the same gene did in large public screens of other cell
-lines, the sources. The SER series did this through the validation round. The CYS series, in the final round, starts from
+to a cell line they have never seen by borrowing what silencing the same gene did in large public screens, the
+sources. The SER series did this through the validation round. The CYS series, in the final round, starts from
 the last SER recipe; its later entries add a small model, learned on those screens, that sets how far and which way each
 gene moves.
 One validation entry, PHE-2, is a neural network that predicts the knockdowns directly.
