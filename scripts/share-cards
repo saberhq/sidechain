@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""Draw the share cards in data/share.json: the 1200×630 picture a shared link shows.
+
+A card is a strip (the mark and the address), a pixel title and one companion: a tag, a line,
+chips, a photo or pixel art. Each missing or stale one is drawn to assets/share/<key>.png.
+Drawing needs Google Chrome and the network (for the fonts); --check needs neither.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import html
+import json
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import zlib
+from pathlib import Path
+
+CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+SIZE = (1200, 630)
+TOKENS = ("fonts", "colors", "typography", "spacing")
+STYLE = "assets/share-card.css"
+FONTS = ("Geist", "Geist Mono", "Geist Pixel")
+LADDER = (210.4, 157.8, 131.5, 105.2, 78.9)
+ADVANCE, LEADING = 0.52, 1.04
+WIDE, NARROW, ROOM, SLOT = 1072, 760, 400, 256
+UNDER = {"tag": 124, "line": 130, "chips": 92}
+COMPANIONS = ("tag", "line", "chips", "chip_accent", "photo", "art")
+STAMP = "share-card"
+PNG = b"\x89PNG\r\n\x1a\n"
+SHEET = (
+    "body { margin: 0; background: #FAF9F7; color: #191613; font: 17px/1.55 -apple-system, 'Helvetica Neue', sans-serif; }",
+    "main { max-width: 1000px; margin: 0 auto; padding: 40px 24px 96px; }",
+    "h1 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 8px; }",
+    "section { border-top: 1.5px solid #191613; margin-top: 48px; padding-top: 12px; }",
+    "h2 { font: 500 13px/1.4 ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: #6F6A62; margin: 0 0 14px; }",
+    "h2 b { color: #D55E00; font-weight: 500; margin-right: .8em; }",
+    ".note { margin: -6px 0 14px; color: #45403A; max-width: 68ch; }",
+    ".row { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }",
+    ".big { display: block; max-width: 100%; height: auto; border: 1px solid #E3E0DA; border-radius: 6px; }",
+    ".chat { width: 300px; border-radius: 18px; overflow: hidden; background: #E9E9EB; font-family: -apple-system, 'Helvetica Neue', sans-serif; }",
+    ".chat img { display: block; }",
+    ".meta { padding: 9px 13px 11px; }",
+    ".t { font-size: 14px; font-weight: 600; line-height: 1.25; color: #000; }",
+    ".d { font-size: 12.5px; color: #8A8A8E; margin-top: 2px; }",
+)
+
+
+def resolve(data: dict, key: str) -> list:
+    """The card, and after it the card with its `large` companion when it has one."""
+    base = dict(data["cards"][key])
+    large = base.pop("large", None)
+    cards = [dict(base, key=key)]
+    if large:
+        kept = {k: v for k, v in base.items() if k not in COMPANIONS}
+        cards.append(dict(kept, **large, key=f"{key}-large"))
+    for card in cards:
+        card.setdefault("mark", data["mark"])
+        card.setdefault("address", data["address"] + card["path"].rstrip("/"))
+        if isinstance(card["title"], str):
+            card["title"] = [card["title"]]
+        if card.get("art"):
+            card["rows"] = data["art"][card["art"]]
+        card.setdefault("size", fit(card))
+    return cards
+
+
+def fit(card: dict) -> float:
+    lines = card["title"]
+    width = NARROW if card.get("photo") or card.get("art") else WIDE
+    under = next((UNDER[k] for k in UNDER if card.get(k)), 0)
+    for size in LADDER:
+        if max(map(len, lines)) * size * ADVANCE <= width and len(lines) * size * LEADING + under <= ROOM:
+            return size
+    return LADDER[-1]
+
+
+def art(rows: list) -> str:
+    cell = SLOT // max(len(rows), max(map(len, rows)))
+    rects = []
+    for y, row in enumerate(rows):
+        x = 0
+        while x < len(row):
+            if row[x] != "X":
+                x += 1
+                continue
+            start = x
+            while x < len(row) and row[x] == "X":
+                x += 1
+            rects.append(f'<rect x="{start * cell}" y="{y * cell}" width="{(x - start) * cell}" height="{cell}"/>')
+    w, h = max(map(len, rows)) * cell, len(rows) * cell
+    return f'<svg class="sh-art" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{"".join(rects)}</svg>'
+
+
+def page(card: dict, base: str) -> str:
+    e = html.escape
+    sheets = [f"assets/tokens/{t}.css" for t in TOKENS] + [STYLE]
+    links = "".join(f'<link rel="stylesheet" href="{base}/{s}">' for s in sheets)
+    lines = [e(line) for line in card["title"]]
+    if lines[-1].endswith("."):
+        lines[-1] = lines[-1][:-1] + '<span class="sh-dot">.</span>'
+    words = f'<div class="sh-title" style="font-size:{card["size"]}px">{"<br>".join(lines)}</div>'
+    if card.get("tag"):
+        words += f'<div class="sh-tag">{e(card["tag"])}</div>'
+    if card.get("line"):
+        words += f'<p class="sh-line">{e(card["line"])}</p>'
+    if card.get("chips"):
+        chips = "".join(
+            f'<span class="sh-chip{" sh-chip--accent" if c == card.get("chip_accent") else ""}">{e(c)}</span>'
+            for c in card["chips"])
+        words += f'<div class="sh-chips">{chips}</div>'
+    thing = ""
+    if card.get("photo"):
+        thing = f'<div class="sh-object"><img class="sh-photo" src="{base}/{e(card["photo"])}" alt=""></div>'
+    elif card.get("rows"):
+        thing = f'<div class="sh-object">{art(card["rows"])}</div>'
+    attrs = "".join(f' data-{k}="{e(card[k])}"' for k in ("accent", "theme") if card.get(k))
+    return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">{links}</head><body>'
+            f'<div class="sh-card"{attrs}>'
+            f'<div class="sh-strip"><span class="sh-mark">{e(card["mark"])}</span>'
+            f'<span class="sh-addr">{e(card["address"])}</span></div>'
+            f'<div class="sh-body"><div class="sh-words">{words}</div>{thing}</div>'
+            f'</div></body></html>')
+
+
+def stamp(card: dict, root: Path) -> str:
+    h = hashlib.sha256(page(card, "").encode())
+    files = [f"assets/tokens/{t}.css" for t in TOKENS] + [STYLE]
+    if card.get("photo"):
+        files.append(card["photo"])
+    for f in files:
+        h.update((root / f).read_bytes())
+    return h.hexdigest()[:32]
+
+
+def chunks(png: bytes):
+    at = len(PNG)
+    while at < len(png):
+        (length,), kind = struct.unpack(">I", png[at:at + 4]), png[at + 4:at + 8]
+        yield kind, png[at + 8:at + 8 + length]
+        at += 12 + length
+
+
+def read(path: Path):
+    """(width, height, stamp) of a card's picture."""
+    png = path.read_bytes()
+    if not png.startswith(PNG):
+        return 0, 0, ""
+    size, mark = (0, 0), ""
+    for kind, body in chunks(png):
+        if kind == b"IHDR":
+            size = struct.unpack(">II", body[:8])
+        elif kind == b"tEXt" and body.startswith(STAMP.encode() + b"\0"):
+            mark = body.split(b"\0", 1)[1].decode()
+    return size[0], size[1], mark
+
+
+def stamped(png: bytes, mark: str) -> bytes:
+    body = STAMP.encode() + b"\0" + mark.encode()
+    chunk = struct.pack(">I", len(body)) + b"tEXt" + body + struct.pack(">I", zlib.crc32(b"tEXt" + body))
+    head = len(PNG) + 25
+    return png[:head] + chunk + png[head:]
+
+
+def chrome(args: list, done, wait: float = 45.0) -> bool:
+    profile = tempfile.mkdtemp(prefix="share-cards-")
+    p = subprocess.Popen(
+        [CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
+         "--force-device-scale-factor=1", "--blink-settings=preferredColorScheme=1",
+         "--virtual-time-budget=8000", f"--user-data-dir={profile}", *args],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    end = time.time() + wait
+    ok = False
+    while time.time() < end and not ok:
+        time.sleep(0.25)
+        ok = done()
+    p.kill()
+    p.wait()
+    subprocess.run(["pkill", "-9", "-f", f"user-data-dir={profile}"], capture_output=True)
+    shutil.rmtree(profile, ignore_errors=True)
+    return ok
+
+
+def settled(path: Path):
+    seen = {"size": -1}
+
+    def done() -> bool:
+        size = path.stat().st_size if path.exists() else 0
+        same, seen["size"] = size > 0 and size == seen["size"], size
+        return same
+    return done
+
+
+def missing_fonts(root: Path, tmp: Path) -> list:
+    names = json.dumps(FONTS)
+    probe, out = tmp / "fonts.html", tmp / "fonts.png"
+    probe.write_text(
+        f'<!doctype html><html><head><meta charset="utf-8">'
+        f'<link rel="stylesheet" href="{root.as_uri()}/assets/tokens/fonts.css"></head><body><script>'
+        f"Promise.all({names}.map(f => document.fonts.load('40px \"' + f + '\"').then(r => r.length ? '' : f, () => f)))"
+        f".then(m => {{ document.body.style.background = m.some(Boolean) ? '#f00' : '#0f0'; }});"
+        f"</script></body></html>")
+    if not chrome([f"--window-size=8,8", f"--screenshot={out}", probe.as_uri()], settled(out)):
+        return ["Chrome wrote nothing"]
+    rows = zlib.decompress(b"".join(body for kind, body in chunks(out.read_bytes()) if kind == b"IDAT"))
+    return [] if rows[1:3] == b"\x00\xff" else ["one of " + ", ".join(FONTS)]
+
+
+def draw(card: dict, root: Path, out: Path, tmp: Path) -> str:
+    src, shot = tmp / f"{card['key']}.html", tmp / f"{card['key']}.png"
+    src.write_text(page(card, root.as_uri()))
+    if not chrome([f"--window-size={SIZE[0]},{SIZE[1]}", f"--screenshot={shot}", src.as_uri()], settled(shot)):
+        return "Chrome wrote no picture"
+    w, h, _ = read(shot)
+    if (w, h) != SIZE:
+        return f"drawn at {w}×{h}, not {SIZE[0]}×{SIZE[1]}"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{card['key']}.png").write_bytes(stamped(shot.read_bytes(), stamp(card, root)))
+    return ""
+
+
+def check(card: dict, root: Path, out: Path) -> str:
+    path = out / f"{card['key']}.png"
+    if not path.exists():
+        return "no picture"
+    w, h, mark = read(path)
+    if (w, h) != SIZE:
+        return f"{w}×{h}, not {SIZE[0]}×{SIZE[1]}"
+    if mark != stamp(card, root):
+        return "older than its words or its look"
+    return ""
+
+
+def sheet(cards: list, out: Path, folder: Path):
+    folder.mkdir(parents=True, exist_ok=True)
+    e = html.escape
+    blocks = ""
+    for n, card in enumerate(cards, 1):
+        name = f"{card['key']}.png"
+        if folder != out:
+            shutil.copyfile(out / name, folder / name)
+        src = f"{name}?{read(out / name)[2]}"
+        label = card.get("label", card["key"])
+        note = f'<p class="note">{e(card["note"])}</p>' if card.get("note") else ""
+        blocks += (
+            f'<section id="{e(card["key"])}"><h2><b>{n:02d}</b>{e(label)}</h2>{note}<div class="row">'
+            f'<img class="big" src="{src}" width="600" height="315" alt="">'
+            f'<div class="chat"><img src="{src}" width="300" height="158" alt="">'
+            f'<div class="meta"><div class="t">{e(card.get("preview", label))}</div>'
+            f'<div class="d">{e(card["address"])}</div></div></div>'
+            f'</div></section>')
+    (folder / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Share cards</title>'
+        f'<style>{" ".join(SHEET)}</style></head><body><main><h1>Share cards</h1>'
+        '<p>The picture a link shows when it is sent in a chat or posted: each card at half size, '
+        f'then as a chat shows it.</p>{blocks}</main></body></html>\n')
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("keys", nargs="*", help="only these cards (default: every card)")
+    ap.add_argument("--all", action="store_true", help="redraw the fresh pictures too")
+    ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent, help="the site's folder")
+    ap.add_argument("--data", type=Path, help="the list of cards (default: data/share.json)")
+    ap.add_argument("--out", type=Path, help="where the pictures go (default: assets/share)")
+    ap.add_argument("--check", action="store_true", help="draw nothing: say which pictures are missing or stale")
+    ap.add_argument("--sheet", type=Path, metavar="FOLDER", help="also write a page that shows every card")
+    a = ap.parse_args()
+    root = a.root.resolve()
+    data = json.loads((a.data or root / "data/share.json").read_text())
+    out = (a.out or root / "assets/share").resolve()
+    unknown = [k for k in a.keys if k not in data["cards"]]
+    if unknown:
+        print(f"share-cards: no card named {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    cards = [c for k in (a.keys or data["cards"]) for c in resolve(data, k)]
+
+    if a.check:
+        bad = [(c["key"], why) for c in cards if (why := check(c, root, out))]
+        for key, why in bad:
+            print(f"share card {key}: {why} (run scripts/share-cards)")
+        known = {c["key"] for k in data["cards"] for c in resolve(data, k)}
+        stray = sorted(f.name for f in out.glob("*.png") if f.stem not in known)
+        for name in stray:
+            print(f"share card {name}: belongs to no card in the list (delete it)")
+        return 1 if bad or stray else 0
+
+    todo = [c for c in cards if a.all or check(c, root, out)]
+    for card in cards:
+        if card not in todo:
+            print(f"{card['key']}: fresh")
+    failed = 0
+    with tempfile.TemporaryDirectory(prefix="share-cards-") as t:
+        tmp = Path(t)
+        gone = missing_fonts(root, tmp) if todo else []
+        if gone:
+            print(f"share-cards: the fonts did not load ({', '.join(gone)}); nothing drawn", file=sys.stderr)
+            return 1
+        for card in todo:
+            why = draw(card, root, out, tmp)
+            failed += bool(why)
+            print(f"{card['key']}: {why or 'drawn'}")
+    if a.sheet and not failed:
+        sheet(cards, out, a.sheet.resolve())
+        print(f"sheet: {a.sheet / 'index.html'}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

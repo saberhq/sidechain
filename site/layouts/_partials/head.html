@@ -25,8 +25,7 @@
 <link rel="alternate" type="text/plain" href="{{ "llms.txt" | absURL }}" title="llms.txt">
 <meta name="author" content="{{ .Site.Params.author }}">
 
-{{ template "_internal/opengraph.html" . }}
-{{ template "_internal/twitter_cards.html" . }}
+{{ partial "share.html" . }}
 
 {{- /* Saber HQ theme: set data-theme before first paint so there is no flash of the wrong
        theme. The localStorage key is the one saberh.com uses; both sites share the

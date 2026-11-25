@@ -33,6 +33,17 @@ def test_no_stray_files_in_kit_folder():
     assert not kit.strays(), f"not kit files: {kit.strays()}; the kit folder holds copies only"
 
 
+def test_a_kit_script_is_copied_to_the_repo_root():
+    assert kit.dest("scripts/share-cards") == REPO / "scripts" / "share-cards"
+    assert kit.dest("assets/post.css") == REPO / "site" / "assets" / "post.css"
+
+
+def test_share_cards_are_drawn_from_the_list():
+    run = subprocess.run([str(REPO / "scripts" / "share-cards"), "--check", "--root", str(REPO / "site")],
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+
+
 def test_lists_do_not_overlap():
     assert not set(kit.KIT) & set(kit.HELD)
     assert len(set(kit.KIT)) == len(kit.KIT)
@@ -76,7 +87,6 @@ def test_header_and_footer_on_every_page(built, page):
     assert bool(re.search(r'<nav class="?sq-subheader"?', html)) == (page != ""), "path strip"
     assert len(re.findall(r'<footer class="?sq-sitefooter"?>', html)) == 1
     assert re.search(r'href="?mailto:[^" >]+"?>Email<', html), "footer email"
-    assert re.search(r'href="?/resume/"?[^>]*>Résumé', html), "footer résumé"
 
 
 @pytest.mark.parametrize("page", PAGES)

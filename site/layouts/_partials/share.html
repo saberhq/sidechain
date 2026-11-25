@@ -1,0 +1,43 @@
+{{- /* Link previews: Open Graph and X cards. The picture: the page's own (the first of `images` in its front matter,
+       a file beside it), else the nearest share card (data/share.json). Context: the page. */ -}}
+{{- $img := dict -}}
+{{- with .Params.images -}}
+  {{- with $.Resources.Get (index . 0) -}}
+    {{- $v := substr (replaceRE "[^A-Za-z0-9]" "" (. | fingerprint "md5").Data.Integrity) 3 8 -}}
+    {{- $img = dict "url" (printf "%s?v=%s" .Permalink $v) "width" .Width "height" .Height "alt" ($.Params.images_alt | default $.Params.image_alt | default "") -}}
+  {{- end -}}
+{{- end -}}
+{{- if not $img }}{{ $img = partial "saberhq/share-card" . }}{{ end -}}
+{{- $desc := or .Description .Summary site.Params.description | plainify | htmlUnescape -}}
+<meta property="og:url" content="{{ .Permalink }}">
+<meta property="og:site_name" content="{{ site.Title }}">
+<meta property="og:title" content="{{ .Title }}">
+<meta property="og:description" content="{{ trim $desc "\n\r\t " }}">
+<meta property="og:locale" content="{{ replace site.Language.LanguageCode "-" "_" }}">
+<meta property="og:type" content="{{ cond .IsPage "article" "website" }}">
+{{- if .IsPage }}
+{{- with .Section }}
+<meta property="article:section" content="{{ . }}">
+{{- end }}
+<meta property="article:published_time" {{ .PublishDate.Format "2006-01-02T15:04:05-07:00" | printf "content=%q" | safeHTMLAttr }}>
+<meta property="article:modified_time" {{ .Lastmod.Format "2006-01-02T15:04:05-07:00" | printf "content=%q" | safeHTMLAttr }}>
+{{- end }}
+{{- with $img }}
+<meta property="og:image" content="{{ .url }}">
+<meta property="og:image:width" content="{{ .width }}">
+<meta property="og:image:height" content="{{ .height }}">
+{{- with .alt }}
+<meta property="og:image:alt" content="{{ . }}">
+{{- end }}
+{{- end }}
+<meta name="twitter:card" content="{{ cond (gt ($img.width | default 0) ($img.height | default 0)) "summary_large_image" "summary" }}">
+{{- with ($img.large | default $img) }}
+{{- with .url }}
+<meta name="twitter:image" content="{{ . }}">
+{{- end }}
+{{- with .alt }}
+<meta name="twitter:image:alt" content="{{ . }}">
+{{- end }}
+{{- end }}
+<meta name="twitter:title" content="{{ .Title }}">
+<meta name="twitter:description" content="{{ trim $desc "\n\r\t " }}">

@@ -1,11 +1,11 @@
-"""Regenerate the wordmark assets: the README's SVGs and the site's favicon and social card.
+"""Regenerate the wordmark assets: the README's SVGs and the site's favicon.
 
     uv run python scripts/wordmark.py
 
 Sets "Sidechain" in Geist Pixel over a Geist Mono kicker in the saberh.com tokens, every glyph rebuilt as squares
 from Geist Pixel's 38-unit grid, so the SVG carries no font. Fetches Geist (SIL OFL) from Google Fonts into a temp
-dir; writes ``assets/wordmark-<variant>.svg``, ``site/static/favicon.svg`` + ``.png``, ``apple-touch-icon.png`` and
-``site/static/og.png`` (1200x630). Notes: private/code-notes/scripts/wordmark.py.md
+dir; writes ``assets/wordmark-<variant>.svg``, ``site/static/favicon.svg`` + ``.png`` and ``apple-touch-icon.png``.
+Notes: private/code-notes/scripts/wordmark.py.md
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "assets"
 SITE_STATIC = Path(__file__).resolve().parent.parent / "site" / "static"
@@ -31,7 +31,7 @@ PALETTES = {
     "light": {"ink": "#191613", "muted": "#6F6A62", "accent": "#A62B4D"},
     "dark": {"ink": "#ECE7DF", "muted": "#999183", "accent": "#DE5A78"},
 }
-PAPER, INK_2 = "#FAF9F7", "#45403A"  # --paper, --ink-2 (light); the social card is light-only
+PAPER = "#FAF9F7"  # --paper (light)
 
 KICKER = "VIRTUAL CELL CHALLENGE · 2026"
 WORD, MARK = "Sidechain", "."  # the full stop takes the accent
@@ -177,54 +177,8 @@ def favicon_png(font: TTFont, size: int, fill: str, background: str | None) -> I
     return img
 
 
-def tracked_text(d: ImageDraw.ImageDraw, xy, text: str, font, fill: str, track: float = 0.0) -> float:
-    """PIL has no letter-spacing; place glyphs one by one. Returns the end x."""
-    x, y = xy
-    for ch in text:
-        d.text((x, y), ch, font=font, fill=fill, anchor="ls")
-        x += font.getlength(ch) + track
-    return x
-
-
-def social_card(pixel: TTFont, mono: TTFont, sans_path: Path, mono_path: Path) -> Image.Image:
-    """1200x630: kicker, wordmark, tagline, footer strip -- the README header as a picture."""
-    W, H, M = 1200, 630, 96
-    c = PALETTES["light"]
-    img = Image.new("RGB", (W, H), PAPER)
-    d = ImageDraw.Draw(img)
-
-    kicker_font = ImageFont.truetype(str(mono_path), 24)
-    tracked_text(d, (M, 150), KICKER, kicker_font, c["muted"], track=24 * KICKER_TRACK)
-
-    # Lay the word and the mark out together, then split the cells by glyph so the
-    # full stop sits where the font puts it and takes the accent.
-    cells, _ = cells_for(pixel, WORD + MARK)
-    word_adv = cells_for(pixel, WORD)[1]
-    word = [cell for cell in cells if cell[0] < word_adv]
-    mark = [cell for cell in cells if cell[0] >= word_adv]
-    x0, y0, x1, y1 = _bbox(cells)
-    px = (W - 2 * M) // (x1 - x0)  # the whole wordmark spans the text column
-    top = 150 + 36
-    draw_cells(img, word, px, M, top + (y1 - _bbox(word)[3]) * px, c["ink"])
-    draw_cells(img, mark, px, M + (_bbox(mark)[0] - x0) * px, top + (y1 - _bbox(mark)[3]) * px, c["accent"])
-    word_bottom = top + (y1 - y0) * px
-
-    tag_font = ImageFont.truetype(str(sans_path), 30)
-    d.text((M, word_bottom + 66), "Predicting how a cell's transcriptome shifts when a gene is silenced.", font=tag_font, fill=INK_2, anchor="ls")
-    d.text((M, word_bottom + 66 + 44), "A solo entry to the Virtual Cell Challenge 2026, built in the open.", font=tag_font, fill=INK_2, anchor="ls")
-
-    d.rectangle([M, H - 84, W - M, H - 83], fill=c["ink"])  # the brand's section rule
-    foot_font = ImageFont.truetype(str(mono_path), 17)
-    tracked_text(d, (M, H - 50), "SABERHQ.COM  —  SIDECHAIN", foot_font, c["muted"], track=17 * 0.06)
-    return img
-
-
 def build_site_assets() -> list[tuple[Path, int]]:
     pixel = fetch_font("Geist+Pixel")
-    mono = fetch_font("Geist+Mono:wght@500")
-    mono_path = CACHE / "Geist_Mono_wght_500.ttf"
-    fetch_font("Geist:wght@400")
-    sans_path = CACHE / "Geist_wght_400.ttf"
     accent = PALETTES["light"]["accent"]
 
     SITE_STATIC.mkdir(parents=True, exist_ok=True)
@@ -236,9 +190,6 @@ def build_site_assets() -> list[tuple[Path, int]]:
         p = SITE_STATIC / name
         favicon_png(pixel, size, accent, bg).save(p, optimize=True)
         out.append((p, p.stat().st_size))
-    p = SITE_STATIC / "og.png"
-    social_card(pixel, mono, sans_path, mono_path).save(p, optimize=True)
-    out.append((p, p.stat().st_size))
     return out
 
 

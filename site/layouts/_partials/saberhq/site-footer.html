@@ -1,7 +1,5 @@
-{{/* Site footer: one strip on every page (who and when, three links, the fine print). Context: the page. */}}
+{{/* Site footer: one strip on every page (who and when, two links, the fine print). Context: the page. */}}
 {{- $mailto := partial "saberhq/mailto" . }}
-{{- $resume := "/resume/" }}
-{{- $resumeOff := partial "saberhq/new-tab" $resume }}
 {{- $feed := "/blog/index.xml" }}{{/* the blog's feed, also on a site without the blog (Sidechain) */}}
 {{- with site.GetPage "docs/blog" }}{{ with .OutputFormats.Get "rss" }}{{ $feed = .RelPermalink }}{{ end }}{{ end }}
 {{- $licence := site.Params.contentLicense | default (dict "name" "CC BY 4.0" "url" "https://creativecommons.org/licenses/by/4.0/") }}{{/* a site's own licence for its pages (Sidechain), else CC BY 4.0 */}}
@@ -14,7 +12,6 @@
         {{- with $mailto }}
         <li><a href="{{ . }}">Email</a></li>
         {{- end }}
-        <li><a href="{{ $resume }}"{{ if $resumeOff }} target="_blank" rel="noopener"{{ end }}>Résumé{{ if $resumeOff }} <span class="sq-glyph" aria-hidden="true">↗</span><span class="sq-sr-only"> (opens in a new tab)</span>{{ end }}</a></li>
       </ul>
     </nav>
     <small class="sq-foot-fine">

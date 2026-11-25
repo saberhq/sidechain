@@ -11,9 +11,10 @@ four token files in `assets/tokens/`. `assets/site.css` builds on them: the `sq-
 carried over, the `sc-` rules are Sidechain's additions. The accent is carmine, `--accent-2` in the tokens, which
 `site.css` re-points `--accent` at; re-measure contrast before changing a colour (4.5:1 for text on its ground).
 
-**The kit.** The header, the footer, the post page and the post card are saberh.com's, shared word for word with
-it: the tokens, `assets/header.css`, `assets/footer.css`, `assets/post.css`, `assets/post-card.css`,
-`data/header.yaml`, `data/areas.yaml` and `layouts/_partials/saberhq/`. saberh.com holds the originals; these are copies, never edited here.
+**The kit.** The header, the footer, the post page, the post card and the share cards are saberh.com's, shared word
+for word with it: the tokens, `assets/header.css`, `assets/footer.css`, `assets/post.css`, `assets/post-card.css`,
+`assets/share-card.css`, `data/header.yaml`, `data/areas.yaml`, `layouts/_partials/saberhq/` and
+`../scripts/share-cards`. saberh.com holds the originals; these are copies, never edited here.
 `../scripts/kit-pull` copies them from saberh.com's latest release and records it in `kit.lock.json`; it refuses
 while a file in saberh.com's shared folders is in none of its lists. `../tests/test_site_kit.py` fails when a copy
 differs from that release or from the lock. `post-card.css` and `post.css` load before `site.css`, so this site's rules override them; `header.css`
@@ -26,10 +27,10 @@ site/
 ├── content/_index.md      landing page copy + the front matter the sections read
 ├── content/posts/         write-ups (markdown; see archetypes/posts.md)
 ├── content/*.md           standalone pages: the models page, the control-cells page
-├── data/                  submissions.json — generated, see below; header.yaml + areas.yaml — the kit
+├── data/                  submissions.json — generated, see below; header.yaml + areas.yaml — the kit; share.json — the share cards
 ├── layouts/               home, posts list, post, 404; partials (saberhq/ is the kit), render hooks, shortcodes
-├── assets/                tokens/ + header.css, post.css, post-card.css (the kit); site.css, standing.js, controls.js; data/field.json — generated
-└── static/                favicon and social card (scripts/wordmark.py); data/controls/ — generated
+├── assets/                tokens/ + header.css, post.css, post-card.css, share-card.css (the kit); site.css, standing.js, controls.js; data/field.json — generated; share/ — the drawn cards
+└── static/                favicon (scripts/wordmark.py); data/controls/ — generated
 ```
 
 ## Working on it
@@ -41,8 +42,10 @@ hugo --source site --minify             # builds into site/public/ (gitignored)
 
 hugo new --source site posts/my-post.md          # a draft post from the archetype
 hugo server -D --source site --port 1414         # preview drafts too
-uv run python scripts/wordmark.py            # README wordmark + favicon + social card
+uv run python scripts/wordmark.py            # README wordmark + favicon
 uv run python scripts/banner.py photo.jpg --slug my-post   # post banner from a photo
+uv run python scripts/banner.py photo.jpg --social site/content/desk.jpg   # a page's link-preview picture from a photo
+scripts/share-cards --root site              # draw the share cards in data/share.json that are missing or stale
 scripts/kit-pull --check                     # is the kit still saberh.com's? (without --check: copy it in)
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
 ```
@@ -56,6 +59,22 @@ a `WebPage`, `CollectionPage`, `BlogPosting` or, on the control-cells page, a `D
 `llms.txt` (`layouts/home.llms.txt`) and an `index.md` beside each page's `index.html` (`layouts/page.markdown.md`; a
 shortcode used in a page needs a `*.markdown.md` twin). After each deploy, `../scripts/indexnow.py` sends the page list
 to the IndexNow search engines. `../tests/test_site_seo.py` checks the built pages.
+
+## Link previews
+
+The picture a link to a page shows when it is posted or sent (`og:image`, `layouts/_partials/share.html`):
+
+1. **The page's own picture**: the first file under `images:` in its front matter, a file beside the page, with
+   `images_alt:` (a post: `image_alt:`) as its description. `scripts/banner.py photo.jpg --social FILE` cuts one from
+   a photo at 1200x627 with EXIF stripped; `--offset 0..100` slides the crop. The landing page's lines are in
+   `content/_index.md`: change them to show another picture, remove them to show the card.
+2. **Else the share card**: the card in `data/share.json` whose `path` starts the page's address, the longest one.
+   `scripts/share-cards --root site` draws each card to `assets/share/<key>.png` (it needs Google Chrome and the
+   network); `--sheet DIR` also writes a page that shows them. The pictures are committed, and
+   `../tests/test_site_kit.py` fails when one is older than its words.
+
+The picture's address ends in `?v=` and a hash of the file. LinkedIn's
+[Post Inspector](https://www.linkedin.com/post-inspector/) refreshes the preview LinkedIn has stored for an address.
 
 ## Posts and pages
 

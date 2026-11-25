@@ -62,6 +62,22 @@ def test_every_page_has_unique_title_description_canonical(built):
         assert 'name="twitter:card"' in h or "name=twitter:card" in h, f"{url}: no X card"
 
 
+def test_every_page_has_a_link_preview_picture(built):
+    for url in _pages(built):
+        h = _html(built, url)
+        src = re.search(r'<meta property="?og:image"? content="?([^" >]+)', h)
+        assert src, f"{url}: no og:image"
+        assert src.group(1).startswith(BASE), url
+        assert (built / src.group(1).removeprefix(BASE).split("?")[0]).is_file(), f"{url}: {src.group(1)} is not built"
+        assert re.search(r'og:image:width"? content="?1200\b', h), f"{url}: the picture's width"
+        assert re.search(r'twitter:card"? content="?summary_large_image', h), f"{url}: X card"
+        front = (REPO / "site" / "content" / url.removeprefix(BASE)).with_suffix(".md")
+        for f in (front, front.with_suffix("") / "index.md", front.with_suffix("") / "_index.md"):
+            own = f.is_file() and re.search(r"^images:\s*\[\s*([^\],\s]+)", f.read_text(), re.M)
+            if own:
+                assert f"/{own.group(1)}?v=" in src.group(1), f"{url}: its own picture, {own.group(1)}"
+
+
 def test_every_page_has_json_ld_with_the_author(built):
     for url in _pages(built):
         g = _graph(_html(built, url))

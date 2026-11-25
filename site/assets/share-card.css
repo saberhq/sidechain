@@ -1,0 +1,45 @@
+/* The share card: 1200×630, drawn at twice the site's sizes. A strip, a pixel title, one companion. */
+html, body { margin: 0; background: transparent; }
+
+.sh-card {
+  --sh-accent: var(--accent);
+  box-sizing: border-box; width: 1200px; height: 630px; overflow: hidden;
+  padding: 56px 64px 64px; display: flex; flex-direction: column;
+  background: var(--paper); color: var(--ink); font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.sh-card[data-accent="sidechain"] { --sh-accent: var(--accent-2); }
+.sh-card[data-accent="vibes"] { --sh-accent: var(--accent-3); }
+
+/* The strip: the mark on the left, the address on the right */
+.sh-strip {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-top: 3px solid var(--rule-strong); padding-top: 18px;
+  font: 500 26px/1 var(--font-mono); color: var(--ink-3);
+}
+.sh-mark { font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); }
+
+.sh-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 56px; }
+.sh-words { min-width: 0; }
+
+/* The title: its size is set per card, from Geist Pixel's whole-pixel sizes */
+.sh-title { font: 400 131.5px/1.04 var(--font-pixel); letter-spacing: 0; white-space: nowrap; margin-left: -0.06em; }
+.sh-dot { color: var(--sh-accent); }
+
+/* Companions under the title */
+.sh-tag { margin: 22px 0 0 -0.06em; font: 400 78.9px/1 var(--font-pixel); color: var(--ink-3); white-space: nowrap; }
+.sh-line { margin: 28px 0 0; max-width: 720px; font-size: 36px; line-height: 1.32; letter-spacing: -0.012em; color: var(--ink-2); }
+.sh-chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 36px; }
+.sh-chip {
+  font: 500 22px/1 var(--font-mono); white-space: nowrap; padding: 12px 18px 13px;
+  border: 2px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--ink-2);
+}
+.sh-chip--accent { color: var(--sh-accent); border-color: currentColor; }
+
+/* Companions beside the title */
+.sh-object { flex: none; width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; }
+.sh-photo {
+  display: block; width: 232px; height: 232px; border-radius: 50%; object-fit: cover;
+  background: var(--surface-sunken); outline: 2px solid var(--rule); outline-offset: 10px;
+}
+.sh-art { display: block; shape-rendering: crispEdges; fill: var(--sh-accent); }

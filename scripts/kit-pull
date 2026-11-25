@@ -6,7 +6,7 @@
     scripts/kit-pull --ref main     # a branch, tag or commit instead of the latest release
 
 Reads api.github.com and raw.githubusercontent.com for saberhq/saberhq.github.io, all files at one commit;
-writes site/<path> and site/kit.lock.json.
+writes site/<path> (a script: scripts/<name>) and site/kit.lock.json.
 Notes: private/code-notes/scripts/kit-pull.md
 """
 from __future__ import annotations
@@ -25,7 +25,8 @@ from pathlib import Path
 REPO = "saberhq/saberhq.github.io"
 API = f"https://api.github.com/repos/{REPO}/"
 RAW = f"https://raw.githubusercontent.com/{REPO}/"
-SITE = Path(__file__).resolve().parent.parent / "site"
+ROOT = Path(__file__).resolve().parent.parent
+SITE = ROOT / "site"
 LOCK = SITE / "kit.lock.json"
 PARTIALS = "layouts/_partials/saberhq/"
 KIT = (
@@ -49,17 +50,27 @@ KIT = (
     "assets/footer.css",
     PARTIALS + "site-footer.html",
     PARTIALS + "mailto.html",
+    "assets/share-card.css",
+    PARTIALS + "share-card.html",
+    "scripts/share-cards",
 )
+# Kit files copied to the repo root, not into site/; kept executable.
+SCRIPTS = "scripts/"
 # Every file directly in these folders on saberh.com is in KIT, THEIRS or HELD; anything else is reported as new.
 SHARED_DIRS = ("assets/", "assets/tokens/", "data/", PARTIALS)
 # saberh.com's own files in those folders, never copied (glob patterns).
 THEIRS = (
+    "assets/about.css",
     "assets/albumarts.css",
     "assets/blog.css",
     "assets/custom.css",
     "assets/manifest.json",
     "assets/vibes.css",
     "data/albumarts.json",
+    "data/career.yaml",
+    "data/papers.yaml",
+    "data/person.yaml",
+    "data/share.json",
     "data/vibes*.json",
 )
 # Shared files not copied here yet; each moves to KIT or THEIRS.
@@ -115,11 +126,20 @@ def survey(ref: str | None = None, timeout: float = 20) -> dict:
     return {"name": name, "commit": commit, "new": new, "gone": gone, "held": held, "texts": texts}
 
 
+def dest(path: str) -> Path:
+    """Where a kit file's copy lives in this repo."""
+    return (ROOT if path.startswith(SCRIPTS) else SITE) / path
+
+
+def shown(path: str) -> str:
+    return str(dest(path).relative_to(ROOT))
+
+
 def drift(texts: dict[str, str]) -> dict[str, tuple[str, str]]:
     """Each kit file whose copy differs from texts: path -> (copy, theirs)."""
     out = {}
     for path, theirs in texts.items():
-        dst = SITE / path
+        dst = dest(path)
         mine = dst.read_text() if dst.exists() else ""
         if mine != theirs:
             out[path] = (mine, theirs)
@@ -149,7 +169,7 @@ def unlocked() -> list[str]:
     files = lock.get("files", {})
     bad = sorted(set(files) ^ set(KIT))
     for path in KIT:
-        dst = SITE / path
+        dst = dest(path)
         if path in files and (not dst.exists() or digest(dst.read_text()) != files[path]):
             bad.append(path)
     return bad
@@ -179,7 +199,7 @@ def main() -> int:
             print(f"DIFFERS  {path}")
             sys.stdout.writelines(difflib.unified_diff(
                 mine.splitlines(True), theirs.splitlines(True),
-                fromfile=f"site/{path}", tofile=f"saberhq.github.io@{src['name']}/{path}",
+                fromfile=shown(path), tofile=f"saberhq.github.io@{src['name']}/{path}",
             ))
     for path in src["new"]:
         print(f"NEW      {path} is on saberh.com and in no list: add it to KIT, THEIRS or HELD")
@@ -191,7 +211,7 @@ def main() -> int:
 
     if args.check:
         for path in edited:
-            print(f"EDITED   site/{path} does not match kit.lock.json")
+            print(f"EDITED   {shown(path)} does not match kit.lock.json")
         if changed or src["new"] or src["gone"] or strays() or edited:
             print(f"the kit differs from saberh.com's {src['name']}; run scripts/kit-pull")
             return 1
@@ -201,14 +221,16 @@ def main() -> int:
         print("nothing copied: every shared file must be listed and every kit file present first", file=sys.stderr)
         return 1
     for path, theirs in src["texts"].items():
-        dst = SITE / path
+        dst = dest(path)
         if path in changed:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(theirs)
             print(f"updated  {path}")
+        if path.startswith(SCRIPTS):
+            dst.chmod(0o755)
     for path in sorted(set(lock.get("files", {})) - set(KIT)):
-        if (SITE / path).exists():
-            (SITE / path).unlink()
+        if dest(path).exists():
+            dest(path).unlink()
             print(f"removed  {path}")
     LOCK.write_text(json.dumps({
         "source": REPO, "ref": src["name"], "commit": src["commit"],

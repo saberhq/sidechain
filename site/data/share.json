@@ -1,0 +1,15 @@
+{
+  "mark": "Saber H.",
+  "address": "saberh.com",
+  "cards": {
+    "home": {
+      "path": "/sidechain/",
+      "mark": "Saber Hafezqorani",
+      "title": "Sidechain.",
+      "size": 210.4,
+      "line": "Predicting how a cell’s transcriptome shifts when a gene is silenced.",
+      "accent": "sidechain",
+      "alt": "A card that reads “Sidechain.” and “Predicting how a cell’s transcriptome shifts when a gene is silenced.”"
+    }
+  }
+}

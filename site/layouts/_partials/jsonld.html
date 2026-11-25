@@ -40,7 +40,7 @@
 {{- else if eq .Section "posts" -}}
   {{- $images := slice -}}
   {{- range .Params.images }}{{ with $.Resources.GetMatch . }}{{ $images = $images | append .Permalink }}{{ end }}{{ end -}}
-  {{- if not $images }}{{ $images = slice (absURL "og.png") }}{{ end -}}
+  {{- if not $images }}{{ with partial "saberhq/share-card" . }}{{ $images = slice .url }}{{ end }}{{ end -}}
   {{- $article := merge $dates (dict "@type" "BlogPosting" "@id" (printf "%s#article" $url) "headline" .Title
         "description" $desc "url" $url "mainEntityOfPage" (dict "@id" (printf "%s#webpage" $url)) "image" $images
         "author" $by "publisher" $by "inLanguage" site.LanguageCode "wordCount" .WordCount "isPartOf" $blogRef

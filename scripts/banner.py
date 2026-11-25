@@ -3,6 +3,7 @@
     uv run python scripts/banner.py                          # list the pool, pick one
     uv run python scripts/banner.py photo.jpg --slug corpus  # banner for posts/corpus/
     uv run python scripts/banner.py photo.jpg --out DIR      # banner anywhere else
+    uv run python scripts/banner.py photo.jpg --social FILE  # only the link-preview card, as FILE
 
 Writes ``cover.jpg`` (2000x800) and ``social.jpg`` (1200x627), only cropped and resized, EXIF stripped, and prints the
 capture date as the suggested ``caption:`` line. Reads a JPEG/PNG/TIFF from the pool ``~/art/still/sidechain-banner/``
@@ -67,6 +68,7 @@ def main() -> int:
     ap.add_argument("photo", nargs="?", help="photo path; omit to list the pool")
     ap.add_argument("--slug", help="post bundle to write into: site/content/posts/<slug>/")
     ap.add_argument("--out", help="write into this directory instead of a post bundle")
+    ap.add_argument("--social", help="write only the link-preview card, to this file")
     ap.add_argument("--offset", type=float, default=50, help="crop window position, 0..100 (default 50)")
     args = ap.parse_args()
 
@@ -77,24 +79,31 @@ def main() -> int:
         src = POOL / args.photo  # bare pool filename works too
     if not src.exists():
         sys.exit(f"no such photo: {src}")
-    if args.slug and args.out:
-        sys.exit("--slug and --out are exclusive")
-    if not args.slug and not args.out:
-        sys.exit("say where it goes: --slug <post> or --out <dir>")
-    dest = POSTS / args.slug if args.slug else Path(args.out).expanduser()
+    if sum(map(bool, (args.slug, args.out, args.social))) > 1:
+        sys.exit("--slug, --out and --social are exclusive")
+    if not (args.slug or args.out or args.social):
+        sys.exit("say where it goes: --slug <post>, --out <dir> or --social <file>")
+    if args.social:
+        only = Path(args.social).expanduser()
+        dest, cuts = only.parent, tuple((only.name, w, h) for name, w, h in CUTS if name == "social.jpg")
+    else:
+        dest, cuts = POSTS / args.slug if args.slug else Path(args.out).expanduser(), CUTS
     dest.mkdir(parents=True, exist_ok=True)
 
     with Image.open(src) as im:
         im = ImageOps.exif_transpose(im)  # bake the rotation in before EXIF is dropped
         date = taken(im)
         im = im.convert("RGB")
-        for name, w, h in CUTS:
+        for name, w, h in cuts:
             out = cut(im, w, h, args.offset)
             # save() writes no EXIF unless asked to, which is the point: originals carry GPS
             out.save(dest / name, quality=82, progressive=True, optimize=True)
             print(f"{dest / name}  {out.width}x{out.height}")
 
     print("\nfront matter:")
+    if args.social:
+        print(f"images: [{only.name}]")
+        return 0
     print("image: cover.jpg")
     print(f'caption: "{date}"' if date else "caption: \"\"          # no EXIF date found — fill in by hand")
     print("images: [social.jpg]")

@@ -1,0 +1,23 @@
+{{- /* The page's share card: the card whose path starts the page's address, the longest one. Returns url, width, height, alt, own, large (url, alt). */ -}}
+{{- $r := dict -}}
+{{- $at := .RelPermalink -}}
+{{- $key := "" -}}
+{{- $path := "" -}}
+{{- range $k, $c := site.Data.share.cards -}}
+  {{- if and (strings.HasPrefix $at $c.path) (gt (len $c.path) (len $path)) -}}
+    {{- $key = $k -}}
+    {{- $path = $c.path -}}
+  {{- end -}}
+{{- end -}}
+{{- with $key -}}
+  {{- $c := index site.Data.share.cards . -}}
+  {{- with resources.Get (printf "share/%s.png" $key) -}}
+    {{- $v := substr (replaceRE "[^A-Za-z0-9]" "" (. | fingerprint "md5").Data.Integrity) 3 8 -}}
+    {{- $r = dict "url" (printf "%s?v=%s" .Permalink $v) "width" .Width "height" .Height "alt" ($c.alt | default $.Title) "own" (eq $path $at) -}}
+    {{- with resources.Get (printf "share/%s-large.png" $key) -}}
+      {{- $v := substr (replaceRE "[^A-Za-z0-9]" "" (. | fingerprint "md5").Data.Integrity) 3 8 -}}
+      {{- $r = merge $r (dict "large" (dict "url" (printf "%s?v=%s" .Permalink $v) "alt" ($c.large.alt | default $r.alt))) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $r -}}
