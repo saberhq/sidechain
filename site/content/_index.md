@@ -4,7 +4,7 @@ description: Predicting how a cell's transcriptome shifts when a gene is silence
 # The line under the wordmark (Saber, 2026-10-23). Markdown; `description` above stays the search and link-preview text.
 # The picture a link to this page shows (layouts/_partials/share.html); without these two lines, the share card.
 images: [desk.jpg]
-images_alt: "A desk at night: a lit lamp, an alarm clock, an Arsenal cup of pens and a laptop on a stand, below a yellow sheet that reads “Oct 16 → 22, last week of validation phase”."
+images_alt: "A desk at night: a lit lamp, an alarm clock, an Arsenal cup of pens, a laptop on a stand, and a keyboard on a brown desk mat."
 tagline: "This is a fun project where I'm the only human in the loop of a multi-agent research workflow powered by Claude — a solo-team entry to [VCC26](https://virtualcellchallenge.org/) that built robust models to predict how a cell's transcriptome shifts when a gene is silenced. This website documents our journey in public: the [models page](/models/) says what each of our submissions tried, and the [blog posts](/posts/) tell the story behind them."
 # "How it works": the recipe's lede (Markdown) and steps (layouts/home.html, layouts/home.llms.txt).
 recipe:
