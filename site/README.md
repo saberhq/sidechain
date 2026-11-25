@@ -44,7 +44,7 @@ hugo new --source site posts/my-post.md          # a draft post from the archety
 hugo server -D --source site --port 1414         # preview drafts too
 uv run python scripts/wordmark.py            # README wordmark + favicon
 uv run python scripts/banner.py photo.jpg --slug my-post   # post banner from a photo
-uv run python scripts/banner.py photo.jpg --social site/content/desk.jpg   # a page's link-preview picture from a photo
+uv run python scripts/banner.py photo.jpg --social site/content/photo.jpg   # a page's link-preview picture from a photo
 scripts/share-cards --root site              # draw the share cards in data/share.json that are missing or stale
 scripts/kit-pull --check                     # is the kit still saberh.com's? (without --check: copy it in)
 uv run python scripts/chroma_css.py          # code-block styles, after a Hugo upgrade
@@ -66,8 +66,8 @@ The picture a link to a page shows when it is posted or sent (`og:image`, `layou
 
 1. **The page's own picture**: the first file under `images:` in its front matter, a file beside the page, with
    `images_alt:` (a post: `image_alt:`) as its description. `scripts/banner.py photo.jpg --social FILE` cuts one from
-   a photo at 1200x627 with EXIF stripped; `--offset 0..100` slides the crop. The landing page's lines are in
-   `content/_index.md`: change them to show another picture, remove them to show the card.
+   a photo at 1200x627 with EXIF stripped; `--offset 0..100` slides the crop. The landing page takes one the same
+   way, as two lines in `content/_index.md` and the file in `content/`.
 2. **Else the share card**: the card in `data/share.json` whose `path` starts the page's address, the longest one.
    `scripts/share-cards --root site` draws each card to `assets/share/<key>.png` (it needs Google Chrome and the
    network); `--sheet DIR` also writes a page that shows them. The pictures are committed, and
